@@ -9,6 +9,10 @@
 2. **Painel web** — o app do dono: conversas, agenda, clientes, notas fiscais, ajustes.
 3. **App mobile** — o mesmo painel no bolso, para consultar entre um atendimento e outro.
 
+> ⚠️ **O painel (app) e as rotas de entrada têm emendas a este documento.** Antes de desenhar
+> tela do app, leia **EMENDAS DO PAINEL**, logo antes de ICONOGRAPHY. Onde elas contradizem o
+> resto deste arquivo, elas valem para o app; o site e as LPs seguem o texto original.
+
 ## Fontes usadas
 
 Nenhuma. Este sistema foi criado **do zero**, a partir de uma entrevista com o time, em 27/07/2026. Não havia logo, paleta, fontes, Figma, codebase, site no ar nem deck.
@@ -112,6 +116,80 @@ Painel: sidebar e topbar fixas, conteúdo rola. Site: header sticky com blur. Mo
 
 ### Acessibilidade
 Contraste AA em todo par de texto/fundo (ver o card "Pares aprovados"). Alvo de toque mínimo de 44px no mobile. Todo `IconButton` exige `label`. Foco sempre visível.
+
+---
+
+## EMENDAS DO PAINEL (24/09/2026)
+
+Escritas uma vez, com limite, pela auditoria do front de 24/09/2026 (backlog `(C) 10`, item
+T10). Regra do projeto: quando o app precisa fugir do sistema, a exceção é escrita aqui; nunca
+violada em silêncio. Cada emenda diz até onde vai. Fora do limite, vale o resto deste arquivo.
+
+### 1. Pílula é controle
+Forma de pílula (`border-radius: 999px`) promete clique. No painel ela só aparece em: filtro e
+segmento (`Filtros`), interruptor (`Toggle`), contagem **dentro** de um controle (o número do
+item do rail, o ponto da aba) e avatar.
+
+- **Status que não clica é forma + rótulo**, pelo primitivo `Estado` (`src/ui/primitivos.tsx`):
+  uma marca de forma (anel, disco, triângulo) e o rótulo em tinta, `width: fit-content`, sem
+  fundo. A forma carrega o sentido junto com a cor, porque cor sozinha é o sinal mais frágil.
+- **Status editável numa lista** é `Toggle` (44px de alvo).
+- **Exceção única:** a tarja de data na conversa ("Hoje", "Ontem", "12 de setembro"). É a
+  convenção de mensageiro que quem usa WhatsApp já lê sem pensar.
+- **Limite medido:** `node scripts/bancada/medir.mjs <tela>` conta `pilulasMudas`; tem de dar 0
+  em toda tela, fora a tarja da conversa.
+
+### 2. Âmbar não é ação
+No painel o âmbar (`--warm`) tem dois empregos e só dois: **marca** (wordmark e selo "m" sobre
+`--nav`) e **pendência** (o ponto e a contagem do rail sobre `--nav`, 7,3:1; na barra de abas,
+que é clara, a pendência usa `--warn`, porque o ouro sobre fundo claro dá 1,6:1).
+
+- **A ação primária é `--primary`** (o azul do app), nunca um fill âmbar. Isto substitui, no
+  painel, o "verde-mata `--brand` na ação primária" deste documento.
+- **Um primário por tela na dobra**, no fim do caminho. `medir.mjs` conta `primariosNaDobra`.
+- **Limite:** nenhum `<button>` com `background: var(--warm)` em `src/ui` nem nas rotas de
+  entrada.
+
+### 3. Sem gradiente, sem emoji, e dois raios
+- **Sem gradiente** (`linear-gradient`, `radial-gradient`, `conic-gradient`) em tela do painel,
+  nas cinco rotas de entrada (`/login`, `/cadastro`, `/esqueci`, `/nova-senha`, `/comecar`) e
+  no **preview do WhatsApp** dos Ajustes. Fundo chapado.
+- **Sem emoji** na tela e no preview. O preview mostra o que a MAISA manda, e ela não manda
+  emoji (ver CONTENT FUNDAMENTALS).
+- **Raio 8 em controle** (botão, campo, select, botão-ícone) e **12 em cartão**, como em
+  *Cantos*. O código de hoje ainda tem 10, 14, 16 e 20: é dívida que converge na Onda 3 do
+  backlog (item 3.7). Código novo já nasce em 8 e 12.
+
+### 4. A paleta do app é navy e azul (divergência declarada)
+O painel e as rotas de entrada **não** usam o creme + verde-mata + neutros marrons deste
+documento. Usam os tokens de `src/app/globals.css`: um azul só (matiz 262 em OKLCH) variando
+luz e croma, o navy `--nav` como chassi e a tinta `--ink`, neutros temperados para o mesmo
+matiz. A decisão está escrita em `globals.css` e no cabeçalho de `src/ui/telas/Agenda.tsx`
+("o creme e o papel saíram; o navy é o sistema agora"). A tipografia também diverge pelo mesmo
+motivo: IBM Plex Sans na UI, Alegreya Sans no rail, Plex Mono só em string de máquina.
+
+- **Limite:** isto registra o que existe, não autoriza repintar. Nenhuma tela é repintada para o
+  creme, nem o site para o navy, sem decisão do Bruno.
+- Para o painel, **os tokens de `globals.css` mandam**; os nomes deste documento (`--brand`,
+  `--surface-page`, `--ink-*`) não existem lá, e o guarda de tokens (`src/ui/guardas/`) reprova
+  `var(--x)` que não esteja definido.
+
+### 5. Texto de tela: um título, sem travessão
+Vale para todo texto que o dono lê no painel e nas rotas de entrada (as quatro regras vieram da
+Rede Inspira, `docs/texto-de-tela.md` de lá):
+
+1. **Sem travessão** (`—`) em copy. Use ponto, vírgula ou dois-pontos. O `—` sozinho como marca
+   de valor ausente fica. Comentário de código segue livre.
+2. **Fale do que a pessoa faz**, não do que o sistema é.
+3. **Um título, não título + subtítulo.** A topbar não tem subtítulo.
+4. **A justificativa fica no comentário**, não na tela.
+
+- **Não se corta:** ressalva que evita erro real (o telefone que identifica a pessoa, o
+  certificado que não guardamos, o número do pareamento que não fica salvo) e mensagem de erro.
+- Os exemplos com travessão em CONTENT FUNDAMENTALS (o estado vazio da agenda) valem pela ideia,
+  não pela pontuação.
+- **Limite medido:** o guarda G1 (`src/ui/guardas/travessao.test.ts`) lê a fonte e reprova
+  travessão novo; os arquivos que ainda têm estão numa lista de dívida que só encolhe.
 
 ---
 
