@@ -40,6 +40,7 @@ em `BANCADA_FOTOS`, se definida. Foto não é versionada: git não esquece PNG.
 | `foto.mjs` | Uma foto de uma tela ou rota; `--medir` imprime documento e rolagens, `--full` a página inteira. |
 | `casca.mjs` … `casca6.mjs` | A casca: rail, topbar, abas, busca (posição da Paleta), rodapé da gaveta (`casca5`, 5 ações a 680 e 390). |
 | `fluxo.mjs`, `fluxo2.mjs`, `fluxo3.mjs` | O Fluxo de hoje com dia cheio simulado. `--lento`, `--erroagenda`, `--vazio`, `--gaveta`, `--formado`; o `2` acrescenta `--rolar`, o `3` acrescenta `--meiodia`. |
+| `leitura.mjs` | **T3 e T4.** Uma tela com as leituras atrasadas (`--atraso=`), falhando (`--erro`) ou simuladas (`--canal=`, `--agenda=`, `--conversas=`, `--contatos=`, `--ativa=false`), amostrada a 150, 600 e 1200 ms e depois: quais frases que afirmam antes de saber estão visíveis ("Nenhum atendimento", "Nada pendente", "Conectar WhatsApp", "no ar"…), quantos "Tentar de novo" e o texto do cabeçalho. `--clicar=<nome>` clica num botão e fotografa de novo. |
 | `fluxo-medidas.mjs` | Tamanho do cartão e dos botões do Fluxo em 1024, 1280, 1440 e 390. |
 | `agenda-cheia.mjs` | A Agenda com cadastro, agenda e Google simulados. `<cenario> <saida.png> [desktop\|mobile\|WxH] [--equipe] [--google=ok\|nao]`. |
 | `conversas-audit.mjs` … `-audit4.mjs` | Conversas com 30 conversas falsas; `audit2` mede a rolagem com o polling. |

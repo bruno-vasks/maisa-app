@@ -12,7 +12,8 @@
  * No mobile é uma coisa por vez: lista → conversa, com voltar. */
 
 import React, { useEffect, useRef, useState } from "react";
-import { s, Icon, Monogram } from "@/ui/primitivos";
+import { s, Btn, Icon, Monogram } from "@/ui/primitivos";
+import { TITULO_PARADA, useAcaoDoStatus } from "@/ui/componentes/StatusDaMaisa";
 import { useIsMobile } from "@/ui/useIsMobile";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AbaConversa } from "@/ui/estado/store";
@@ -43,6 +44,7 @@ const SITUACAO: Record<D.EstadoConversa, string> = {
 
 function Lista({ onEscolher }: { onEscolher: (id: string) => void }) {
   const st = useStore();
+  const acao = useAcaoDoStatus();
 
   const visiveis = st.conversas.filter((c) => {
     if (st.abaConv === "todas") return true;
@@ -76,7 +78,15 @@ function Lista({ onEscolher }: { onEscolher: (id: string) => void }) {
         {/* TRÊS vazios diferentes, e eles não são intercambiáveis. "Nenhuma conversa" quando o
             servidor recusou seria mentira tranquilizadora — o dono acharia que ninguém escreveu
             e o WhatsApp estaria cheio. "Carregando" quando já carregou seria eterno. */}
-        {visiveis.length === 0 && (
+        {/* Sem WhatsApp, "quando alguém escrever" é promessa que não se cumpre: ninguém chega.
+            O vazio diz o porquê e oferece o único caminho (T3, `StatusDaMaisa.tsx`). */}
+        {visiveis.length === 0 && st.conversasCarregadas && !st.conversasErro && st.conversas.length === 0 && st.statusMaisa === "sem_whatsapp" && acao ? (
+          <div style={s("padding:36px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center")}>
+            <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{TITULO_PARADA.sem_whatsapp}</span>
+            <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>Conecte para as conversas chegarem aqui.</span>
+            <Btn variant="secondary" onClick={acao.fazer}>{acao.rotulo}</Btn>
+          </div>
+        ) : visiveis.length === 0 && (
           <div style={s("padding:36px 14px;text-align:center;font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>
             {st.conversasErro
               ? st.conversasErro

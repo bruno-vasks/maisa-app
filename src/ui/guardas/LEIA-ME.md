@@ -24,6 +24,8 @@ texto de JSX são o que chega à tela.
 | `vh.test.ts` | **G9** | `<n>vh` sem o par `dvh` na mesma linha |
 | `endereco.test.ts` | **G10** | tela do mapa `TELA` ou membro de `TelaId` que o `?tela=` não abre; apelido (`faturamento`, `equipe`, `servicos`, `mais`) que deixou de abrir; lixo que vira tela; `?secao=` sem lista ou padrão. A regra mora em `src/ui/estado/endereco.ts` |
 | `subtitulo.test.ts` | **G17** (metade) | `sub` no mapa `TELA` da casca, ou `<p>` dentro da `Topbar`. A outra metade (`SectionTitle` com `sub`) é da Onda 2 |
+| `status.test.ts` | **G11** | "no ar", "Atendendo", "Assistente ativa", "responde automaticamente" ou "resolvendo tudo sozinha" fora de `componentes/StatusDaMaisa.tsx`. A tabela-verdade da regra está em `nucleo/dominio/status-da-maisa.test.ts` |
+| `leitura.test.ts` | **G12** | derivação de tela (`estado/leitura.ts`) que devolve vazio com a leitura em voo ou falhada |
 | `wizard.test.ts` | **G13** | arquivo alcançado pelos imports do `/comecar` que chama `useStore(` (o wizard roda fora do `StoreProvider`) |
 | `fonte.ts` | | o que as guardas têm em comum: raízes, parser, `conferirDivida` |
 

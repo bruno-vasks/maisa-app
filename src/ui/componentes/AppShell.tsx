@@ -461,7 +461,7 @@ export default function AppShell() {
         <header style={s("flex-shrink:0;padding:12px 16px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px")}>
           <div style={s("min-width:0")}>
             {/* sobrancelha em caixa-alta: --ls-caps é o único tracking positivo do sistema (era .14em) */}
-            <div style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>{D.HOJE.label}</div>
+            <div style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{D.HOJE.label}</div>
             <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{TELA[st.tela].titulo}</h1>
           </div>
           <div style={s("display:flex;align-items:center;gap:8px;flex-shrink:0")}>
@@ -476,8 +476,8 @@ export default function AppShell() {
             >
               <Icon name="search" size={18} sw={1.9} />
             </button>
-            {/* mesmo selo do rail, mesma decisão: marca em --warm sobre --nav, peso de título */}
-            <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:12px;background:var(--nav);color:var(--warm);display:flex;align-items:center;justify-content:center;font-weight:var(--w-title);font-size:var(--t-lg)")}>m</span>
+            {/* O selo "m" saiu em 24/09/2026: não clicava, e os 46px dele eram o que faltava para o
+                status caber sem cortar o título ("Ajustes da ..."). A conta no celular é o 2.4. */}
           </div>
         </header>
 

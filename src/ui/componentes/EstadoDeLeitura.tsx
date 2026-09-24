@@ -48,7 +48,7 @@ export function FalhaDeLeitura({ frase, detalhe, tentar, compacta }: {
   return (
     <div
       role="status"
-      style={s(`display:flex;flex-direction:column;gap:10px;${compacta ? "align-items:flex-start;padding:16px 6px" : "align-items:center;text-align:center;padding:48px 24px"}`)}
+      style={s(`display:flex;flex-direction:column;gap:10px;${compacta ? "align-items:flex-start;padding:16px" : "align-items:center;text-align:center;padding:48px 24px"}`)}
     >
       <span style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);max-width:40ch")}>{frase}</span>
       {detalhe && <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-ui);max-width:52ch")}>{detalhe}</span>}

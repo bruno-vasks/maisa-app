@@ -306,7 +306,7 @@ const MOTIVO_GOOGLE: Record<string, string> = {
 const RESPOSTA_GOOGLE: Record<string, string> = {
   nao_configurado: "O Google Calendar não está configurado neste ambiente",
   nao_autenticado: "Sua sessão expirou — entre de novo",
-  login_necessario: "Entre na sua conta para usar o Google Calendar",
+  login_necessario: "Entre na sua conta para ver e marcar na agenda.",
   sem_negocio: "Esta conta ainda não tem um negócio criado",
   payload_invalido: "Faltam dados do atendimento",
 };
@@ -826,6 +826,8 @@ export type StoreValue = {
    * sozinho: foi assim que a topbar dizia "no ar" com o WhatsApp caído (24/09/2026).
    */
   statusMaisa: StatusDaMaisa;
+  /** Lê `/api/canal` de novo. É o "Tentar de novo" de quando a primeira leitura falhou. */
+  recarregarCanal: () => void;
   canalErro: string | null;
   /** Há uma chamada em voo — a tela desabilita os botões para não disparar duas. */
   canalOcupado: boolean;
@@ -3003,6 +3005,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * `"desconectado"`, nunca como "ainda não sei": sem prova de conexão, a tela diz que não
    * está no ar. E o interruptor só conta depois de voltar do servidor: antes disso ele é o
    * placeholder de primeira pintura, e o placeholder diz `ativa: true`. */
+  const recarregarCanal = useCallback(() => {
+    setCanalErro(null);
+    void buscarCanal();
+  }, [buscarCanal]);
+
   const statusMaisa = statusDaMaisa({
     ativa: ajustesCarregados ? ajustes.assistente.ativa : null,
     canal: canal ? canal.status : canalErro ? "desconectado" : null,
@@ -4100,7 +4107,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     secAtiva, abrirSecao,
     assistente: ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
-    canal, statusMaisa, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
+    canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     cfg: ajustes.cfg, alternarCfg,
     salvo, salvar,
@@ -4132,7 +4139,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     secAtiva, abrirSecao,
     ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
-    canal, statusMaisa, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
+    canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     ajustes.cfg, alternarCfg,
     salvo, salvar,

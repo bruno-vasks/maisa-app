@@ -15,6 +15,7 @@ import React from "react";
 import { s, Btn, Icon, Toggle } from "@/ui/primitivos";
 import { DeQuemEEsseNumero } from "@/ui/componentes/DeQuemEEsseNumero";
 import { LinhaDeStatus } from "@/ui/componentes/StatusDaMaisa";
+import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 import {
   CodigoPareamento, ConferirNumero, NumeroDoPareamento,
   digitosDoTelefone, telefoneMascarado, telefoneParaConferir,
@@ -155,7 +156,25 @@ function DonoDoCanal() {
   );
 }
 
+/* ⚠️ `canal === null` NÃO É "desconectado" (24/09/2026). Era: `st.canal?.status ??
+ * "desconectado"` desenhava "WhatsApp não conectado" com o botão de conectar antes de a leitura
+ * voltar, e para sempre quando ela falhava. Agora, sem leitura, esqueleto; leitura que falhou,
+ * a frase e "Tentar de novo". Só depois disso a faixa decide. */
 function FaixaCanal() {
+  const st = useStore();
+  if (st.canal === null) {
+    return st.canalErro
+      ? (
+        <div style={s("flex-shrink:0;border-radius:12px;background:var(--surface);border:1px solid var(--border)")}>
+          <FalhaDeLeitura compacta frase="Não consegui ler o seu WhatsApp." detalhe={st.canalErro} tentar={st.recarregarCanal} />
+        </div>
+      )
+      : <Esqueleto linhas={1} altura={64} rotulo="Lendo o seu WhatsApp" />;
+  }
+  return <FaixaCanalLida />;
+}
+
+function FaixaCanalLida() {
   const st = useStore();
   const noCelular = useIsMobile();
   const [confirmando, setConfirmando] = React.useState<"trocar" | "desconectar" | null>(null);
