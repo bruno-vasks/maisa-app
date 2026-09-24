@@ -29,7 +29,7 @@ export type Leitura<T> =
 /** O que a tela desenha a partir de uma leitura de lista. */
 export type EstadoDaLista = "carregando" | "erro" | "vazio" | "cheio";
 
-/** A leitura da agenda como o store a guarda (`EstadoAgendaGoogle`), só o que importa aqui. */
+/** A leitura da agenda como o store a guarda (`LeituraAgenda`), só o que importa aqui. */
 export type LeituraDaAgenda = { status: string; jaLeu: boolean; info?: string };
 
 /** A frase do erro da agenda. A leitura é da TABELA desde o ADR-0009, não só do Google. */

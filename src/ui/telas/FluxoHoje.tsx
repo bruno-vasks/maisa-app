@@ -102,7 +102,7 @@ function PrecisaDeVoce() {
   const estado = estadoDaFila({
     itens: fila.length,
     conversas: { carregadas: st.conversasCarregadas, erro: st.conversasErro },
-    agenda: st.agendaGoogle,
+    agenda: st.leituraAgenda,
     status: st.statusMaisa,
   });
   const tentar = () => { st.recarregarConversas(); st.recarregarAgenda(); };
@@ -127,7 +127,7 @@ function PrecisaDeVoce() {
           <FalhaDeLeitura
             compacta
             frase="Não consegui ler o que precisa de você."
-            detalhe={st.conversasErro ?? st.agendaGoogle.info}
+            detalhe={st.conversasErro ?? st.leituraAgenda.info}
             tentar={tentar}
           />
         ) : estado === "sem_maisa" ? (
@@ -201,11 +201,11 @@ export default function FluxoHoje() {
   const bloqHoje = st.bloqueiosDoDia(D.HOJE.iso);
   /* ⚠️ O vazio só depois da leitura. Antes, `doDia` vazio era "Nenhum atendimento marcado" no
    * primeiro quadro, antes de `/api/agenda` voltar, e para sempre quando ela falhava. */
-  const dia = estadoDoDia(st.agendaGoogle, doDia.length);
+  const dia = estadoDoDia(st.leituraAgenda, doDia.length);
   const antesDoDia = dia === "carregando"
     ? <Esqueleto linhas={4} altura={72} rotulo="Lendo a agenda de hoje" />
     : dia === "erro"
-      ? <FalhaDeLeitura frase={FRASE_ERRO_AGENDA} detalhe={st.agendaGoogle.info} tentar={st.recarregarAgenda} />
+      ? <FalhaDeLeitura frase={FRASE_ERRO_AGENDA} detalhe={st.leituraAgenda.info} tentar={st.recarregarAgenda} />
       : null;
   const vazio = (
     <EmptyState

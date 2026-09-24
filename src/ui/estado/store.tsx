@@ -900,7 +900,7 @@ export type StoreValue = {
   bloqueiosDoDia: (data: string) => Bloqueio[];
   bloqueioPorId: (id: string) => Bloqueio | undefined;
   /** Como está a leitura da agenda — o que o cartão precisa para se explicar. */
-  agendaGoogle: EstadoAgendaGoogle;
+  leituraAgenda: LeituraAgenda;
   /** Relê a janela atual, ignorando o cache. */
   recarregarAgenda: () => void;
 
@@ -910,10 +910,15 @@ export type StoreValue = {
 };
 
 /**
- * O estado da LEITURA da agenda — coisa diferente do estado da CONEXÃO.
+ * O estado da LEITURA da agenda — coisa diferente do estado da CONEXÃO com o Google.
  *
- * `nao_conectado` — nunca houve conexão. A tela oferece "Conectar".
- * `carregando`    — primeira busca desta janela em voo.
+ * Chamava-se `EstadoAgendaGoogle` até 24/09/2026, e o nome enganava: desde o ADR-0009 a
+ * leitura é da tabela `atendimentos`, e o Google só soma. Quem quer saber se o Google está
+ * conectado pergunta a `googleDe(pid)`.
+ *
+ * `nao_conectado` — não usado desde 24/09/2026 (era o valor inicial); fica no tipo para
+ *                   não quebrar quem compara.
+ * `carregando`    — busca em voo. É também o valor inicial.
  * `ok`            — tem dado, e ele está fresco.
  * `reconectar`    — o Google recusou o token. Cache anterior segue na tela, esmaecido,
  *                   com banner: apagar a grade acrescentaria um segundo problema ao primeiro.
@@ -923,7 +928,7 @@ export type StoreValue = {
  * Grade vazia sem aviso é a pior saída possível: ela AFIRMA "você não tem nada hoje",
  * e essa afirmação pode estar errada.
  */
-export type EstadoAgendaGoogle = {
+export type LeituraAgenda = {
   status: "nao_conectado" | "carregando" | "ok" | "reconectar" | "limite" | "erro";
   info?: string;
   /** Já houve pelo menos uma leitura bem-sucedida? Separa "vazio" de "ainda não sei". */
@@ -3745,7 +3750,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * eram dois calendários que não se conheciam. */
 
   const [bloqueios, setBloqueios] = useState<Bloqueio[]>([]);
-  const [agendaGoogle, setAgendaGoogle] = useState<EstadoAgendaGoogle>({ status: "nao_conectado", jaLeu: false });
+  /* Nasce `carregando`, não `nao_conectado` (24/09/2026): antes da primeira resposta não se sabe
+   * nada, e o nome antigo (`agendaGoogle`) fazia a tela ler "Google não conectado" num estado
+   * que só queria dizer "ainda não li". A leitura é da tabela desde o ADR-0009. */
+  const [leituraAgenda, setLeituraAgenda] = useState<LeituraAgenda>({ status: "carregando", jaLeu: false });
 
   /* Qual janela está em voo. Ref e não estado, pela mesma razão do `googleEmVoo`: entre
    * disparar o fetch e o re-render existe uma janela em que o efeito rodaria de novo. */
@@ -3764,7 +3772,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const chave = `${de}..${ate}`;
     if (leituraEmVoo.current === chave) return;
     leituraEmVoo.current = chave;
-    setAgendaGoogle((a) => ({ ...a, status: "carregando" }));
+    setLeituraAgenda((a) => ({ ...a, status: "carregando" }));
 
     try {
       const r = await fetch(`/api/agenda?pid=${pidAgenda}&de=${de}&ate=${ate}`).then((x) => x.json());
@@ -3810,7 +3818,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setBloqueios((prev) => [...prev.filter((b) => foraDaJanela(b.data)), ...novosBloq]);
         setAtendimentos((prev) => [...prev.filter((a) => foraDaJanela(a.data)), ...novosAtend]);
         lidoEm.current = Date.now();
-        setAgendaGoogle({ status: "ok", jaLeu: true });
+        setLeituraAgenda({ status: "ok", jaLeu: true });
         return;
       }
 
@@ -3818,21 +3826,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // O access token morreu. `acessoValido` já apagou a linha do banco quando o
         // refresh também morreu, então relemos o status: é ele que decide se a tela
         // oferece "Reconectar" ou volta para "Conectar".
-        setAgendaGoogle((a) => ({ status: "reconectar", jaLeu: a.jaLeu, info: r.info }));
+        setLeituraAgenda((a) => ({ status: "reconectar", jaLeu: a.jaLeu, info: r.info }));
         void lerStatusGoogle();
         return;
       }
 
       if (r.status === "limite") {
         // Cota não é erro, é "pergunte de novo daqui a pouco". A tela não muda de cara.
-        setAgendaGoogle((a) => ({ status: "limite", jaLeu: a.jaLeu }));
+        setLeituraAgenda((a) => ({ status: "limite", jaLeu: a.jaLeu }));
         agendar(() => { leituraEmVoo.current = null; void lerAgenda(de, ate); }, 20_000);
         return;
       }
 
-      setAgendaGoogle((a) => ({ status: "erro", jaLeu: a.jaLeu, info: r.info ?? RESPOSTA_GOOGLE[r.status] }));
+      setLeituraAgenda((a) => ({ status: "erro", jaLeu: a.jaLeu, info: r.info ?? RESPOSTA_GOOGLE[r.status] }));
     } catch {
-      setAgendaGoogle((a) => ({ status: "erro", jaLeu: a.jaLeu, info: "Sem conexão com o servidor." }));
+      setLeituraAgenda((a) => ({ status: "erro", jaLeu: a.jaLeu, info: "Sem conexão com o servidor." }));
     } finally {
       // No caminho do `limite` o timer já reassumiu a chave; limpar aqui é inofensivo
       // porque o retry roda depois.
@@ -4114,7 +4122,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     diaSel, verDia,
     rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
-    bloqueiosDoDia, bloqueioPorId, agendaGoogle, recarregarAgenda,
+    bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
     railAberto, setRailAberto,
   }), [
     tela, irPara, sel, abrir, fechar,
@@ -4145,7 +4153,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     salvo, salvar,
     diaSel, rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
-    bloqueiosDoDia, bloqueioPorId, agendaGoogle, recarregarAgenda,
+    bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
     railAberto,
   ]);
 

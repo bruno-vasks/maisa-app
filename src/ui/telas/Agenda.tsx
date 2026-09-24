@@ -37,6 +37,8 @@ import { s, Icon, Monogram, Btn, IconBtn, Badge, EmptyState } from "@/ui/primiti
 import { useIsMobile } from "@/ui/useIsMobile";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AgendamentoVivo, type Bloqueio } from "@/ui/estado/store";
+import { agendaComErro, FRASE_ERRO_AGENDA } from "@/ui/estado/leitura";
+import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 
 /** Janela DESENHADA na grade: 07:00 → 22:00, linha de 1h.
  *
@@ -538,7 +540,7 @@ function GradeMes({ mes, onHover, aberto, onAbrirDia }: { mes: string; onHover: 
  * topo, e as linhas reordenam por `layout` em vez de sumir e reaparecer. Sem
  * isso a lista seria só um resumo; com isso ela é a segunda vista do mesmo hover. */
 
-function Trilho({ dias, destaque, rotulo }: { dias: string[]; destaque: string | null; rotulo: string }) {
+function Trilho({ dias, destaque, rotulo, lida, falhou }: { dias: string[]; destaque: string | null; rotulo: string; lida: boolean; falhou: boolean }) {
   const st = useStore();
   const reduzido = !!useReducedMotion();
   // A dependência é a FUNÇÃO, não o `st` inteiro: `st` troca de identidade a cada aba, filtro,
@@ -564,6 +566,10 @@ function Trilho({ dias, destaque, rotulo }: { dias: string[]; destaque: string |
       <h2 style={s("font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg)")}>Quem vem</h2>
       <span style={s("font-size:var(--t-label);color:var(--muted);margin-top:2px")}>{rotulo}</span>
 
+      {/* Sem leitura, sem contagem: "0 atendimentos" antes de ler é a mesma mentira do "Dia livre". */}
+      {/* Com a leitura falhada, nada: a frase e o "Tentar de novo" estão na grade ao lado, e
+          esqueleto aqui ficaria cinza para sempre. */}
+      {!lida ? (falhou ? null : <div style={s("margin-top:12px")}><Esqueleto linhas={3} altura={40} rotulo="Lendo quem vem" /></div>) : <>
       <div style={s("display:flex;align-items:baseline;gap:8px;margin-top:12px")}>
         <span className="n" style={s("font-size:var(--t-data);font-weight:var(--w-emph);letter-spacing:var(--ls-data);line-height:var(--lh-tight)")}>{total}</span>
         <span style={s("font-size:var(--t-sm);color:var(--muted)")}>{total === 1 ? "atendimento" : "atendimentos"}</span>
@@ -622,6 +628,7 @@ function Trilho({ dias, destaque, rotulo }: { dias: string[]; destaque: string |
           </div>
         )}
       </div>
+      </>}
     </div>
   );
 }
@@ -734,13 +741,22 @@ function LinhaDoTempo({ data }: { data: string }) {
 
 function AvisoAgenda() {
   const st = useStore();
-  const a = st.agendaGoogle;
+  const a = st.leituraAgenda;
 
-  // Google nem configurado no ambiente: não há o que avisar, a agenda é só local.
-  if (st.google.status !== "ok") return null;
+  /* ⚠️ A FAIXA DE ERRO NÃO DEPENDE MAIS DO GOOGLE (24/09/2026). Havia aqui um
+   * `if (st.google.status !== "ok") return null` no topo: sem credencial do Google no
+   * ambiente, a leitura da TABELA podia falhar calada e a grade dizia "Dia livre". Desde o
+   * ADR-0009 a agenda é da tabela; só o convite para conectar é do Google, e ele agora olha a
+   * CONEXÃO (`googleDe`), não o estado da leitura.
+   *
+   * Antes da primeira leitura boa, o erro não é faixa: é a tela inteira (`FalhaDeLeitura` no
+   * lugar da grade), porque não há o que manter na tela. Faixa é para quando há. */
+  if (!a.jaLeu) return null;
   // "carregando" e "limite" não ganham faixa: a primeira é passageira e a segunda se
   // resolve sozinha. Faixa é para o que exige uma decisão de quem está olhando.
-  if (a.status === "ok" || a.status === "limite" || a.status === "carregando") return null;
+  if (a.status === "limite" || a.status === "carregando") return null;
+  const convidarGoogle = a.status === "ok" && st.google.status === "ok" && !!st.pidAgenda && !st.googleDe(st.pidAgenda);
+  if (a.status === "ok" && !convidarGoogle) return null;
 
   const faixa = (tom: "warn" | "muted", texto: string, acao?: { label: string; onClick: () => void }) => (
     <div style={s(`flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);background:${tom === "warn" ? "var(--warn-soft)" : "var(--surface-2)"};font-size:var(--t-label);color:${tom === "warn" ? "var(--warn)" : "var(--muted)"}`)}>
@@ -761,7 +777,7 @@ function AvisoAgenda() {
    *
    * O convite continua, porque conectar tem valor de verdade: é o que traz o compromisso
    * que nasceu FORA da MAISA. Só que agora é oferta, não pré-requisito. */
-  if (a.status === "nao_conectado") {
+  if (convidarGoogle) {
     return faixa(
       "muted",
       "Conecte o Google Calendar para ver aqui também os compromissos que você marca por fora.",
@@ -779,7 +795,7 @@ function AvisoAgenda() {
     );
   }
 
-  return faixa("warn", a.info ?? "Não foi possível ler a agenda do Google.", {
+  return faixa("warn", `${FRASE_ERRO_AGENDA} O que está na tela pode estar desatualizado.`, {
     label: "Tentar de novo",
     onClick: st.recarregarAgenda,
   });
@@ -811,6 +827,8 @@ export default function Agenda() {
 
   const dia = st.diaSel;
   const hoje = dia === D.HOJE.iso;
+  const lida = st.leituraAgenda.jaLeu;
+  const falhou = !lida && agendaComErro(st.leituraAgenda);
   const mes = D.mesDe(dia);
 
   // Os dias que a visão atual cobre. É a mesma lista para a grade e para o trilho — o resumo da
@@ -884,7 +902,14 @@ export default function Agenda() {
 
       <AvisoAgenda />
 
-      {visao === "mes" ? (
+      {/* ⚠️ ANTES DA PRIMEIRA LEITURA, NENHUMA GRADE (24/09/2026). A grade vazia afirma "Dia
+          livre", "livre" em cada célula do mês e "0 atendimentos" no trilho, e fazia isso antes
+          de `/api/agenda` voltar e para sempre quando ela falhava. Ver `estadoDoDia`. */}
+      {!lida ? (
+        falhou
+          ? <FalhaDeLeitura frase={FRASE_ERRO_AGENDA} detalhe={st.leituraAgenda.info} tentar={st.recarregarAgenda} />
+          : <div style={s("padding:16px")}><Esqueleto linhas={mobile ? 4 : 6} altura={mobile ? 72 : 56} rotulo="Lendo a sua agenda" /></div>
+      ) : visao === "mes" ? (
         <GradeMes mes={mes} onHover={setDestaque} aberto={destaque} onAbrirDia={abrirDia} />
       ) : mobile ? (
         // Sem `overflow-y` próprio: no celular quem rola é a PÁGINA. Com scroll interno o cartão
@@ -926,7 +951,7 @@ export default function Agenda() {
       }}
     >
       {calendario}
-      {comTrilho && <Trilho dias={visiveis} destaque={destaque} rotulo={rotulo} />}
+      {comTrilho && <Trilho dias={visiveis} destaque={destaque} rotulo={rotulo} lida={lida} falhou={falhou} />}
     </div>
   );
 }
