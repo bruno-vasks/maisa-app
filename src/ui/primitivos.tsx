@@ -300,17 +300,22 @@ export function Field({ label, hint, children, style }: { label?: string; hint?:
  * `rotulo` é obrigatório na prática — passe o título da linha que o toggle controla.
  * A área de TOQUE vai a 44px por padding transparente, mantendo o trilho em 26px: 44×26 reprovava
  * o mínimo de 44pt, e no mobile há 14 deles empilhados. */
-export function Toggle({ on, onChange, rotulo }: { on: boolean; onChange?: (v: boolean) => void; rotulo?: string }) {
+/* `disabled` é de verdade, como no `Btn`: o interruptor mestre da MAISA fica desligado sem
+ * WhatsApp (ligar não a faria responder ninguém), e o motivo mora ao lado, escrito pela tela. */
+export function Toggle({ on, onChange, rotulo, disabled, descritoPor }: { on: boolean; onChange?: (v: boolean) => void; rotulo?: string; disabled?: boolean; descritoPor?: string }) {
   return (
     <button
+      type="button"
       role="switch"
       aria-checked={on}
       aria-label={rotulo}
-      onClick={() => onChange?.(!on)}
-      className="m-hov-bright m-focus"
-      style={s(`width:44px;height:44px;flex-shrink:0;border:none;background:transparent;cursor:pointer;padding:9px 0;display:flex;align-items:center;justify-content:center`)}
+      aria-describedby={descritoPor}
+      disabled={disabled}
+      onClick={disabled ? undefined : () => onChange?.(!on)}
+      className={disabled ? "m-focus" : "m-hov-bright m-focus"}
+      style={s(`width:44px;height:44px;flex-shrink:0;border:none;background:transparent;cursor:${disabled ? "not-allowed" : "pointer"};padding:9px 0;display:flex;align-items:center;justify-content:center`)}
     >
-      <span style={s(`width:44px;height:26px;border-radius:20px;padding:3px;display:flex;justify-content:flex-start;background:${on ? "var(--primary)" : "var(--border)"};transition:background .18s var(--ease-out)`)}>
+      <span style={s(`width:44px;height:26px;border-radius:20px;padding:3px;display:flex;justify-content:flex-start;background:${disabled ? "var(--line)" : on ? "var(--primary)" : "var(--border)"};transition:background .18s var(--ease-out)`)}>
         <span className="m-knob" style={s(`width:20px;height:20px;border-radius:50%;background:var(--on-primary);box-shadow:0 1px 3px oklch(0.22 0.03 262 / 0.25);transform:translateX(${on ? 18 : 0}px)`)} />
       </span>
     </button>

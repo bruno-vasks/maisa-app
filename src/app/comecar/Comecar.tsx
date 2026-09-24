@@ -66,7 +66,7 @@ const ETAPAS: { id: EtapaId; titulo: string; sub: string }[] = [
   { id: "catalogo", titulo: "O que você faz", sub: "Confira preços e quem atende" },
   /* "Um código" e não "um QR code": no celular não há QR a ler, e prometer câmera na
    * lista de etapas é começar a perder a pessoa antes de ela chegar no passo. */
-  { id: "whatsapp", titulo: "Conectar o WhatsApp", sub: "Um código e a MAISA entra no ar" },
+  { id: "whatsapp", titulo: "Conectar o WhatsApp", sub: "Um código e a MAISA começa a responder" },
   { id: "ver", titulo: "Ver funcionando", sub: "Fale com ela como se fosse seu cliente" },
   /* ★ ETAPA 5, e ela é uma PERGUNTA — não um formulário.
    *

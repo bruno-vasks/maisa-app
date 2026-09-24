@@ -20,6 +20,7 @@ import * as D from "@/adaptadores/saida/demo";
  * que o servidor não reconhece (ou manda antes dele). Ver as regras de import no LEIA-ME. */
 import { TELEFONE_MIN_DIGITOS, emailPlausivel, soDigitos } from "@/nucleo/dominio/clientes";
 import type { Canal } from "@/nucleo/dominio/canal";
+import { statusDaMaisa, type StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
 import type { CaminhoFiscal, ConfigFiscal } from "@/nucleo/dominio/fiscal";
 import type { Faq } from "@/nucleo/dominio/faq";
 import type { Faturamento } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -819,6 +820,12 @@ export type StoreValue = {
   /* ── o canal de WhatsApp ── */
   /** `null` enquanto não voltou do servidor. */
   canal: Canal | null;
+  /**
+   * A MAISA está atendendo? A resposta única da casca, dos Ajustes, do Fluxo e de Conversas
+   * (`nucleo/dominio/status-da-maisa.ts`). Nenhuma tela deriva isto de `assistente.ativa`
+   * sozinho: foi assim que a topbar dizia "no ar" com o WhatsApp caído (24/09/2026).
+   */
+  statusMaisa: StatusDaMaisa;
   canalErro: string | null;
   /** Há uma chamada em voo — a tela desabilita os botões para não disparar duas. */
   canalOcupado: boolean;
@@ -2992,6 +2999,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => { vivo = false; };
   }, [hidratado, buscarCanal]);
 
+  /* ⚠️ A leitura do canal que FALHOU (`canal` nulo com `canalErro`) entra como
+   * `"desconectado"`, nunca como "ainda não sei": sem prova de conexão, a tela diz que não
+   * está no ar. E o interruptor só conta depois de voltar do servidor: antes disso ele é o
+   * placeholder de primeira pintura, e o placeholder diz `ativa: true`. */
+  const statusMaisa = statusDaMaisa({
+    ativa: ajustesCarregados ? ajustes.assistente.ativa : null,
+    canal: canal ? canal.status : canalErro ? "desconectado" : null,
+  });
+
   /* `porCodigo` só existe para a FRASE do fim do prazo: "expirou sem ninguém escanear" é
    * instrução errada para quem nunca teve o que escanear, e mandar procurar a câmera é o
    * jeito mais rápido de perder alguém que estava a um passo de conectar. */
@@ -3192,7 +3208,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (canalFaltando.length) {
       setCanalErro(
         `Não dá para trocar o número agora: o servidor não conseguiria reconectar. ` +
-          `Falta: ${canalFaltando.join(", ")}. O WhatsApp atual segue no ar.`,
+          `Falta: ${canalFaltando.join(", ")}. O WhatsApp atual continua conectado.`,
       );
       return;
     }
@@ -4084,7 +4100,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     secAtiva, abrirSecao,
     assistente: ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
-    canal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
+    canal, statusMaisa, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     cfg: ajustes.cfg, alternarCfg,
     salvo, salvar,
@@ -4116,7 +4132,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     secAtiva, abrirSecao,
     ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
-    canal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
+    canal, statusMaisa, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     ajustes.cfg, alternarCfg,
     salvo, salvar,

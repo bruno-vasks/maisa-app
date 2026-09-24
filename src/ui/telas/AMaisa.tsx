@@ -14,6 +14,7 @@
 import React from "react";
 import { s, Btn, Icon, Toggle } from "@/ui/primitivos";
 import { DeQuemEEsseNumero } from "@/ui/componentes/DeQuemEEsseNumero";
+import { LinhaDeStatus } from "@/ui/componentes/StatusDaMaisa";
 import {
   CodigoPareamento, ConferirNumero, NumeroDoPareamento,
   digitosDoTelefone, telefoneMascarado, telefoneParaConferir,
@@ -51,31 +52,15 @@ function LinhaToggle({ titulo, desc, on, alternar }: { titulo: string; desc: str
 }
 
 /* Interruptor mestre. Vive fora do acordeão porque é a decisão mais consequente da
-   tela — desligar aqui para o atendimento inteiro — e estava enterrada no fim de
-   "Personalidade", uma seção que fala de tom de voz. A faixa diz a CONSEQUÊNCIA
-   (as mensagens esperam por você), não o mecanismo, e o estado tem rótulo em texto
-   além da cor. */
+   tela: desligar aqui para o atendimento inteiro.
+
+   ⚠️ DESDE 24/09/2026 O TEXTO NÃO VEM DO INTERRUPTOR, vem de `st.statusMaisa` (interruptor E
+   canal). A faixa antiga dizia "Assistente ativa · responde automaticamente" em verde com a
+   faixa do canal logo abaixo dizendo "WhatsApp não conectado". Sem WhatsApp, o interruptor
+   fica desligado de verdade, com o motivo: ligá-lo não faria ninguém ser respondido. A linha
+   mora em `componentes/StatusDaMaisa.tsx`, com os rótulos. */
 function FaixaAssistente() {
-  const st = useStore();
-  const ativa = st.assistente.ativa;
-  const forte = ativa ? "var(--success)" : "var(--warn)";
-  const fundo = ativa ? "var(--success-soft)" : "var(--warn-soft)";
-  return (
-    <div style={s(`flex-shrink:0;display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:16px;background:${fundo};border:1px solid ${forte}`)}>
-      <span style={s(`width:9px;height:9px;flex-shrink:0;border-radius:50%;background:${forte}`)} />
-      <span style={s("flex:1;min-width:0")}>
-        <span style={s(`display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:${forte}`)}>
-          {ativa ? "Assistente ativa" : "Assistente pausada"}
-        </span>
-        <span style={s("display:block;font-size:var(--t-label);color:var(--ink);margin-top:2px;line-height:var(--lh-ui)")}>
-          {ativa
-            ? "A MAISA responde no WhatsApp automaticamente"
-            : "As mensagens ficam esperando você responder"}
-        </span>
-      </span>
-      <Toggle on={ativa} onChange={(v) => st.setAssistente({ ativa: v })} rotulo="Assistente ativa" />
-    </div>
-  );
+  return <LinhaDeStatus />;
 }
 
 /* ───────────────────────────── o canal de WhatsApp ─────────────────────────────
@@ -853,8 +838,9 @@ function Preview() {
               {st.assistente.nome || "MAISA"}
             </span>
             <span style={s("display:flex;align-items:center;gap:5px;font-size:var(--t-micro);color:var(--nav-soft);margin-top:1px")}>
-              <span style={s(`width:6px;height:6px;border-radius:50%;background:${st.assistente.ativa ? "var(--whatsapp-mark)" : "var(--nav-muted)"}`)} />
-              {st.assistente.ativa ? "online" : "pausada"} · tom {st.assistente.tom}
+              {/* "online" só quando ela responde de verdade (interruptor E canal). */}
+              <span style={s(`width:6px;height:6px;border-radius:50%;background:${st.statusMaisa === "atendendo" ? "var(--whatsapp-mark)" : "var(--nav-muted)"}`)} />
+              {st.statusMaisa === "atendendo" ? "online" : "sem responder"} · tom {st.assistente.tom}
             </span>
           </span>
         </div>

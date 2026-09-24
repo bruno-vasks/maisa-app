@@ -23,6 +23,9 @@ import { useIsMobile } from "@/ui/useIsMobile";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AgendamentoVivo } from "@/ui/estado/store";
 import { JornadaDeAtivacao } from "@/ui/componentes/JornadaDeAtivacao";
+import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
+import { FRASE, TITULO_PARADA, useAcaoDoStatus } from "@/ui/componentes/StatusDaMaisa";
+import { estadoDaFila, estadoDoDia, FRASE_ERRO_AGENDA } from "@/ui/estado/leitura";
 
 /* Cada etapa tem um rótulo, uma cor de ponto e o verbo que a avança.
  * "Chegando" era --warm (âmbar): 1,57:1 sobre fundo claro, o ponto sumia. Virou --warn e não
@@ -91,6 +94,18 @@ function CartaoFluxo({ ag, acao, primaria }: { ag: AgendamentoVivo; acao: string
 function PrecisaDeVoce() {
   const st = useStore();
   const fila = st.fila;
+  const acao = useAcaoDoStatus();
+  /* ⚠️ "Nada pendente" é uma AFIRMAÇÃO, e só vale com as duas leituras de volta (conversas e
+   * agenda), sem erro, e com a MAISA atendendo de verdade. Até 24/09/2026 era só
+   * `fila.length === 0`: a tela dizia "resolvendo tudo sozinha" num demo sem WhatsApp e antes de
+   * qualquer leitura voltar. Ver `estadoDaFila`. */
+  const estado = estadoDaFila({
+    itens: fila.length,
+    conversas: { carregadas: st.conversasCarregadas, erro: st.conversasErro },
+    agenda: st.agendaGoogle,
+    status: st.statusMaisa,
+  });
+  const tentar = () => { st.recarregarConversas(); st.recarregarAgenda(); };
 
   return (
     <>
@@ -106,14 +121,30 @@ function PrecisaDeVoce() {
       </div>
 
       <div style={s("flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px")}>
-        {fila.length === 0 ? (
-          <div style={s("padding:32px 8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px")}>
-            <span style={s("width:44px;height:44px;border-radius:14px;background:var(--success-soft);color:var(--success);display:flex;align-items:center;justify-content:center")}>
-              <Icon name="check" size={22} sw={2.2} />
+        {estado === "carregando" ? (
+          <Esqueleto linhas={2} altura={96} rotulo="Lendo o que precisa de você" />
+        ) : estado === "erro" ? (
+          <FalhaDeLeitura
+            compacta
+            frase="Não consegui ler o que precisa de você."
+            detalhe={st.conversasErro ?? st.agendaGoogle.info}
+            tentar={tentar}
+          />
+        ) : estado === "sem_maisa" ? (
+          <div style={s("padding:16px 6px;display:flex;flex-direction:column;align-items:flex-start;gap:10px")}>
+            <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>
+              {TITULO_PARADA[st.statusMaisa === "pausada" ? "pausada" : "sem_whatsapp"]}
             </span>
-            <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>Nada pendente</span>
-            <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);max-width:210px")}>
-              A MAISA está resolvendo tudo sozinha agora.
+            <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-ui)")}>
+              {FRASE[st.statusMaisa === "pausada" ? "pausada" : "sem_whatsapp"]}
+            </span>
+            {acao && <Btn variant="secondary" onClick={acao.fazer}>{acao.rotulo}</Btn>}
+          </div>
+        ) : estado === "vazio" ? (
+          <div style={s("padding:16px 6px;display:flex;flex-direction:column;align-items:flex-start;gap:6px")}>
+            <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Nada pendente</span>
+            <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-ui)")}>
+              Ninguém está esperando resposta, e todo atendimento de hoje está confirmado.
             </span>
           </div>
         ) : fila.map((f) => (
@@ -168,6 +199,14 @@ export default function FluxoHoje() {
    * não é um estado vazio, é um app que parece quebrado. Aqui o vazio diz o que está
    * acontecendo, quantos compromissos o Google tem hoje, e para onde ir. */
   const bloqHoje = st.bloqueiosDoDia(D.HOJE.iso);
+  /* ⚠️ O vazio só depois da leitura. Antes, `doDia` vazio era "Nenhum atendimento marcado" no
+   * primeiro quadro, antes de `/api/agenda` voltar, e para sempre quando ela falhava. */
+  const dia = estadoDoDia(st.agendaGoogle, doDia.length);
+  const antesDoDia = dia === "carregando"
+    ? <Esqueleto linhas={4} altura={72} rotulo="Lendo a agenda de hoje" />
+    : dia === "erro"
+      ? <FalhaDeLeitura frase={FRASE_ERRO_AGENDA} detalhe={st.agendaGoogle.info} tentar={st.recarregarAgenda} />
+      : null;
   const vazio = (
     <EmptyState
       title="Nenhum atendimento marcado para hoje"
@@ -216,7 +255,7 @@ export default function FluxoHoje() {
             </div>
           );
         })}
-        {doDia.length === 0 && vazio}
+        {antesDoDia ?? (dia === "vazio" && vazio)}
       </div>
     );
   }
@@ -231,8 +270,10 @@ export default function FluxoHoje() {
           altura e a coluna cresce até estourar a viewport. */}
       <div style={s("min-height:0;display:flex;flex-direction:column;padding:22px;gap:16px")}>
         <JornadaDeAtivacao />
-        {doDia.length === 0 ? (
-          <div style={s("flex:1;display:flex;align-items:center;justify-content:center;min-height:0")}>{vazio}</div>
+        {dia !== "cheio" ? (
+          <div style={s(`flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0;${antesDoDia && dia === "carregando" ? "justify-content:flex-start" : "align-items:center"}`)}>
+            {antesDoDia ?? vazio}
+          </div>
         ) : (
         <div style={s("flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;min-height:0")}>
         {COLUNAS.map((col) => {

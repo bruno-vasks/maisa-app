@@ -28,6 +28,7 @@ import AMaisa from "../telas/AMaisa";
 import Contatos from "../telas/Contatos";
 import { Clientes, Faturamento, Equipe, Servicos, Mais } from "../telas/Grades";
 import { ProgressoDeEmissao } from "./ProgressoDeEmissao";
+import { StatusDaMaisa } from "./StatusDaMaisa";
 import { DocumentoFiscal } from "../telas/DocumentoFiscal";
 
 /* ───────────────────────────── mapa de telas ───────────────────────────── */
@@ -378,18 +379,10 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
       </button>
 
       <div style={s("margin-left:auto;display:flex;align-items:center;gap:14px;flex-shrink:0")}>
-        <span style={s("display:inline-flex;align-items:center;gap:7px;font-size:var(--t-label);font-weight:var(--w-data);color:var(--nav-soft);white-space:nowrap")}>
-          {/* o ponto era dourado, e "no ar / pausada" é ESTADO — o emprego que o âmbar perdeu.
-              --success e --warn são escuros demais aqui (2.1:1 e 2.4:1 sobre --nav); o verde de
-              marca do WhatsApp é justamente o token de ponto/glifo, dá 7.3:1 e diz a verdade: a
-              MAISA está no ar no canal em que ela atende. Pausada vira --nav-muted (era um
-              oklch cru fora do sistema) e perde o pulso. */}
-          <span
-            className={st.assistente.ativa ? "m-pulse" : undefined}
-            style={s(`width:7px;height:7px;border-radius:50%;background:${st.assistente.ativa ? "var(--whatsapp-mark)" : "var(--nav-muted)"}`)}
-          />
-          {st.assistente.ativa ? "MAISA no ar" : "MAISA pausada"}
-        </span>
+        {/* O status vem de `statusDaMaisa` (interruptor E canal), nunca de `assistente.ativa`
+            sozinho: até 24/09/2026 aqui pulsava "no ar" com o WhatsApp desconectado. Rótulos e
+            cores por fundo moram em `StatusDaMaisa.tsx`. */}
+        <StatusDaMaisa sobre="nav" />
         <AcaoPrimaria />
       </div>
     </header>
@@ -472,6 +465,9 @@ export default function AppShell() {
             <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{TELA[st.tela].titulo}</h1>
           </div>
           <div style={s("display:flex;align-items:center;gap:8px;flex-shrink:0")}>
+            {/* O celular não tinha status nenhum: quem só usa o app pelo telefone nunca sabia se
+                a MAISA estava respondendo. Curto, porque divide 390px com título e busca. */}
+            <StatusDaMaisa sobre="claro" curto />
             <button
               onClick={() => setPaleta(true)}
               aria-label="Buscar"
