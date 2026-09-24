@@ -287,3 +287,4 @@ Honestidade sobre o estado real, para ninguém achar que está mais pronto do qu
 | `src/adaptadores/saida/demo/` | [.../saida/demo/LEIA-ME.md](src/adaptadores/saida/demo/LEIA-ME.md) |
 | `src/app/` | [src/app/LEIA-ME.md](src/app/LEIA-ME.md) |
 | `src/ui/` | [src/ui/LEIA-ME.md](src/ui/LEIA-ME.md) |
+| `scripts/bancada/` | [scripts/bancada/LEIA-ME.md](scripts/bancada/LEIA-ME.md) |

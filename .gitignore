@@ -57,6 +57,8 @@ yarn-error.log*
 .claude/auditoria/
 .claude/rostos/
 .claude/*.png
+# fotos da bancada (scripts/bancada/): a foto se refaz, o PNG no histórico não sai mais
+/.bancada-fotos/
 
 # vercel
 .vercel

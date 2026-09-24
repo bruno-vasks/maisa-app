@@ -1,0 +1,11 @@
+import { chromium, pastaDeFotos } from "./_comum.mjs";
+const b = await chromium.launch({ channel: "chrome", headless: true });
+const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+await p.goto("http://localhost:3200/?tela=clientes", { waitUntil: "networkidle" }); await p.waitForTimeout(1200);
+await p.keyboard.press("Meta+k"); await p.keyboard.type("contatos"); await p.waitForTimeout(400);
+await p.screenshot({ path: process.argv[2] + "/paleta-busca-contatos.png" });
+await p.keyboard.press("Escape");
+await p.keyboard.press("Meta+k"); await p.keyboard.type("981234567"); await p.waitForTimeout(400);
+console.log("resultados telefone sem máscara:", await p.locator('[role="dialog"] button').count());
+await p.screenshot({ path: process.argv[2] + "/paleta-busca-telefone.png" });
+await b.close();

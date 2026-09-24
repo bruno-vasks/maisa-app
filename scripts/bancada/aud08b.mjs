@@ -1,0 +1,24 @@
+import { chromium, pastaDeFotos } from "./_comum.mjs";
+const F = pastaDeFotos("08-equipe-servicos-mais");
+const browser = await chromium.launch({ channel: "chrome", headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto(`http://localhost:3200/?tela=servicos`, { waitUntil: "networkidle" });
+await page.waitForTimeout(1200);
+await page.locator('button[aria-label*="Consulta inicial"]').first().click();
+await page.waitForTimeout(600);
+const dlg = page.locator('[role="dialog"]');
+const dur = dlg.locator("input").nth(2);
+const preco = dlg.locator("input").nth(1);
+console.log("antes", await preco.inputValue(), await dur.inputValue());
+await dur.click(); await page.keyboard.press("Meta+A"); await page.keyboard.type("30", { delay: 80 });
+console.log("duracao digitando 30 ->", await dur.inputValue());
+await dur.click(); await page.keyboard.press("Meta+A"); await page.keyboard.type("45", { delay: 80 });
+console.log("duracao digitando 45 ->", await dur.inputValue());
+await preco.click(); await page.keyboard.press("Meta+A"); await page.keyboard.type("90,50", { delay: 80 });
+console.log("preco digitando 90,50 ->", await preco.inputValue());
+await page.screenshot({ path: `${F}/gaveta-svc-bug-digitacao.png` });
+// restaura
+await dur.fill("30"); await preco.fill("90");
+await page.waitForTimeout(1500);
+console.log("restaurado", await preco.inputValue(), await dur.inputValue());
+await browser.close();
