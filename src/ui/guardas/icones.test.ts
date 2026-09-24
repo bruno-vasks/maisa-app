@@ -68,10 +68,8 @@ function varrer(nomes: Set<string>): Achado[] {
   return achados;
 }
 
-/** 24/09/2026. `lock` nunca existiu; paga o 3.4 (CTA de entrar sem ícone) ou o registro ganha o cadeado. */
-const DIVIDA: Divida = {
-  "src/app/login/page.tsx": [1, "24/09/2026 · `lock` no botão Entrar; o 3.4 tira o ícone do CTA (09 P2-3)"],
-};
+/** Zerada em 24/09/2026: o único caso era `lock` no botão Entrar do login, que perdeu o ícone (09 P2-3). */
+const DIVIDA: Divida = {};
 
 describe("G5 · ícone existe", () => {
   it("todo nome de ícone literal está no registro ICONS", () => {

@@ -120,7 +120,7 @@ function LoginInner() {
             </Link>
 
             <button type="submit" disabled={!isSupabaseConfigured || carregando} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${!isSupabaseConfigured || carregando ? "not-allowed" : "pointer"};opacity:${!isSupabaseConfigured || carregando ? ".6" : "1"}`)}>
-              {carregando ? <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} /> : <Icon name="lock" size={17} sw={2} stroke="var(--on-primary)" />}
+              {carregando ? <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} /> : null /* sem ícone: pedia `lock`, que nunca existiu no registro e saía como sparkle (G5) */}
               Entrar
             </button>
           </form>
