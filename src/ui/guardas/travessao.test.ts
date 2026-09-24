@@ -72,7 +72,6 @@ const DIVIDA: Divida = {
   "src/app/esqueci/page.tsx": [2, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
   "src/app/login/page.tsx": [1, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
   "src/app/nova-senha/page.tsx": [2, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
-  "src/ui/componentes/AppShell.tsx": [6, "24/09/2026 · casca, 1C.5 tira os subtítulos (01 P2-24)"],
   "src/ui/componentes/DeQuemEEsseNumero.tsx": [3, "24/09/2026 · contatos, 3.1 (05 P2-2)"],
   "src/ui/componentes/EmitirRecibos.tsx": [4, "24/09/2026 · fiscal, 3.1 (06 P2-4)"],
   "src/ui/componentes/JornadaDeAtivacao.tsx": [1, "24/09/2026 · fluxo, 1C.7 (02 P2-1)"],

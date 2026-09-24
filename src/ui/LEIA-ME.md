@@ -19,7 +19,7 @@ componentes perto do `app/`. Conceitualmente é irmão do `http/` e do futuro `w
 
 | Componente | Papel |
 |---|---|
-| `AppShell.tsx` | Rail + conteúdo + gaveta. Decide qual tela renderizar. |
+| `AppShell.tsx` | Rail + conteúdo + gaveta. Decide qual tela renderizar. ⚠️ A topbar tem 56px e **um título só**: o `sub` de cada tela saiu do mapa `TELA` em 24/09/2026 (regra 3 do texto de tela, emenda 5 do `maisa-design`), e o guarda `guardas/subtitulo.test.ts` reprova a volta. |
 | `Gaveta.tsx` | O painel lateral de detalhe. Todo cartão é curto; o detalhe vive aqui. ⚠️ Campo com `gravaAoSair` (preço, duração, valor da sessão) guarda o texto em `CampoDeTexto` e só chama `onChange` no blur e no Enter: converter a cada tecla fazia o "30" virar 50 (08 P0-1). `onChange` que devolve `false` diz que o texto não era número, e a gaveta avisa em vez de confirmar. |
 | `Paleta.tsx` | Busca/comando (⌘K). ⚠️ Centrada com `left:0;right:0;margin-inline:auto`, nunca `translateX(-50%)`: a animação `m-reveal` anima `transform` e apagava o translate, e a busca abria com metade fora da tela. A altura mora em `.m-paleta` (`globals.css`), em `dvh` com `vh` de reserva. |
 | `Cartao.tsx` | O cartão genérico das grades. |

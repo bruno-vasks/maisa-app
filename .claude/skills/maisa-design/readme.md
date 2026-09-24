@@ -126,7 +126,7 @@ T10). Regra do projeto: quando o app precisa fugir do sistema, a exceção é es
 violada em silêncio. Cada emenda diz até onde vai. Fora do limite, vale o resto deste arquivo.
 
 ### 1. Pílula é controle
-Forma de pílula (`border-radius: 999px`) promete clique. No painel ela só aparece em: filtro e
+Forma de pílula (raio de meia altura ou mais: o `999px` do filtro, os `20px` do `Badge`) promete clique. No painel ela só aparece em: filtro e
 segmento (`Filtros`), interruptor (`Toggle`), contagem **dentro** de um controle (o número do
 item do rail, o ponto da aba) e avatar.
 

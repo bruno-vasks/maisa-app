@@ -12,7 +12,7 @@
 //                          (foi o que escondeu a tabela do CNPJ). Tem que voltar vazia
 //   foraDaTela ........... botão com right > innerWidth ou left < 0
 //   primariosNaDobra ..... botões com fundo --primary visíveis sem rolar (T2: no máximo 1)
-//   pilulasMudas ......... border-radius >= 999px em algo que não clica (T10: pílula é controle)
+//   pilulasMudas ......... raio >= meia altura em algo que não clica (T10: pílula é controle)
 //   alvosPequenos ........ alvos < 44px (só conta no celular)
 //   caracteres, travessoes texto visível em <main> e quantos "—" há nele
 //   header ............... altura do cabeçalho e se ainda há <p> de subtítulo (T8)
@@ -71,9 +71,13 @@ async function medirPagina(page, modo) {
 
     const pilulasMudas = todos
       .filter(vis)
-      .filter((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius) >= 999 && el.getBoundingClientRect().width > 16)
-      .filter((el) => !el.closest("button, a, [role=button], [role=switch], [role=tab], label"))
-      .filter((el) => (el.innerText || "").trim())
+      // Pílula é raio >= meia altura (o Badge usa 20px, não 999px) e mais larga que alta.
+      .filter((el) => { const r = el.getBoundingClientRect(); return r.width > r.height + 4 && r.height > 0 && parseFloat(getComputedStyle(el).borderTopLeftRadius) >= r.height / 2 - 0.5; })
+      // Muda = não é ela o controle. Pílula DENTRO de uma linha clicável (o "no catálogo" da
+      // tabela de Serviços) conta: quem clica é a linha, e a pílula promete um clique próprio.
+      .filter((el) => { const c = el.closest("button, a, [role=button], [role=switch], [role=tab], label"); return !c || c.getBoundingClientRect().width > el.getBoundingClientRect().width + 8; })
+      // Contagem dentro de controle (o número do rail, o ponto da aba) é a exceção da emenda 1.
+      .filter((el) => { const tx = (el.innerText || "").trim(); return tx && !/^\d+$/.test(tx); })
       .map((el) => (el.innerText || "").trim().slice(0, 30));
 
     const main = document.querySelector("main") ?? document.body;

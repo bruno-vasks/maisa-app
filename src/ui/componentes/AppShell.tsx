@@ -32,40 +32,34 @@ import { DocumentoFiscal } from "../telas/DocumentoFiscal";
 
 /* ───────────────────────────── mapa de telas ───────────────────────────── */
 
-const TELA: Record<TelaId, { rotulo: string; titulo: string; sub: string; icone: string; Comp: React.ComponentType }> = {
-  // `sub` é GETTER e não string montada. `TELA` é um const de módulo: no servidor o módulo
-  // fica em memória entre requisições, então uma string montada aqui congelaria "hoje" na
-  // data em que o processo subiu — e o subtítulo passaria a mentir a partir do dia seguinte,
-  // em silêncio, com o resto do app já mostrando a data certa.
-  fluxo: {
-    rotulo: "Fluxo de hoje", titulo: "Fluxo de hoje",
-    get sub() { return `${D.HOJE.label} · arraste entre as colunas`; },
-    icone: "flow", Comp: FluxoHoje,
-  },
-  conversas: { rotulo: "Conversas", titulo: "Conversas", sub: "A MAISA responde; você entra quando precisa", icone: "chat", Comp: Conversas },
-  // Sem data e sem dica de gesto, de propósito. A Agenda deixou de mostrar só o dia 17: agora ela
-  // navega e troca entre dia, semana e mês, então uma data cravada aqui contradiz o cartão logo
-  // abaixo — que já escreve o período. E "arraste para remarcar" virou o rodapé daquele cartão,
-  // além de ser mentira na visão de Mês, onde não se arrasta nada.
-  agenda: { rotulo: "Agenda", titulo: "Agenda", sub: "Quem vem e quando — no dia, na semana ou no mês", icone: "calendar", Comp: Agenda },
-  clientes: { rotulo: "Clientes", titulo: "Clientes", sub: "Quem você atende — toque para ver a ficha", icone: "clientes", Comp: Clientes },
+/* ⚠️ SEM SUBTÍTULO (24/09/2026, item T8 do backlog do front). Cada tela tinha um `sub` embaixo
+ * do título, na topbar: "A MAISA responde; você entra quando precisa", "Quem vem e quando — no
+ * dia, na semana ou no mês", "Uma seção por vez — o preview segue você". Justificativa de
+ * design escrita para quem usa, com travessão, repetindo o que a tela já mostra, e o do Fiscal
+ * dizia "Junho de 2026" em setembro (`D.PERIODO`). Regra 3 do texto de tela: um título, não
+ * título + subtítulo (emenda 5 do `maisa-design`). O guarda `subtitulo.test.ts` reprova a volta. */
+const TELA: Record<TelaId, { rotulo: string; titulo: string; icone: string; Comp: React.ComponentType }> = {
+  fluxo: { rotulo: "Fluxo de hoje", titulo: "Fluxo de hoje", icone: "flow", Comp: FluxoHoje },
+  conversas: { rotulo: "Conversas", titulo: "Conversas", icone: "chat", Comp: Conversas },
+  agenda: { rotulo: "Agenda", titulo: "Agenda", icone: "calendar", Comp: Agenda },
+  clientes: { rotulo: "Clientes", titulo: "Clientes", icone: "clientes", Comp: Clientes },
   /* ⚠️ O ID CONTINUA `faturamento`, O RÓTULO VIROU "Fiscal" (Bruno, 26/08/2026: *"que vamos
      renomear para fiscal"*). O id é contrato com o link profundo (`?tela=faturamento`), com o
      `localStorage` de quem já usa e com os testes — renomeá-lo quebraria link já compartilhado
      para trocar uma palavra na tela. */
-  faturamento: { rotulo: "Fiscal", titulo: "Fiscal", sub: `${D.PERIODO} · o que falta emitir`, icone: "receipt", Comp: Faturamento },
+  faturamento: { rotulo: "Fiscal", titulo: "Fiscal", icone: "receipt", Comp: Faturamento },
   // Fora do rail, como `contatos`: escolher entre nota fiscal e recibo é decisão de uma vez só.
   // Chega-se por "Mais" e pelo link "Documento fiscal" no próprio Faturamento.
-  fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", sub: "O que a MAISA emite quando você recebe", icone: "config", Comp: DocumentoFiscal },
-  equipe: { rotulo: "Equipe", titulo: "Equipe", sub: "Quem atende e quando", icone: "equipe", Comp: Equipe },
-  servicos: { rotulo: "Serviços", titulo: "Serviços", sub: "O que você oferece e por quanto", icone: "tag", Comp: Servicos },
-  assistente: { rotulo: "A MAISA", titulo: "Ajustes da MAISA", sub: "Uma seção por vez — o preview segue você", icone: "bot", Comp: AMaisa },
+  fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", icone: "config", Comp: DocumentoFiscal },
+  equipe: { rotulo: "Equipe", titulo: "Equipe", icone: "equipe", Comp: Equipe },
+  servicos: { rotulo: "Serviços", titulo: "Serviços", icone: "tag", Comp: Servicos },
+  assistente: { rotulo: "A MAISA", titulo: "Ajustes da MAISA", icone: "bot", Comp: AMaisa },
   // Fora do rail e das abas de propósito: é tarefa de configuração que se faz uma vez, e um
   // ícone permanente na barra competiria com as telas do dia a dia. Chega-se aqui pelo
   // cartão "De quem é esse número" (Ajustes da MAISA) e pelos atalhos do "Mais" — que é
   // exatamente o caminho que a pessoa já percorre quando decide mexer nisso.
-  contatos: { rotulo: "Meus contatos", titulo: "Quem a MAISA atende", sub: "Marque quem é cliente — ela cala para o resto da sua agenda", icone: "clientes", Comp: Contatos },
-  mais: { rotulo: "Mais", titulo: "Mais", sub: "Respostas, plano e números", icone: "dots", Comp: Mais },
+  contatos: { rotulo: "Meus contatos", titulo: "Quem a MAISA atende", icone: "clientes", Comp: Contatos },
+  mais: { rotulo: "Mais", titulo: "Mais", icone: "dots", Comp: Mais },
 };
 
 /** Grupos do rail — separados por hairline: o dia, o dinheiro, a configuração. */
@@ -218,7 +212,7 @@ function ConfirmaLote() {
     <ConfirmDialog
       open={st.loteAberto}
       title={n === 1 ? "Emitir 1 nota fiscal?" : `Emitir ${n} notas fiscais?`}
-      message={`Total de ${fmt(valor)}. As notas vão para a prefeitura e não dá para desfazer em lote — cancelar depois é uma a uma, e tem prazo.`}
+      message={`Total de ${fmt(valor)}. As notas vão para a prefeitura e não dá para desfazer em lote. Cancelar depois é uma a uma, e tem prazo.`}
       confirmText={n === 1 ? "Emitir a nota" : `Emitir as ${n}`}
       cancelText="Agora não"
       onConfirm={st.confirmarLote}
@@ -321,7 +315,7 @@ function AvisoCadastro() {
     >
       <Icon name="alert" size={15} />
       <span style={s("font-size:var(--t-label);font-weight:var(--w-title)")}>
-        {st.cadastroErro} Os dados abaixo são de exemplo — não são do seu negócio.
+        {st.cadastroErro} Os dados abaixo são de exemplo, não do seu negócio.
       </span>
     </div>
   );
@@ -366,11 +360,10 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
   const t = TELA[st.tela];
 
   return (
-    <header style={s("height:70px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 24px;background:var(--nav)")}>
-      <div style={s("min-width:0")}>
-        <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;color:var(--nav-ink)")}>{t.titulo}</h1>
-        <p style={s("font-size:var(--t-label);color:var(--nav-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{t.sub}</p>
-      </div>
+    /* 56px: sem o subtítulo, a topbar é uma linha só (título, busca, status, ação). Os 14px
+       que sobram vão para a tela. */
+    <header style={s("height:56px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 24px;background:var(--nav)")}>
+      <h1 style={s("min-width:0;margin:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--nav-ink)")}>{t.titulo}</h1>
 
       <button
         onClick={onBuscar}

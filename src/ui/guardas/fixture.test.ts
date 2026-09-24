@@ -69,7 +69,6 @@ function varrer(onde: string[], regra: (sf: ts.SourceFile) => ts.Node[]): Achado
 
 /** 24/09/2026. Paga o 1A.10 (tabela T5): `rotuloDoMes`, identidade real do emissor, FAQ e números fora da tela, `resumoDaAssinatura`. */
 const DIVIDA_NOMES: Divida = {
-  "src/ui/componentes/AppShell.tsx": [1, "24/09/2026 · D.PERIODO no subtítulo do Fiscal; sai com o subtítulo (1C.5)"],
   "src/ui/detalhe.tsx": [11, "24/09/2026 · D.PRESTADOR, D.PERIODO, D.FAQS, D.NUMEROS_MES nas gavetas (1A.10)"],
   "src/ui/telas/Grades.tsx": [12, "24/09/2026 · D.PERIODO, D.FAQS, D.NUMEROS_MES, precoPlano em Clientes, Fiscal e Mais (1A.10)"],
 };

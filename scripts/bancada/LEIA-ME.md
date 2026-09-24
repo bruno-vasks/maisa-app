@@ -36,7 +36,7 @@ em `BANCADA_FOTOS`, se definida. Foto não é versionada: git não esquece PNG.
 | Script | O que mede |
 |---|---|
 | `_comum.mjs` | Acha o Playwright e a pasta de saída. Todo script importa daqui. |
-| `medir.mjs` | **A régua (G18).** `medir.mjs <tela> [desktop\|mobile]` imprime documento×viewport, regiões que rolam e a fração visível, a sonda de corte (`overflow:hidden` com conteúdo maior que a caixa), botões fora da tela, primários na dobra, pílulas que não clicam, alvos < 44px no celular, caracteres e travessões visíveis, altura do cabeçalho. `medir.mjs --lote <pasta>` faz as 11 telas e as 5 rotas de entrada nas duas larguras, com foto e `medidas.json`. |
+| `medir.mjs` | **A régua (G18).** `medir.mjs <tela> [desktop\|mobile]` imprime documento×viewport, regiões que rolam e a fração visível, a sonda de corte (`overflow:hidden` com conteúdo maior que a caixa), botões fora da tela, primários na dobra, pílulas que não clicam (raio de meia altura ou mais em algo que não é o próprio controle; contagem só com dígitos passa), alvos < 44px no celular, caracteres e travessões visíveis, altura do cabeçalho. `medir.mjs --lote <pasta>` faz as 11 telas e as 5 rotas de entrada nas duas larguras, com foto e `medidas.json`. |
 | `foto.mjs` | Uma foto de uma tela ou rota; `--medir` imprime documento e rolagens, `--full` a página inteira. |
 | `casca.mjs` … `casca6.mjs` | A casca: rail, topbar, abas, busca (posição da Paleta), rodapé da gaveta (`casca5`, 5 ações a 680 e 390). |
 | `fluxo.mjs`, `fluxo2.mjs`, `fluxo3.mjs` | O Fluxo de hoje com dia cheio simulado. `--lento`, `--erroagenda`, `--vazio`, `--gaveta`, `--formado`; o `2` acrescenta `--rolar`, o `3` acrescenta `--meiodia`. |
