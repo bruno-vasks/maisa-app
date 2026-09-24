@@ -53,6 +53,7 @@ export type LinhaDeFaturamento = {
   semCpf: boolean;
 };
 import { fmt, toast } from "@/ui/primitivos";
+import { telaDoEndereco } from "./endereco";
 
 /* ───────────────────────────── tipos ───────────────────────────── */
 
@@ -3521,10 +3522,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * depois em Faturamento" é instrução que se perde na terceira palavra; `/?tela=faturamento`
    * é um toque. É o mesmo motivo do `?google=ok` acima: quem chega de fora chega no lugar.
    *
-   * ⚠️ Valida contra a lista antes de aplicar. `TelaId` é tipo, e tipo não existe em runtime:
-   * um `?tela=qualquercoisa` viraria `st.tela` inválido, o mapa de telas devolveria
-   * `undefined` e a tela inteira ficaria branca — a partir de um parâmetro que qualquer um
-   * escreve na barra de endereço.
+   * ⚠️ Valida contra a lista antes de aplicar, e a lista mora em `endereco.ts` (guarda G10).
+   * `TelaId` é tipo, e tipo não existe em runtime: um `?tela=qualquercoisa` viraria `st.tela`
+   * inválido, o mapa de telas devolveria `undefined` e a tela inteira ficaria branca — a
+   * partir de um parâmetro que qualquer um escreve na barra de endereço.
    *
    * A URL é limpa depois: o parâmetro é uma instrução de chegada, não estado. Deixá-lo faria
    * o F5 no meio de outra tela pular de volta, o que parece bug de navegação.
@@ -3534,11 +3535,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const alvo = q.get("tela");
     if (!alvo) return;
 
-    const VALIDAS: TelaId[] = [
-      "fluxo", "conversas", "agenda", "clientes", "faturamento", "fiscal",
-      "equipe", "servicos", "assistente", "contatos", "mais",
-    ];
-    if (VALIDAS.includes(alvo as TelaId)) irPara(alvo as TelaId);
+    const tela = telaDoEndereco(alvo);
+    if (tela) irPara(tela);
 
     q.delete("tela");
     const busca = q.toString();

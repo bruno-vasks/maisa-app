@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { chaveDoPlano, resumoDaAssinatura, type EstadoAssinatura, type Oferta } from "./store";
 import type { Assinatura } from "@/nucleo/dominio/assinatura";
+import { telaDoEndereco } from "./endereco";
 
 /** Uma assinatura de trial como o `005_provisionar.sql` cria: sem cartão, sem id de provedor. */
 const trial = (over: Partial<Assinatura> = {}): Assinatura => ({
@@ -218,9 +219,9 @@ describe("a volta do checkout vai para uma rota que existe", () => {
 
   it("`mais` está na lista de telas que o `?tela=` aceita", () => {
     /* A lista é validada em runtime: um alvo fora dela é ignorado em silêncio, e a volta
-     * do pagamento cairia no Fluxo de hoje sem explicação nenhuma. */
-    const store = readFileSync("src/ui/estado/store.tsx", "utf8");
-    const lista = store.slice(store.indexOf("const VALIDAS: TelaId[]"));
-    expect(lista.slice(0, lista.indexOf("];"))).toContain('"mais"');
+     * do pagamento cairia no Fluxo de hoje sem explicação nenhuma.
+     * Até 24/09/2026 este teste lia o literal `const VALIDAS: TelaId[]` de dentro do store;
+     * a lista virou `endereco.ts` (guarda G10) e o teste passou a perguntar à função. */
+    expect(telaDoEndereco("mais")).toBe("mais");
   });
 });

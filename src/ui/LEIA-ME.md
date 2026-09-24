@@ -12,6 +12,8 @@ componentes perto do `app/`. Conceitualmente é irmão do `http/` e do futuro `w
 | `detalhe.tsx` | Um id → o conteúdo da Gaveta. O prefixo do id diz a entidade (`cl…` cliente, `pr…` profissional, `sv…` serviço, `cv…` conversa, `ag…` atendimento). |
 | `primitivos.tsx` | `s()` (string CSS → objeto de estilo), `Icon`, `Btn`, `Badge`, `Monogram`, `toast`, `fmt`… A base visual, usada também pelas landing pages. |
 | `useIsMobile.ts` | Um breakpoint, um hook. |
+| `estado/endereco.ts` | **O que a URL pode pedir.** A lista de telas que o `?tela=` abre, os apelidos que já saíram em link (`faturamento`, `equipe`, `servicos`, `mais`) e, quando o T9 entrar, as `?secao=` com lista e padrão. Função pura; o store valida por ela, e o guarda G10 confere que toda tela do mapa `TELA` está lá. |
+| `guardas/` | **Testes que leem a fonte da tela** e reprovam o que a auditoria do front achou (travessão, fixture, token e ícone que não existem, `vh`, endereço, wizard com store). Ver o [`LEIA-ME`](guardas/LEIA-ME.md) de lá: cada uma tem lista de dívida que só encolhe. |
 
 ## `componentes/` — a casca
 
