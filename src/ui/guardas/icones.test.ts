@@ -80,6 +80,22 @@ describe("G5 · ícone existe", () => {
     expect(problemas, relatorio("Ícone que não existe no registro: o `Icon` desenha outra coisa no lugar.", problemas, achados)).toEqual([]);
   });
 
+  it("nome fora do registro não vira sparkle, e o EmptyState não tem ícone", () => {
+    /* Os dois caminhos por onde o sparkle aparecia sem ninguém pedir (1B.3, 24/09/2026). */
+    const sf = arvore("src/ui/primitivos.tsx");
+    let fallbackSparkle = false;
+    let emptyStateComIcone = false;
+    visitar(sf, (no) => {
+      if (ts.isPropertyAccessExpression(no) && no.expression.getText(sf) === "ICONS" && no.name.text === "sparkle") fallbackSparkle = true;
+      if (ts.isFunctionDeclaration(no) && no.name?.text === "EmptyState") {
+        const p = no.parameters[0];
+        if (p && ts.isObjectBindingPattern(p.name)) emptyStateComIcone = p.name.elements.some((e) => e.name.getText(sf) === "icon");
+      }
+    });
+    expect(fallbackSparkle, "o Icon voltou a cair em ICONS.sparkle quando o nome não existe").toBe(false);
+    expect(emptyStateComIcone, "o EmptyState voltou a ter ícone (o quadrado com sparkle da auditoria)").toBe(false);
+  });
+
   it("o instrumento lê o registro e acha os pedidos", () => {
     const nomes = registro();
     expect(nomes.size).toBeGreaterThan(40);

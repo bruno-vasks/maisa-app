@@ -668,9 +668,9 @@ function LinhaDoTempo({ data }: { data: string }) {
   if (!itens.length && !bloqueios.length) {
     return (
       <EmptyState
-        icon="calendar"
         title={data === D.HOJE.iso ? "Dia livre" : `Nada em ${D.rotuloDia(data)}`}
         sub="A MAISA marca sozinha pelo WhatsApp — quando entrar algo, aparece aqui."
+        semSaida="dívida de 24/09/2026: o 1B.4 põe Marcar atendimento neste vazio"
       />
     );
   }

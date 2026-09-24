@@ -116,10 +116,14 @@ const ICONS: Record<string, React.ReactNode> = {
   "eye-off": (<><path d="M10.7 6.2A7.9 7.9 0 0 1 12 6.1c6 0 9.5 5.9 9.5 5.9a17.6 17.6 0 0 1-2.5 3.3" /><path d="M6.7 7.7A16.8 16.8 0 0 0 2.5 12S6 17.9 12 17.9a8.7 8.7 0 0 0 3.4-.7" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /><path d="M3.5 3.5l17 17" /></>),
 };
 
+/* ⚠️ NOME FORA DO REGISTRO DESENHA NADA, e não um sparkle. Até 24/09/2026 o fallback era
+   `ICONS.sparkle`: o login pedia `name="lock"`, que nunca existiu, e mostrava uma estrelinha
+   de "IA" no botão Entrar. Um buraco é honesto; um ícone errado passa por decisão de design.
+   Nome literal é conferido pelo guarda G5 (`src/ui/guardas/icones.test.ts`). */
 export function Icon({ name, size = 20, sw = 1.8, stroke = "currentColor", style }: { name: string; size?: number; sw?: number; stroke?: string; style?: React.CSSProperties }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}>
-      {ICONS[name] || ICONS.sparkle}
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style} aria-hidden>
+      {ICONS[name] ?? null}
     </svg>
   );
 }
@@ -142,14 +146,55 @@ const BTN_VAR: Record<BtnVariant, string> = {
   // --whatsapp (escurecido) e não o verde da marca: com #25D366 o branco dava 1.98:1
   whats: "border:none;background:var(--whatsapp);color:var(--on-primary)",
 };
-export function Btn({ variant = "primary", icon, children, onClick, style, full, size = "md" }: { variant?: BtnVariant; icon?: string; children?: React.ReactNode; onClick?: () => void; style?: React.CSSProperties; full?: boolean; size?: "sm" | "md" }) {
+/* Botão desligado: fundo --line e texto --muted, não opacidade (texto a 42% reprovava o
+   contraste e lia como "carregando"). O desligado não tem hover nem press. */
+const BTN_DESLIGADO = "border:none;background:var(--line);color:var(--muted);cursor:not-allowed";
+
+/**
+ * O botão do app.
+ *
+ * ⚠️ `type="button"` POR PADRÃO. O HTML faz de todo `<button>` sem tipo um `submit`, e dentro
+ * de um `<form>` qualquer clique enviava o formulário: foi por isso que o "Novo cliente" de
+ * Clientes virou `<div>` (Grades.tsx). Quem quer enviar passa `type="submit"`.
+ *
+ * ⚠️ `disabled` É DE VERDADE, e com motivo. Botão que parece ligado e não faz nada ensina a
+ * ignorar botões; botão desligado sem dizer por quê deixa a pessoa sem saída. `motivo` sai
+ * escrito ao lado (e fica ligado ao botão por `aria-describedby`), no tamanho de rótulo.
+ * Desligado sem `motivo` é permitido só quando a razão já está escrita logo acima, na tela.
+ */
+export function Btn({ variant = "primary", icon, children, onClick, style, full, size = "md", type = "button", disabled, motivo, rotulo }: {
+  variant?: BtnVariant; icon?: string; children?: React.ReactNode; onClick?: () => void; style?: React.CSSProperties;
+  full?: boolean; size?: "sm" | "md"; type?: "button" | "submit" | "reset";
+  disabled?: boolean;
+  /** Por que está desligado. Só aparece com `disabled`. */
+  motivo?: string;
+  /** Nome acessível, quando o texto visível não basta (botão só de ícone, "＋"). */
+  rotulo?: string;
+}) {
+  const idMotivo = React.useId();
   const pad = size === "sm" ? "8px 13px" : "10px 17px";
-  const hov = variant === "primary" ? "m-hov-primary" : variant === "whats" ? "m-hov-bright" : "m-hov-bg";
-  return (
-    <button onClick={onClick} className={`${hov} m-press m-focus`} style={{ ...s(`display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;white-space:nowrap;padding:${pad};${full ? "width:100%;" : ""}${BTN_VAR[variant]}`), ...(style || {}) }}>
+  const hov = disabled ? "" : variant === "primary" ? "m-hov-primary m-press" : variant === "whats" ? "m-hov-bright m-press" : "m-hov-bg m-press";
+  const cor = disabled ? BTN_DESLIGADO : `cursor:pointer;${BTN_VAR[variant]}`;
+  const botao = (
+    <button
+      type={type}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      aria-label={rotulo}
+      aria-describedby={disabled && motivo ? idMotivo : undefined}
+      className={`${hov} m-focus`.trim()}
+      style={{ ...s(`display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-weight:var(--w-title);font-size:var(--t-sm);white-space:nowrap;padding:${pad};${full ? "width:100%;" : ""}${cor}`), ...(style || {}) }}
+    >
       {icon && <Icon name={icon} size={16} sw={2} />}
       {children}
     </button>
+  );
+  if (!disabled || !motivo) return botao;
+  return (
+    <span style={s(`display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;${full ? "width:100%;" : ""}`)}>
+      {botao}
+      <span id={idMotivo} style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-ui)")}>{motivo}</span>
+    </span>
   );
 }
 
@@ -320,14 +365,60 @@ export function SectionTitle({ title, sub, action }: { title: string; sub?: stri
   );
 }
 
-export function EmptyState({ icon = "sparkle", title, sub, action }: { icon?: string; title: string; sub?: string; action?: React.ReactNode }) {
+/** Todo vazio tem saída, ou diz no código por que não tem. */
+type SaidaDoVazio =
+  | { action: React.ReactNode; semSaida?: never }
+  /** Por que este vazio não oferece botão (a saída está logo ao lado, ou é o fim do caminho). Não aparece na tela. */
+  | { semSaida: string; action?: never };
+
+/**
+ * O estado vazio.
+ *
+ * ⚠️ SEM ÍCONE EM QUADRADO E SEM SPARKLE. O quadrado azul de 52px com um ícone dentro, em cima
+ * de todo vazio, era o carimbo de template que a auditoria de 24/09/2026 pediu para tirar
+ * (emenda 3 do maisa-design). O vazio é um título que afirma, uma frase do que fazer, e a
+ * saída.
+ *
+ * ⚠️ `action` É OBRIGATÓRIA, ou `semSaida` com o motivo. Vazio sem porta é a tela dizendo
+ * "vá em Ajustes" sem abrir Ajustes. O tipo reprova no `npm run typecheck` quem esquecer.
+ */
+export function EmptyState({ title, sub, action }: { title: string; sub?: string } & SaidaDoVazio) {
   return (
     <div style={s("display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 24px;gap:10px;color:var(--muted)")}>
-      <span style={s("width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--primary-soft);color:var(--primary-dark)")}><Icon name={icon} size={26} /></span>
-      <span style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>{title}</span>
+      <span style={s("font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg);color:var(--ink);max-width:40ch")}>{title}</span>
       {sub && <span style={s("font-size:var(--t-sm);max-width:52ch;line-height:var(--lh-prose)")}>{sub}</span>}
-      {action}
+      {action && <span style={s("margin-top:6px")}>{action}</span>}
     </div>
+  );
+}
+
+/* ---------- Estado: status que não clica ----------
+ * Pílula promete clique (emenda 1 do maisa-design). Status que só informa é uma marca de
+ * FORMA mais o rótulo em tinta: a forma carrega o sentido junto com a cor, porque cor sozinha
+ * é o sinal mais frágil que existe (daltônico, sol na tela, impressão).
+ *
+ *   disco ...... cheio: feito, confirmado, no ar
+ *   anel ....... vazado: esperando, ainda não aconteceu
+ *   triangulo .. pede atenção: falta algo, deu erro
+ *
+ * `width:fit-content` de propósito: dentro de uma coluna flex o span esticaria até a borda e
+ * voltaria a parecer uma faixa. Status editável numa lista é `Toggle`; contagem dentro de um
+ * controle é `Badge`. */
+export type FormaDeEstado = "disco" | "anel" | "triangulo";
+const COR_DO_ESTADO: Record<Exclude<Tone, "warm">, string> = {
+  success: "var(--success)", warn: "var(--warn)", danger: "var(--danger)", primary: "var(--primary)", neutral: "var(--muted)",
+};
+export function Estado({ forma, tom = "neutral", children }: { forma: FormaDeEstado; tom?: Exclude<Tone, "warm">; children: React.ReactNode }) {
+  const cor = COR_DO_ESTADO[tom];
+  return (
+    <span style={s("display:inline-flex;align-items:center;gap:7px;width:fit-content;max-width:100%;font-size:var(--t-label);font-weight:var(--w-data);color:var(--ink);line-height:var(--lh-ui)")}>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden style={s("flex-shrink:0")}>
+        {forma === "disco" && <circle cx="5" cy="5" r="4.5" fill={cor} />}
+        {forma === "anel" && <circle cx="5" cy="5" r="3.75" fill="none" stroke={cor} strokeWidth="1.5" />}
+        {forma === "triangulo" && <path d="M5 .6 9.6 9.2H.4Z" fill={cor} />}
+      </svg>
+      <span style={s("min-width:0")}>{children}</span>
+    </span>
   );
 }
 

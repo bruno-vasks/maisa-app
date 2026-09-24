@@ -47,13 +47,8 @@ function varrer(globais: Set<string>): Achado[] {
   return achados;
 }
 
-/** 24/09/2026. Paga o 1B.3 (T7). `--t-xs` é o 07 P2.3; `--dur`, `--ease` e `--brand` foram achados por este guarda no dia em que nasceu. */
-const DIVIDA: Divida = {
-  "src/ui/componentes/EmitirRecibos.tsx": [5, "24/09/2026 · `--dur` e `--ease` não existem (é `--dur-base`, `--ease-out`): a transição não roda"],
-  "src/ui/componentes/LoteReceitaSaude.tsx": [4, "24/09/2026 · `--brand` é nome do DS do site; no app não existe e a cor some"],
-  "src/ui/componentes/ProgressoDeEmissao.tsx": [2, "24/09/2026 · `--dur` e `--ease`, idem"],
-  "src/ui/telas/AMaisa.tsx": [3, "24/09/2026 · `--t-xs` (07 P2.3), vira `--t-label`"],
-};
+/** Zerada em 24/09/2026 pelo 1B.3: `--t-xs` virou `--t-label`; `--dur`/`--ease` viraram `--dur-base`/`--ease-out`; `--brand` virou `--success`/`--primary`. */
+const DIVIDA: Divida = {};
 
 describe("G4 · token de CSS existe", () => {
   it("todo var(--x) do painel e das rotas de entrada está definido", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { criarAgendarRecorrente } from "./agendar-atendimento";
 import { DadoInvalido, HorarioOcupado } from "../dominio/erros";
-import { ocorrenciasDaSerie, valorDoRascunho } from "../dominio/agenda";
+import { numeroDigitado, ocorrenciasDaSerie, valorDoRascunho } from "../dominio/agenda";
 import type { ContextoTenant } from "../dominio/tenant";
 import type { PedidoDeAgendamento } from "../portas/entrada/casos-de-uso";
 
@@ -75,5 +75,13 @@ describe("o preço digitado no atendimento", () => {
   it("o que não é dinheiro trava o botão", () => {
     expect(valorDoRascunho(r("abc"))).toBeNull();
     expect(valorDoRascunho(r("-10"))).toBeNull();
+  });
+  it("o número de qualquer campo da gaveta lê igual, e vazio não é zero", () => {
+    expect(numeroDigitado("30")).toBe(30);
+    expect(numeroDigitado("45")).toBe(45);
+    expect(numeroDigitado("90,50")).toBe(90.5);
+    expect(numeroDigitado(" R$ 1.250,00 ")).toBe(1250);
+    expect(numeroDigitado("")).toBeNull();
+    expect(numeroDigitado("3a")).toBeNull();
   });
 });

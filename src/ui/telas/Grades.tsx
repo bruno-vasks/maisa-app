@@ -129,7 +129,7 @@ export function Clientes() {
       {novo && <NovoCliente aoFechar={() => setNovo(false)} />}
       <Filtros opcoes={["Ativos", "Inativos", "Todos"]} ativo={st.filtroCli} onChange={st.setFiltroCli} />
       {lista.length === 0 ? (
-        <EmptyState icon="clientes" title="Nenhum cliente aqui" sub="Troque o filtro acima para ver os outros." />
+        <EmptyState title="Nenhum cliente aqui" sub="Troque o filtro acima para ver os outros." semSaida="o filtro fica logo acima; o 1C.8 troca esta grade pela lista com busca" />
       ) : (
         <GradeCartoes>
           {lista.map((c) => {
@@ -248,7 +248,6 @@ export function Faturamento() {
     return (
       <TelaGrade>
         <EmptyState
-          icon="receipt"
           title="Não deu para saber o que você emite"
           sub="Nota fiscal e recibo têm telas diferentes, e sem essa resposta a MAISA não mostra nenhuma das duas para não prometer o documento errado."
           action={<Btn onClick={() => void st.recarregarFiscal()}>Tentar de novo</Btn>}
@@ -315,7 +314,7 @@ export function Faturamento() {
       <LigarNotaFiscal />
 
       {base.length === 0 ? (
-        <EmptyState icon="receipt" title="Nada a faturar" sub="Nenhum cliente ativo com valor fechado nesta competência." />
+        <EmptyState title="Nada a faturar" sub="Nenhum cliente ativo com valor fechado nesta competência." semSaida="fim do caminho: sem nada a emitir, não há o que fazer aqui" />
       ) : mobile ? (
         <GradeCartoes>
           {base.map((c) => {
@@ -563,7 +562,7 @@ export function Servicos() {
       {/* Faltava estado vazio: filtrar uma categoria sem serviço dava uma faixa em branco sem
           explicação, enquanto Clientes já tratava isso. */}
       {lista.length === 0 ? (
-        <EmptyState icon="tag" title="Nenhum serviço nesta categoria" sub="Troque o filtro acima, ou crie um serviço novo pelo botão no topo." />
+        <EmptyState title="Nenhum serviço nesta categoria" sub="Troque o filtro acima, ou crie um serviço novo pelo botão no topo." semSaida="o filtro fica logo acima e o Novo serviço na topbar (T2 leva o botão ao celular)" />
       ) : mobile ? (
         <GradeCartoes>
           {lista.map((sv) => {

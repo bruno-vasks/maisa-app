@@ -122,14 +122,14 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
         aria-modal="true"
         aria-label="Buscar"
         onKeyDown={teclado}
-        className="m-reveal"
-        style={{
-          ...s("position:fixed;left:50%;z-index:91;background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden"),
-          top: "12vh",
-          transform: "translateX(-50%)",
-          width: "min(560px, calc(100vw - 32px))",
-          maxHeight: "min(520px, 70vh)",
-        }}
+        /* ⚠️ CENTRADA SEM `transform`. Era `left:50%` + `translateX(-50%)`, e a animação
+           `m-reveal` (keyframe `mrise`, que anima `transform`) apagava o translate durante e
+           depois da entrada: a busca abria com a borda esquerda no meio da tela e metade dela
+           para fora, nas duas larguras (01 P0-3). `left:0;right:0` + `margin-inline:auto` centra
+           sem disputar a propriedade com a animação. A altura mora na classe `.m-paleta`
+           (globals.css), onde `dvh` tem o `vh` de reserva. */
+        className="m-reveal m-paleta"
+        style={s("position:fixed;left:0;right:0;margin-inline:auto;z-index:91;width:min(560px, calc(100% - 32px));background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden")}
       >
         <div style={s("display:flex;align-items:center;gap:11px;padding:0 16px;height:56px;border-bottom:1px solid var(--line);flex-shrink:0")}>
           <Icon name="search" size={18} sw={1.9} stroke="var(--muted)" />

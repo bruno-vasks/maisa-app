@@ -91,6 +91,24 @@ export const MAX_OCORRENCIAS = 52;
 export function valorDoRascunho(r: RascunhoAgendamento, servico?: { preco: number }): number | null {
   const bruto = (r.valor ?? "").trim().replace(/^R\$\s*/, "");
   if (!bruto) return servico?.preco ?? 0;
+  return numeroDigitado(bruto);
+}
+
+/**
+ * O número que a pessoa digitou num campo de preço, duração ou valor: `null` se o que está lá
+ * não for número (ou estiver vazio, ou for negativo, ou passar de 100 mil).
+ *
+ * Mesmas grafias de `valorDoRascunho`, que usa esta: "90,50" e "1.250,00" com vírgula (o ponto
+ * é milhar), "90.50" sem ela (o ponto é decimal), "R$ 90" com o prefixo. Duas casas.
+ *
+ * ⚠️ QUEM CHAMA CONVERTE NO FIM DA DIGITAÇÃO, NUNCA A CADA TECLA. O campo de duração da gaveta
+ * de serviço convertia a cada tecla com mínimo de 5: apagar e digitar "30" passava por "3", que
+ * virava 5, e o "0" seguinte fazia 50 (08 P0-1). A gaveta guarda o texto e chama isto no blur
+ * e no Enter; o mínimo se aplica só na gravação.
+ */
+export function numeroDigitado(texto: string): number | null {
+  const bruto = texto.trim().replace(/^R\$\s*/, "");
+  if (!bruto) return null;
   const n = Number(bruto.includes(",") ? bruto.replace(/\./g, "").replace(",", ".") : bruto);
   if (!Number.isFinite(n) || n < 0 || n > 100_000) return null;
   return Math.round(n * 100) / 100;

@@ -266,7 +266,6 @@ export default function Contatos() {
 
         {contatos.length === 0 ? (
           <EmptyState
-            icon="download"
             title="Seus contatos ainda não estão aqui"
             sub="Traga a agenda do WhatsApp para escolher quem ela atende — e para ela chamar seus clientes pelo nome."
             /* Leva ao lugar onde a importação acontece, em vez de só descrevê-lo. Um vazio
@@ -345,9 +344,9 @@ export default function Contatos() {
 
             {filtrados.length === 0 ? (
               <EmptyState
-                icon="search"
                 title={busca ? "Ninguém com esse nome ou número" : "Nada neste filtro"}
                 sub={busca ? "Tente parte do nome, ou os últimos dígitos do telefone." : undefined}
+                semSaida="a busca e os filtros ficam logo acima da lista"
               />
             ) : (
               <>

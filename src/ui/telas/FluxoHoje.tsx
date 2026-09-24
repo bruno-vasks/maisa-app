@@ -170,7 +170,6 @@ export default function FluxoHoje() {
   const bloqHoje = st.bloqueiosDoDia(D.HOJE.iso);
   const vazio = (
     <EmptyState
-      icon="flow"
       title="Nenhum atendimento marcado para hoje"
       sub={
         bloqHoje.length

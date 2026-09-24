@@ -316,6 +316,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 @keyframes mpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 .m-pulse { animation: mpulse 2.4s ease-in-out infinite; }
 
+/* (e2) busca (⌘K): altura pela janela VISÍVEL. `vh` fica de reserva para navegador sem `dvh`;
+   no Safari do iPhone, `70vh` conta a barra de endereço recolhida e a lista ia para trás dela. */
+.m-paleta { top: 12vh; top: 12dvh; max-height: min(520px, 70vh); max-height: min(520px, 70dvh); }
+
 /* (f) bolha de mensagem entrando na conversa */
 .m-bubble { animation: msheet var(--dur-slow) var(--ease-out) both; }
 
@@ -328,3 +332,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
     scroll-behavior: auto !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYOUT PELO CONTÊINER (item T7 do backlog do front, 24/09/2026)
+   Estilo inline não tem @media nem @container, e uma gaveta de 560px no desktop tem a
+   mesma largura de um celular deitado: decidir coluna pela JANELA erra nos dois. Quem decide
+   é a largura de quem contém o formulário.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Formulário que vira duas colunas quando o CONTÊINER passa de 520px. Uso:
+     <div class="m-campos"><div class="m-campos-grade"> campos… </div></div>
+   `.m-campo-largo` ocupa a linha inteira (endereço, observação, parágrafo). O contêiner e a
+   grade são dois elementos porque um elemento não consulta o próprio tamanho. */
+.m-campos { container-type: inline-size; }
+.m-campos-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+@container (min-width: 520px) {
+  .m-campos-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+  .m-campos-grade > .m-campo-largo { grid-column: 1 / -1; }
+}
+
+/* Teto de largura. Campo curto (nome, telefone, preço, horário) não estica até 900px só porque
+   a coluna deixa: 28rem é o nome mais longo com folga. Parágrafo para em 68ch, a medida em que o
+   olho ainda acha o começo da linha seguinte. */
+.m-curto { max-width: 28rem; }
+.m-prosa { max-width: 68ch; }

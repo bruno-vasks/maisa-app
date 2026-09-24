@@ -83,7 +83,7 @@ export function ProgressoDeEmissao() {
       </div>
 
       <span aria-hidden style={s("height:7px;border-radius:20px;background:var(--surface-2);overflow:hidden")}>
-        <span style={s(`display:block;height:100%;border-radius:20px;background:${tudoCerto ? "var(--success)" : andando ? "var(--primary)" : "var(--warn)"};width:${pct}%;transition:width var(--dur) var(--ease)`)} />
+        <span style={s(`display:block;height:100%;border-radius:20px;background:${tudoCerto ? "var(--success)" : andando ? "var(--primary)" : "var(--warn)"};width:${pct}%;transition:width var(--dur-base) var(--ease-out)`)} />
       </span>
 
       {/* O último que saiu, com o check — a confirmação de que a fila anda de gente em gente. */}

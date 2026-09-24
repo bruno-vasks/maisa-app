@@ -2032,8 +2032,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         toast(r?.info ?? "Não foi possível salvar o serviço.");
         return;
       }
-      /* Pinta o que o BANCO gravou — a normalização acontece lá. */
-      if (r.servico) trocarServicoNaTela(id, r.servico);
+      /* Pinta o que o BANCO gravou — a normalização acontece lá.
+       * ⚠️ MENOS quando outra edição do mesmo serviço já está na fila: a resposta é da
+       * gravação ANTERIOR e pintaria por cima do que acabou de ser digitado. Medido em
+       * 24/09/2026 (bancada `aud08b.mjs`): mudar a duração e logo depois o preço fazia o
+       * preço voltar ao antigo por meio segundo, até a segunda gravação responder. Quem
+       * pinta, então, é a resposta da última. */
+      if (r.servico && !svcPendente.current.has(id)) trocarServicoNaTela(id, r.servico);
     } catch {
       voltar();
       toast("Sem conexão com o servidor — o serviço não foi salvo.");

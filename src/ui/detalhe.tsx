@@ -37,7 +37,15 @@ export type Campo = {
   rotuloOpcao?: (v: string) => string;
   prefixo?: string;
   sufixo?: string;
-  onChange: (v: string) => void;
+  /**
+   * Guarda o texto enquanto a pessoa digita e só chama `onChange` no blur e no Enter.
+   * Para número que o store converte e limita (preço, duração, valor da ficha): converter a
+   * cada tecla transformava o "3" de "30" em 5 e o "30" em 50 (08 P0-1). Ver `CampoDeTexto`.
+   */
+  gravaAoSair?: boolean;
+  /** Com `gravaAoSair`, devolver `false` diz que o texto não foi aceito (não é número): a gaveta
+   *  não confirma "atualizado" e avisa que ficou como estava. */
+  onChange: (v: string) => void | boolean;
 };
 
 export type Bloco =
@@ -440,17 +448,21 @@ export function useDetalhe(id: string | null): Detalhe | null {
               onChange: (v) => st.editarCliente(cli.id, { email: v }),
             },
             /* O preço DESTA pessoa (24/09/2026). É daqui que o novo atendimento e o agente
-               de WhatsApp puxam o valor; vazio = o do serviço. Em reais inteiros: o campo
-               grava a cada tecla, e uma vírgula no meio da digitação não tem número. */
+               de WhatsApp puxam o valor; vazio = o do serviço. Grava ao sair do campo
+               (`gravaAoSair`), então aceita centavos: "180,50" era lido como 18050 quando o
+               campo gravava a cada tecla e jogava fora tudo que não fosse dígito. */
             {
               id: "valorSessao", label: "Valor da sessão", tipo: "numero", prefixo: "R$",
-              valor: cli.valorSessao == null ? "" : String(cli.valorSessao),
+              gravaAoSair: true,
+              valor: cli.valorSessao == null ? "" : String(cli.valorSessao).replace(".", ","),
               hint: cli.valorSessao == null
                 ? `Vazio = o preço do serviço${svcCliente ? ` (${fmt(svcCliente.preco)})` : ""}. Preencha se esta pessoa paga outro valor.`
                 : "Todo atendimento novo desta pessoa nasce com este valor — pela tela e pelo WhatsApp.",
               onChange: (v) => {
-                const d = v.replace(/\D/g, "");
-                st.editarCliente(cli.id, { valorSessao: d ? Number(d) : null });
+                if (!v.trim()) { st.editarCliente(cli.id, { valorSessao: null }); return; }
+                const n = D.numeroDigitado(v);
+                if (n === null) return false;
+                st.editarCliente(cli.id, { valorSessao: n });
               },
             },
             {
@@ -721,15 +733,28 @@ export function useDetalhe(id: string | null): Detalhe | null {
               id: "nome", label: "Nome", valor: sv.nome,
               onChange: (v) => st.editarServico(sv.id, { nome: v }),
             },
+            /* ⚠️ `gravaAoSair`: preço e duração convertem no blur e no Enter, nunca a cada tecla
+               (08 P0-1, o 30 que virava 50). Texto que não é número não grava, e o campo volta
+               ao valor salvo. O mínimo de 5 min vale na gravação, não na digitação. */
             {
-              id: "preco", label: "Preço", valor: String(sv.preco), tipo: "numero", prefixo: "R$",
+              id: "preco", label: "Preço", valor: String(sv.preco).replace(".", ","), tipo: "numero", prefixo: "R$",
+              gravaAoSair: true,
               hint: "O que o cliente paga por este serviço.",
-              onChange: (v) => st.editarServico(sv.id, { preco: Math.max(0, Number(v) || 0) }),
+              onChange: (v) => {
+                const n = D.numeroDigitado(v);
+                if (n === null) return false;
+                st.editarServico(sv.id, { preco: n });
+              },
             },
             {
               id: "duracao", label: "Duração", valor: String(sv.duracao), tipo: "numero", sufixo: "min",
+              gravaAoSair: true,
               hint: "Quanto tempo a MAISA reserva na agenda.",
-              onChange: (v) => st.editarServico(sv.id, { duracao: Math.max(5, Number(v) || 5) }),
+              onChange: (v) => {
+                const n = D.numeroDigitado(v);
+                if (n === null) return false;
+                st.editarServico(sv.id, { duracao: Math.max(5, Math.round(n)) });
+              },
             },
             {
               id: "categoria", label: "Categoria", valor: sv.categoria, tipo: "select",

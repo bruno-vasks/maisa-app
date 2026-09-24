@@ -196,7 +196,7 @@ function BarraDeEtapas({ etapa, ir }: { etapa: number; ir: (n: number) => void }
             <button
               onClick={() => ir(n)}
               className="m-focus"
-              style={s(`border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px 0;font-size:var(--t-sm);font-weight:${atual ? "var(--w-emph)" : "var(--w-title)"};color:${atual ? "var(--primary)" : "var(--muted)"};transition:color var(--dur-fast) var(--ease)`)}
+              style={s(`border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px 0;font-size:var(--t-sm);font-weight:${atual ? "var(--w-emph)" : "var(--w-title)"};color:${atual ? "var(--primary)" : "var(--muted)"};transition:color var(--dur-fast) var(--ease-out)`)}
               aria-current={atual ? "step" : undefined}
             >
               {n}. {rotulo}
@@ -209,7 +209,7 @@ function BarraDeEtapas({ etapa, ir }: { etapa: number; ir: (n: number) => void }
         aria-hidden
         style={s("flex:1;min-width:40px;height:5px;border-radius:20px;background:var(--surface-2);overflow:hidden")}
       >
-        <span style={s(`display:block;height:100%;border-radius:20px;background:var(--primary);width:${(etapa / ETAPAS.length) * 100}%;transition:width var(--dur) var(--ease)`)} />
+        <span style={s(`display:block;height:100%;border-radius:20px;background:var(--primary);width:${(etapa / ETAPAS.length) * 100}%;transition:width var(--dur-base) var(--ease-out)`)} />
       </span>
     </Card>
   );
@@ -414,7 +414,7 @@ export function EmitirRecibos() {
   /* ── estados que não são a tela ──────────────────────────────────────────── */
 
   if (erro) {
-    return <EmptyState icon="receipt" title="Não deu para carregar" sub={erro} action={<Btn onClick={() => void carregar()}>Tentar de novo</Btn>} />;
+    return <EmptyState title="Não deu para carregar" sub={erro} action={<Btn onClick={() => void carregar()}>Tentar de novo</Btn>} />;
   }
   if (!fiscal || !pend) {
     return <div style={s("height:220px;border-radius:var(--radius-card);background:var(--surface-2)")} aria-busy="true" />;
@@ -636,7 +636,7 @@ export function EmitirRecibos() {
               onClick={() => alternar(g)}
               className="m-focus m-hov-bg"
               aria-pressed={on}
-              style={s(`width:100%;display:flex;align-items:center;gap:14px;padding:13px 16px;border:none;${i < grupos.length - 1 ? "border-bottom:1px solid var(--line);" : ""}background:${agora ? "var(--primary-soft)" : "transparent"};transition:background var(--dur) var(--ease);cursor:pointer;text-align:left;font-family:inherit;color:inherit`)}
+              style={s(`width:100%;display:flex;align-items:center;gap:14px;padding:13px 16px;border:none;${i < grupos.length - 1 ? "border-bottom:1px solid var(--line);" : ""}background:${agora ? "var(--primary-soft)" : "transparent"};transition:background var(--dur-base) var(--ease-out);cursor:pointer;text-align:left;font-family:inherit;color:inherit`)}
             >
               <span
                 aria-hidden

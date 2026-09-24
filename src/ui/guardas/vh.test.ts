@@ -42,7 +42,6 @@ const DIVIDA: Divida = {
   "src/app/nova-senha/page.tsx": [1, "24/09/2026 · fundo da entrada (3.4)"],
   "src/ui/componentes/AppShell.tsx": [2, "24/09/2026 · altura da casca nas duas larguras (1C.4, T11)"],
   "src/ui/componentes/Gaveta.tsx": [2, "24/09/2026 · teto da gaveta e da folha do celular (1B.2, T6)"],
-  "src/ui/componentes/Paleta.tsx": [2, "24/09/2026 · posição da busca (1B.3, T7)"],
 };
 
 describe("G9 · sem vh congelado", () => {

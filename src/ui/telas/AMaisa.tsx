@@ -492,7 +492,7 @@ function Personalidade() {
           className="m-focus"
           style={s(CAMPO)}
         />
-        <span style={s("font-size:var(--t-xs);color:var(--muted);line-height:1.5")}>
+        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
           É como a MAISA se apresenta no WhatsApp e o que aparece nos lembretes.
         </span>
       </label>
@@ -689,7 +689,7 @@ function Duvidas() {
   return (
     <div style={s("display:flex;flex-direction:column;gap:16px")}>
       {st.faqsErro && (
-        <div style={s("padding:10px 12px;border-radius:10px;background:var(--danger-soft);color:var(--danger);font-size:var(--t-xs);line-height:1.5")}>
+        <div style={s("padding:10px 12px;border-radius:10px;background:var(--danger-soft);color:var(--danger);font-size:var(--t-label);line-height:1.5")}>
           {st.faqsErro}
         </div>
       )}
@@ -711,7 +711,7 @@ function Duvidas() {
           >
             <div style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:3px")}>
               <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{f.pergunta}</span>
-              <span style={s("font-size:var(--t-xs);color:var(--muted);line-height:1.5")}>{f.resposta}</span>
+              <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>{f.resposta}</span>
               {/* `usos` nasceu com a tabela e ficou em zero enquanto nada lia as FAQs.
                   Agora ele responde "qual dúvida meus clientes mais têm" — que é a
                   informação que vira serviço novo, preço ou horário estendido. */}

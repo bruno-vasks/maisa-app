@@ -66,11 +66,13 @@ const CARNE_LEAO = LINK_CARNE_LEAO;
 function ItemChecklist({ item }: { item: ItemDoChecklist }) {
   /* ⚠️ `com_a_gente` NÃO CAI NO CINZA. O cinza é do item que está do outro lado do muro — algo
    * que ninguém aqui controla. "A MAISA está resolvendo" é o oposto: é trabalho em andamento, do
-   * nosso lado, e pintá-lo de desligado faria parecer abandonado. Relógio, na cor da marca. */
+   * nosso lado, e pintá-lo de desligado faria parecer abandonado. Relógio, no azul do app.
+   * Até 24/09/2026 era `var(--brand)`, nome do DS do site que não existe no app: a cor era
+   * descartada e o relógio e o check saíam na cor do texto. O guarda G4 achou. */
   const cor =
-    item.estado === "pronto" ? "var(--ok, var(--brand))"
+    item.estado === "pronto" ? "var(--success)"
     : item.estado === "falta" ? "var(--warn)"
-    : item.estado === "com_a_gente" ? "var(--brand)"
+    : item.estado === "com_a_gente" ? "var(--primary)"
     : "var(--muted)";
   const icone =
     item.estado === "pronto" ? "check"
@@ -534,7 +536,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
         <div style={s(`display:grid;gap:10px;padding:13px 15px;border-radius:13px;border:1px solid ${bloqueia ? "var(--warn)" : "var(--border)"};background:${bloqueia ? "var(--warn-soft)" : "var(--bg)"}`)}>
           {!editando ? (
             <div style={s("display:flex;gap:11px;align-items:center;flex-wrap:wrap")}>
-              <span style={s(`flex-shrink:0;display:flex;color:${bloqueia ? "var(--warn)" : faltaMeusDados > 0 ? "var(--muted)" : "var(--brand)"}`)}>
+              <span style={s(`flex-shrink:0;display:flex;color:${bloqueia ? "var(--warn)" : faltaMeusDados > 0 ? "var(--muted)" : "var(--success)"}`)}>
                 <Icon name={faltaMeusDados > 0 ? "alert" : "check"} size={17} sw={2.3} />
               </span>
               <span style={s("flex:1;min-width:170px;display:grid;gap:3px")}>
@@ -880,7 +882,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
               type="checkbox"
               checked={avisar}
               onChange={(e) => setAvisar(e.target.checked)}
-              style={s("margin-top:2px;width:16px;height:16px;accent-color:var(--brand)")}
+              style={s("margin-top:2px;width:16px;height:16px;accent-color:var(--primary)")}
             />
             <span style={s("display:grid;gap:3px")}>
               <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>

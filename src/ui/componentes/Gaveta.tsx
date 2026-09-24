@@ -50,6 +50,55 @@ function Stats({ linhas }: { linhas: [string, string][] }) {
  * mentira no dia em que o cliente virou editável (24/08/2026): corrigir o CPF de alguém
  * confirmava "Serviço atualizado". Bloco sem `avisoAoSair` não avisa nada, que é o certo
  * para campo que ainda não gravou (o rascunho de atendimento). */
+/**
+ * O input de texto e de número da gaveta.
+ *
+ * Com `gravaAoSair`, o que se digita mora AQUI até o blur ou o Enter; só então vai para o
+ * `onChange` (que converte e grava). Sem isso, o store recebia "3" no caminho de "30", aplicava
+ * o mínimo de 5 e devolvia "5" para o campo, e o "0" seguinte fazia 50 (08 P0-1).
+ *
+ * O texto local volta ao valor salvo quando o valor salvo muda (a gravação deu certo, ou outra
+ * aba mudou) e o campo não está em uso. Se o que se digitou não era número, o `onChange` não
+ * grava, o valor salvo não muda, e o blur devolve o campo ao que estava.
+ */
+function CampoDeTexto({ c, avisoAoSair }: { c: CampoT; avisoAoSair?: string }) {
+  const [texto, setTexto] = React.useState(c.valor);
+  const emUso = useRef(false);
+  useEffect(() => { if (!emUso.current) setTexto(c.valor); }, [c.valor]);
+
+  /** `true` = mudou e gravou; `false` = recusado; `null` = nada mudou. */
+  const gravar = (): boolean | null => {
+    if (texto === c.valor) return null;
+    const aceito = c.onChange(texto) !== false;
+    setTexto(c.valor); // se gravou, o efeito acima troca pelo valor novo no próximo render
+    return aceito;
+  };
+
+  const avisar = (r: boolean | null) => {
+    if (r === false) toast(`${c.label}: isso não é um número. Ficou como estava.`);
+    else if (r === true && avisoAoSair) toast(avisoAoSair);
+  };
+
+  return (
+    <Input
+      value={c.gravaAoSair ? texto : c.valor}
+      inputMode={c.tipo === "numero" ? (c.gravaAoSair ? "decimal" : "numeric") : undefined}
+      onFocus={() => { emUso.current = true; }}
+      onChange={(e) => (c.gravaAoSair ? setTexto(e.target.value) : c.onChange(e.target.value))}
+      /* Enter grava SAINDO do campo: um caminho só (o blur). Gravar aqui e de novo no blur
+         mandava o texto velho, porque com o foco no campo o texto local não se atualiza. */
+      onKeyDown={(e) => { if (e.key === "Enter" && c.gravaAoSair) e.currentTarget.blur(); }}
+      onBlur={() => {
+        emUso.current = false;
+        if (!c.gravaAoSair) { if (avisoAoSair) toast(avisoAoSair); return; }
+        avisar(gravar());
+      }}
+      className={c.tipo === "numero" ? "n" : undefined}
+      style={s(`${c.prefixo ? "padding-left:40px;" : ""}${c.sufixo ? "padding-right:52px;" : ""}`)}
+    />
+  );
+}
+
 function Campos({ campos, avisoAoSair }: { campos: CampoT[]; avisoAoSair?: string }) {
   return (
     <div style={s("display:flex;flex-direction:column;gap:14px")}>
@@ -66,14 +115,7 @@ function Campos({ campos, avisoAoSair }: { campos: CampoT[]; avisoAoSair?: strin
               {c.prefixo && (
                 <span style={s("position:absolute;left:13px;font-size:var(--t-sm);color:var(--muted);pointer-events:none")}>{c.prefixo}</span>
               )}
-              <Input
-                value={c.valor}
-                inputMode={c.tipo === "numero" ? "numeric" : undefined}
-                onChange={(e) => c.onChange(e.target.value)}
-                onBlur={avisoAoSair ? () => toast(avisoAoSair) : undefined}
-                className={c.tipo === "numero" ? "n" : undefined}
-                style={s(`${c.prefixo ? "padding-left:40px;" : ""}${c.sufixo ? "padding-right:52px;" : ""}`)}
-              />
+              <CampoDeTexto c={c} avisoAoSair={avisoAoSair} />
               {c.sufixo && (
                 <span style={s("position:absolute;right:14px;font-size:var(--t-sm);color:var(--muted);pointer-events:none")}>{c.sufixo}</span>
               )}

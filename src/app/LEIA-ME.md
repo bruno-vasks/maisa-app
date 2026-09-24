@@ -10,7 +10,7 @@ Duas coisas moram aqui, e elas quase não se falam: o **painel** (o produto) e a
 | `/` | `page.tsx` | Monta o `StoreProvider` + `AppShell`. Protegida pelo middleware. |
 | `/login` | `login/page.tsx` | Entrada por e‑mail (Supabase Auth). |
 | `/auth/callback` | `auth/callback/route.ts` | Volta do login social / confirmação por e‑mail. Todo erro carrega um MOTIVO — "tente de novo" é conselho inútil quando a causa é o provedor estar desligado. |
-| — | `layout.tsx`, `globals.css`, `manifest.ts`, `apple-icon.tsx` | Casca, fontes, PWA. |
+| — | `layout.tsx`, `globals.css`, `manifest.ts`, `apple-icon.tsx` | Casca, fontes, PWA. `globals.css` é a fonte dos tokens do painel (o guarda G4 reprova `var(--x)` que não esteja lá ou no `next/font` do `layout.tsx`) e, desde 24/09/2026, das classes que decidem layout pelo contêiner: `.m-campos` + `.m-campos-grade` (duas colunas quando o contêiner passa de 520px, `.m-campo-largo` ocupa a linha), `.m-curto` (28rem) e `.m-prosa` (68ch). |
 
 ## API — o adaptador de entrada HTTP
 
