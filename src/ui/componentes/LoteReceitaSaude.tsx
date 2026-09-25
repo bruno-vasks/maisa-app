@@ -267,6 +267,57 @@ const CAMPO = "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;borde
  * o lugar onde se corrige a identidade de quem emite, e é para lá que o botão "Voltar e editar
  * meus dados" da tela Fiscal aponta. Sem isto, aquele botão levaria a uma tela sem o campo.
  */
+/**
+ * ★ O QUE VOCÊ FAZ NO SITE DA RECEITA, montado de novo (25/09/2026, 1A.14, 06 P0-3 d).
+ *
+ * Os passos da autorização de acesso, do cadastro no Carnê-Leão e da conferência sem emitir
+ * moravam só no ramo `!apenasDados` deste arquivo, e o único lugar que monta o componente passa
+ * `apenasDados`: onze passos, os links com o 10028 e o `AVISO_ASSINADOR` eram código morto, e a
+ * autorização vencida não tinha onde ser renovada. Aqui eles viram um recorte do Documento
+ * fiscal, sempre aberto, com uma âncora por item (`secao-autorizacao`, `secao-carne-leao`): é
+ * para lá que o "Renovar autorização" da tela Fiscal leva, por `?secao=`.
+ *
+ * ⚠️ As palavras e os links vêm de `checklistDoRecibo`, sem cópia: o 10028 e "uma ação por
+ * passo" são contrato do domínio (ver `LINK_CARNE_LEAO`).
+ */
+export function NoSiteDaReceita({ config, foco }: { config: ConfigFiscalDaTela; foco?: string | null }) {
+  const { noEcac } = partesDoChecklist(checklistDoRecibo(config, hojeISO()));
+  const ancora: Partial<Record<ItemDoChecklist["id"], string>> = { procuracao: "secao-autorizacao", carne_leao: "secao-carne-leao" };
+  React.useEffect(() => {
+    if (!foco) return;
+    const alvo = document.getElementById(`secao-${foco}`);
+    if (!alvo) return;
+    alvo.scrollIntoView({ block: "start" });
+    alvo.focus({ preventScroll: true });
+  }, [foco]);
+  if (!noEcac.length) return null;
+  return (
+    <Card style={{ display: "grid", gap: 6 }}>
+      <SectionTitle title="No site da Receita" sub="O que só você faz, no e-CAC. A MAISA não consegue conferir estes passos daqui." />
+      {noEcac.map((i) => (
+        <div
+          key={i.id}
+          id={ancora[i.id]}
+          tabIndex={ancora[i.id] ? -1 : undefined}
+          style={s(`scroll-margin-top:16px;border-radius:12px;${ancora[i.id] && foco && ancora[i.id] === `secao-${foco}` ? "outline:2px solid var(--primary);outline-offset:-2px" : ""}`)}
+        >
+          <ItemChecklist item={i} />
+        </div>
+      ))}
+      <details style={s("margin:6px 14px 0;font-size:var(--t-label);color:var(--muted)")}>
+        <summary style={s("cursor:pointer;font-weight:var(--w-title);color:var(--ink)")}>
+          E se o e-CAC recusar mesmo com tudo certo?
+        </summary>
+        <ol style={s("margin:8px 0 0;padding-left:18px;display:grid;gap:6px;line-height:1.55")}>
+          {seAindaRecusar(config.ocupacaoSaude ?? null).map((passo) => <li key={passo}>{passo}</li>)}
+        </ol>
+      </details>
+    </Card>
+  );
+}
+
+type ConfigFiscalDaTela = Parameters<typeof checklistDoRecibo>[0];
+
 export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}) {
   /**
    * A lista de clientes sai do store, e não de uma rota nova.

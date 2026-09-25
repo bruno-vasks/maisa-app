@@ -58,7 +58,7 @@ export type LinhaDeFaturamento = {
   competencia?: string;
 };
 import { fmt, toast } from "@/ui/primitivos";
-import { telaDoEndereco } from "./endereco";
+import { secaoDoEndereco, telaDoEndereco } from "./endereco";
 
 /* ───────────────────────────── tipos ───────────────────────────── */
 
@@ -622,7 +622,10 @@ function migrarDaV2(): string | null {
 export type StoreValue = {
   /* navegação */
   tela: TelaId;
-  irPara: (t: TelaId) => void;
+  /** `secao` só vale se estiver na lista de `SECOES` daquela tela (`endereco.ts`); senão, o padrão. */
+  irPara: (t: TelaId, secao?: string) => void;
+  /** O recorte pedido da tela atual (`?secao=` ou `irPara(t, secao)`). `null` = tela sem seções. */
+  secao: string | null;
   /** id aberto na Gaveta (cliente, agendamento, conversa, serviço, seção…). */
   sel: string | null;
   abrir: (id: string) => void;
@@ -1396,7 +1399,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /* ── navegação ── */
   // Trocar de tela ou de item descarta um "Cancelar" pela metade — ver cancelarAtendimento.
-  const irPara = useCallback((t: TelaId) => { setTela(t); setSel(null); setCancelarPedido(null); }, []);
+  /* O recorte (1A.14): só o Documento fiscal tem, por enquanto (`SECOES` em `endereco.ts`). O
+   * T9 do backlog faz a URL espelhar tudo; até lá, `?secao=` é instrução de chegada, como `?tela=`. */
+  const [secao, setSecao] = useState<string | null>(null);
+  const irPara = useCallback((t: TelaId, s?: string) => {
+    setTela(t); setSel(null); setCancelarPedido(null);
+    setSecao(secaoDoEndereco(t, s));
+  }, []);
   const abrir = useCallback((id: string) => { setSel(id); setCancelarPedido(null); }, []);
   const fechar = useCallback(() => { setSel(null); setCancelarPedido(null); }, []);
 
@@ -3679,9 +3688,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!alvo) return;
 
     const tela = telaDoEndereco(alvo);
-    if (tela) irPara(tela);
+    if (tela) irPara(tela, q.get("secao") ?? undefined);
 
     q.delete("tela");
+    q.delete("secao");
     const busca = q.toString();
     window.history.replaceState({}, "", window.location.pathname + (busca ? `?${busca}` : ""));
   }, [irPara]);
@@ -4234,7 +4244,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /* ── valor ── */
   const value = useMemo<StoreValue>(() => ({
-    tela, irPara, sel, abrir, fechar,
+    tela, irPara, secao, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
     fila, resolverFila,
@@ -4266,7 +4276,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
     railAberto, setRailAberto,
   }), [
-    tela, irPara, sel, abrir, fechar,
+    tela, irPara, secao, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
     fila, resolverFila,

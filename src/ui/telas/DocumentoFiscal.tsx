@@ -57,7 +57,7 @@ import { s, Icon, Btn, Card, SectionTitle } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import { TelaGrade } from "@/ui/componentes/Cartao";
 import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
-import { LoteReceitaSaude } from "@/ui/componentes/LoteReceitaSaude";
+import { LoteReceitaSaude, NoSiteDaReceita } from "@/ui/componentes/LoteReceitaSaude";
 import { faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
 import { hojeISO } from "@/nucleo/dominio/tempo";
 
@@ -272,6 +272,12 @@ export function DocumentoFiscal() {
           emissão automática, na tela Fiscal. O que fica é a identidade de quem emite, porque é
           para cá que o "Voltar e editar meus dados" de lá aponta. */}
       {modo === "recibo" && <LoteReceitaSaude apenasDados />}
+      {/* O passo a passo do e-CAC (autorização, Carnê-Leão, conferência): só com a escolha
+          gravada, porque os passos dependem do CPF e da profissão dela. `?secao=autorizacao`
+          e `?secao=carne-leao` rolam até o item (1A.14). */}
+      {feita === "recibo" && config && (
+        <NoSiteDaReceita config={config} foco={st.secao === "autorizacao" || st.secao === "carne-leao" ? st.secao : null} />
+      )}
 
       {/* ── ★ O PRÓXIMO PASSO, DITO EM VOZ ALTA ──
           Esta tela respondia uma pergunta e parava. Quem terminava de escolher ficava olhando para

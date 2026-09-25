@@ -264,7 +264,7 @@ function Emitente({ config }: { config: ConfigFiscal }) {
         <Icon name="alert" size={16} style={s("flex-shrink:0;color:var(--warn)")} />
         <span style={s("flex:1;min-width:200px;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{bloqueio.frase}</span>
         {bloqueio.quem === "voce" && (
-          <Btn size="sm" onClick={() => st.irPara("fiscal")}>Renovar autorização</Btn>
+          <Btn size="sm" onClick={() => st.irPara("fiscal", "autorizacao")}>Renovar autorização</Btn>
         )}
       </div>
     ) : rep.modo === "representada" ? (

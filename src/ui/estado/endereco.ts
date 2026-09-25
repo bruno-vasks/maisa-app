@@ -16,8 +16,10 @@
  * item 2.40 do backlog juntar Equipe, Serviços e Mais em "Seu negócio", estes nomes continuam
  * abrindo o lugar certo, por aqui.
  *
- * `?secao=` ainda não existe (entra com o item T9 do backlog). Quando entrar, cada chave ganha
- * uma lista fechada e um padrão em `SECOES`, e o G10 passa a cobrar as duas coisas.
+ * `?secao=` existe só no Documento fiscal (1A.14, 25/09/2026): `autorizacao` e `carne-leao`
+ * levam direto ao passo a passo do site da Receita, e é para onde o "Renovar autorização" da
+ * tela Fiscal aponta. O item T9 do backlog estende às outras telas; cada chave tem lista fechada
+ * e padrão em `SECOES`, e o G10 cobra as duas coisas.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import type { TelaId } from "./store";
@@ -36,8 +38,11 @@ export function telaDoEndereco(valor: string | null | undefined): TelaId | null 
   return (TELAS_DO_ENDERECO as readonly string[]).includes(valor) ? (valor as TelaId) : null;
 }
 
-/** `?secao=` por tela: a lista fechada e o padrão. Vazio até o T9. */
-export const SECOES: Partial<Record<TelaId, { validas: readonly string[]; padrao: string }>> = {};
+/** `?secao=` por tela: a lista fechada e o padrão. */
+export const SECOES: Partial<Record<TelaId, { validas: readonly string[]; padrao: string }>> = {
+  /* `inicio` é a tela como sempre foi, do topo. */
+  fiscal: { validas: ["inicio", "dados", "autorizacao", "carne-leao"], padrao: "inicio" },
+};
 
 export function secaoDoEndereco(tela: TelaId, valor: string | null | undefined): string | null {
   const regra = SECOES[tela];
