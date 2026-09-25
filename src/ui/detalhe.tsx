@@ -1287,7 +1287,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
     const r = resumoDaJornada(st);
     if (!r) return null;
     return {
-      titulo: "O que falta para a MAISA trabalhar sozinha",
+      titulo: "O que falta para a MAISA atender sozinha",
       sub: `${r.prontos} de ${r.total} feitos`,
       blocos: [
         {
@@ -1299,6 +1299,20 @@ export function useDetalhe(id: string | null): Detalhe | null {
         },
         { tipo: "texto", key: "nota", texto: r.faltam === 1 ? "Falta um passo. Depois dele esta linha some do Fluxo, e não volta." : "Nada aqui trava o app: dá para usar do jeito que está." },
       ],
+      acoes: [],
+    };
+  }
+
+  /* ── a fila inteira, no celular (1C.7, 02 P0-3) ──
+   * O Fluxo do celular mostra até três pendências e "Ver todas"; a lista completa mora aqui, e
+   * não empilhada antes do dia. Cada item abre o que ele pede (a conversa, o atendimento). */
+  if (id === "fila") {
+    return {
+      titulo: "Precisa de você",
+      sub: st.fila.length === 1 ? "1 pendência" : `${st.fila.length} pendências`,
+      blocos: st.fila.length
+        ? [{ tipo: "lista", key: "fila", itens: st.fila.map((f) => ({ id: f.id, nome: f.titulo, sub: `${f.tag} · ${f.msg}`, onClick: () => st.abrir(f.alvo) })) }]
+        : [{ tipo: "texto", key: "nada", texto: "Nada pendente agora." }],
       acoes: [],
     };
   }

@@ -1,89 +1,209 @@
 "use client";
 /* MAISA — Fluxo de hoje.
  *
- * A tela que abre o app. Responde "o que acontece agora" em duas metades:
- *   • o quadro do dia — Chegando → Em atendimento → Feito, arrastável
- *   • "Precisa de você" — o que a MAISA NÃO resolveu sozinha
+ * A tela que abre o app. Responde "quem agora?" e "o que precisa de mim?":
+ *   • a faixa AGORA: quem está em atendimento e o próximo, com o único primário da tela
+ *   • a lista do dia, por hora, em linhas de 56px: os que passaram sem chegada (âmbar), os que
+ *     vêm, e os feitos recolhidos numa linha
+ *   • "Precisa de você": o que a MAISA NÃO resolveu sozinha
  *
- * O painel da direita é o coração do produto: se ele está vazio, a assistente
- * está fazendo o trabalho. Por isso o estado vazio é comemorativo, não neutro.
+ * ── POR QUE NÃO É MAIS UM QUADRO (25/09/2026, 1C.6, 02 P0-1) ──
  *
- * Arrastar e o botão de avançar mexem no MESMO estado que a Agenda lê — não são
- * duas listas paralelas. Ver store.agendamentos.
+ * Era um kanban de três colunas (Chegando → Em atendimento → Feito), arrastável, ordenado por
+ * etapa e hora, que não lia o relógio. Quem não apertava "Chegou" em todo cliente acumulava em
+ * "Chegando" o dia que já tinha passado, e às 16h o próximo de verdade era o 12º cartão de uma
+ * coluna que mostrava 4 (1, com a jornada aberta). Agora o dia se divide pelo agora
+ * (`partesDoDia`, `estado/leitura.ts`, com teste), e o arrastar saiu: o botão faz o mesmo
+ * movimento, que é sempre para frente, e funciona no toque.
  *
- * ⚠️ Este quadro é dos ATENDIMENTOS DE CLIENTE, e só deles. Os compromissos lidos da
- * agenda do Google (dentista, almoço, reunião) aparecem na Agenda, em cinza, e não aqui:
- * "Chegando → Em atendimento → Feito" não é uma frase que se possa dizer sobre eles. Por
- * isso o estado vazio menciona quantos são — sem essa linha, um quadro vazio num dia de
- * agenda cheia lê como "a MAISA não está enxergando meu calendário". */
+ * Um estado só para Fluxo e Agenda: o botão mexe no MESMO `st.agendamentos` que a Agenda lê.
+ *
+ * ⚠️ Esta lista é dos ATENDIMENTOS DE CLIENTE, e só deles. Os compromissos lidos da agenda do
+ * Google (dentista, almoço, reunião) aparecem na Agenda, em cinza, e não aqui: "Chegou" não é
+ * uma frase que se possa dizer sobre eles. Por isso o estado vazio menciona quantos são: sem
+ * essa linha, um dia vazio com agenda cheia lê como "a MAISA não está enxergando meu calendário".
+ *
+ * ── ENQUADRAMENTO ──
+ *
+ * Desktop: a coluna do dia é uma `Moldura` (jornada e faixa Agora no cabeçalho, que não rola; a
+ * lista é a região, e abre rolada até agora) e a fila é a outra coluna, com a própria rolagem.
+ * Duas regiões, uma por coluna, como em Conversas (exceção declarada de T1).
+ * Celular: a página rola, na ordem Agora → fila (até 3 linhas e "Ver todas") → dia. */
 
-import React from "react";
-import { s, Icon, Monogram, Btn, EmptyState, Estado } from "@/ui/primitivos";
+import React, { useEffect, useRef, useState } from "react";
+import { s, Icon, Monogram, Btn, EmptyState, Estado, fmt } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
-import { semConfirmacao } from "@/ui/estado/leitura";
+import { partesDoDia, semConfirmacao } from "@/ui/estado/leitura";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AgendamentoVivo } from "@/ui/estado/store";
 import { JornadaDeAtivacao } from "@/ui/componentes/JornadaDeAtivacao";
+import { Moldura } from "@/ui/componentes/Moldura";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 import { FRASE, TITULO_PARADA, useAcaoDoStatus } from "@/ui/componentes/StatusDaMaisa";
 import { estadoDaFila, estadoDoDia, FRASE_ERRO_AGENDA } from "@/ui/estado/leitura";
 
-/* Cada etapa tem um rótulo, uma cor de ponto e o verbo que a avança.
- * "Chegando" era --warm (âmbar): 1,57:1 sobre fundo claro, o ponto sumia. Virou --warn e não
- * --primary porque quem ainda não chegou é a única etapa que pode exigir ação sua (ligar, cobrar
- * confirmação) — e porque --primary já é o ponto de "Em atendimento": dois pontos iguais em
- * colunas vizinhas apagariam a distinção que o ponto existe para fazer. */
-const COLUNAS: { id: D.Etapa; titulo: string; dot: string; acao: string | null; primaria: boolean }[] = [
-  { id: "chegando", titulo: "Chegando", dot: "var(--warn)", acao: "Chegou", primaria: true },
-  { id: "atendendo", titulo: "Em atendimento", dot: "var(--primary)", acao: "Concluir", primaria: false },
-  { id: "feito", titulo: "Feito hoje", dot: "var(--success)", acao: null, primaria: false },
-];
+/* O verbo que avança cada etapa. "Feito" não avança: é o fim. */
+const VERBO: Record<D.Etapa, string | null> = { chegando: "Chegou", atendendo: "Concluir", feito: null };
 
-/* ───────────────────────────── cartão do quadro ───────────────────────────── */
-
-function CartaoFluxo({ ag, acao, primaria }: { ag: AgendamentoVivo; acao: string | null; primaria: boolean }) {
+/** Mostrar de quem é o atendimento só quando há mais de uma pessoa atendendo (02 #13): no
+ *  negócio de um profissional só, o monograma repetido em toda linha não diz nada. */
+function useComEquipe(): boolean {
   const st = useStore();
-  const arrastando = st.arrastando === ag.id;
+  return st.cadastro.profissionais.filter((p) => p.ativo).length > 1;
+}
 
+/* ───────────────────────────── a faixa Agora ───────────────────────────── */
+
+function LinhaDaFaixa({ ag, rotulo, primaria, mobile }: { ag: AgendamentoVivo; rotulo: string; primaria: boolean; mobile: boolean }) {
+  const st = useStore();
+  const equipe = useComEquipe();
+  const verbo = VERBO[ag.etapa];
+  const alvo = mobile ? 48 : 44;
   return (
-    <div
-      draggable
-      // O id viaja no dataTransfer, não só no estado: o estado serve para
-      // destacar a coluna alvo, mas quem manda no drop é o payload do evento —
-      // assim o soltar não depende de o re-render do dragstart já ter ocorrido.
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", ag.id); st.iniciarArrasto(ag.id); }}
-      onDragEnd={st.encerrarArrasto}
-      onClick={() => st.abrir(ag.id)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); st.abrir(ag.id); } }}
-      aria-label={`${ag.cliente.nome}, ${D.hhmm(ag.inicio)}, ${ag.servico.nome}`}
-      className="m-drag m-focus"
-      style={s(`background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-card);opacity:${arrastando ? "0.4" : "1"};transition:opacity var(--dur-fast) linear`)}
-    >
-      <div style={s("display:flex;align-items:center;gap:10px")}>
-        {/* hora é DADO, não string de máquina: saiu o mono (e o tracking negativo que só destruía
-            o avanço fixo do mono). Os dígitos da Plex Sans já são tabulares — .n é o contrato,
-            e as horas seguem alinhadas na coluna do kanban. */}
-        <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data)")}>{D.hhmm(ag.inicio)}</span>
-        {/* Marca, não pílula: não clica (T7). Só em "chegando" e antes da hora (1A.5). */}
-        {semConfirmacao(ag) && <Estado forma="triangulo" tom="warn">sem confirmação</Estado>}
-        <span style={s("margin-left:auto")} title={ag.profissional.nome}>
-          <Monogram name={ag.profissional.nome} id={ag.profissionalId} size={28} radius={9} />
+    <div style={s(`display:flex;align-items:center;gap:${mobile ? "10px 12px" : "16px"};flex-wrap:${mobile ? "wrap" : "nowrap"}`)}>
+      <button
+        type="button"
+        onClick={() => st.abrir(ag.id)}
+        aria-label={`${ag.cliente.nome}, ${D.hhmm(ag.inicio)}, ${ag.servico.nome}`}
+        className="m-hov-bg m-press m-focus"
+        style={s("flex:1 1 220px;min-width:0;display:flex;align-items:center;gap:14px;border:none;background:transparent;border-radius:8px;padding:4px 6px;margin:-4px -6px;text-align:left;cursor:pointer;color:var(--ink)")}
+      >
+        <span className="n" style={s("font-size:var(--t-title);font-weight:var(--w-emph);line-height:1;min-width:64px")}>{D.hhmm(ag.inicio)}</span>
+        <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:3px")}>
+          <span style={s("font-size:var(--t-body);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.cliente.nome}</span>
+          <span style={s("display:flex;align-items:center;gap:10px;min-width:0")}>
+            <span style={s("font-size:var(--t-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0")}>{ag.servico.nome}</span>
+            <Estado forma={ag.etapa === "atendendo" ? "disco" : "anel"} tom={ag.etapa === "atendendo" ? "primary" : "neutral"}>{rotulo}</Estado>
+            {semConfirmacao(ag) && <Estado forma="triangulo" tom="warn">sem confirmação</Estado>}
+          </span>
         </span>
-      </div>
-      <div>
-        <div style={s("font-size:var(--t-body);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.cliente.nome}</div>
-        <div style={s("font-size:var(--t-sm);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.servico.nome}</div>
-      </div>
-      {acao && (
+        {equipe && <span title={ag.profissional.nome}><Monogram name={ag.profissional.nome} id={ag.profissionalId} size={28} radius={8} /></span>}
+      </button>
+      {verbo && (
         <button
-          onClick={(e) => { e.stopPropagation(); st.avancarEtapa(ag.id); }}
+          type="button"
+          onClick={() => st.avancarEtapa(ag.id)}
           className={`${primaria ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
-          style={s(`height:38px;border:none;border-radius:10px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;${primaria ? "background:var(--primary);color:var(--on-primary)" : "background:var(--primary-soft);color:var(--primary-dark)"}`)}
+          style={s(`height:${alvo}px;padding:0 20px;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${mobile ? "flex:1 1 100%;" : "flex-shrink:0;min-width:120px;"}${primaria ? "border:none;background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--ink)"}`)}
         >
-          {acao}
+          {verbo}
         </button>
+      )}
+    </div>
+  );
+}
+
+function FaixaAgora({ atendendo, proximo, mobile }: { atendendo: AgendamentoVivo[]; proximo: AgendamentoVivo | null; mobile: boolean }) {
+  /* Um primário só: o "Concluir" de quem está em atendimento, senão o "Chegou" do próximo. */
+  const linhas = [
+    ...atendendo.map((ag) => ({ ag, rotulo: "em atendimento" })),
+    ...(proximo ? [{ ag: proximo, rotulo: "próximo" }] : []),
+  ];
+  return (
+    <section
+      aria-label="Agora"
+      style={s(`flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:${mobile ? "12px 14px 14px" : "14px 18px 16px"};display:flex;flex-direction:column;gap:14px`)}
+    >
+      <span style={s("font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>Agora</span>
+      {linhas.length ? (
+        linhas.map((l, i) => <LinhaDaFaixa key={l.ag.id} ag={l.ag} rotulo={l.rotulo} primaria={i === 0} mobile={mobile} />)
+      ) : (
+        <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Ninguém mais por hoje.</span>
+      )}
+    </section>
+  );
+}
+
+/* ───────────────────────────── a lista do dia ───────────────────────────── */
+
+/** Uma linha do dia, 56px. O nome abre a gaveta; a ação é irmã, nunca botão dentro de botão. */
+function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
+  const st = useStore();
+  const equipe = useComEquipe();
+  const verbo = VERBO[ag.etapa];
+  return (
+    <div style={s("min-height:56px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)")}>
+      <button
+        type="button"
+        onClick={() => st.abrir(ag.id)}
+        aria-label={`${ag.cliente.nome}, ${D.hhmm(ag.inicio)}, ${ag.servico.nome}`}
+        className="m-hov-bg m-press m-focus"
+        style={s("flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:14px;border:none;background:transparent;border-radius:8px;padding:0 8px;text-align:left;cursor:pointer;color:var(--ink)")}
+      >
+        <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data);min-width:46px")}>{D.hhmm(ag.inicio)}</span>
+        <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:1px")}>
+          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.cliente.nome}</span>
+          <span style={s("font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.servico.nome}</span>
+        </span>
+        {semConfirmacao(ag) && <Estado forma="triangulo" tom="warn">sem confirmação</Estado>}
+        {ag.etapa === "feito" && <Estado forma="disco" tom="success">feito</Estado>}
+        {equipe && <span title={ag.profissional.nome}><Monogram name={ag.profissional.nome} id={ag.profissionalId} size={24} radius={6} /></span>}
+      </button>
+      {verbo && (
+        <button
+          type="button"
+          onClick={() => st.avancarEtapa(ag.id)}
+          className="m-hov-bg m-press m-focus"
+          style={s("flex-shrink:0;height:40px;min-width:88px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
+        >
+          {verbo}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TituloDoGrupo({ children, n, tom }: { children: React.ReactNode; n: number; tom?: "warn" }) {
+  return (
+    <div style={s("display:flex;align-items:center;gap:8px;padding:0 8px;min-height:32px")}>
+      {tom === "warn" && <Icon name="alert" size={15} sw={2.2} style={s("color:var(--warn)")} />}
+      <span style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${tom === "warn" ? "var(--warn)" : "var(--ink)"}`)}>{children}</span>
+      <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data);color:var(--muted)")}>{n}</span>
+    </div>
+  );
+}
+
+/** A lista do dia. `ancora` marca o fim do que vem, para a região abrir rolada até agora. */
+function ListaDoDia({ passaram, depois, feitos, ancora }: {
+  passaram: AgendamentoVivo[]; depois: AgendamentoVivo[]; feitos: AgendamentoVivo[];
+  ancora?: React.Ref<HTMLDivElement>;
+}) {
+  const [verFeitos, setVerFeitos] = useState(false);
+  /* O total só quando toda sessão trouxe o valor: somar metade e chamar de "hoje" seria o número
+   * inventado que 1A.5 tirou da gaveta. */
+  const valores = feitos.map((a) => a.valor);
+  const total = valores.length && valores.every((v) => v != null) ? valores.reduce<number>((t, v) => t + (v ?? 0), 0) : null;
+  return (
+    <div style={s("display:flex;flex-direction:column;gap:18px")}>
+      {!!passaram.length && (
+        <section aria-label="Passaram sem chegada" style={s("background:var(--warn-soft);border-radius:12px;padding:10px 8px 4px")}>
+          <TituloDoGrupo n={passaram.length} tom="warn">Passaram sem chegada</TituloDoGrupo>
+          {passaram.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
+        </section>
+      )}
+      <section aria-label="A seguir">
+        <TituloDoGrupo n={depois.length}>A seguir</TituloDoGrupo>
+        {depois.length
+          ? depois.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)
+          : <div style={s("padding:10px 8px;font-size:var(--t-sm);color:var(--muted)")}>Mais ninguém marcado hoje depois do próximo.</div>}
+        <div ref={ancora} />
+      </section>
+      {!!feitos.length && (
+        <section aria-label="Feitos hoje">
+          <button
+            type="button"
+            onClick={() => setVerFeitos((v) => !v)}
+            aria-expanded={verFeitos}
+            className="m-hov-bg m-press m-focus"
+            style={s("width:100%;min-height:48px;display:flex;align-items:center;gap:10px;border:none;background:transparent;border-radius:8px;padding:0 8px;cursor:pointer;color:var(--ink);text-align:left")}
+          >
+            <span style={s("flex:1;font-size:var(--t-sm);font-weight:var(--w-title)")}>
+              <span className="n">{feitos.length}</span> {feitos.length === 1 ? "feito" : "feitos"} hoje{total != null && <span className="n" style={s("color:var(--muted);font-weight:var(--w-data)")}> · {fmt(total)}</span>}
+            </span>
+            <Icon name="chevron-down" size={16} sw={2} style={s(`transform:rotate(${verFeitos ? 180 : 0}deg)`)} />
+          </button>
+          {verFeitos && feitos.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
+        </section>
       )}
     </div>
   );
@@ -111,16 +231,10 @@ function PrecisaDeVoce() {
     <>
       <div style={s("padding:20px 20px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);flex-shrink:0")}>
         <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Precisa de você</span>
-        {fila.length > 0 && (
-          // contagem é dado: sai o mono, entra .n. O âmbar aqui é marca (o selo da MAISA sobre a
-          // fila dela), não estado — e o texto passou a --warm-ink, 7,51:1 sobre o ouro.
-          <span className="n" style={s("min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--warm);color:var(--warm-ink);font-size:var(--t-micro);font-weight:var(--w-data);display:inline-flex;align-items:center;justify-content:center")}>
-            {fila.length}
-          </span>
-        )}
+        {fila.length > 0 && <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data);color:var(--warn)")}>{fila.length}</span>}
       </div>
 
-      <div style={s("flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px")}>
+      <div style={s("flex:1;min-height:0;overflow-y:auto;position:relative;padding:14px;display:flex;flex-direction:column;gap:10px")}>
         {estado === "carregando" ? (
           <Esqueleto linhas={2} altura={96} rotulo="Lendo o que precisa de você" />
         ) : estado === "erro" ? (
@@ -150,17 +264,16 @@ function PrecisaDeVoce() {
         ) : fila.map((f) => (
           <div
             key={f.id}
-            style={s("border:1px solid var(--border);border-radius:16px;background:var(--bg);display:flex;flex-direction:column")}
+            style={s("border:1px solid var(--border);border-radius:12px;background:var(--bg);display:flex;flex-direction:column")}
           >
             <button
               onClick={() => st.abrir(f.alvo)}
               className="m-press m-focus m-lift"
-              style={s("text-align:left;border:none;background:transparent;padding:14px 14px 10px;display:flex;flex-direction:column;gap:8px;cursor:pointer;border-radius:16px")}
+              style={s("text-align:left;border:none;background:transparent;padding:14px 14px 10px;display:flex;flex-direction:column;gap:8px;cursor:pointer;border-radius:12px")}
             >
               <span style={s("display:flex;align-items:center;gap:10px;width:100%")}>
-                <Monogram name={f.titulo} id={f.id} size={30} radius={10} />
                 <span style={s("flex:1;min-width:0;font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{f.titulo}</span>
-                <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);color:var(--warn);background:var(--warn-soft);padding:3px 8px;border-radius:999px;white-space:nowrap")}>{f.tag}</span>
+                <Estado forma="triangulo" tom="warn">{f.tag}</Estado>
               </span>
               <span style={s("font-size:var(--t-sm);line-height:var(--lh-prose);color:var(--muted);text-align:left")}>{f.msg}</span>
             </button>
@@ -168,7 +281,7 @@ function PrecisaDeVoce() {
               <button
                 onClick={() => st.resolverFila(f.alvo)}
                 className="m-hov-bg m-press m-focus"
-                style={s("border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:9px;font-size:var(--t-label);font-weight:var(--w-title);padding:6px 12px;cursor:pointer")}
+                style={s("border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;font-size:var(--t-label);font-weight:var(--w-title);padding:6px 12px;cursor:pointer")}
               >
                 Já resolvi
               </button>
@@ -180,6 +293,58 @@ function PrecisaDeVoce() {
   );
 }
 
+/** No celular a fila vem resumida (02 P0-3): até três linhas de 64px e "Ver todas", que abre a
+ *  fila inteira na gaveta ("fila", `detalhe.tsx`). Antes ela vinha inteira antes do dia, com
+ *  ~157px por item, e o primeiro atendimento ficava a 1441px do topo. */
+const FILA_NO_CELULAR = 3;
+function FilaResumida() {
+  const st = useStore();
+  const fila = st.fila;
+  if (!fila.length) return null;
+  return (
+    <section aria-label="Precisa de você" style={s("flex-shrink:0;display:flex;flex-direction:column")}>
+      <div style={s("display:flex;align-items:center;gap:8px;min-height:44px")}>
+        <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Precisa de você</span>
+        <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data);color:var(--warn)")}>{fila.length}</span>
+        {fila.length > FILA_NO_CELULAR && (
+          <button
+            type="button"
+            onClick={() => st.abrir("fila")}
+            className="m-hov-bg m-press m-focus"
+            style={s("margin-left:auto;height:44px;padding:0 10px;border:none;background:transparent;border-radius:8px;color:var(--primary-dark);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer")}
+          >
+            Ver todas
+          </button>
+        )}
+      </div>
+      {fila.slice(0, FILA_NO_CELULAR).map((f) => (
+        <div key={f.id} style={s("min-height:64px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)")}>
+          <button
+            type="button"
+            onClick={() => st.abrir(f.alvo)}
+            className="m-hov-bg m-press m-focus"
+            style={s("flex:1;min-width:0;min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:3px;border:none;background:transparent;border-radius:8px;padding:0 4px;text-align:left;cursor:pointer;color:var(--ink)")}
+          >
+            <span style={s("display:flex;align-items:center;gap:8px;min-width:0")}>
+              <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0")}>{f.titulo}</span>
+              <Estado forma="triangulo" tom="warn">{f.tag}</Estado>
+            </span>
+            <span style={s("font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{f.msg}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => st.resolverFila(f.alvo)}
+            className="m-hov-bg m-press m-focus"
+            style={s("flex-shrink:0;height:44px;padding:0 12px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
+          >
+            Já resolvi
+          </button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /* ───────────────────────────── tela ───────────────────────────── */
 
 export default function FluxoHoje() {
@@ -187,23 +352,20 @@ export default function FluxoHoje() {
   const mobile = useIsMobile();
 
   // `st.agendamentos` é a JANELA visível da Agenda (a Agenda ganhou Semana e Mês). O Fluxo é de
-  // hoje e continua sendo: sem este recorte o kanban encheria com trinta dias.
+  // hoje e continua sendo: sem este recorte a lista encheria com trinta dias.
   // O store garante que hoje está sempre na lista, mesmo com a Agenda aberta em outro mês.
   const doDia = st.agendamentosDoDia(D.HOJE.iso);
-  const porEtapa = (e: D.Etapa) => doDia.filter((a) => a.etapa === e);
+  const partes = partesDoDia(doDia);
 
-  /* O dia sem nenhum atendimento deixou de ser exceção quando os ~150 de exemplo saíram —
-   * passou a ser o estado NORMAL de um app recém-aberto. E esta é a tela de entrada.
-   *
-   * Três colunas tracejadas pedindo "arraste alguém para cá" sem ninguém para arrastar
-   * não é um estado vazio, é um app que parece quebrado. Aqui o vazio diz o que está
-   * acontecendo, quantos compromissos o Google tem hoje, e para onde ir. */
+  /* O dia sem nenhum atendimento é o estado NORMAL de um app recém-aberto, e esta é a tela de
+   * entrada. O vazio diz o que está acontecendo, quantos compromissos o Google tem hoje, e para
+   * onde ir. */
   const bloqHoje = st.bloqueiosDoDia(D.HOJE.iso);
   /* ⚠️ O vazio só depois da leitura. Antes, `doDia` vazio era "Nenhum atendimento marcado" no
    * primeiro quadro, antes de `/api/agenda` voltar, e para sempre quando ela falhava. */
   const dia = estadoDoDia(st.leituraAgenda, doDia.length);
   const antesDoDia = dia === "carregando"
-    ? <Esqueleto linhas={4} altura={72} rotulo="Lendo a agenda de hoje" />
+    ? <Esqueleto linhas={5} altura={56} rotulo="Lendo a agenda de hoje" />
     : dia === "erro"
       ? <FalhaDeLeitura frase={FRASE_ERRO_AGENDA} detalhe={st.leituraAgenda.info} tentar={st.recarregarAgenda} />
       : null;
@@ -212,108 +374,59 @@ export default function FluxoHoje() {
       title="Nenhum atendimento marcado para hoje"
       sub={
         bloqHoje.length
-          ? `Sua agenda do Google tem ${bloqHoje.length} ${bloqHoje.length === 1 ? "compromisso" : "compromissos"} hoje — ${bloqHoje.length === 1 ? "ele aparece" : "eles aparecem"} na Agenda, em cinza, ocupando o horário. Este quadro acompanha os atendimentos de cliente: marque um na Agenda e ele entra aqui.`
-          : "Marque um horário na Agenda e o atendimento aparece aqui, para você acompanhar da chegada até a conclusão."
+          ? `Sua agenda do Google tem ${bloqHoje.length} ${bloqHoje.length === 1 ? "compromisso" : "compromissos"} hoje, em cinza na Agenda. Aqui entram só os atendimentos de cliente.`
+          : "Marque um horário na Agenda e ele aparece aqui."
       }
       action={<Btn icon="calendar" onClick={() => st.irPara("agenda")}>Abrir a Agenda</Btn>}
     />
   );
 
-  /* ── mobile: sem arrastar (não funciona no toque). A fila vem primeiro porque
-        é o que exige decisão; depois o dia em lista, com o botão de avançar. ── */
+  /* A lista abre rolada até agora (02 #5): o fim do que vem encosta no pé da região, e o que
+   * passou por último fica logo acima. Uma vez por montagem, só no desktop (no celular a página
+   * é que rola, e a ordem já põe o Agora em cima). */
+  const ancora = useRef<HTMLDivElement>(null);
+  const rolou = useRef(false);
+  useEffect(() => {
+    if (mobile || dia !== "cheio" || rolou.current) return;
+    const el = ancora.current;
+    const regiao = el?.closest<HTMLElement>("[data-regiao]");
+    if (!el || !regiao) return;
+    rolou.current = true;
+    const fim = el.getBoundingClientRect().bottom - regiao.getBoundingClientRect().top + regiao.scrollTop;
+    regiao.scrollTop = Math.max(0, fim - regiao.clientHeight + 24);
+  }, [mobile, dia]);
+
+  const lista = dia === "cheio"
+    ? <ListaDoDia passaram={partes.passaram} depois={partes.depois} feitos={partes.feitos} ancora={ancora} />
+    : antesDoDia ?? vazio;
+  const agora = dia === "cheio" ? <FaixaAgora atendendo={partes.atendendo} proximo={partes.proximo} mobile={mobile} /> : null;
+
   if (mobile) {
     return (
-      <div className="m-enter" style={s("flex:1;min-height:0;overflow-y:auto;padding:2px 16px 24px;display:flex;flex-direction:column;gap:14px")}>
-        {/* Antes da fila, e antes do quadro: quem ainda não conectou nada não tem fila nem
-            quadro, e é justamente essa pessoa que precisa de direção. Some sozinho aos 100%. */}
+      <Moldura rotulo="Hoje">
+        {/* Some sozinha aos 100%. Uma linha: a lista inteira é a gaveta "jornada". */}
         <JornadaDeAtivacao />
-        {st.fila.length > 0 && (
-          /* `flex-shrink:0` não é enfeite: sem ele o painel some no celular assim que o dia tem
-             atendimento. Este contêiner é uma PÁGINA que rola (overflow-y:auto acima), então nada
-             aqui dentro deveria encolher — mas o `overflow:hidden` daqui (que existe só para o
-             raio arredondado cortar o cabeçalho) desliga a proteção do `min-height:auto` do
-             flexbox, e este vira o único filho encolhível da coluna. As seções de atendimento
-             abaixo não encolhem, então a sobra toda era descontada daqui: o painel ia a 2px (só as
-             bordas), com o texto ainda no DOM e legível por innerText — some da tela, não da
-             árvore, que é o que fazia o bug parecer coisa de estado e não de layout.
-             Com o dia vazio não havia disputa por espaço, e por isso ele nunca aparecia em perfil limpo. */
-          <div style={s("border:1px solid var(--border);border-radius:16px;background:var(--surface);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0")}>
-            <PrecisaDeVoce />
-          </div>
-        )}
-        {COLUNAS.map((col) => {
-          const itens = porEtapa(col.id);
-          if (!itens.length) return null;
-          return (
-            <div key={col.id} style={s("display:flex;flex-direction:column;gap:10px")}>
-              <div style={s("display:flex;align-items:center;gap:9px;padding:2px 4px")}>
-                <span style={s(`width:9px;height:9px;border-radius:50%;background:${col.dot}`)} />
-                <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{col.titulo}</span>
-                <span className="n" style={s("font-size:var(--t-label);font-weight:var(--w-data);color:var(--muted);margin-left:auto")}>{itens.length}</span>
-              </div>
-              {itens.map((ag) => <CartaoFluxo key={ag.id} ag={ag} acao={col.acao} primaria={col.primaria} />)}
-            </div>
-          );
-        })}
-        {antesDoDia ?? (dia === "vazio" && vazio)}
-      </div>
+        {agora}
+        <FilaResumida />
+        {dia === "cheio" && <span style={s("font-size:var(--t-body);font-weight:var(--w-title);margin-bottom:-6px")}>Hoje</span>}
+        {lista}
+      </Moldura>
     );
   }
 
-  /* ── desktop: quadro arrastável + painel fixo ── */
+  /* ⚠️ `minmax(0,1fr)` na linha e `min-height:0` em toda a cadeia até a região: sem eles a
+   * coluna cresce até o tamanho da lista e nada rola (a região precisa de altura para rolar). */
   return (
-    <div className="m-enter" style={s("flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 330px;height:100%")}>
-      {/* A coluna da esquerda virou uma pilha: a jornada em cima, o quadro (ou o vazio)
-          embaixo. Antes ela era a célula da grade direto, e não havia onde pendurar nada
-          acima sem empurrar o painel da direita para baixo junto.
-          ⚠️ `min-height:0` nos DOIS níveis — sem ele o `overflow-y` do quadro não encontra
-          altura e a coluna cresce até estourar a viewport. */}
-      <div style={s("min-height:0;display:flex;flex-direction:column;padding:22px;gap:16px")}>
-        <JornadaDeAtivacao />
-        {dia !== "cheio" ? (
-          <div style={s(`flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0;${antesDoDia && dia === "carregando" ? "justify-content:flex-start" : "align-items:center"}`)}>
-            {antesDoDia ?? vazio}
-          </div>
-        ) : (
-        <div style={s("flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;min-height:0")}>
-        {COLUNAS.map((col) => {
-          const itens = porEtapa(col.id);
-          const alvo = st.alvoSolta === col.id && st.arrastando;
-          return (
-            <div
-              key={col.id}
-              onDragOver={(e) => { e.preventDefault(); st.marcarAlvo(col.id); }}
-              onDragLeave={() => st.marcarAlvo(null)}
-              onDrop={(e) => {
-                e.preventDefault();
-                const id = e.dataTransfer.getData("text/plain") || st.arrastando;
-                if (id) st.moverEtapa(id, col.id);
-              }}
-              style={s(`display:flex;flex-direction:column;gap:12px;border-radius:16px;padding:14px;min-height:0;background:${alvo ? "var(--primary-soft)" : "var(--bg)"};border:1.5px dashed ${alvo ? "var(--primary)" : "transparent"};transition:background-color var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out)`)}
-            >
-              <div style={s("display:flex;align-items:center;gap:9px;padding:2px 4px;flex-shrink:0")}>
-                <span style={s(`width:9px;height:9px;border-radius:50%;background:${col.dot}`)} />
-                <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{col.titulo}</span>
-                <span className="n" style={s("font-size:var(--t-label);font-weight:var(--w-data);color:var(--muted);margin-left:auto")}>{itens.length}</span>
-              </div>
-              <div style={s("display:flex;flex-direction:column;gap:10px;overflow-y:auto;min-height:0")}>
-                {itens.map((ag) => <CartaoFluxo key={ag.id} ag={ag} acao={col.acao} primaria={col.primaria} />)}
-                {itens.length === 0 && (
-                  <div style={s("border-radius:16px;padding:22px 12px;text-align:center;font-size:var(--t-sm);color:var(--muted)")}>
-                    Arraste alguém para cá
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        </div>
-        )}
-      </div>
-
-      <div style={s("border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0")}>
+    <div style={s("flex:1;min-height:0;height:100%;display:grid;grid-template-columns:minmax(0,1fr) 330px;grid-template-rows:minmax(0,1fr)")}>
+      <Moldura
+        rotulo="Atendimentos de hoje"
+        cabecalho={<><JornadaDeAtivacao />{agora}</>}
+      >
+        {lista}
+      </Moldura>
+      <aside aria-label="Precisa de você" style={s("border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0")}>
         <PrecisaDeVoce />
-      </div>
+      </aside>
     </div>
   );
 }

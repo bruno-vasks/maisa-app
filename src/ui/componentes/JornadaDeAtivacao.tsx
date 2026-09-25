@@ -34,7 +34,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import React, { useCallback, useEffect, useState } from "react";
-import { s, Btn } from "@/ui/primitivos";
+import { s, Btn, Icon } from "@/ui/primitivos";
 import { useStore, type StoreValue } from "@/ui/estado/store";
 import { PASSOS_DE_ATIVACAO, type PassoDeAtivacao } from "@/nucleo/dominio/ativacao";
 
@@ -108,28 +108,27 @@ export function JornadaDeAtivacao() {
   if (formado || !r || r.faltam === 0) return null;
   const seguinte = r.pendentes[0];
 
+  /* ⚠️ UMA LINHA DE 48px, nas duas larguras (1C.7): o texto não quebra, corta com reticências.
+   * Ele inteiro é o botão que abre a lista na gaveta; "Continuar" leva ao primeiro que falta. */
   return (
     <section
-      aria-label="O que falta para a MAISA trabalhar sozinha"
-      style={s("flex-shrink:0;min-height:48px;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:6px 6px 6px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)")}
+      aria-label="O que falta para a MAISA atender sozinha"
+      style={s("flex-shrink:0;height:48px;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 6px 0 4px;border:1px solid var(--border);border-radius:12px;background:var(--surface)")}
     >
-      <span style={s("flex:1 1 220px;min-width:0;font-size:var(--t-sm);color:var(--ink);line-height:1.35")}>
-        <span style={s("font-weight:var(--w-title)")}>
-          {r.faltam === 1 ? "Falta 1 passo" : `Faltam ${r.faltam} passos`} para a MAISA trabalhar sozinha.
-        </span>{" "}
-        {seguinte && <span style={s("color:var(--muted)")}>Próximo: {seguinte.titulo}.</span>}
-      </span>
-      <span style={s("display:inline-flex;align-items:center;gap:6px;flex-shrink:0")}>
-        <button
-          type="button"
-          onClick={() => st.abrir("jornada")}
-          className="m-hov-bg m-press m-focus"
-          style={s("height:36px;padding:0 10px;border:none;border-radius:8px;background:transparent;color:var(--primary-dark);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer")}
-        >
-          Ver os passos
-        </button>
-        {seguinte?.ir && <Btn variant="secondary" size="sm" onClick={seguinte.ir}>Continuar</Btn>}
-      </span>
+      <button
+        type="button"
+        onClick={() => st.abrir("jornada")}
+        aria-label={`${r.faltam === 1 ? "Falta 1 passo" : `Faltam ${r.faltam} passos`} para a MAISA atender sozinha. Ver os passos`}
+        className="m-hov-bg m-press m-focus"
+        style={s("flex:1;min-width:0;height:40px;display:flex;align-items:center;gap:8px;padding:0 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;text-align:left;color:var(--ink)")}
+      >
+        <span style={s("flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--t-sm)")}>
+          <span style={s("font-weight:var(--w-title)")}>{r.faltam === 1 ? "Falta 1 passo" : `Faltam ${r.faltam} passos`}</span>
+          <span style={s("color:var(--muted)")}> para a MAISA atender sozinha.{seguinte ? ` Próximo: ${seguinte.titulo}.` : ""}</span>
+        </span>
+        <Icon name="chevron-right" size={16} sw={2} style={s("flex-shrink:0;color:var(--muted)")} />
+      </button>
+      {seguinte?.ir && <Btn variant="secondary" size="sm" onClick={seguinte.ir}>Continuar</Btn>}
     </section>
   );
 }
