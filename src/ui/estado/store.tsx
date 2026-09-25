@@ -60,7 +60,7 @@ export type LinhaDeFaturamento = {
   competencia?: string;
 };
 import { fmt, toast } from "@/ui/primitivos";
-import { secaoDoEndereco, telaDoEndereco } from "./endereco";
+import { escreverEndereco, lerEndereco, secaoDoEndereco, type Endereco } from "./endereco";
 
 /* ───────────────────────────── tipos ───────────────────────────── */
 
@@ -3841,9 +3841,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [lerStatusGoogle]);
 
   /* ─────────────────────────────────────────────────────────────────────────
-   * `?tela=` — link que abre direto numa tela.
+   * O ENDEREÇO: a URL diz onde a pessoa está, e o F5 volta para lá (T9, 25/09/2026).
    *
-   * ★ EXISTE PARA O LINK QUE A GENTE MANDA NO WHATSAPP. "Entra no painel, clica em Mais,
+   * ★ NASCEU PARA O LINK QUE A GENTE MANDA NO WHATSAPP. "Entra no painel, clica em Mais,
    * depois em Faturamento" é instrução que se perde na terceira palavra; `/?tela=faturamento`
    * é um toque. É o mesmo motivo do `?google=ok` acima: quem chega de fora chega no lugar.
    *
@@ -3852,22 +3852,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * inválido, o mapa de telas devolveria `undefined` e a tela inteira ficaria branca — a
    * partir de um parâmetro que qualquer um escreve na barra de endereço.
    *
-   * A URL é limpa depois: o parâmetro é uma instrução de chegada, não estado. Deixá-lo faria
-   * o F5 no meio de outra tela pular de volta, o que parece bug de navegação.
+   * ⚠️ A URL NÃO É MAIS LIMPA DEPOIS DE LER (contradição C7). Limpava para o F5 no meio de outra
+   * tela não pular de volta a uma tela velha. Agora o efeito de baixo reescreve a URL a cada
+   * navegação, então ela nunca envelhece. Quem voltar a apagar o `?tela=` aqui faz o F5 cair
+   * no Fluxo de novo.
+   *
+   * `enderecoLido` segura a escrita até a leitura ter sido aplicada: sem ele, a primeira escrita
+   * rodaria no mesmo quadro, com a tela ainda "fluxo", e apagaria o link antes de ele valer.
    * ───────────────────────────────────────────────────────────────────────── */
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const alvo = q.get("tela");
-    if (!alvo) return;
-
-    const tela = telaDoEndereco(alvo);
-    if (tela) irPara(tela, q.get("secao") ?? undefined);
-
-    q.delete("tela");
-    q.delete("secao");
-    const busca = q.toString();
-    window.history.replaceState({}, "", window.location.pathname + (busca ? `?${busca}` : ""));
+  const [enderecoLido, setEnderecoLido] = useState(false);
+  const aplicarEndereco = useCallback((e: Endereco) => {
+    irPara(e.tela, e.secao ?? undefined);
+    if (e.abrir) setSel(e.abrir);
+    if (e.conversa) setConvSel(e.conversa);
+    if (e.tela === "clientes" && e.filtro) setFiltroCli(e.filtro.charAt(0).toUpperCase() + e.filtro.slice(1));
   }, [irPara]);
+
+  useEffect(() => {
+    const e = lerEndereco(window.location.search);
+    if (e) aplicarEndereco(e);
+    setEnderecoLido(true);
+    /* Voltar e avançar do navegador: a URL mudou por fora, o painel segue. Sem lista válida
+       (voltou a `/`), é o Fluxo. */
+    const onPop = () => {
+      const de = lerEndereco(window.location.search);
+      if (de) aplicarEndereco(de); else irPara("fluxo");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [aplicarEndereco, irPara]);
+
+  useEffect(() => {
+    if (!enderecoLido) return;
+    const busca = escreverEndereco(window.location.search, {
+      tela, secao, abrir: sel,
+      conversa: tela === "conversas" ? convSel || null : null,
+      filtro: tela === "clientes" ? filtroCli.toLowerCase() : null,
+    });
+    if (busca !== window.location.search) {
+      window.history.replaceState(window.history.state, "", window.location.pathname + busca + window.location.hash);
+    }
+  }, [enderecoLido, tela, secao, sel, convSel, filtroCli]);
 
   /* ── a assinatura deste negócio ──
    * Ver `EstadoAssinatura`. Uma leitura de `/api/assinatura`; quem mostra é a gaveta "plano". */
