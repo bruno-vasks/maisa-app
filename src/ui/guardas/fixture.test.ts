@@ -73,10 +73,8 @@ const DIVIDA_NOMES: Divida = {
   "src/ui/telas/Grades.tsx": [12, "24/09/2026 · D.PERIODO, D.FAQS, D.NUMEROS_MES, precoPlano em Clientes, Fiscal e Mais (1A.10)"],
 };
 
-/** 24/09/2026. Paga o 1A.5 (frases sem fonte) e o 1A.10 (número de suporte). */
+/** 24/09/2026. Paga o 1A.10 (número de suporte). As frases do 1A.5 saíram no mesmo dia. */
 const DIVIDA_FRASES: Divida = {
-  "src/ui/detalhe.tsx": [3, "24/09/2026 · \"Confirmado pelo WhatsApp\" e \"dois lembretes\" na gaveta do atendimento (1A.5)"],
-  "src/ui/estado/store.tsx": [1, "24/09/2026 · \"a MAISA já cobrou\" no alerta do Fluxo (1A.5)"],
   "src/ui/telas/Grades.tsx": [1, "24/09/2026 · wa.me/5511999999999 no suporte do Mais (1A.10)"],
 };
 

@@ -18,8 +18,9 @@
  * agenda cheia lê como "a MAISA não está enxergando meu calendário". */
 
 import React from "react";
-import { s, Icon, Monogram, Btn, EmptyState } from "@/ui/primitivos";
+import { s, Icon, Monogram, Btn, EmptyState, Estado } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
+import { semConfirmacao } from "@/ui/estado/leitura";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AgendamentoVivo } from "@/ui/estado/store";
 import { JornadaDeAtivacao } from "@/ui/componentes/JornadaDeAtivacao";
@@ -65,9 +66,8 @@ function CartaoFluxo({ ag, acao, primaria }: { ag: AgendamentoVivo; acao: string
             o avanço fixo do mono). Os dígitos da Plex Sans já são tabulares — .n é o contrato,
             e as horas seguem alinhadas na coluna do kanban. */}
         <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data)")}>{D.hhmm(ag.inicio)}</span>
-        {!ag.confirmado && (
-          <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);color:var(--warn);background:var(--warn-soft);padding:3px 9px;border-radius:999px")}>a confirmar</span>
-        )}
+        {/* Marca, não pílula: não clica (T7). Só em "chegando" e antes da hora (1A.5). */}
+        {semConfirmacao(ag) && <Estado forma="triangulo" tom="warn">sem confirmação</Estado>}
         <span style={s("margin-left:auto")} title={ag.profissional.nome}>
           <Monogram name={ag.profissional.nome} id={ag.profissionalId} size={28} radius={9} />
         </span>
@@ -144,7 +144,7 @@ function PrecisaDeVoce() {
           <div style={s("padding:16px 6px;display:flex;flex-direction:column;align-items:flex-start;gap:6px")}>
             <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Nada pendente</span>
             <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-ui)")}>
-              Ninguém está esperando resposta, e todo atendimento de hoje está confirmado.
+              Ninguém está esperando resposta.
             </span>
           </div>
         ) : fila.map((f) => (

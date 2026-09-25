@@ -19,6 +19,7 @@ import * as D from "@/adaptadores/saida/demo";
  * "telefone tem dígitos suficientes" que o caso de uso usa, senão a tela espera por um fim
  * que o servidor não reconhece (ou manda antes dele). Ver as regras de import no LEIA-ME. */
 import { TELEFONE_MIN_DIGITOS, emailPlausivel, soDigitos } from "@/nucleo/dominio/clientes";
+import { semConfirmacao } from "@/ui/estado/leitura";
 import type { Canal } from "@/nucleo/dominio/canal";
 import { statusDaMaisa, type StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
 import type { CaminhoFiscal, ConfigFiscal } from "@/nucleo/dominio/fiscal";
@@ -113,6 +114,11 @@ export type AgendamentoVivo = {
   profissional: D.Profissional;
   servico: D.Servico;
   cliente: D.Cliente;
+  /** O valor DESTA sessão, como foi gravado no atendimento (`servicoValor`). Não é o preço do
+   *  catálogo: o serviço pode ter mudado de preço depois, e a sessão pode ter sido marcada com
+   *  outro valor. `null` quando o evento não trouxe valor (evento antigo, marcado por fora):
+   *  a gaveta diz "—" em vez de imprimir o preço de hoje como se fosse o daquele dia (1A.5). */
+  valor: number | null;
   confirmado: boolean;
   etapa: D.Etapa;
   meetLink?: string;
@@ -139,6 +145,8 @@ type AtendimentoLido = {
   servicoId: string;
   servicoNome: string;
   servicoValor: number;
+  /** `servicoValor` como veio, sem o `|| 0`: `null` se o evento não trouxe valor. */
+  valorGravado: number | null;
   confirmado: boolean;
   meetLink?: string;
   htmlLink?: string;
@@ -1820,6 +1828,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Serviços reflete no cartão); a duração vem do evento, sempre.
         servico: doCatalogo ? { ...doCatalogo, duracao: e.duracao } : servicoDoEvento(e),
         cliente: cl ?? clienteDoEvento(e),
+        valor: e.valorGravado,
         confirmado: e.confirmado,
         // Passado sem etapa gravada nasce "feito": ninguém volta ao kanban de terça-feira
         // para arrastar o que já aconteceu, e deixá-los todos em "Chegando" encheria a
@@ -1952,13 +1961,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         msg: c.ultima?.txt ?? "Mandou mensagem e ainda não foi respondido.",
       })),
     ...agendamentosDoDia(D.HOJE.iso)
-      .filter((a) => !a.confirmado && a.etapa === "chegando" && !db.resolvidos[a.id])
+      .filter((a) => semConfirmacao(a) && !db.resolvidos[a.id])
       .map((a) => ({
         id: `fl:${a.id}`,
         alvo: a.id,
         titulo: a.cliente.nome,
         tag: "confirmar",
-        msg: `${D.hhmm(a.inicio)} ainda não confirmado — a MAISA já cobrou.`,
+        /* Só o que se sabe: o convite não foi respondido. dizer que a MAISA cobrou não tinha fonte
+         * (nenhuma leitura diz se o lembrete saiu), 1A.5. */
+        msg: `${D.hhmm(a.inicio)} ainda sem confirmação.`,
       })),
   ], [db.resolvidos, conversas, agendamentosDoDia]);
 
@@ -3835,6 +3846,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               servicoId: e.maisa.servicoId ?? "",
               servicoNome: e.maisa.servicoNome ?? "Atendimento",
               servicoValor: Number(e.maisa.servicoValor) || 0,
+              valorGravado: e.maisa.servicoValor == null || !Number.isFinite(Number(e.maisa.servicoValor))
+                ? null : Number(e.maisa.servicoValor),
               // A única fonte real de "confirmado" que existe: a resposta de quem foi
               // convidado. Sem convidados ninguém deve nada, então está confirmado.
               confirmado: !e.aguardandoResposta,
@@ -4056,7 +4069,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             duracao: sv.duracao,
             profissionalId: r.profissionalId,
             clienteId: cl.id, clienteNome: cl.nome, clienteTel: cl.telefone,
-            servicoId: sv.id, servicoNome: sv.nome, servicoValor: valor,
+            servicoId: sv.id, servicoNome: sv.nome, servicoValor: valor, valorGravado: valor,
             confirmado: true,
             meetLink: c.meetLink ?? undefined,
             htmlLink: c.htmlLink ?? undefined,

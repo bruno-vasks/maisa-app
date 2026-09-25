@@ -18,6 +18,7 @@ import * as D from "@/adaptadores/saida/demo";
 import { fmt } from "@/ui/primitivos";
 import { resumoDaAssinatura, useStore } from "@/ui/estado/store";
 import { rotuloDeISO, horaDeISO } from "@/nucleo/dominio/tempo";
+import { semConfirmacao } from "@/ui/estado/leitura";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
 
@@ -927,6 +928,15 @@ export function useDetalhe(id: string | null): Detalhe | null {
     if (cvAg) acoes.push({ label: "Abrir conversa", onClick: irParaConversa(cvAg.id), primaria: !ehHoje && !acoes.length });
 
     const quando = ehHoje ? "hoje" : D.rotuloDia(ag.data);
+    const situacao = passado
+      ? "Passou."
+      : ehHoje && ag.etapa === "feito"
+        ? "Concluído."
+        : ehHoje && ag.etapa === "atendendo"
+          ? "Em atendimento agora."
+          : semConfirmacao(ag)
+            ? `${D.hhmm(ag.inicio)} ainda sem confirmação: o convite da agenda do Google não foi respondido.`
+            : null;
 
     /* Bloco do Google. Dia e hora saem do PRÓPRIO evento, lido na última busca — não há
      * mais previsão a conferir contra o que está lá. Se alguém remarcar direto no Google
@@ -951,26 +961,18 @@ export function useDetalhe(id: string | null): Detalhe | null {
             ["Horário", `${D.hhmm(ag.inicio)} – ${D.hhmm(ag.fim)}`],
             ["Duração", `${ag.duracao} min`],
             ["Profissional", ag.profissional.nome],
-            ["Valor", fmt(ag.servico.preco)],
+            /* O valor gravado NA SESSÃO, não o preço do catálogo (1A.5): o serviço de R$ 100
+             * marcado a R$ 180 mostrava R$ 100. */
+            ["Valor", ag.valor === null ? "—" : fmt(ag.valor)],
             ["Telefone", ag.cliente.telefone || "—"],
           ],
         },
-        {
-          tipo: "texto", key: "s", label: "Situação",
-          texto: passado
-            ? "Atendimento concluído."
-            : !ehHoje
-              ? !ag.confirmado
-                ? "Ainda não confirmou. A MAISA continua cobrando pelo WhatsApp até o dia chegar."
-                : "Confirmado pelo WhatsApp com a MAISA."
-              : !ag.confirmado
-                ? "Ainda não confirmou. A MAISA já mandou dois lembretes pelo WhatsApp."
-                : ag.etapa === "feito"
-                  ? "Atendimento concluído."
-                  : ag.etapa === "atendendo"
-                    ? "Em atendimento agora."
-                    : "Confirmado pelo WhatsApp com a MAISA.",
-        },
+        /* SÓ O QUE SE SABE (1A.5). Aqui morava a confirmação "pelo WhatsApp com a MAISA", a contagem
+         * de lembretes enviados e "Atendimento concluído" para todo dia passado, e nenhuma
+         * das três tinha fonte: `confirmado` é só a resposta ao convite do Google (sem
+         * convidado, é sempre verdadeiro), nenhuma leitura diz se o lembrete saiu, e passado
+         * sem etapa gravada é inferência. Sem nada a dizer, o bloco não aparece. */
+        ...(situacao ? [{ tipo: "texto", key: "s", label: "Situação", texto: situacao } as Bloco] : []),
         blocoGoogle,
         /* Serviço ou cliente que este navegador não conhece — os dados vieram gravados no
          * próprio evento. Sem esta linha, o preço "R$ 0,00" de um serviço criado noutro
@@ -980,10 +982,10 @@ export function useDetalhe(id: string | null): Detalhe | null {
           ? [{ tipo: "texto", key: "solto", label: "Fora do catálogo deste aparelho", texto:
               "Este atendimento foi marcado com um serviço (ou cliente) que só existe no navegador em que foi criado. O que aparece aqui é o que ficou gravado no evento do Google — nome, duração e valor da época. Ele funciona normalmente; só não está ligado ao catálogo." } as Bloco]
           : []),
-        ...(!ag.confirmado && !passado
+        ...(semConfirmacao(ag)
           ? [{ tipo: "aviso", key: "av", texto: ehHoje
               ? "Sem confirmação, o horário pode furar. Vale uma ligação se estiver perto da hora."
-              : "Sem confirmação ainda. Falta tempo — a MAISA cobra sozinha até lá." } as Bloco]
+              : "Sem confirmação ainda. Se chegar perto do dia assim, vale uma mensagem." } as Bloco]
           : []),
         ...(pedindoCancelar
           ? [{ tipo: "aviso", key: "canc", tone: "danger", texto:

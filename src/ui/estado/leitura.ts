@@ -19,6 +19,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import type { StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
+import { civilSP } from "@/nucleo/dominio/tempo";
 
 /** O que uma leitura pode ser. `frase` é o que a tela escreve; o botão é sempre "Tentar de novo". */
 export type Leitura<T> =
@@ -88,4 +89,22 @@ export function estadoDosContatos(p: { lidos: number | null; erro: string | null
   if (p.erro) return "erro";
   if (p.lidos === null) return "carregando";
   return "vazio";
+}
+
+/**
+ * O atendimento ainda pode furar por falta de confirmação? (1A.5, 02 P1-3)
+ *
+ * `confirmado` é só a resposta ao convite do Google (sem convidado, é sempre verdadeiro). A marca
+ * "a confirmar" aparecia para todo mundo, inclusive para quem já estava sentado na cadeira ou
+ * foi embora: a pessoa ligava para cobrar confirmação de quem estava sendo atendido. Agora só
+ * vale em "chegando" e antes do horário.
+ */
+export function semConfirmacao(
+  ag: { confirmado: boolean; etapa: string; data: string; inicio: number },
+  agora = Date.now(),
+): boolean {
+  if (ag.confirmado || ag.etapa !== "chegando") return false;
+  const c = civilSP(new Date(agora).toISOString());
+  if (!c) return true;
+  return ag.data > c.data || (ag.data === c.data && ag.inicio > c.hora);
 }

@@ -1,5 +1,5 @@
 // fluxo.mjs — fotografa o Fluxo com dia cheio (15 atendimentos) interceptando /api/agenda e /api/conversas.
-// uso: node fluxo.mjs <saida-prefixo> [desktop|mobile] [--formado] [--vazio] [--gaveta] [--full] [--erroagenda] [--lento]
+// uso: node fluxo3.mjs <saida-prefixo> [desktop|mobile] [--formado] [--vazio] [--gaveta] [--full] [--erroagenda] [--lento] [--meiodia] [--hora=HH]
 import { chromium, pastaDeFotos } from "./_comum.mjs";
 const [, , pre, modo = "desktop", ...flags] = process.argv;
 const has = (f) => flags.includes(f);
@@ -22,6 +22,10 @@ const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
 if (has("--formado")) await ctx.addInitScript(() => localStorage.setItem("maisa.jornada.formado", "1"));
 if (has("--meiodia")) await ctx.addInitScript(() => { const e = {}; for (let i = 0; i < 10; i++) e["ag:ev" + i] = "feito"; e["ag:ev10"] = "atendendo"; localStorage.setItem("maisa.app.v3", JSON.stringify({ __v: 3, etapas: e, resolvidos: {}, notas: {} })); });
 const page = await ctx.newPage();
+// `--hora=14`: o relógio do navegador parado em hoje, 14:00 de São Paulo (1A.5: "sem confirmação"
+// só para quem ainda vem, e só antes do horário).
+const hora = (flags.find((f) => f.startsWith("--hora=")) || "").split("=")[1];
+if (hora) await page.clock.setFixedTime(new Date(`${hoje}T${String(hora).padStart(2, "0")}:00:00-03:00`));
 await page.route("**/api/agenda?*", async (r) => {
   if (has("--lento")) await new Promise((x) => setTimeout(x, 4000));
   if (has("--erroagenda")) return r.fulfill({ json: { ok: false, status: "erro", info: "Sem conexão" } });
@@ -39,7 +43,9 @@ const m = await page.evaluate(() => {
   }
   const btns = [...document.querySelectorAll("button")].filter((b) => { const r = b.getBoundingClientRect(); return r.width && r.top < innerHeight && r.bottom > 0; }).map((b) => (b.innerText || b.getAttribute("aria-label") || "").trim().slice(0, 30));
   const cartoes = [...document.querySelectorAll("[role=button][draggable], [role=button]")].filter(e=>e.getAttribute("aria-label")?.includes(":")).map((e) => { const r = e.getBoundingClientRect(); return { l: e.getAttribute("aria-label").slice(0,40), top: Math.round(r.top), h: Math.round(r.height), visivel: r.top < innerHeight && r.bottom <= innerHeight }; });
-  return { viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, botoesVisiveis: btns, cartoes, texto: document.body.innerText.length };
+  const conta = (t) => document.body.innerText.split(t).length - 1;
+  return { viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, botoesVisiveis: btns, cartoes, texto: document.body.innerText.length,
+    semConfirmacao: conta("sem confirmação"), aConfirmar: conta("a confirmar"), jaCobrou: conta("já cobrou") };
 });
 console.log(JSON.stringify(m, null, 1));
 await page.screenshot({ path: pre + ".png" });

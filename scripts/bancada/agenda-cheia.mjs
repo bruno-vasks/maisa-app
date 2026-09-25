@@ -1,5 +1,5 @@
 // agenda-cheia.mjs — Agenda com dado simulado (intercepta /api/cadastro, /api/agenda, /api/google/status).
-// uso: node agenda-cheia.mjs <cenario> <saida.png> [desktop|mobile|WxH] [--equipe] [--google=ok|nao] [--falha=<pid>] [--full]
+// uso: node agenda-cheia.mjs <cenario> <saida.png> [desktop|mobile|WxH] [--equipe] [--google=ok|nao] [--falha=<pid>] [--valor=<n>] [--full]
 import { chromium, pastaDeFotos } from "./_comum.mjs";
 const [, , cenario, saida, modo = "desktop", ...flags] = process.argv;
 const equipe = flags.includes("--equipe");
@@ -34,6 +34,10 @@ for (const d of dias) {
 // dedupe same pid/day/hour
 const seen = new Set(); const ev2 = eventos.filter(e => { const k = e.data + e.maisa.profissionalId + e.inicio; if (seen.has(k)) return false; seen.add(k); return true; });
 ev2.push({ eventoId: "gx1", data: "2026-09-24", inicio: 12, fim: 13, duracao: 60, titulo: "Almoço com a Carla", recorrente: false });
+// `--valor=<n>`: o atendimento de hoje com Meet (o do cenário `atendimento`) vem gravado com esse
+// valor, diferente do preço do catálogo (1A.5: a gaveta mostra o valor da sessão).
+const valor = (flags.find(f => f.startsWith("--valor=")) || "").split("=")[1];
+if (valor) { const alvo = ev2.find(e => e.data === "2026-09-24" && e.meetLink); alvo.maisa.servicoValor = +valor; }
 await page.route("**/api/cadastro", r => r.fulfill({ json: base }));
 // Um GET por agenda (1A.4): a resposta traz só os eventos DAQUELE pid, e o compromisso do Google
 // (gx1) é da agenda do dono. `--falha=<pid>` faz a leitura dessa agenda voltar com erro.
@@ -51,6 +55,9 @@ const clicar = async (txt) => { await page.getByRole("tab", { name: txt }).click
 if (cenario === "semana") await clicar("Semana");
 if (cenario === "mes") await clicar("Mês");
 if (cenario === "atendimento") { await page.locator('[role=button][aria-label^="' + ev2.find(e=>e.data==="2026-09-24"&&e.meetLink).maisa.clienteNome + '"]').first().click().catch(async()=>{ await page.locator("button", { hasText: ev2.find(e=>e.data==="2026-09-24"&&e.meetLink).maisa.clienteNome }).first().click(); }); await page.waitForTimeout(800); }
+// `passado`: volta um dia e abre o primeiro atendimento (1A.5: dia passado diz "Passou").
+if (cenario === "passado") { await page.getByRole("button", { name: "Dia anterior" }).first().click(); await page.waitForTimeout(700);
+  if (vp.width > 800) await page.locator('.lp-x, [role=button][aria-label*=", "]').filter({ hasNotText: "Almoço" }).first().click(); else await page.locator("button", { hasText: /\d\d:\d\d/ }).first().click(); await page.waitForTimeout(800); }
 if (cenario === "cancelar") { await page.locator('[role=button][aria-label*="Atendimento padrão"]').first().click().catch(async()=>{ await page.locator("button", { hasText: "Atendimento padrão" }).first().click(); }); await page.waitForTimeout(600); await page.getByRole("button", { name: "Cancelar atendimento" }).click(); await page.waitForTimeout(500); }
 if (cenario === "marcar") { if (vp.width > 800) await page.getByRole("button", { name: "Marcar" }).first().click(); else await page.locator('[aria-label^="Marcar atendimento"]').first().click(); await page.waitForTimeout(800); }
 if (cenario === "marcar-serie") { await page.getByRole("button", { name: "Marcar" }).first().click(); await page.waitForTimeout(600);
@@ -69,7 +76,8 @@ const m = await page.evaluate(() => {
   const bloqueios = [...document.querySelectorAll('[role=button][aria-label]')].filter(e => /Almoço com a Carla/.test(e.getAttribute("aria-label"))).length;
   const vagos = [...document.querySelectorAll('[aria-label^="Marcar atendimento"]')].map(e => e.getAttribute("aria-label").split(" com ").pop());
   const vagosPorPessoa = vagos.reduce((m, n) => (m[n] = (m[n] || 0) + 1, m), {});
-  return { viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
+  const gaveta = dlg ? dlg.innerText.replace(/\s+/g, " ").slice(0, 900) : null;
+  return { gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
 });
 m.getsAgenda = gets;
 console.log(JSON.stringify(m, null, 1));

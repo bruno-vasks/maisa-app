@@ -11,7 +11,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
-import { estadoDaFila, estadoDoDia, estadoDosContatos, type LeituraDaAgenda } from "@/ui/estado/leitura";
+import { estadoDaFila, estadoDoDia, estadoDosContatos, semConfirmacao, type LeituraDaAgenda } from "@/ui/estado/leitura";
 import type { StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
 
 const AGENDA: Record<string, LeituraDaAgenda> = {
@@ -85,5 +85,28 @@ describe("G12 · estadoDosContatos", () => {
   it("vazio só com a leitura de volta e zero contatos", () => {
     expect(estadoDosContatos({ lidos: 0, erro: null })).toBe("vazio");
     expect(estadoDosContatos({ lidos: 5, erro: null })).toBe("cheio");
+  });
+});
+
+describe("semConfirmacao · só quem ainda vem e ainda não respondeu (1A.5)", () => {
+  // 24/09/2026 14:00 em São Paulo = 17:00 UTC.
+  const agora = Date.parse("2026-09-24T17:00:00Z");
+  const ag = (o: Partial<{ confirmado: boolean; etapa: string; data: string; inicio: number }>) =>
+    ({ confirmado: false, etapa: "chegando", data: "2026-09-24", inicio: 18.5, ...o });
+
+  it("chegando, sem resposta, antes da hora: marca", () => {
+    expect(semConfirmacao(ag({}), agora)).toBe(true);
+    expect(semConfirmacao(ag({ data: "2026-09-30", inicio: 9 }), agora)).toBe(true);
+  });
+  it("já passou da hora, ou dia passado: não marca", () => {
+    expect(semConfirmacao(ag({ inicio: 10 }), agora)).toBe(false);
+    expect(semConfirmacao(ag({ data: "2026-09-23" }), agora)).toBe(false);
+  });
+  it("em atendimento ou feito: não marca, mesmo sem resposta ao convite", () => {
+    expect(semConfirmacao(ag({ etapa: "atendendo" }), agora)).toBe(false);
+    expect(semConfirmacao(ag({ etapa: "feito" }), agora)).toBe(false);
+  });
+  it("confirmado: não marca", () => {
+    expect(semConfirmacao(ag({ confirmado: true }), agora)).toBe(false);
   });
 });

@@ -33,8 +33,9 @@
 
 import React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { s, Icon, Monogram, Btn, IconBtn, Badge, EmptyState } from "@/ui/primitivos";
+import { s, Icon, Monogram, Btn, IconBtn, Badge, EmptyState, Estado } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
+import { semConfirmacao } from "@/ui/estado/leitura";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AgendamentoVivo, type Bloqueio } from "@/ui/estado/store";
 import { agendaComErro, FRASE_ERRO_AGENDA } from "@/ui/estado/leitura";
@@ -71,7 +72,7 @@ const SEG_W = 78; // largura fixa do segmento — é o que deixa o indicador des
 function tomDoBloco(ag: AgendamentoVivo): { bg: string; ac: string; fg: string } {
   if (ag.etapa === "feito") return { bg: "var(--success-soft)", ac: "var(--success)", fg: "var(--success)" };
   if (ag.etapa === "atendendo") return { bg: "var(--primary-soft)", ac: "var(--primary)", fg: "var(--primary-dark)" };
-  if (!ag.confirmado) return { bg: "var(--warn-soft)", ac: "var(--warn)", fg: "var(--warn)" };
+  if (semConfirmacao(ag)) return { bg: "var(--warn-soft)", ac: "var(--warn)", fg: "var(--warn)" };
   return { bg: "var(--surface-2)", ac: "var(--border)", fg: "var(--ink)" };
 }
 
@@ -625,7 +626,7 @@ function Trilho({ dias, destaque, rotulo, lida, falhou }: { dias: string[]; dest
                       {ag.servico.nome} · {D.primeiroNome(ag.profissional.nome)}
                     </span>
                   </span>
-                  <span className="n" style={s(`flex-shrink:0;font-size:var(--t-label);font-weight:var(--w-data);color:${ag.confirmado ? "var(--muted)" : "var(--warn)"}`)}>
+                  <span className="n" style={s(`flex-shrink:0;font-size:var(--t-label);font-weight:var(--w-data);color:${semConfirmacao(ag) ? "var(--warn)" : "var(--muted)"}`)}>
                     {D.hhmm(ag.inicio)}
                   </span>
                 </button>
@@ -732,9 +733,8 @@ function LinhaDoTempo({ data }: { data: string }) {
                 {ag.servico.nome} · {D.primeiroNome(ag.profissional.nome)}
               </span>
             </span>
-            {!ag.confirmado && (
-              <span style={s("flex-shrink:0;font-size:var(--t-micro);font-weight:var(--w-title);color:var(--warn);background:var(--warn-soft);padding:3px 8px;border-radius:999px")}>a confirmar</span>
-            )}
+            {/* Marca, não pílula: não clica (T7). Só em "chegando" e antes da hora (1A.5). */}
+            {semConfirmacao(ag) && <span style={s("flex-shrink:0")}><Estado forma="triangulo" tom="warn">sem confirmação</Estado></span>}
             <Monogram name={ag.profissional.nome} id={ag.profissionalId} size={30} radius={10} />
           </button>
         );
