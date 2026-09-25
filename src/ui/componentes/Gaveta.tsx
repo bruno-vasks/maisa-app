@@ -375,16 +375,19 @@ function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonl
       ))}
       {mais.length > 0 && (
         <div ref={caixa} style={s(`position:relative;${acoes.length ? "margin-left:auto" : "flex:1"}`)}>
+          {/* No celular, com botões ao lado, o menu vira só o ícone: três rótulos não cabem em
+              358px, e o terceiro quebrava para uma segunda linha. */}
           <button
             type="button"
             onClick={() => setMenu((v) => !v)}
             aria-haspopup="menu"
             aria-expanded={menu}
+            aria-label={mobile && acoes.length ? "Mais ações" : undefined}
+            title={mobile && acoes.length ? "Mais ações" : undefined}
             className="m-hov-bg m-press m-focus"
-            style={s(`${acoes.length ? "" : "width:100%;"}display:inline-flex;align-items:center;justify-content:center;gap:6px;${estiloDoBotao({}, mobile)}`)}
+            style={s(`${acoes.length ? "" : "width:100%;"}display:inline-flex;align-items:center;justify-content:center;gap:6px;${estiloDoBotao({}, mobile)}${mobile && acoes.length ? ";width:48px;padding:0" : ""}`)}
           >
-            Mais ações
-            <Icon name="chevron-down" size={16} sw={2} />
+            {mobile && acoes.length ? <Icon name="dots" size={20} sw={2.2} /> : <>Mais ações<Icon name="chevron-down" size={16} sw={2} /></>}
           </button>
           {menu && (
             <div

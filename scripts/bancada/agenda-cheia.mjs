@@ -17,11 +17,16 @@ if (equipe) {
   base.agendas = ["pr1", "pr2", "pr3"];
 }
 const cl = base.clientes; const sv = base.servicos;
-const dias = ["2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25","2026-09-26"];
+// "Hoje" é o dia de verdade (São Paulo, -3): o app lê `hojeISO()`, e um dia fixo no script deixava
+// de ser hoje no dia seguinte. A semana é a de hoje, de segunda a sábado.
+const HOJE = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+const somar = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+const dowSeg = (new Date(HOJE + "T12:00:00Z").getUTCDay() + 6) % 7;
+const dias = Array.from({ length: 6 }, (_, i) => somar(HOJE, i - dowSeg));
 const eventos = []; let n = 0;
 const horas = [9, 9.5, 10.5, 11, 13, 14, 14.5, 15.5, 16, 17, 18];
 for (const d of dias) {
-  const qtd = d === "2026-09-24" ? 11 : 6 + (n % 3);
+  const qtd = d === HOJE ? 11 : 6 + (n % 3);
   for (let i = 0; i < qtd; i++) {
     const h = horas[(i * 7 + n) % horas.length] ; const pid = base.agendas[i % base.agendas.length];
     const s = sv[i % 6]; const c = cl[(i + n) % cl.length];
@@ -33,11 +38,11 @@ for (const d of dias) {
 }
 // dedupe same pid/day/hour
 const seen = new Set(); const ev2 = eventos.filter(e => { const k = e.data + e.maisa.profissionalId + e.inicio; if (seen.has(k)) return false; seen.add(k); return true; });
-ev2.push({ eventoId: "gx1", data: "2026-09-24", inicio: 12, fim: 13, duracao: 60, titulo: "Almoço com a Carla", recorrente: false });
+ev2.push({ eventoId: "gx1", data: HOJE, inicio: 12, fim: 13, duracao: 60, titulo: "Almoço com a Carla", recorrente: false });
 // `--valor=<n>`: o atendimento de hoje com Meet (o do cenário `atendimento`) vem gravado com esse
 // valor, diferente do preço do catálogo (1A.5: a gaveta mostra o valor da sessão).
 const valor = (flags.find(f => f.startsWith("--valor=")) || "").split("=")[1];
-if (valor) { const alvo = ev2.find(e => e.data === "2026-09-24" && e.meetLink); alvo.maisa.servicoValor = +valor; }
+if (valor) { const alvo = ev2.find(e => e.data === HOJE && e.meetLink); alvo.maisa.servicoValor = +valor; }
 await page.route("**/api/cadastro", r => r.fulfill({ json: base }));
 // Um GET por agenda (1A.4): a resposta traz só os eventos DAQUELE pid, e o compromisso do Google
 // (gx1) é da agenda do dono. `--falha=<pid>` faz a leitura dessa agenda voltar com erro.
@@ -54,15 +59,17 @@ await page.waitForTimeout(1500);
 const clicar = async (txt) => { await page.getByRole("tab", { name: txt }).click(); await page.waitForTimeout(700); };
 if (cenario === "semana") await clicar("Semana");
 if (cenario === "mes") await clicar("Mês");
-if (cenario === "atendimento") { await page.locator('[role=button][aria-label^="' + ev2.find(e=>e.data==="2026-09-24"&&e.meetLink).maisa.clienteNome + '"]').first().click().catch(async()=>{ await page.locator("button", { hasText: ev2.find(e=>e.data==="2026-09-24"&&e.meetLink).maisa.clienteNome }).first().click(); }); await page.waitForTimeout(800); }
+if (cenario === "atendimento") { await page.locator('[role=button][aria-label^="' + ev2.find(e=>e.data===HOJE&&e.meetLink).maisa.clienteNome + '"]').first().click().catch(async()=>{ await page.locator("button", { hasText: ev2.find(e=>e.data===HOJE&&e.meetLink).maisa.clienteNome }).first().click(); }); await page.waitForTimeout(800); }
 // `passado`: volta um dia e abre o primeiro atendimento (1A.5: dia passado diz "Passou").
 if (cenario === "passado") { await page.getByRole("button", { name: "Dia anterior" }).first().click(); await page.waitForTimeout(700);
   if (vp.width > 800) await page.locator('.lp-x, [role=button][aria-label*=", "]').filter({ hasNotText: "Almoço" }).first().click(); else await page.locator("button", { hasText: /\d\d:\d\d/ }).first().click(); await page.waitForTimeout(800); }
-if (cenario === "cancelar") { await page.locator('[role=button][aria-label*="Atendimento padrão"]').first().click().catch(async()=>{ await page.locator("button", { hasText: "Atendimento padrão" }).first().click(); }); await page.waitForTimeout(600); await page.getByRole("button", { name: "Cancelar atendimento" }).click(); await page.waitForTimeout(500); }
-if (cenario === "marcar") { if (vp.width > 800) await page.getByRole("button", { name: "Marcar" }).first().click(); else await page.locator('[aria-label^="Marcar atendimento"]').first().click(); await page.waitForTimeout(800); }
-if (cenario === "marcar-serie") { await page.getByRole("button", { name: "Marcar" }).first().click(); await page.waitForTimeout(600);
+if (cenario === "cancelar") { await page.locator('[role=button][aria-label*="Atendimento padrão"]').first().click().catch(async()=>{ await page.locator("button", { hasText: "Atendimento padrão" }).first().click(); }); await page.waitForTimeout(600); await page.getByRole("button", { name: "Mais ações" }).click(); await page.waitForTimeout(300); await page.getByRole("menuitem", { name: "Cancelar atendimento" }).click(); await page.waitForTimeout(500); }
+// `marcar`: o slot da casca (T2), "Marcar atendimento" na topbar ou no "＋" do celular.
+if (cenario === "marcar") { await page.getByRole("button", { name: "Marcar atendimento", exact: true }).first().click(); await page.waitForTimeout(800); }
+if (cenario === "marcar-serie") { await page.getByRole("button", { name: "Marcar atendimento", exact: true }).first().click(); await page.waitForTimeout(600);
   const sels = page.locator('[role=dialog] select'); await sels.nth(0).selectOption({ index: 2 }); await sels.nth(1).selectOption({ index: 1 }); await sels.nth(2).selectOption("1"); await page.waitForTimeout(600); }
 const m = await page.evaluate(() => {
+  let m_aviso = null;
   const out = [];
   for (const el of document.querySelectorAll("*")) {
     const cs = getComputedStyle(el);
@@ -70,14 +77,19 @@ const m = await page.evaluate(() => {
   }
   const dlg = document.querySelector("[role=dialog]");
   let rodape = null;
-  if (dlg) { const bs = [...dlg.querySelectorAll("button")].filter(b => b.parentElement === dlg.lastElementChild); rodape = bs.map(b => { const r = b.getBoundingClientRect(); return { t: b.textContent, x: Math.round(r.x), w: Math.round(r.width), direita: Math.round(r.right) }; }); rodape = { dialogo: dlg.getBoundingClientRect().toJSON(), botoes: rodape, scrollW: dlg.lastElementChild.scrollWidth, clientW: dlg.lastElementChild.clientWidth }; }
+  // Todo botão da gaveta, e se algum passa da borda do painel ou da tela (T6).
+  if (dlg) { const lim = dlg.getBoundingClientRect(); const bs = [...dlg.querySelectorAll("button")]; rodape = bs.map(b => { const r = b.getBoundingClientRect(); return { t: b.textContent, x: Math.round(r.x), w: Math.round(r.width), direita: Math.round(r.right), cortado: r.right > lim.right + 1 || r.right > innerWidth }; }); rodape = { dialogo: lim.toJSON(), botoes: rodape, cortados: rodape.filter(b => b.cortado).length }; }
+  // O aviso de perigo: visível sem rolar? (dentro da tela e do painel)
+  const av = [...document.querySelectorAll("[role=dialog] *")].find(e => e.children.length === 0 && /Não dá para desfazer/.test(e.textContent));
+  const avR = av && av.getBoundingClientRect();
+  m_aviso = av ? { top: Math.round(avR.top), bottom: Math.round(avR.bottom), visivel: avR.top >= 0 && avR.bottom <= innerHeight } : null;
   const regua = [...document.querySelectorAll(".n")].filter(e => /^\d\d:00$/.test(e.textContent.trim())).map(e => ({ h: e.textContent.trim(), y: Math.round(e.getBoundingClientRect().top) })).filter(x => x.y > 0 && x.y < innerHeight);
   const blocos = [...document.querySelectorAll('[role=button][aria-label]')].map(e => { const r = e.getBoundingClientRect(); return { l: e.getAttribute("aria-label").slice(0, 40), y: Math.round(r.top), h: Math.round(r.height), x: Math.round(r.x), w: Math.round(r.width) }; }).slice(0, 40);
   const bloqueios = [...document.querySelectorAll('[role=button][aria-label]')].filter(e => /Almoço com a Carla/.test(e.getAttribute("aria-label"))).length;
   const vagos = [...document.querySelectorAll('[aria-label^="Marcar atendimento"]')].map(e => e.getAttribute("aria-label").split(" com ").pop());
   const vagosPorPessoa = vagos.reduce((m, n) => (m[n] = (m[n] || 0) + 1, m), {});
   const gaveta = dlg ? dlg.innerText.replace(/\s+/g, " ").slice(0, 900) : null;
-  return { gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
+  return { avisoDePerigo: m_aviso, gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
 });
 m.getsAgenda = gets;
 console.log(JSON.stringify(m, null, 1));

@@ -26,6 +26,7 @@ texto de JSX são o que chega à tela.
 | `subtitulo.test.ts` | **G17** (metade) | `sub` no mapa `TELA` da casca, ou `<p>` dentro da `Topbar`. A outra metade (`SectionTitle` com `sub`) é da Onda 2 |
 | `status.test.ts` | **G11** | "no ar", "Atendendo", "Assistente ativa", "responde automaticamente" ou "resolvendo tudo sozinha" fora de `componentes/StatusDaMaisa.tsx`. A tabela-verdade da regra está em `nucleo/dominio/status-da-maisa.test.ts` Dívida zero desde 25/09/2026 (as "respostas no ar" das `D.FAQS` saíram no 1A.10). |
 | `leitura.test.ts` | **G12** | derivação de tela (`estado/leitura.ts`) que devolve vazio com a leitura em voo ou falhada |
+| `gaveta.test.ts` | **G8** | `Detalhe.acoes` deixar de ser a tupla `Rodape` (o `tsc` é quem reprova o terceiro botão), ação `tone: "danger"` sem `confirmar` em `detalhe.tsx`, ação "Fechar", ou o rodapé de `Gaveta.tsx` sem `flex-wrap:wrap` |
 | `wizard.test.ts` | **G13** | arquivo alcançado pelos imports do `/comecar` que chama `useStore(` (o wizard roda fora do `StoreProvider`) |
 | `fonte.ts` | | o que as guardas têm em comum: raízes, parser, `conferirDivida` |
 
