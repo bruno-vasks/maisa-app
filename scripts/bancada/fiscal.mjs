@@ -3,7 +3,7 @@
 // uso: node fiscal.mjs <cenario> <saida-sem-ext> [desktop|mobile]
 // `COMPETENCIA=2026-08-01,2026-09-01` reparte essas competências entre as linhas de /api/faturamento
 // (sem ela, a competência vem vazia e a tela usa o mês de hoje).
-import { chromium, pastaDeFotos } from "./_comum.mjs";
+import { chromium, pastaDeFotos, medirPagina } from "./_comum.mjs";
 
 const [, , cenario, saida, modo = "desktop"] = process.argv;
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
@@ -79,6 +79,8 @@ for (const a of acoes) {
   if (verbo === "rolar") { await page.evaluate(() => { for (const el of document.querySelectorAll("*")) { const cs = getComputedStyle(el); if (/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 4) el.scrollTop = el.scrollHeight; } }); await page.waitForTimeout(400); }
 }
 
+// `MEDIR=1`: a régua do medir.mjs (sonda de corte, primários na dobra) sobre o cenário simulado.
+if (process.env.MEDIR) { const r = await medirPagina(page, modo); console.log("REGUA: " + JSON.stringify({ documento: r.documento, viewport: r.viewport, larguraDoc: r.larguraDoc, rolaveis: r.rolaveis, corte: r.corte, foraDaTela: r.foraDaTela, primariosNaDobra: r.primariosNaDobra })); }
 if (process.env.SONDA) { console.log(await page.evaluate(() => { const out=[]; for (const el of document.querySelectorAll("main *, main")) { const cs=getComputedStyle(el); if (el.scrollHeight > el.clientHeight + 4 && cs.overflowY!=="visible") out.push(el.tagName+" ."+String(el.className).slice(0,30)+" ov="+cs.overflowY+" vis="+el.clientHeight+" tot="+el.scrollHeight); } return out.slice(0,12).join("\n"); })); }
 const m = await page.evaluate(() => {
   const out = [];

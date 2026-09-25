@@ -375,10 +375,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 .m-moldura-regiao:first-child { padding-top: 22px; }
 .m-moldura-pe { flex-shrink: 0; padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); }
 
-/* A tabela que é a região (`<Tabela rolarPorDentro>`): cresce até o fim da faixa, o cabeçalho
-   fica, o corpo rola. `min-height` de rede: com um cartão grande acima dela, a região inteira
-   rola em vez de a tabela sumir. */
-.m-tabela-rola { flex: 1 1 auto; min-height: 240px; display: flex; flex-direction: column; }
+/* A tabela que é a região (`<Tabela rolarPorDentro>`): tem a altura das linhas até encostar no
+   fim da faixa, e daí encolhe; o cabeçalho fica, o corpo rola. `flex: 0 1 auto` e não `1`: com 7
+   serviços a caixa esticada até o fim deixava meia tela de branco dentro da borda. `min-height`
+   de rede: com um cartão grande acima dela, a região inteira rola em vez de a tabela sumir. */
+.m-tabela-rola { flex: 0 1 auto; min-height: 240px; display: flex; flex-direction: column; }
 .m-tabela-rola > .m-tabela-corpo { flex: 1; min-height: 0; overflow-y: auto; }
 
 /* No celular a moldura inteira é a região (o `<main>` da casca só dá a caixa): nada de caixa de
