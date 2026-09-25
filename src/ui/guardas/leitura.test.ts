@@ -126,3 +126,44 @@ describe("estadoDaGravacao (1A.8)", () => {
     expect(estadoDaGravacao({ emVoo: { ajustes: false }, falhas: { ajustes: undefined }, salvo: true })).toEqual({ fase: "salva" });
   });
 });
+
+/* 1C.6: o dia em partes, pelo relógio. */
+import { partesDoDia } from "../estado/leitura";
+
+describe("partesDoDia · o Fluxo lê o relógio", () => {
+  const hoje = "2026-09-25";
+  const as16 = Date.parse(`${hoje}T16:00:00-03:00`);
+  const dia = Array.from({ length: 15 }, (_, i) => ({ id: `ev${i}`, data: hoje, inicio: 8 + i * 0.75, etapa: "chegando" }));
+
+  it("às 16h, 11 passaram sem chegada e o próximo é o das 16:15", () => {
+    const p = partesDoDia(dia, as16);
+    expect(p.passaram.map((a) => a.id)).toEqual(dia.slice(0, 11).map((a) => a.id));
+    expect(p.proximo?.inicio).toBe(16.25);
+    expect(p.depois.map((a) => a.inicio)).toEqual([17, 17.75, 18.5]);
+  });
+
+  it("a tolerância de 15 min: quem marcou 15:50 às 16:00 ainda é o próximo", () => {
+    const p = partesDoDia([{ id: "a", data: hoje, inicio: 15 + 50 / 60, etapa: "chegando" }], as16);
+    expect(p.proximo?.id).toBe("a");
+    expect(p.passaram).toEqual([]);
+  });
+
+  it("em atendimento e feito não passam nem vêm; ordem por hora", () => {
+    const p = partesDoDia([
+      { id: "f", data: hoje, inicio: 9, etapa: "feito" },
+      { id: "x", data: hoje, inicio: 15.5, etapa: "atendendo" },
+      { id: "n", data: hoje, inicio: 17, etapa: "chegando" },
+      { id: "e", data: hoje, inicio: 8, etapa: "feito" },
+    ], as16);
+    expect(p.atendendo.map((a) => a.id)).toEqual(["x"]);
+    expect(p.feitos.map((a) => a.id)).toEqual(["e", "f"]);
+    expect(p.proximo?.id).toBe("n");
+    expect(p.passaram).toEqual([]);
+  });
+
+  it("dia que não é hoje: nada passou", () => {
+    const p = partesDoDia(dia.map((a) => ({ ...a, data: "2026-09-26" })), as16);
+    expect(p.passaram).toEqual([]);
+    expect(p.proximo?.inicio).toBe(8);
+  });
+});

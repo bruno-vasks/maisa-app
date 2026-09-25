@@ -23,11 +23,19 @@
  *
  * Só o que falta leva a algum lugar. Um passo cumprido que continua botão convida a refazer
  * — e no caso do WhatsApp, "refazer" significa derrubar a instância pareada.
+ *
+ * ── UMA LINHA, NÃO UM CARTÃO (25/09/2026, 1C.7, contradição C11) ──
+ *
+ * Era um cartão de 504px no desktop e 564px no celular acima do dia, por semanas (quem não
+ * emite nada nunca fecha "Nota fiscal"), e empurrava a operação para fora da tela: 1 de 15
+ * atendimentos visível. Virou uma linha: quantos faltam, qual é o próximo, "Continuar" (o `ir`
+ * do primeiro que falta) e "Ver os passos", que abre a lista inteira na gaveta ("jornada",
+ * `detalhe.tsx`). O que ela leu mora no store (`st.ativacao`) para a gaveta mostrar o mesmo.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import React, { useCallback, useEffect, useState } from "react";
-import { s, Icon } from "@/ui/primitivos";
-import { useStore } from "@/ui/estado/store";
+import { s, Btn } from "@/ui/primitivos";
+import { useStore, type StoreValue } from "@/ui/estado/store";
 import { PASSOS_DE_ATIVACAO, type PassoDeAtivacao } from "@/nucleo/dominio/ativacao";
 
 /**
@@ -42,7 +50,7 @@ import { PASSOS_DE_ATIVACAO, type PassoDeAtivacao } from "@/nucleo/dominio/ativa
  */
 const CHAVE_FORMADO = "maisa.jornada.formado";
 
-type Passo = {
+export type PassoDaJornada = {
   id: PassoDeAtivacao;
   titulo: string;
   /** O que a pessoa ganha — não o que ela tem que fazer. */
@@ -54,10 +62,7 @@ type Passo = {
 
 export function JornadaDeAtivacao() {
   const st = useStore();
-  const [feitos, setFeitos] = useState<PassoDeAtivacao[] | null>(null);
-  /** Os passos que valem para ESTE negócio (`passosQueValem`). Quem só emite recibo não vê
-   *  WhatsApp, agenda nem "ver funcionando" — cobrar o que não serve é gargalo. */
-  const [valem, setValem] = useState<readonly PassoDeAtivacao[]>(PASSOS_DE_ATIVACAO);
+  const { setAtivacao } = st;
   const [formado, setFormado] = useState(true); // pessimista: não pisca antes de saber
 
   useEffect(() => {
@@ -69,9 +74,9 @@ export function JornadaDeAtivacao() {
       .then(async (r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d?.ok) return;
-        const f: PassoDeAtivacao[] = d.feitos ?? [];
-        setFeitos(f);
-        if (Array.isArray(d.passos)) setValem(d.passos);
+        /* Os passos que valem para ESTE negócio (`passosQueValem`). Quem só emite recibo não vê
+         * WhatsApp nem "ver funcionando": cobrar o que não serve é gargalo. */
+        setAtivacao({ feitos: d.feitos ?? [], passos: Array.isArray(d.passos) ? d.passos : PASSOS_DE_ATIVACAO });
         /* Grava no momento em que fecha, e não na próxima montagem: quem termina o último
          * passo aqui dentro vê o cartão sumir na hora, e não no próximo F5. */
         if (d.completo && typeof window !== "undefined") {
@@ -84,7 +89,7 @@ export function JornadaDeAtivacao() {
          * aqui competiria com o painel de "Precisa de você", que é onde mora o que de fato
          * exige ação — e assustaria por causa de um checklist. */
       });
-  }, []);
+  }, [setAtivacao]);
 
   useEffect(() => {
     if (formado) return;
@@ -99,7 +104,49 @@ export function JornadaDeAtivacao() {
     };
   }, [formado, ler]);
 
-  const PASSOS: Passo[] = [
+  const r = resumoDaJornada(st);
+  if (formado || !r || r.faltam === 0) return null;
+  const seguinte = r.pendentes[0];
+
+  return (
+    <section
+      aria-label="O que falta para a MAISA trabalhar sozinha"
+      style={s("flex-shrink:0;min-height:48px;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:6px 6px 6px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)")}
+    >
+      <span style={s("flex:1 1 220px;min-width:0;font-size:var(--t-sm);color:var(--ink);line-height:1.35")}>
+        <span style={s("font-weight:var(--w-title)")}>
+          {r.faltam === 1 ? "Falta 1 passo" : `Faltam ${r.faltam} passos`} para a MAISA trabalhar sozinha.
+        </span>{" "}
+        {seguinte && <span style={s("color:var(--muted)")}>Próximo: {seguinte.titulo}.</span>}
+      </span>
+      <span style={s("display:inline-flex;align-items:center;gap:6px;flex-shrink:0")}>
+        <button
+          type="button"
+          onClick={() => st.abrir("jornada")}
+          className="m-hov-bg m-press m-focus"
+          style={s("height:36px;padding:0 10px;border:none;border-radius:8px;background:transparent;color:var(--primary-dark);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer")}
+        >
+          Ver os passos
+        </button>
+        {seguinte?.ir && <Btn variant="secondary" size="sm" onClick={seguinte.ir}>Continuar</Btn>}
+      </span>
+    </section>
+  );
+}
+
+/** Quantos faltam e quais, na ordem dos passos. `null` antes de ler. A gaveta "jornada" usa o mesmo. */
+export function resumoDaJornada(st: StoreValue): { total: number; prontos: number; faltam: number; passos: (PassoDaJornada & { feito: boolean })[]; pendentes: PassoDaJornada[] } | null {
+  if (!st.ativacao) return null;
+  const { feitos, passos: valem } = st.ativacao;
+  const passos = passosDaJornada(st).filter((p) => valem.includes(p.id)).map((p) => ({ ...p, feito: feitos.includes(p.id) }));
+  const total = valem.length;
+  const prontos = feitos.filter((f) => valem.includes(f)).length;
+  return { total, prontos, faltam: Math.max(0, total - prontos), passos, pendentes: passos.filter((p) => !p.feito && !!p.ir) };
+}
+
+/** Os passos, com o que cada um dá e para onde leva. */
+export function passosDaJornada(st: StoreValue): PassoDaJornada[] {
+  return [
     {
       id: "negocio_criado", titulo: "Negócio criado", icone: "sparkle",
       ganho: "Sua conta está de pé",
@@ -133,94 +180,4 @@ export function JornadaDeAtivacao() {
       ir: () => st.irPara("faturamento"),
     },
   ];
-
-  if (formado || feitos === null) return null;
-
-  const total = valem.length;
-  const prontos = feitos.length;
-  const pct = Math.round((prontos / total) * 100);
-  if (prontos >= total) return null;
-
-  const faltam = total - prontos;
-
-  return (
-    <section
-      aria-label="O que falta para a MAISA trabalhar sozinha"
-      style={s("flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow-card)")}
-    >
-      <div style={s("display:flex;align-items:baseline;gap:10px;flex-wrap:wrap")}>
-        <h2 style={s("margin:0;font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>
-          Falta pouco para ela trabalhar sozinha
-        </h2>
-        <span className="n" style={s("margin-left:auto;font-size:var(--t-label);color:var(--muted)")}>
-          {prontos} de {total}
-        </span>
-      </div>
-
-      {/* Barra com `aria-valuenow`: a porcentagem é a informação, e ela não pode existir
-          só como largura de um retângulo. */}
-      <div
-        role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}
-        aria-label={`${pct}% concluído`}
-        style={s("height:6px;border-radius:99px;background:var(--line);overflow:hidden")}
-      >
-        <span style={s(`display:block;height:100%;width:${pct}%;background:var(--primary);border-radius:99px;transition:width var(--dur-slow,.4s) var(--ease-out,ease)`)} />
-      </div>
-
-      <div style={s("display:flex;flex-direction:column;gap:8px")}>
-        {PASSOS.filter((p) => valem.includes(p.id)).map((p) => {
-          const feito = feitos.includes(p.id);
-          const clicavel = !feito && !!p.ir;
-
-          const corpo = (
-            <>
-              <span
-                aria-hidden
-                style={s(`display:flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0;border-radius:99px;background:${feito ? "var(--success-soft)" : "var(--primary-soft)"}`)}
-              >
-                <Icon
-                  name={feito ? "check" : p.icone} size={15} sw={feito ? 2.6 : 2}
-                  stroke={feito ? "var(--success)" : "var(--primary-dark)"}
-                />
-              </span>
-              <span style={s("display:flex;flex-direction:column;gap:1px;min-width:0;text-align:left")}>
-                <span style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${feito ? "var(--muted)" : "var(--ink)"}`)}>
-                  {p.titulo}
-                </span>
-                {/* O ganho some quando o passo está feito: quem já conectou não precisa ser
-                    convencido de novo, e a linha extra só empurra para baixo o que falta. */}
-                {!feito && (
-                  <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.4")}>{p.ganho}</span>
-                )}
-              </span>
-              {clicavel && (
-                <span aria-hidden style={s("margin-left:auto;display:flex;flex-shrink:0")}>
-                  <Icon name="chevron-right" size={16} sw={2} stroke="var(--muted)" />
-                </span>
-              )}
-            </>
-          );
-
-          const pele = `display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;border-radius:12px;border:1px solid ${feito ? "transparent" : "var(--border)"};background:${feito ? "transparent" : "var(--surface)"};font-family:inherit;text-align:left`;
-
-          /* Feito vira `<div>`, não um `<button disabled>`: leitor de tela anuncia botão
-             desabilitado como algo que deveria funcionar e não funciona. Aqui não há ação
-             nenhuma a oferecer — o passo terminou. */
-          return clicavel ? (
-            <button key={p.id} onClick={p.ir!} className="m-hov-bg m-press m-focus" style={s(`${pele};cursor:pointer`)}>
-              {corpo}
-            </button>
-          ) : (
-            <div key={p.id} style={s(pele)}>{corpo}</div>
-          );
-        })}
-      </div>
-
-      <p style={s("margin:0;font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-        {faltam === 1
-          ? "Falta um passo. Depois dele este quadro some — e não volta."
-          : `Faltam ${faltam} passos. Nada aqui trava o app: dá para usar do jeito que está.`}
-      </p>
-    </section>
-  );
 }

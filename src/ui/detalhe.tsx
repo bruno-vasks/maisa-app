@@ -19,6 +19,7 @@ import { fmt } from "@/ui/primitivos";
 import { resumoDaAssinatura, useStore } from "@/ui/estado/store";
 import { rotuloDeISO, horaDeISO } from "@/nucleo/dominio/tempo";
 import { semConfirmacao } from "@/ui/estado/leitura";
+import { resumoDaJornada } from "@/ui/componentes/JornadaDeAtivacao";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
 
@@ -1278,6 +1279,30 @@ export function useDetalhe(id: string | null): Detalhe | null {
    * A lógica toda — quais linhas, qual aviso, quais botões — está em `resumoDaAssinatura`,
    * no store, porque é pura e precisa de teste: é ela que decide se um botão de COBRAR
    * aparece. */
+  /* ── a jornada inteira (1C.7, C11) ──
+   * A linha do Fluxo diz quantos faltam e o próximo; a lista dos passos mora aqui, e não num
+   * recorte do Fluxo nem empilhada sobre o dia. Passo feito não clica (ver o cabeçalho da
+   * `JornadaDeAtivacao`: refazer o WhatsApp derruba o pareamento). */
+  if (id === "jornada") {
+    const r = resumoDaJornada(st);
+    if (!r) return null;
+    return {
+      titulo: "O que falta para a MAISA trabalhar sozinha",
+      sub: `${r.prontos} de ${r.total} feitos`,
+      blocos: [
+        {
+          tipo: "lista", key: "passos",
+          itens: r.passos.map((p) => {
+            const ir = p.feito ? null : p.ir;
+            return { id: p.id, nome: p.titulo, sub: p.feito ? "Feito" : p.ganho, ...(ir ? { onClick: () => { st.fechar(); ir(); } } : {}) };
+          }),
+        },
+        { tipo: "texto", key: "nota", texto: r.faltam === 1 ? "Falta um passo. Depois dele esta linha some do Fluxo, e não volta." : "Nada aqui trava o app: dá para usar do jeito que está." },
+      ],
+      acoes: [],
+    };
+  }
+
   if (id === "plano") {
     const r = resumoDaAssinatura(st.assinatura);
     /* Const local em vez de `r.assinar!` no callback: o `!` calaria o TypeScript no lugar

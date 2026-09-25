@@ -61,6 +61,7 @@ export type LinhaDeFaturamento = {
 };
 import { fmt, toast } from "@/ui/primitivos";
 import { escreverEndereco, lerEndereco, secaoDoEndereco, type Endereco } from "./endereco";
+import type { PassoDeAtivacao } from "@/nucleo/dominio/ativacao";
 
 /* ───────────────────────────── tipos ───────────────────────────── */
 
@@ -637,6 +638,10 @@ export type StoreValue = {
    *  Hoje só a conversa aberta pede, e ela tem o próprio "voltar". Trocar de tela desliga. */
   telaCheia: boolean;
   setTelaCheia: (v: boolean) => void;
+  /** O que a jornada de ativação leu de `/api/ativacao` (1C.7): a linha do Fluxo e a gaveta
+   *  "jornada" mostram o mesmo. `null` = ainda não leu. Quem lê é `JornadaDeAtivacao`. */
+  ativacao: { feitos: PassoDeAtivacao[]; passos: readonly PassoDeAtivacao[] } | null;
+  setAtivacao: (a: { feitos: PassoDeAtivacao[]; passos: readonly PassoDeAtivacao[] } | null) => void;
   /** id aberto na Gaveta (cliente, agendamento, conversa, serviço, seção…). */
   sel: string | null;
   abrir: (id: string) => void;
@@ -1474,6 +1479,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * menu "Novo"), quem desenha é a tela. Trocar de tela o fecha, como fecha a gaveta. */
   const [novoEmLinha, setNovoEmLinha] = useState<"cliente" | "profissional" | null>(null);
   const [telaCheia, setTelaCheia] = useState(false);
+  const [ativacao, setAtivacao] = useState<{ feitos: PassoDeAtivacao[]; passos: readonly PassoDeAtivacao[] } | null>(null);
   const irPara = useCallback((t: TelaId, s?: string) => {
     setTela(t); setSel(null); setCancelarPedido(null); setRemarcacao(null); setNovoEmLinha(null); setTelaCheia(false);
     setSecao(secaoDoEndereco(t, s));
@@ -4554,7 +4560,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /* ── valor ── */
   const value = useMemo<StoreValue>(() => ({
-    tela, irPara, secao, telaCheia, setTelaCheia, sel, abrir, fechar,
+    tela, irPara, secao, telaCheia, setTelaCheia, ativacao, setAtivacao, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
     remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,
@@ -4588,7 +4594,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
     railAberto, setRailAberto,
   }), [
-    tela, irPara, secao, telaCheia, setTelaCheia, sel, abrir, fechar,
+    tela, irPara, secao, telaCheia, setTelaCheia, ativacao, setAtivacao, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
     remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,

@@ -140,3 +140,42 @@ export function estadoDaGravacao(p: {
   if (p.salvo) return { fase: "salva" };
   return { fase: "parada" };
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O DIA EM PARTES, pelo relógio (item 1C.6 do backlog do front, 02 P0-1).
+ *
+ * O quadro de três colunas ordenava por etapa e hora e não lia o relógio: quem não apertava
+ * "Chegou" em todo cliente acumulava em "Chegando" o dia inteiro que já passou, e o próximo de
+ * verdade (16:15) ficava a 2049px dentro de uma coluna de 691. Aqui o dia se divide pelo agora:
+ *   - `atendendo`: quem está em atendimento (é a faixa "Agora");
+ *   - `proximo`: o primeiro "chegando" que ainda não passou da tolerância (também na faixa);
+ *   - `passaram`: "chegando" cujo horário passou da tolerância sem chegada (o bloco âmbar);
+ *   - `depois`: os "chegando" que vêm depois do próximo;
+ *   - `feitos`: o que terminou, recolhido numa linha.
+ *
+ * Tolerância de 15 min: quem marcou 16:15 e chegou 16:25 ainda é "o próximo", não um atraso.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export const TOLERANCIA_DE_ATRASO_H = 0.25;
+
+export type PartesDoDia<T> = { atendendo: T[]; proximo: T | null; passaram: T[]; depois: T[]; feitos: T[] };
+
+export function partesDoDia<T extends { etapa: string; data: string; inicio: number }>(
+  doDia: readonly T[],
+  agora = Date.now(),
+): PartesDoDia<T> {
+  const c = civilSP(new Date(agora).toISOString());
+  const porHora = [...doDia].sort((a, b) => a.inicio - b.inicio);
+  /* Dia que não é hoje (ou relógio ilegível): nada "passou", tudo vem. */
+  const limite = (ag: T) => (!c || ag.data !== c.data ? -Infinity : c.hora - TOLERANCIA_DE_ATRASO_H);
+  const chegando = porHora.filter((a) => a.etapa === "chegando");
+  const passaram = chegando.filter((a) => a.data === c?.data && a.inicio < limite(a));
+  const vem = chegando.filter((a) => !passaram.includes(a));
+  return {
+    atendendo: porHora.filter((a) => a.etapa === "atendendo"),
+    proximo: vem[0] ?? null,
+    passaram,
+    depois: vem.slice(1),
+    feitos: porHora.filter((a) => a.etapa === "feito"),
+  };
+}
