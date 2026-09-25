@@ -12,7 +12,7 @@ import { s, Icon, fmt, fmtK, Filtros, EmptyState, Tabela, CelulaNome, Badge, Sec
 import * as D from "@/adaptadores/saida/demo";
 import { useIsMobile, useEstreita } from "@/ui/useIsMobile";
 import { useStore, resumoDaAssinatura, type LinhaDeFaturamento, type TelaId } from "@/ui/estado/store";
-import { Cartao, GradeCartoes, Hero, TelaGrade, type TomTag } from "@/ui/componentes/Cartao";
+import { Cartao, GradeCartoes, type TomTag } from "@/ui/componentes/Cartao";
 import { EmitirRecibos } from "@/ui/componentes/EmitirRecibos";
 import { casaBusca } from "@/ui/estado/busca";
 /* ⚠️ AINDA AQUI, e só no caminho da NOTA FISCAL. Ele também aparece em `Documento fiscal`, que é
@@ -467,13 +467,9 @@ export function Faturamento() {
   }
 
   if (!voz.emiteNota) {
-    /* `preencher`: os cartões da emissão vão até o fim da faixa, e a folga fica dentro deles. Ver
-       `TelaGrade` — a exceção está escrita lá, com os limites. */
-    return (
-      <TelaGrade preencher>
-        <EmitirRecibos />
-      </TelaGrade>
-    );
+    /* A emissão monta a própria `Moldura` (1C.9): no desktop os cartões vão até o fim da faixa e a
+       lista rola por dentro; no celular o "Emitir" é o pé parado. */
+    return <EmitirRecibos />;
   }
 
   /* ── ⚠️ A MOLDURA DO CNPJ (25/09/2026, 1C.2 e contradição C3) ──

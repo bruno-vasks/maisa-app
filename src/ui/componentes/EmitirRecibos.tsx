@@ -60,7 +60,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { s, Icon, fmt, Btn, Card, EmptyState, Badge, Toggle } from "@/ui/primitivos";
+import { s, Icon, fmt, Btn, Card, EmptyState, Badge, Toggle, toast } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import { useIsMobile } from "@/ui/useIsMobile";
 import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -68,6 +68,8 @@ import { representacao, type ConfigFiscal } from "@/nucleo/dominio/fiscal";
 import { NOME_DA_OCUPACAO, faltaNosDados, faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
 import { hojeISO, rotuloBR } from "@/nucleo/dominio/tempo";
 import { NovoPagamento } from "@/ui/componentes/NovoPagamento";
+import { Moldura, PeDeAcao } from "@/ui/componentes/Moldura";
+import { semAcento } from "@/ui/estado/busca";
 
 /* ── o que as rotas devolvem ─────────────────────────────────────────────── */
 
@@ -134,6 +136,25 @@ export function agrupar(pagamentos: PagamentoPendente[]): Grupo[] {
     mapa.set(chave, g);
   }
   /* Maior valor primeiro: num fechamento de mês, é por onde o olho começa. */
+  return [...mapa.values()].sort((a, b) => b.valor - a.valor);
+}
+
+/**
+ * Os que ficaram de fora por falta de CPF, por pessoa (1C.10, 06 P0-6).
+ *
+ * Antes a tela só dizia "3 sem CPF ficam fora", sem nome e sem botão: ela fechava o mês sem
+ * três recibos e descobria quando o paciente pedia. Agora cada um é uma linha, desligada, com
+ * "Pôr CPF". Mesmo formato de `Grupo` (com `cpf: null`), na ordem de `agrupar`.
+ */
+export function semCpfPorPessoa(pagamentos: PagamentoPendente[]): Grupo[] {
+  const mapa = new Map<string, Grupo>();
+  for (const p of pagamentos) {
+    if (p.cpf) continue;
+    const g = mapa.get(p.nome) ?? { nome: p.nome, cpf: null, itens: [], valor: 0 };
+    g.itens.push(p);
+    g.valor += p.valor;
+    mapa.set(p.nome, g);
+  }
   return [...mapa.values()].sort((a, b) => b.valor - a.valor);
 }
 
@@ -354,6 +375,7 @@ export function EmitirRecibos() {
 
   const pagamentos = useMemo(() => mesclar(pend?.pagamentos ?? [], otimistas), [pend, otimistas]);
   const grupos = useMemo(() => agrupar(pagamentos), [pagamentos]);
+  const semCpf = useMemo(() => semCpfPorPessoa(pagamentos), [pagamentos]);
   const escolhidos = useMemo(
     () => grupos.filter((g) => !desmarcados.has(`${g.nome}|${g.cpf}`)),
     [grupos, desmarcados],
@@ -420,6 +442,24 @@ export function EmitirRecibos() {
     if (st.emissoesFeitas > 0) void carregar();
   }, [st.emissoesFeitas, carregar]);
 
+  /* ⚠️ A FICHA GRAVOU, A LISTA RELÊ (1C.10). O "Pôr CPF" abre a ficha da pessoa, e o CPF
+   * digitado lá só tira a linha do grupo "Sem CPF" se `/api/recibos` for lido de novo: quem
+   * monta o grupo é o servidor, não o cadastro da tela. */
+  useEffect(() => {
+    if (st.clientesGravados > 0) void carregar();
+  }, [st.clientesGravados, carregar]);
+
+  /** Abre a ficha de quem está sem CPF. O pagamento não traz o id do cliente (a porta
+   *  `PagamentoPendente` não tem `clienteId`, e mexer nela pede o Bruno), então a ponte é o
+   *  nome, que a view já tira do cadastro. Mais de um com o mesmo nome, ou nenhum: Clientes. */
+  const porCpf = (nome: string) => {
+    const alvo = semAcento(nome.trim());
+    const achados = st.cadastro.clientes.filter((c) => semAcento(c.nome.trim()) === alvo);
+    if (achados.length === 1) { st.abrir(achados[0].id); return; }
+    st.irPara("clientes");
+    toast(achados.length > 1 ? `Há ${achados.length} clientes chamados ${nome}. Abra a ficha certa e ponha o CPF.` : `Não achei ${nome} em Clientes. Procure pelo telefone e ponha o CPF na ficha.`);
+  };
+
   /* ── ★ LEVAR O OLHO ATÉ A LINHA ──
    *
    * `agrupar` ordena por VALOR, e a lista tem rolagem própria. Uma sessão de R$ 150 lançada num mês
@@ -441,10 +481,10 @@ export function EmitirRecibos() {
   /* ── estados que não são a tela ──────────────────────────────────────────── */
 
   if (erro) {
-    return <EmptyState title="Não deu para carregar" sub={erro} action={<Btn onClick={() => void carregar()}>Tentar de novo</Btn>} />;
+    return <Moldura><EmptyState title="Não deu para carregar" sub={erro} action={<Btn onClick={() => void carregar()}>Tentar de novo</Btn>} /></Moldura>;
   }
   if (!fiscal || !pend) {
-    return <div style={s("height:220px;border-radius:var(--radius-card);background:var(--surface-2)")} aria-busy="true" />;
+    return <Moldura><div style={s("height:220px;flex-shrink:0;border-radius:var(--radius-card);background:var(--surface-2)")} aria-busy="true" /></Moldura>;
   }
 
   /* ⚠️ O REGISTRO NO CONSELHO É CONFERIDO AQUI, E NÃO EM `fiscalFaltando`.
@@ -468,7 +508,8 @@ export function EmitirRecibos() {
   if (fiscal.falta.length > 0 || faltaNosDados(faltas).length > 0) {
     const pendencias = [...fiscal.falta, ...(semRegistro ? ["o seu registro no conselho"] : [])];
     return (
-      <Card style={s("display:flex;flex-direction:column;gap:14px;align-items:flex-start")}>
+      <Moldura>
+      <Card style={s("display:flex;flex-direction:column;gap:14px;align-items:flex-start;flex-shrink:0")}>
         <Badge tone="warn" dot>Falta configurar</Badge>
         <div>
           <h2 style={s("font-size:var(--t-title);font-weight:var(--w-emph);letter-spacing:var(--ls-title);color:var(--ink);margin:0 0 6px")}>
@@ -483,6 +524,7 @@ export function EmitirRecibos() {
         </div>
         <Btn icon="edit" onClick={() => st.irPara("fiscal")}>Preencher meus dados</Btn>
       </Card>
+      </Moldura>
     );
   }
 
@@ -499,6 +541,27 @@ export function EmitirRecibos() {
 
   const previaItem = aEmitir[Math.min(previa, Math.max(aEmitir.length - 1, 0))];
   const travado = aEmitir.length === 0 || emitindoAgora || bloqueioDaAutorizacao !== null;
+
+  /* O interruptor do aviso ao paciente, encostado no verbo (ver o ★ dentro do painel). No
+   * celular o painel não existe, e ele fica no pé da lista, logo acima da barra do "Emitir". */
+  const avisar = (
+      <div style={s(`display:flex;align-items:flex-start;gap:11px;padding-top:14px;border-top:1px solid var(--border);${mobile ? "" : "margin-top:auto"}`)}>
+        <span style={s("flex:1;min-width:0")}>
+          <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
+            Avisar os pacientes
+          </span>
+          <span style={s("display:block;font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);margin-top:2px")}>
+            Uma mensagem por recibo, do seu WhatsApp, quando a Receita confirmar. Vale para todo
+            recibo, não só os deste mês.
+          </span>
+        </span>
+        <Toggle
+          on={st.cfg.avisarRecibo}
+          onChange={() => st.alternarCfg("avisarRecibo")}
+          rotulo="Avisar os pacientes quando o recibo sair"
+        />
+      </div>
+  );
 
   /* ── painel da direita: os números e o botão ─────────────────────────────── */
 
@@ -570,22 +633,7 @@ export function EmitirRecibos() {
        * ⚠️ MAS NÃO É UMA OPÇÃO DESTE LOTE, e a frase precisa dizer isso. É um ajuste do negócio
        * que fica ligado — quem ler "avisar os pacientes" ao lado de "Emitir 18 recibos" pensa em
        * caixinha de uma vez só, e desligaria achando que só pulou hoje. */}
-      <div style={s(`display:flex;align-items:flex-start;gap:11px;padding-top:14px;border-top:1px solid var(--border);${mobile ? "" : "margin-top:auto"}`)}>
-        <span style={s("flex:1;min-width:0")}>
-          <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-            Avisar os pacientes
-          </span>
-          <span style={s("display:block;font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);margin-top:2px")}>
-            Uma mensagem por recibo, do seu WhatsApp, quando a Receita confirmar. Vale para todo
-            recibo — não só os deste mês.
-          </span>
-        </span>
-        <Toggle
-          on={st.cfg.avisarRecibo}
-          onChange={() => st.alternarCfg("avisarRecibo")}
-          rotulo="Avisar os pacientes quando o recibo sair"
-        />
-      </div>
+      {avisar}
 
       {/* ⚠️ TRAVADO TAMBÉM ENQUANTO UMA EMISSÃO ANDA. O placar saiu para o canto da tela, então o
           CTA continua visível durante a emissão — sem esta guarda, um segundo clique enfileiraria
@@ -625,11 +673,6 @@ export function EmitirRecibos() {
         <h2 style={s("font-size:var(--t-title);font-weight:var(--w-emph);letter-spacing:var(--ls-title);color:var(--ink);margin:0")}>
           Recibos
         </h2>
-        {pend.semCpf > 0 && (
-          <span style={s("font-size:var(--t-label);color:var(--muted)")}>
-            {pend.semCpf} sem CPF {pend.semCpf === 1 ? "fica" : "ficam"} fora
-          </span>
-        )}
       </div>
 
       {/* ⚠️ `overflow-y:auto` no desktop: com 40 clientes, quem rola é a lista — o painel da
@@ -638,7 +681,7 @@ export function EmitirRecibos() {
       {/* ⚠️ VAZIO ESTICADO SE CENTRALIZA. Com a lista ocupando a altura toda e uma linha só dentro,
           o "Mês em dia" colado no topo deixaria um buraco embaixo — dentro do cartão, que é pior
           que fora dele. Centralizado, a folga vira moldura. */}
-      <div style={s(`border:1px solid var(--border);border-radius:12px;overflow:hidden;${mobile ? "" : `flex:1;min-height:0;overflow-y:auto;${grupos.length === 0 ? "display:grid;place-items:center" : ""}`}`)}>
+      <div style={s(`border:1px solid var(--border);border-radius:12px;overflow:hidden;${mobile ? "" : `flex:1;min-height:0;overflow-y:auto;${grupos.length === 0 && semCpf.length === 0 ? "display:grid;place-items:center" : ""}`}`)}>
         {/* Mês fechado: a lista fica no lugar e diz que está vazia. Ver o ⚠️ acima — a tela é a
             mesma com 0 e com 1000. */}
         {grupos.length === 0 && (
@@ -651,8 +694,8 @@ export function EmitirRecibos() {
                 Mês em dia
               </span>
               <span style={s("display:block;font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose)")}>
-                {pend.semCpf > 0
-                  ? `Todo atendimento pago já tem recibo. ${pend.semCpf} ${pend.semCpf === 1 ? "está" : "estão"} sem CPF e ${pend.semCpf === 1 ? "ficou" : "ficaram"} de fora.`
+                {semCpf.length > 0
+                  ? `Todo atendimento pago com CPF já tem recibo. Falta o CPF de ${semCpf.length === 1 ? "uma pessoa" : `${semCpf.length} pessoas`}, logo abaixo.`
                   : "Todo atendimento pago do mês já tem recibo. Dá para lançar um por fora abaixo."}
               </span>
             </span>
@@ -699,6 +742,28 @@ export function EmitirRecibos() {
             </button>
           );
         })}
+        {/* ── QUEM FICOU SEM CPF (1C.10, 06 P0-6) ──
+            No fim da lista, desligados: a Receita recusa recibo sem o CPF do beneficiário, então
+            marcá-los seria oferecer um erro. Cada um tem a saída ao lado, que é a ficha. */}
+        {semCpf.length > 0 && (
+          <div role="group" aria-label={`Sem CPF, ${semCpf.length}`} style={s(`${grupos.length > 0 ? "border-top:1px solid var(--line);" : ""}background:var(--surface-2)`)}>
+            <div style={s("padding:10px 16px 4px;font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>
+              Sem CPF ({semCpf.length})
+            </div>
+            {semCpf.map((g) => (
+              <div key={g.nome} style={s(`display:flex;align-items:center;gap:14px;padding:${mobile ? "8px" : "6px"} 16px;min-height:${mobile ? 56 : 48}px;box-sizing:border-box`)}>
+                <span aria-hidden style={s("width:20px;height:20px;flex:none;border-radius:6px;border:1.5px dashed var(--border-field);background:var(--surface)")} />
+                <span style={s("flex:1;min-width:0;display:flex;flex-direction:column")}>
+                  <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{g.nome}</span>
+                  <span className="n" style={s("font-size:var(--t-label);color:var(--muted)")}>
+                    {g.itens.length === 1 ? "1 pagamento" : `${g.itens.length} pagamentos`} · {fmt(g.valor)}
+                  </span>
+                </span>
+                <Btn variant="secondary" size={mobile ? "md" : "sm"} onClick={() => porCpf(g.nome)} rotulo={`Pôr o CPF de ${g.nome}`}>Pôr CPF</Btn>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   ) : (
@@ -741,7 +806,26 @@ export function EmitirRecibos() {
    * cartão; o painel da direita fica parado. */
   const esticar = mobile ? "" : "flex:1;min-height:0;";
 
+  /* ── ★ NO CELULAR, O "EMITIR" FICA PARADO NO PÉ (1C.9, 06 P0-5) ──
+   *
+   * Empilhar o painel do desktop embaixo da lista punha "Emitir 31 recibos" em y 2125, depois de
+   * 24 nomes, do rodapé e do "Novo recibo". No celular o desenho é outro, escolhido por
+   * `useIsMobile` e não por `display:none`: sem os números grandes nem a prévia (a contagem vai
+   * no resumo), e o pé da `Moldura`, `sticky` logo acima das abas, com o resumo e o verbo. */
+  const peCelular = (
+    <PeDeAcao
+      resumo={aEmitir.length > 0 ? `${aEmitir.length} ${aEmitir.length === 1 ? "recibo" : "recibos"} · ${fmt(valor)}` : "Mês em dia"}
+      acao={{
+        label: emitindoAgora ? "Emitindo…" : aEmitir.length === 0 ? "Nada a emitir" : "Emitir",
+        onClick: emitir,
+        desabilitada: travado,
+        motivo: bloqueioDaAutorizacao?.frase,
+      }}
+    />
+  );
+
   return (
+    <Moldura pe={mobile ? peCelular : undefined}>
     <div style={s(`display:flex;flex-direction:column;gap:12px;${esticar}`)}>
       <Emitente config={fiscal.config} />
 
@@ -761,8 +845,8 @@ export function EmitirRecibos() {
             <span style={s("font-size:var(--t-label);color:var(--ink);line-height:var(--lh-prose)")}>
               <strong style={s("font-weight:var(--w-title)")}>
                 {n === 1 ? "1 paciente não foi avisado" : `${n} pacientes não foram avisados`}
-              </strong>{" "}
-              — {partes.join(" e ")}. O recibo saiu; a mensagem não. Conserte o telefone em Clientes.
+              </strong>
+              : {partes.join(" e ")}. O recibo saiu; a mensagem não. Conserte o telefone em Clientes.
             </span>
           </div>
         );
@@ -774,6 +858,7 @@ export function EmitirRecibos() {
       <div style={s(`display:flex;gap:12px;align-items:${mobile ? "flex-start" : "stretch"};${mobile ? "flex-direction:column" : ""}${esticar}`)}>
         <Card style={s(`flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;${mobile ? "width:100%" : "min-height:0"}`)}>
           {conteudo}
+          {mobile && avisar}
           {/* `margin-top:auto` na etapa 2: lá o conteúdo é curto (uma lista de conferência), e sem
               isto o pé subiria para o meio do cartão esticado. Na etapa 1 a lista já ocupou tudo. */}
           <div style={s(`display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:14px;border-top:1px solid var(--line);${mobile || etapa === 1 ? "" : "margin-top:auto"}`)}>
@@ -811,8 +896,8 @@ export function EmitirRecibos() {
               <span style={s("font-size:var(--t-label);color:var(--ink);line-height:var(--lh-prose)")}>
                 <strong style={s("font-weight:var(--w-title)")}>
                   {sumiram.length === 1 ? `${sumiram[0]} foi lançado` : `${sumiram.length} lançamentos foram feitos`}
-                </strong>{" "}
-                — mas não {sumiram.length === 1 ? "voltou" : "voltaram"} na lista. Lance de novo e,
+                </strong>
+                , mas não {sumiram.length === 1 ? "voltou" : "voltaram"} na lista. Lance de novo e,
                 se sumir outra vez, me chame antes de fechar o mês.
               </span>
             </div>
@@ -825,12 +910,13 @@ export function EmitirRecibos() {
               /* …e a leitura de verdade confirma por baixo. As duas coisas, nesta ordem. */
               void carregar();
             }}
-            rotulo="Novo recibo — lançar à mão"
+            rotulo="Lançar um recibo à mão"
           />
         </Card>
-        {mobile ? <div style={s("width:100%")}>{painel}</div> : painel}
+        {!mobile && painel}
       </div>
 
     </div>
+    </Moldura>
   );
 }

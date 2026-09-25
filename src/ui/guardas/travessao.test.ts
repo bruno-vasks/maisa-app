@@ -73,7 +73,6 @@ const DIVIDA: Divida = {
   "src/app/login/page.tsx": [1, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
   "src/app/nova-senha/page.tsx": [2, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
   "src/ui/componentes/DeQuemEEsseNumero.tsx": [1, "24/09/2026 · contatos, 3.1 (05 P2-2)"],
-  "src/ui/componentes/EmitirRecibos.tsx": [4, "24/09/2026 · fiscal, 3.1 (06 P2-4)"],
   "src/ui/componentes/LigarNotaFiscal.tsx": [6, "24/09/2026 · fiscal, 3.1 (06 P2-4)"],
   "src/ui/componentes/LoteReceitaSaude.tsx": [12, "24/09/2026 · fiscal, 3.1 (06 P2-4)"],
   "src/ui/componentes/NovoPagamento.tsx": [5, "24/09/2026 · fiscal, 3.1 (06 P2-4)"],

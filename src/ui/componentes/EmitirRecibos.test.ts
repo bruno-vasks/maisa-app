@@ -26,7 +26,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
-import { agrupar, leituraDaTela, mesclar, reconciliar } from "./EmitirRecibos";
+import { agrupar, leituraDaTela, mesclar, reconciliar, semCpfPorPessoa } from "./EmitirRecibos";
 import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
 
 const pag = (over: Partial<PagamentoPendente> = {}): PagamentoPendente => ({
@@ -38,6 +38,22 @@ const pag = (over: Partial<PagamentoPendente> = {}): PagamentoPendente => ({
   valor: 250,
   podeExcluir: false,
   ...over,
+});
+
+describe("semCpfPorPessoa (1C.10)", () => {
+  it("junta os sem CPF por pessoa, maior valor primeiro, e ignora quem tem CPF", () => {
+    const g = semCpfPorPessoa([
+      pag({ id: "a", nome: "Ana", cpf: null, valor: 100 }),
+      pag({ id: "b", nome: "Bia", cpf: null, valor: 300 }),
+      pag({ id: "c", nome: "Ana", cpf: null, valor: 150 }),
+      pag({ id: "d", nome: "Caio" }),
+    ]);
+    expect(g.map((x) => [x.nome, x.itens.length, x.valor])).toEqual([["Bia", 1, 300], ["Ana", 2, 250]]);
+    expect(g.every((x) => x.cpf === null)).toBe(true);
+  });
+  it("ninguém sem CPF, grupo vazio", () => {
+    expect(semCpfPorPessoa([pag({ id: "a" })])).toEqual([]);
+  });
 });
 
 describe("agrupar", () => {
