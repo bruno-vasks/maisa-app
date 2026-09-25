@@ -137,8 +137,70 @@ function Lista({ onEscolher }: { onEscolher: (id: string) => void }) {
 
 /* ───────────────────────────── conversa ───────────────────────────── */
 
+/** O menu ⋯ do cabeçalho da conversa (25/09/2026, 1B.6 e 1B.7). "Abrir no WhatsApp" saiu do
+ *  cabeçalho, onde ficava a 12px do "Assumir" com o mesmo peso, e abria o WhatsApp SEM calar a
+ *  MAISA: agora ele assume antes (`st.abrirNoWhatsApp`). Sem número completo, não existe. */
+function MenuDaConversa({ cv }: { cv: D.Conversa }) {
+  const st = useStore();
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e: PointerEvent) => { if (!caixa.current?.contains(e.target as Node)) setAberto(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setAberto(false); };
+    window.addEventListener("pointerdown", fora);
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("pointerdown", fora); window.removeEventListener("keydown", esc); };
+  }, [aberto]);
+  const itens = [
+    ...(cv.clienteId && st.clienteDe(cv.clienteId) ? [{ rotulo: "Ver ficha", fazer: () => st.abrir(cv.clienteId!) }] : []),
+    ...(cv.telefone ? [{ rotulo: "Abrir no WhatsApp", fazer: () => st.abrirNoWhatsApp(cv.id) }] : []),
+  ];
+  if (!itens.length) return null;
+  return (
+    <div ref={caixa} style={s("position:relative;flex-shrink:0")}>
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        aria-label="Mais ações"
+        title="Mais ações"
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        className="m-hov-bg m-press-icon m-focus"
+        style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
+      >
+        <Icon name="dots" size={20} sw={2.2} />
+      </button>
+      {aberto && (
+        <div role="menu" className="m-reveal" style={s("position:absolute;right:0;top:calc(100% + 8px);z-index:20;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}>
+          {itens.map((it) => (
+            <button
+              key={it.rotulo}
+              type="button"
+              role="menuitem"
+              onClick={() => { setAberto(false); it.fazer(); }}
+              className="m-hov-bg m-focus"
+              style={s("min-height:44px;padding:0 12px;border:none;border-radius:8px;background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
+            >
+              {it.rotulo}
+            </button>
+          ))}
+          {/* O aviso vai junto do gesto, não depois dele: quem responde por lá precisa saber que
+              a fala não volta para cá. */}
+          {cv.telefone && cv.estado !== "voce" && (
+            <span style={s("padding:6px 12px 8px;font-size:var(--t-label);color:var(--muted);line-height:1.45;max-width:30ch")}>
+              Abrir no WhatsApp assume a conversa: a MAISA para de responder aqui.
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Thread({ onVoltar }: { onVoltar?: () => void }) {
   const st = useStore();
+  const mobile = !!onVoltar;
   const cv = st.conversaDe(st.convSel);
 
   const [texto, setTexto] = useState("");
@@ -182,44 +244,38 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
 
   return (
     <>
-      {/* cabeçalho */}
-      <div style={s("flex-shrink:0;padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);background:var(--surface)")}>
+      {/* cabeçalho
+          ⚠️ NO CELULAR O NOME É O QUE FICA (25/09/2026, 1B.6, 04 P0-1). A linha tinha voltar,
+          avatar de 44, nome, WhatsApp e o botão de posse: sobravam 19px para o nome a 375px,
+          e o composer manda mensagem de verdade para quem ele não mostrava. Agora: voltar,
+          avatar de 36, nome em até duas linhas e o ⋯; a posse desce para cima do composer. */}
+      <div style={s(`flex-shrink:0;padding:${mobile ? "10px 12px" : "14px 18px"};display:flex;align-items:center;gap:${mobile ? 10 : 12}px;border-bottom:1px solid var(--line);background:var(--surface)`)}>
         {onVoltar && (
-          <button onClick={onVoltar} aria-label="Voltar" className="m-hov-bg m-press-icon m-focus" style={s("width:38px;height:38px;flex-shrink:0;border:1px solid var(--border);border-radius:11px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}>
+          <button onClick={onVoltar} aria-label="Voltar" className="m-hov-bg m-press-icon m-focus" style={s("width:44px;height:44px;flex-shrink:0;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}>
             <Icon name="chevron-left" size={18} sw={2.2} />
           </button>
         )}
-        <Monogram name={cv.nome} id={cv.id} size={44} radius={14} />
+        <Monogram name={cv.nome} id={cv.id} size={mobile ? 36 : 44} radius={mobile ? 10 : 14} />
         <div style={s("flex:1;min-width:0")}>
-          {/* tracking negativo só a partir de 18px — a 16px era ruído, saiu */}
-          <div style={s("font-weight:var(--w-title);font-size:var(--t-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{cv.nome}</div>
+          {/* Duas linhas antes da reticência: nome comprido é o caso comum ("Mariana Albuquerque
+              de Souza Figueiredo"), e cortado na primeira linha ele deixava de identificar. */}
+          <div data-nome-da-conversa style={s("font-weight:var(--w-title);font-size:var(--t-body);line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word")}>{cv.nome}</div>
           <div style={s("display:flex;align-items:center;gap:7px;margin-top:2px")}>
             <span style={s(`width:6px;height:6px;border-radius:50%;flex-shrink:0;background:${PONTO[estado]}`)} />
-            <span style={s("font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{SITUACAO[estado]} · {D.telefoneBonito(cv.telefone || cv.id)}</span>
+            {/* Sem número completo, "Número incompleto": os 8 dígitos da chave não são telefone (1B.8). */}
+            <span style={s("font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{SITUACAO[estado]} · {semNumero ? "Número incompleto" : D.telefoneBonito(cv.telefone)}</span>
           </div>
         </div>
-        <a
-          /* O número já vem com DDI do envelope do WhatsApp — o `55` fixo que morava aqui era
-             para o telefone escrito à mão do fixture, e com o dado real dobrava o DDI. */
-          href={`https://wa.me/${cv.telefone}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Abrir no WhatsApp"
-          aria-label="Abrir no WhatsApp"
-          className="m-hov-bg m-press-icon m-focus"
-          /* --whatsapp (verde escurecido) e não o verde da marca: glifo de traço sobre fundo
-             claro; com #25D366 este ícone dava 1.9:1 e era ilegível. */
-          style={s("width:40px;height:40px;flex-shrink:0;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--whatsapp);cursor:pointer;display:flex;align-items:center;justify-content:center")}
-        >
-          <Icon name="whatsapp" size={18} sw={1.9} />
-        </a>
-        <button
-          onClick={() => (minha ? st.devolver(cv.id) : st.assumir(cv.id))}
-          className={`${daMaisa ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
-          style={s(`height:40px;padding:0 16px;flex-shrink:0;border-radius:12px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--muted)"}`)}
-        >
-          {daMaisa ? "Assumir" : minha ? "Devolver à MAISA" : "Reabrir"}
-        </button>
+        <MenuDaConversa cv={cv} />
+        {!mobile && (
+          <button
+            onClick={() => (minha ? st.devolver(cv.id) : st.assumir(cv.id))}
+            className={`${daMaisa ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
+            style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--muted)"}`)}
+          >
+            {daMaisa ? "Assumir" : minha ? "Devolver à MAISA" : "Reabrir"}
+          </button>
+        )}
       </div>
 
       {/* mensagens
@@ -296,16 +352,37 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
           real, e um deles prometia horário numa agenda que ele não consultou. Sugestão de
           verdade é uma feature: a MAISA propõe a resposta a partir da conversa e da agenda. Até
           existir, a região não finge que existe. */}
+      {/* ⚠️ SEM NÚMERO, SEM COMPOSER (1B.8, 04 P0-4). O campo desabilitado dizia "responda pelo
+          WhatsApp" num placeholder, e o link abria `wa.me/` sem ninguém. É uma linha fixa, lida. */}
+      {semNumero ? (
+        <div role="status" style={s("flex-shrink:0;padding:14px 18px 16px;border-top:1px solid var(--line);background:var(--surface);font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
+          Esta conversa é antiga e o número completo não foi guardado. Procure o contato no seu WhatsApp.
+        </div>
+      ) : (
       <div style={s("flex-shrink:0;padding:12px 18px 16px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:11px")}>
+        {/* No celular a posse mora aqui, colada ao que ela libera (1B.6). Sem otimismo: o rótulo
+            muda quando o servidor confirma (`store.tsx`, "posse sem otimismo"). */}
+        {mobile && (
+          <div style={s("display:flex;align-items:center;gap:10px")}>
+            <span style={s("flex:1;min-width:0;font-size:var(--t-label);color:var(--muted);line-height:1.4")}>
+              {minha ? "Você está respondendo. A MAISA não fala aqui." : daMaisa ? "A MAISA conduz. Assuma para escrever." : "Conversa resolvida."}
+            </span>
+            <button
+              onClick={() => (minha ? st.devolver(cv.id) : st.assumir(cv.id))}
+              className={`${daMaisa ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
+              style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--ink)"}`)}
+            >
+              {daMaisa ? "Assumir" : minha ? "Devolver à MAISA" : "Reabrir"}
+            </button>
+          </div>
+        )}
         <div style={s("display:flex;align-items:center;gap:10px")}>
           {(() => {
             /* Três razões para o campo estar travado, e cada uma pede uma frase diferente. Um
                placeholder genérico ("não é possível escrever") faria o dono procurar bug onde
                há regra. */
             const travado = !minha || semNumero || st.enviando;
-            const placeholder = semNumero
-              ? "Conversa antiga: o número completo não foi guardado — responda pelo WhatsApp"
-              : st.enviando
+            const placeholder = st.enviando
                 ? "Enviando…"
                 : minha
                   ? "Escreva uma mensagem…"
@@ -339,6 +416,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
           })()}
         </div>
       </div>
+      )}
     </>
   );
 }

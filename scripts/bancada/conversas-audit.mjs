@@ -99,13 +99,58 @@ for (const [nome, vp, est, abreThread] of casos) {
   await page.close();
 }
 
-// semNumero: abrir a conversa 4 (Rafael, sem telefone) no desktop
+// `cabecalho` (1B.6): o nome da thread nos quatro estados, a 375 e a 390. Pedido: ≥ 180px.
+if (alvo === "cabecalho") {
+  for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
+    for (const est of ["espera", "voce", "maisa", "ok"]) {
+      const page = await abrir(vp, est);
+      await page.locator('button[aria-current]').first().click();
+      await page.waitForTimeout(900);
+      const m = await page.evaluate(() => { const n = document.querySelector("[data-nome-da-conversa]"); const r = n?.getBoundingClientRect(); return { nome: r && Math.round(r.width), linhas: r && Math.round(r.height / 20), posse: [...document.querySelectorAll("button")].filter((b) => /^(Assumir|Devolver à MAISA|Reabrir)$/.test(b.textContent.trim())).map((b) => Math.round(b.getBoundingClientRect().top)) }; });
+      console.log(`cabecalho ${vp.width} ${est}`, JSON.stringify(m));
+      if (est === "voce") await page.screenshot({ path: `${OUT}/cabecalho-${vp.width}-${est}.png` });
+      await page.close();
+    }
+  }
+}
+
+// `whatsapp` (1B.7): numa conversa que a MAISA conduz, ⋯ → "Abrir no WhatsApp". Registra a ordem
+// entre o POST `assumir` e o `window.open` (interceptado: nada abre de verdade).
+if (alvo === "whatsapp") {
+  for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    const page = await abrir(vp, "maisa");
+    const ordem = [];
+    await page.exposeFunction("__abriu", (url) => ordem.push(`open ${url}`));
+    await page.evaluate(() => { window.open = (u) => { window.__abriu(String(u)); return null; }; });
+    page.on("request", (r) => { if (r.method() === "POST" && r.url().includes("/api/conversas")) ordem.push(`POST ${r.postData()}`); });
+    await page.locator('button[aria-current]').first().click();
+    await page.waitForTimeout(900);
+    await page.getByRole("button", { name: "Mais ações" }).click();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/whatsapp-menu-${vp.width}.png` });
+    await page.getByRole("menuitem", { name: "Abrir no WhatsApp" }).click();
+    await page.waitForTimeout(1200);
+    console.log(`whatsapp ${vp.width}`, JSON.stringify(ordem));
+    await page.close();
+  }
+}
+
+// semNumero: abrir a conversa 4 (Rafael, sem telefone), nas duas larguras (1B.8)
 if (alvo === "all" || alvo === "semnumero") {
+  for (const vp of [{ width: 390, height: 844 }]) {
+    const page = await abrir(vp);
+    await page.locator('button[aria-current]').nth(3).click();
+    await page.waitForTimeout(900);
+    console.log(`semnumero ${vp.width}`, JSON.stringify(await page.evaluate(() => ({ waVazio: document.querySelectorAll('a[href="https://wa.me/"]').length, waQualquer: document.querySelectorAll('a[href^="https://wa.me"]').length, incompleto: document.body.innerText.includes("Número incompleto"), composer: !!document.querySelector('input[aria-label="Mensagem"]'), linha: document.body.innerText.includes("Procure o contato no seu WhatsApp") }))));
+    await page.screenshot({ path: `${OUT}/sem-numero-${vp.width}.png` });
+    await page.close();
+  }
   const page = await abrir({ width: 1440, height: 900 });
-  await page.locator('button[aria-current]').nth(3).click();
+  // `main`: no desktop o item ativo do rail também tem `aria-current`, e contava como a 1ª linha.
+  await page.locator('main button[aria-current]').nth(3).click();
   await page.waitForTimeout(900);
-  const href = await page.locator('a[aria-label="Abrir no WhatsApp"]').getAttribute("href");
-  console.log("semnumero href", href, JSON.stringify(await medir(page)));
+  const href = await page.evaluate(() => ({ nome: document.querySelector("[data-nome-da-conversa]")?.textContent, waVazio: document.querySelectorAll('a[href="https://wa.me/"]').length, incompleto: document.body.innerText.includes("Número incompleto"), composer: !!document.querySelector('input[aria-label="Mensagem"]'), linha: document.body.innerText.includes("Procure o contato no seu WhatsApp") }));
+  console.log("semnumero 1440", JSON.stringify(href), JSON.stringify(await medir(page)));
   await page.screenshot({ path: `${OUT}/desktop-sem-numero.png` });
   // filtro Esperando
   await page.getByRole("tab", { name: "Esperando" }).click();
