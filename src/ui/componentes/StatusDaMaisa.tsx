@@ -178,8 +178,9 @@ export function LinhaDeStatus({ gravacao }: { gravacao?: React.ReactNode }) {
 
   if (status === "conferindo") {
     return (
-      <div aria-busy="true" style={s("flex-shrink:0;display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--border)")}>
-        <Conferindo sobre="claro" largura={180} />
+      <div style={s("flex-shrink:0;display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--border)")}>
+        <span aria-busy="true" style={s("flex:1;min-width:0;display:flex")}><Conferindo sobre="claro" largura={180} /></span>
+        {gravacao}
       </div>
     );
   }
@@ -189,10 +190,14 @@ export function LinhaDeStatus({ gravacao }: { gravacao?: React.ReactNode }) {
     <div style={s("flex-shrink:0;display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 8px 6px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--border)")}>
       <Marca forma={FORMA[status]} cor={COR.claro[status]} />
       <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:2px")}>
-        <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{ROTULO[status]}</span>
+        {/* O sinal de gravação mora na linha do rótulo, e não ao lado do interruptor: a 390px
+            ele espremia a frase numa coluna de 100px e a linha ia a 391px de altura. */}
+        <span style={s("display:flex;align-items:center;flex-wrap:wrap;column-gap:12px;row-gap:2px")}>
+          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{ROTULO[status]}</span>
+          {gravacao}
+        </span>
         <span id={idMotivo} style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-ui)")}>{FRASE[status]}</span>
       </span>
-      {gravacao}
       <Toggle
         on={st.assistente.ativa && !semCanal}
         onChange={(v) => st.setAssistente({ ativa: v })}

@@ -60,8 +60,42 @@ function LinhaToggle({ titulo, desc, on, alternar }: { titulo: string; desc: str
    faixa do canal logo abaixo dizendo "WhatsApp não conectado". Sem WhatsApp, o interruptor
    fica desligado de verdade, com o motivo: ligá-lo não faria ninguém ser respondido. A linha
    mora em `componentes/StatusDaMaisa.tsx`, com os rótulos. */
+/**
+ * Gravou? (1A.8, 07 P0.5) Os Ajustes não têm botão Salvar: cada mudança vai sozinha para o
+ * servidor depois de meio segundo. Sem este sinal o dono mudava o sábado e saía sem saber se o
+ * cliente já ia ouvir o horário novo. "Salvo" só com a resposta do servidor; "Não salvou" com o
+ * motivo e o botão que reaplica a mesma mudança (`st.salvar`).
+ *
+ * `aria-live` porque a mudança acontece longe do campo: quem usa leitor de tela precisa ouvir.
+ */
+function IndicadorDeGravacao() {
+  const st = useStore();
+  const g = st.gravacao;
+  return (
+    <span aria-live="polite" style={s("display:inline-flex;align-items:center;gap:8px;font-size:var(--t-label);font-weight:var(--w-data);white-space:nowrap")}>
+      {g.fase === "salvando" && <span style={s("color:var(--muted)")}>Salvando…</span>}
+      {g.fase === "salva" && <span style={s("color:var(--success)")}>Salvo</span>}
+      {g.fase === "falhou" && (
+        <>
+          <span title={g.motivo} style={s("color:var(--danger)")}>Não salvou.</span>
+          {/* Texto clicável e não `Btn`: dentro da linha do rótulo um botão com fundo dobrava a
+              altura da faixa. A margem negativa dá alvo de 36px sem empurrar a linha. */}
+          <button
+            type="button"
+            onClick={st.salvar}
+            className="m-press m-focus"
+            style={s("min-height:36px;margin:-10px -6px;padding:0 6px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary);text-decoration:underline;text-underline-offset:3px")}
+          >
+            Tentar de novo
+          </button>
+        </>
+      )}
+    </span>
+  );
+}
+
 function FaixaAssistente() {
-  return <LinhaDeStatus />;
+  return <LinhaDeStatus gravacao={<IndicadorDeGravacao />} />;
 }
 
 /* ───────────────────────────── o canal de WhatsApp ─────────────────────────────

@@ -108,3 +108,35 @@ export function semConfirmacao(
   if (!c) return true;
   return ag.data > c.data || (ag.data === c.data && ag.inicio > c.hora);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * GRAVOU? O sinal que substitui o botão Salvar dos Ajustes (item 1A.8, 07 P0.5).
+ *
+ * Ajustes, nome do negócio e semana gravam sozinhos com janela de 500ms, e até 25/09/2026
+ * nenhum componente dizia se o servidor aceitou: o único retorno era o toast de falha. O
+ * store expõe os três recursos em voo e a última falha de cada um; aqui vira uma frase só.
+ *
+ * Ordem: gravando ganha (o toque novo é o que o dono está olhando); falha ganha do "Salvo"
+ * (um recurso que o banco recusou não fica escondido pelo verde de outro); "Salvo" dura o
+ * que o store segura `salvo` (2,2s) e depois some, porque salvo é o normal.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export type RecursoGravado = "ajustes" | "semana" | "nome";
+
+export type EstadoDaGravacao =
+  | { fase: "parada" }
+  | { fase: "salvando" }
+  | { fase: "salva" }
+  | { fase: "falhou"; motivo: string };
+
+export function estadoDaGravacao(p: {
+  emVoo: Partial<Record<RecursoGravado, boolean>>;
+  falhas: Partial<Record<RecursoGravado, string>>;
+  salvo: boolean;
+}): EstadoDaGravacao {
+  if (Object.values(p.emVoo).some(Boolean)) return { fase: "salvando" };
+  const motivo = (["ajustes", "semana", "nome"] as const).map((r) => p.falhas[r]).find(Boolean);
+  if (motivo) return { fase: "falhou", motivo };
+  if (p.salvo) return { fase: "salva" };
+  return { fase: "parada" };
+}

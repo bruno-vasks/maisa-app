@@ -19,7 +19,7 @@ import * as D from "@/adaptadores/saida/demo";
  * "telefone tem dígitos suficientes" que o caso de uso usa, senão a tela espera por um fim
  * que o servidor não reconhece (ou manda antes dele). Ver as regras de import no LEIA-ME. */
 import { TELEFONE_MIN_DIGITOS, emailPlausivel, soDigitos } from "@/nucleo/dominio/clientes";
-import { semConfirmacao } from "@/ui/estado/leitura";
+import { estadoDaGravacao, semConfirmacao, type EstadoDaGravacao, type RecursoGravado } from "@/ui/estado/leitura";
 import type { Canal } from "@/nucleo/dominio/canal";
 import { statusDaMaisa, type StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
 import type { CaminhoFiscal, ConfigFiscal } from "@/nucleo/dominio/fiscal";
@@ -880,7 +880,11 @@ export type StoreValue = {
   cfg: Record<D.ChaveCfg, boolean>;
   alternarCfg: (chave: D.ChaveCfg) => void;
   salvo: boolean;
+  /** Tenta de novo: manda o que está na janela agora e reaplica o que o servidor recusou. */
   salvar: () => void;
+  /** Ajustes, nome do negócio e semana: gravando, gravou, ou o banco recusou (com o motivo).
+   *  Só LÊ o mecanismo de gravação (⚠️ coalescer e voltar atrás), ver `estadoDaGravacao`. */
+  gravacao: EstadoDaGravacao;
 
   /* agenda — dia visível e criação de atendimento */
   /** Data ISO que a Agenda está mostrando. Começa em hoje. */
@@ -2686,6 +2690,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [ajustesErro, setAjustesErro] = useState<string | null>(null);
   const [ajustesCarregados, setAjustesCarregados] = useState(false);
 
+  /* ── O SINAL DE GRAVAÇÃO (1A.8) ──
+   * Só observa: acende "em voo" no primeiro toque de uma rajada e apaga quando a resposta
+   * volta sem nada pendente atrás dela. A falha guarda o motivo E o pedaço recusado, para o
+   * "Tentar de novo" reaplicar a mesma mudança (a volta atrás já tirou ela da tela). */
+  const [emVoo, setEmVoo] = useState<Partial<Record<RecursoGravado, boolean>>>({});
+  const [falhasDeGravacao, setFalhasDeGravacao] = useState<Partial<Record<RecursoGravado, string>>>({});
+  const recusado = useRef<{
+    ajustes?: { assistente?: Partial<Assistente>; cfg?: Partial<Record<D.ChaveCfg, boolean>> };
+    semana?: D.SemanaAnunciada;
+    nome?: string;
+  }>({});
+  const marcarVoo = useCallback((r: RecursoGravado, v: boolean) => {
+    setEmVoo((a) => (Boolean(a[r]) === v ? a : { ...a, [r]: v }));
+    if (v) setFalhasDeGravacao((f) => (f[r] ? { ...f, [r]: undefined } : f));
+  }, []);
+  const registrarFalha = useCallback((r: RecursoGravado, motivo: string) => {
+    setFalhasDeGravacao((f) => ({ ...f, [r]: motivo }));
+  }, []);
+
   /** O patch que ainda não foi para o servidor, acumulado entre teclas. */
   const ajustesPendentes = useRef<{ assistente?: Partial<Assistente>; cfg?: Partial<Record<D.ChaveCfg, boolean>> }>({});
   /** O estado ANTES da primeira mexida pendente. É para onde se volta se o PATCH falhar. */
@@ -2726,7 +2749,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const antes = ajustesAntes.current;
     ajustesPendentes.current = {};
     ajustesAntes.current = null;
-    if (!corpo.assistente && !corpo.cfg) return;
+    if (!corpo.assistente && !corpo.cfg) { marcarVoo("ajustes", false); return; }
+    /* Outra rajada começou enquanto esta viajava? O sinal fica aceso até a última voltar. */
+    const soEsta = () => { if (!ajustesPendentes.current.assistente && !ajustesPendentes.current.cfg) marcarVoo("ajustes", false); };
 
     try {
       const r = await fetch("/api/assistente", {
@@ -2745,6 +2770,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const motivo = MOTIVO_AJUSTES[r?.status] ?? r?.info ?? MOTIVO_AJUSTES.salvar;
         setAjustesErro(motivo);
         toast(motivo);
+        recusado.current.ajustes = corpo;
+        registrarFalha("ajustes", motivo);
+        soEsta();
         return;
       }
 
@@ -2755,12 +2783,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAjustesErro(null);
       setSalvo(true);
       agendar(() => setSalvo(false), 2200);
+      recusado.current.ajustes = undefined;
+      soEsta();
     } catch {
       if (antes) setAjustes(antes);
       setAjustesErro(MOTIVO_AJUSTES.salvar);
       toast(MOTIVO_AJUSTES.salvar);
+      recusado.current.ajustes = corpo;
+      registrarFalha("ajustes", MOTIVO_AJUSTES.salvar);
+      soEsta();
     }
-  }, [agendar, toast]);
+  }, [agendar, toast, marcarVoo, registrarFalha]);
 
   /** Aplica na tela agora e agenda o envio, juntando com o que já estava pendente. */
   const mexerNosAjustes = useCallback((
@@ -2784,9 +2817,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!Object.keys(ajustesPendentes.current.assistente ?? {}).length) delete ajustesPendentes.current.assistente;
     if (!Object.keys(ajustesPendentes.current.cfg ?? {}).length) delete ajustesPendentes.current.cfg;
 
+    marcarVoo("ajustes", true);
     if (ajustesTimer.current) clearTimeout(ajustesTimer.current);
     ajustesTimer.current = setTimeout(() => { void enviarAjustes(); }, JANELA_AJUSTES);
-  }, [enviarAjustes]);
+  }, [enviarAjustes, marcarVoo]);
 
   /* Sai da tela com tecla pendente? Manda antes de morrer. `clearTimeout` sozinho
    * perderia a última palavra digitada — o caso mais comum de todos. */
@@ -2854,6 +2888,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const antes = semanaAntes.current;
     semanaAntes.current = null;
     semanaPendente.current = null;
+    const soEsta = () => { if (!semanaPendente.current) marcarVoo("semana", false); };
 
     try {
       const r = await fetch("/api/horarios", {
@@ -2870,6 +2905,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const motivo = r?.info ?? MOTIVO_HORARIOS[r?.status] ?? MOTIVO_HORARIOS.salvar;
         setSemanaErro(motivo);
         toast(motivo);
+        recusado.current.semana = corpo;
+        registrarFalha("semana", motivo);
+        soEsta();
         return;
       }
 
@@ -2879,14 +2917,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setSemanaErro(null);
       setSalvo(true);
       agendar(() => setSalvo(false), 2200);
+      recusado.current.semana = undefined;
+      soEsta();
     } catch {
       if (antes) setSemana(antes);
       setSemanaErro(MOTIVO_HORARIOS.salvar);
+      recusado.current.semana = corpo;
+      registrarFalha("semana", MOTIVO_HORARIOS.salvar);
+      soEsta();
     }
-  }, [agendar, toast]);
+  }, [agendar, toast, marcarVoo, registrarFalha]);
 
   /** Aplica na tela agora e agenda o envio da semana inteira. */
   const mexerNaSemana = useCallback((f: (s: D.SemanaAnunciada) => D.SemanaAnunciada) => {
+    marcarVoo("semana", true);
     setSemana((s) => {
       if (!semanaAntes.current) semanaAntes.current = s;
       const nova = f(s);
@@ -2899,7 +2943,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       semanaTimer.current = setTimeout(() => { void enviarSemana(nova); }, JANELA_AJUSTES);
       return nova;
     });
-  }, [enviarSemana]);
+  }, [enviarSemana, marcarVoo]);
 
   const alternarDia = useCallback((dow: number) => {
     mexerNaSemana((s) => s.map((d) => {
@@ -3285,6 +3329,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const enviarNomeDoNegocio = useCallback(async (nome: string) => {
     const antes = nomeAntes.current;
     nomeAntes.current = null;
+    const soEsta = () => { if (nomeAntes.current === null) marcarVoo("nome", false); };
 
     try {
       const r = await fetch("/api/negocio", {
@@ -3299,6 +3344,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
          * acreditar num nome que a MAISA nunca vai usar. */
         if (antes !== null) setCadastro((c) => ({ ...c, negocio: { ...c.negocio, nome: antes } }));
         toast(r?.info ?? "Não foi possível salvar o nome do negócio.");
+        recusado.current.nome = nome;
+        registrarFalha("nome", r?.info ?? "Não foi possível salvar o nome do negócio.");
+        soEsta();
         return;
       }
 
@@ -3306,11 +3354,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setCadastro((c) => ({ ...c, negocio: r.negocio ?? c.negocio }));
       setSalvo(true);
       agendar(() => setSalvo(false), 2200);
+      recusado.current.nome = undefined;
+      soEsta();
     } catch {
       if (antes !== null) setCadastro((c) => ({ ...c, negocio: { ...c.negocio, nome: antes } }));
       toast("Não foi possível salvar o nome do negócio.");
+      recusado.current.nome = nome;
+      registrarFalha("nome", "Não foi possível salvar o nome do negócio.");
+      soEsta();
     }
-  }, [agendar]);
+  }, [agendar, marcarVoo, registrarFalha]);
 
   /* ─────────────────────────────────────────────────────────────────────────────
    * AS DÚVIDAS FREQUENTES.
@@ -3402,11 +3455,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { ...c, negocio: { ...c.negocio, nome } };
     });
 
+    marcarVoo("nome", true);
     if (nomeTimer.current) clearTimeout(nomeTimer.current);
     nomeTimer.current = setTimeout(() => { void enviarNomeDoNegocio(nome); }, JANELA_AJUSTES);
-  }, [enviarNomeDoNegocio]);
+  }, [enviarNomeDoNegocio, marcarVoo]);
 
   const alternarCfg = useCallback((chave: D.ChaveCfg) => {
+    marcarVoo("ajustes", true);
     /* Lê do estado dentro do updater, e não da closure, porque duas batidas rápidas no
      * mesmo toggle precisam ver a primeira já aplicada — senão a segunda manda o mesmo
      * valor e o switch fica preso. */
@@ -3418,7 +3473,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ajustesTimer.current = setTimeout(() => { void enviarAjustes(); }, JANELA_AJUSTES);
       return { ...a, cfg: { ...a.cfg, [chave]: valor } };
     });
-  }, [enviarAjustes]);
+  }, [enviarAjustes, marcarVoo]);
 
   /**
    * O botão "Salvar" da tela de ajustes.
@@ -3432,9 +3487,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * está certo: não houve o que salvar.
    */
   const salvar = useCallback(() => {
+    /* "Tentar de novo" do sinal de gravação (1A.8): a volta atrás já tirou da tela o que o
+     * banco recusou, então repetir o envio vazio não faria nada. Reaplica-se a MESMA mudança
+     * pelos caminhos de sempre (otimista, coalescida, com volta atrás se falhar outra vez). */
+    const r = recusado.current;
+    recusado.current = {};
+    if (r.ajustes) mexerNosAjustes(r.ajustes);
+    if (r.semana) { const semanaRecusada = r.semana; mexerNaSemana(() => semanaRecusada); }
+    if (r.nome !== undefined) setNomeDoNegocio(r.nome);
+    /* O reaplicado sai pela janela de 500ms, e não aqui: a foto da volta atrás
+     * (`ajustesAntes`) é tirada dentro do updater, que o React pode rodar só no próximo
+     * render. Mandar agora arriscaria uma falha sem ter para onde voltar. */
+    if (r.ajustes) return;
     if (ajustesTimer.current) clearTimeout(ajustesTimer.current);
     void enviarAjustes();
-  }, [enviarAjustes]);
+  }, [enviarAjustes, mexerNosAjustes, mexerNaSemana, setNomeDoNegocio]);
+
+  const gravacao = useMemo(
+    () => estadoDaGravacao({ emVoo, falhas: falhasDeGravacao, salvo }),
+    [emVoo, falhasDeGravacao, salvo],
+  );
 
   /* ── qual documento este negócio emite ──
    * Uma leitura de `/api/fiscal`, e os quatro lugares que precisam dela leem daqui: o hero do
@@ -4176,7 +4248,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     cfg: ajustes.cfg, alternarCfg,
-    salvo, salvar,
+    salvo, salvar, gravacao,
     diaSel, verDia,
     rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
@@ -4208,7 +4280,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     ajustes.cfg, alternarCfg,
-    salvo, salvar,
+    salvo, salvar, gravacao,
     diaSel, rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
     bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,

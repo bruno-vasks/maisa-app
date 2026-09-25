@@ -48,6 +48,7 @@ em `BANCADA_FOTOS`, se definida. Foto não é versionada: git não esquece PNG.
 | `fiscal.mjs` | Fiscal e Documento fiscal nos cenários `recibo-cheio`, `recibo-vazio`, `recibo-sem-registro`, `recibo-procuracao-vencida`, `cnpj`, `cnpj-sem-cert`, `nada-com-atend`, `nada`. `cenario+roda`, `+rolar`, `+doc`, `+botao:<nome>` encadeiam ações. |
 | `ajustes.mjs`, `ajustes-parear.mjs`, `ajustes-texto.mjs` | Ajustes da MAISA: seções, pareamento por código, texto visível. |
 | `ajustes-leitura.mjs` | Ajustes com `/api/assistente`, `/api/horarios`, `/api/cadastro` e `/api/canal` atrasados (`--atraso=`) ou falhando (`--erro`): abre as cinco seções antes e depois da resposta e conta campos editáveis, valores do placeholder ("MAISA", "Seu Negócio", "08:00", "20:00") e "Conectar WhatsApp" (1A.7). |
+| `ajustes-gravacao.mjs` | O sinal de gravação dos Ajustes (1A.8): com o WhatsApp simulado conectado, muda o interruptor mestre e marca quando aparecem "Salvando…", "Salvo" e quando somem. `--falha` faz o `PATCH /api/assistente` devolver `ok:false`, clica em "Tentar de novo" e conta os PATCH. Sem `--falha` grava no demo (memória, sem banco) e desfaz no fim. |
 | `aud08.mjs`, `aud08b.mjs` | Equipe, Serviços e Mais; `aud08b` digita 30, 45 e "90,50" nos campos da gaveta de serviço (o defeito do 30 que vira 50). |
 | `entrada09.mjs`, `entrada09b.mjs` | O `/comecar` e as rotas de entrada com `/api` simulada. |
 

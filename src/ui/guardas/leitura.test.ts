@@ -11,7 +11,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
-import { estadoDaFila, estadoDoDia, estadoDosContatos, semConfirmacao, type LeituraDaAgenda } from "@/ui/estado/leitura";
+import { estadoDaFila, estadoDaGravacao, estadoDoDia, estadoDosContatos, semConfirmacao, type LeituraDaAgenda } from "@/ui/estado/leitura";
 import type { StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
 
 const AGENDA: Record<string, LeituraDaAgenda> = {
@@ -108,5 +108,21 @@ describe("semConfirmacao · só quem ainda vem e ainda não respondeu (1A.5)", (
   });
   it("confirmado: não marca", () => {
     expect(semConfirmacao(ag({ confirmado: true }), agora)).toBe(false);
+  });
+});
+
+describe("estadoDaGravacao (1A.8)", () => {
+  it("parada sem nada em voo, sem falha e sem salvo", () => {
+    expect(estadoDaGravacao({ emVoo: {}, falhas: {}, salvo: false })).toEqual({ fase: "parada" });
+  });
+  it("em voo ganha de tudo: o toque novo é o que o dono está olhando", () => {
+    expect(estadoDaGravacao({ emVoo: { semana: true }, falhas: { ajustes: "x" }, salvo: true })).toEqual({ fase: "salvando" });
+  });
+  it("falha ganha do salvo de outro recurso, e traz o motivo", () => {
+    expect(estadoDaGravacao({ emVoo: { ajustes: false }, falhas: { nome: "Nome curto demais." }, salvo: true }))
+      .toEqual({ fase: "falhou", motivo: "Nome curto demais." });
+  });
+  it("salvo só quando o store segura `salvo`", () => {
+    expect(estadoDaGravacao({ emVoo: { ajustes: false }, falhas: { ajustes: undefined }, salvo: true })).toEqual({ fase: "salva" });
   });
 });
