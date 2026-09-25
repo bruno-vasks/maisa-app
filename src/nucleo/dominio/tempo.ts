@@ -74,6 +74,34 @@ export const rotuloLongo = (data: string) => `${DOW_LONGO[dowDoDia(data)]}, ${ro
 /** "06/08/2026" — formato de documento (a nota fiscal usa este). */
 export const rotuloBR = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}/${data.slice(0, 4)}`;
 
+/**
+ * "2026-09-24" (ou "2026-09") → "setembro de 2026". O mês que a tela diz.
+ *
+ * Nasceu em 25/09/2026 (T5 do backlog do front) para matar `D.PERIODO`, o "Junho de 2026"
+ * escrito à mão que o painel mostrava em setembro em dez lugares. Minúsculo, como o pt-BR
+ * escreve mês no meio da frase; quem abre frase com ele capitaliza.
+ */
+export function rotuloDoMes(iso: string): string {
+  return `${nomeMes(mesDe(iso))} de ${anoDe(iso)}`;
+}
+
+/**
+ * O mês de um fechamento, a partir das competências que o servidor devolveu (contradição C12:
+ * quem tem competência do servidor passa a competência; sem nenhuma, vale o mês de `hoje`).
+ * Duas ou mais: "agosto a setembro de 2026" (ou com os dois anos, se virou o ano), porque
+ * pendência de mês passado é o caso normal de quem emite por lote, e dizer só o último mês
+ * esconderia o anterior.
+ */
+export function rotuloDaCompetencia(competencias: readonly string[], hoje: string): string {
+  const meses = [...new Set(competencias.filter((c) => /^\d{4}-\d{2}/.test(c)).map(mesDe))].sort();
+  if (meses.length === 0) return rotuloDoMes(hoje);
+  const [de, ate] = [meses[0], meses[meses.length - 1]];
+  if (de === ate) return rotuloDoMes(de);
+  return anoDe(de) === anoDe(ate)
+    ? `${nomeMes(de)} a ${rotuloDoMes(ate)}`
+    : `${rotuloDoMes(de)} a ${rotuloDoMes(ate)}`;
+}
+
 /** Hora decimal → "HH:MM". 9.5 → "09:30". */
 export const hhmm = (v: number) => {
   const h = Math.floor(v);

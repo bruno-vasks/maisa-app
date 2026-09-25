@@ -24,3 +24,4 @@ export * from "./horarios";
 export * from "./erros";
 export * from "./caminho-de-volta";
 export * from "./status-da-maisa";
+export * from "./suporte";

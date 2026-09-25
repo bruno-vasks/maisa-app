@@ -8,10 +8,10 @@
  * Nenhuma delas tem estado próprio: tudo que muda vem do store. */
 
 import React from "react";
-import { s, Icon, fmt, fmtK, Filtros, EmptyState, Tabela, CelulaNome, Badge, SectionTitle, Btn, Monogram, Input, Field } from "@/ui/primitivos";
+import { s, Icon, fmt, fmtK, Filtros, EmptyState, Tabela, CelulaNome, Badge, SectionTitle, Btn, Monogram, Input, Field, Estado } from "@/ui/primitivos";
 import * as D from "@/adaptadores/saida/demo";
 import { useIsMobile, useEstreita } from "@/ui/useIsMobile";
-import { useStore, type LinhaDeFaturamento, type TelaId } from "@/ui/estado/store";
+import { useStore, resumoDaAssinatura, type LinhaDeFaturamento, type TelaId } from "@/ui/estado/store";
 import { Cartao, GradeCartoes, Hero, TelaGrade, type TomTag } from "@/ui/componentes/Cartao";
 import { EmitirRecibos } from "@/ui/componentes/EmitirRecibos";
 /* ⚠️ AINDA AQUI, e só no caminho da NOTA FISCAL. Ele também aparece em `Documento fiscal`, que é
@@ -37,11 +37,6 @@ const ORDEM_ACAO: Record<D.StatusNota, number> = {
   erro: 0, pendente: 1, processando: 2, cancelada: 3, emitida: 4,
 };
 
-/** Puxa um número do mês pelo rótulo, de D.NUMEROS_MES. Uma fonte só para chip e gaveta. */
-function numeroDoMes(rotulo: string): string {
-  const par = [...D.NUMEROS_MES.resultado, ...D.NUMEROS_MES.maisa].find(([l]) => l === rotulo);
-  return par?.[1] ?? "—";
-}
 
 /** A frase que explica o estado da nota. Uma só, para cartão e tabela não divergirem. */
 function resumoNota(n: D.Nota): string {
@@ -120,7 +115,7 @@ export function Clientes() {
         valor={String(ativos.length)}
         sub={`de ${st.cadastro.clientes.length} cadastrados`}
         marcos={[
-          { n: ativos.reduce((a, c) => a + c.atendimentos, 0), label: `atendimentos em ${D.PERIODO.split(" de ")[0].toLowerCase()}`, tom: "primary" },
+          { n: ativos.reduce((a, c) => a + c.atendimentos, 0), label: `atendimentos em ${D.nomeMes(D.mesDe(D.HOJE.iso))}`, tom: "primary" },
           { n: fmtK(ativos.reduce((a, c) => a + c.valor, 0)), label: "fechado no mês", tom: "success" },
           { n: st.cadastro.clientes.length - ativos.length, label: "inativos", tom: "neutral" },
         ]}
@@ -144,8 +139,9 @@ export function Clientes() {
                 atenuado={!on}
                 onClick={() => st.abrir(c.id)}
                 resumo={on && c.atendimentos > 0
-                  ? `${c.atendimentos} atendimentos em ${D.PERIODO} · ${fmt(c.valor)} · cliente desde ${c.desde}`
-                  : `Sem atendimentos em ${D.PERIODO} · cliente desde ${c.desde}`}
+                  /* `v_clientes` conta a competência corrente: o mês de hoje (T5, era `D.PERIODO`). */
+                  ? `${c.atendimentos} atendimentos em ${D.rotuloDoMes(D.HOJE.iso)} · ${fmt(c.valor)} · cliente desde ${c.desde}`
+                  : `Sem atendimentos em ${D.rotuloDoMes(D.HOJE.iso)} · cliente desde ${c.desde}`}
                 chips={[...(c.telefone ? [c.telefone] : []), c.canal, ...(on ? [] : ["fora do faturamento"])]}
               />
             );
@@ -277,7 +273,7 @@ export function Faturamento() {
   return (
     <TelaGrade>
       <Hero
-        rotulo={D.PERIODO}
+        rotulo={st.mesDoFechamento}
         valor={fmt(total)}
         sub={`em ${base.length} clientes`}
         /* No caminho do recibo os marcos falam do MÊS, e não de documentos: os documentos são o
@@ -334,7 +330,7 @@ export function Faturamento() {
                     : `${c.atendimentos} atendimentos · ${c.servico ?? st.nomeServico(c.servicoId)}`}
                   meta={fmt(c.valor)}
                   onClick={() => st.abrir(c.id)}
-                  resumo={`${c.atendimentos} atendimentos em ${D.PERIODO} · ${fmt(c.valor)}`}
+                  resumo={`${c.atendimentos} atendimentos em ${st.mesDoFechamento} · ${fmt(c.valor)}`}
                   chips={[c.cpf ? `CPF ${c.cpf}` : "sem CPF", c.canal]}
                 />
               );
@@ -457,7 +453,9 @@ export function Equipe() {
                 tag={on ? { label: "ativo", tom: "success" } : { label: "pausado", tom: "neutral" }}
                 atenuado={!on}
                 onClick={() => st.abrir(p.id)}
-                resumo={`${p.atendimentosMes} atendimentos no mês · nota ${p.avaliacao.toFixed(1)} · comissão ${p.comissao}% · folga ${p.folga}`}
+                /* Sem "nota" nem "comissão" (T5, 08 P1-3): nenhuma tela as escreve, e a nota do
+                   demo era 4.9 para todo mundo. */
+                resumo={`${p.atendimentosMes} atendimentos no mês · folga ${p.folga}`}
                 /* "Google" entra na frente dos serviços: no celular só cabem uns três
                    chips, e saber que a agenda está ligada muda o que dá para fazer
                    com aquele profissional — quais serviços ele faz, não. */
@@ -499,16 +497,9 @@ export function Equipe() {
               ordenar: (p) => p.atendimentosMes,
               celula: (p) => p.atendimentosMes,
             },
-            {
-              chave: "nota", label: "Nota", num: true, largura: "80px", secundaria: true,
-              ordenar: (p) => p.avaliacao,
-              celula: (p) => p.avaliacao.toFixed(1),
-            },
-            {
-              chave: "comissao", label: "Comissão", num: true, largura: "100px",
-              ordenar: (p) => p.comissao,
-              celula: (p) => `${p.comissao}%`,
-            },
+            /* "Nota" e "Comissão" saíram em 25/09/2026 (T5, 08 P1-3): nada no produto as
+               escreve (a rota de equipe só aceita nome, papel e ativo), então eram o número do
+               cadastro inicial com cara de avaliação e de acordo de repasse. */
             {
               chave: "estado", label: "Estado", largura: "120px",
               ordenar: (p) => (st.profAtivo(p.id) ? 0 : 1),
@@ -766,13 +757,38 @@ function Conexoes() {
 
 /* ═══════════════════════════════ MAIS ═══════════════════════════════ */
 
+/** Plano e situação, lidos de `GET /api/assinatura`. Esqueleto enquanto lê; nada de "em dia"
+ *  que ninguém conferiu. */
+function LinhaDoPlano() {
+  const st = useStore();
+  const r = resumoDaAssinatura(st.assinatura);
+  const a = st.assinatura.status === "ok" ? st.assinatura.assinatura : null;
+  if (st.assinatura.status === "carregando") {
+    return (
+      <span aria-busy="true" aria-label="Lendo sua assinatura" style={s("flex:1;min-width:160px;display:flex;flex-direction:column;gap:6px")}>
+        <span style={s("width:140px;height:14px;border-radius:6px;background:var(--line)")} />
+        <span style={s("width:200px;height:10px;border-radius:6px;background:var(--line)")} />
+      </span>
+    );
+  }
+  const alerta = a?.status === "inadimplente" || a?.status === "cancelada" || !a;
+  return (
+    <span style={s("flex:1;min-width:160px;line-height:1.3;display:flex;flex-direction:column;gap:3px")}>
+      <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title)")}>{a ? `Plano ${a.plano}` : "Seu plano"}</span>
+      <Estado forma={alerta ? "triangulo" : a?.status === "ativa" ? "disco" : "anel"} tom={alerta ? "warn" : a?.status === "ativa" ? "success" : "neutral"}>
+        {r.sub.charAt(0).toUpperCase() + r.sub.slice(1)}
+      </Estado>
+    </span>
+  );
+}
+
 export function Mais() {
   const st = useStore();
   const mobile = useIsMobile();
 
   /** Atalhos para telas — lista compacta de links, não cartões: navegar não é "abrir e editar". */
   const atalhos: { id: TelaId; titulo: string; sub: string; icone: string }[] = [
-    { id: "faturamento", titulo: "Fiscal", sub: `${D.PERIODO} · o que falta emitir`, icone: "receipt" },
+    { id: "faturamento", titulo: "Fiscal", sub: "O que falta emitir", icone: "receipt" },
     /* A configuração de qual documento sai. Fica no "Mais" porque é decisão de uma vez só — e é
      * daqui que se chega a ela no celular, onde não existe rail. */
     { id: "fiscal", titulo: "Documento fiscal", sub: "Nota fiscal ou recibo do Receita Saúde", icone: "config" },
@@ -783,22 +799,10 @@ export function Mais() {
     { id: "contatos", titulo: "Meus contatos", sub: "Quem ela atende e de quem ela cala", icone: "clientes" },
   ];
 
-  const conteudo = [
-    {
-      id: "faq", titulo: "Perguntas frequentes", sub: `${D.FAQS.length} respostas no ar`,
-      resumo: "As respostas prontas que a MAISA usa sem te consultar.",
-      chips: [`${D.FAQS.length} no ar`, `${D.FAQS.reduce((a, f) => a + f.usos, 0).toLocaleString("pt-BR")} usos`],
-      onClick: () => st.abrir("faq"),
-    },
-    {
-      id: "numeros", titulo: "Números do mês", sub: "Faturamento e ocupação",
-      resumo: "Faturamento, ocupação e o que a MAISA resolveu no mês.",
-      // derivado de D.NUMEROS_MES, não string literal: os chips diziam "R$ 18,2k / 78% / 87%"
-      // hardcoded enquanto a gaveta lia o dado de verdade — os dois podiam discordar em silêncio.
-      chips: [numeroDoMes("Faturamento"), `${numeroDoMes("Ocupação média")} ocupação`, `${numeroDoMes("Resolvidas sem você")} resolvidas`],
-      onClick: () => st.abrir("numeros"),
-    },
-  ];
+  /* "Conteúdo e números" saiu em 25/09/2026 (T5, 08 P0-5). O cartão de perguntas lia
+   * `D.FAQS` ("4 respostas no ar · 928 usos") e o de números lia `D.NUMEROS_MES` ("Julho de
+   * 2026 · Faturamento R$ 18.240,00") em setembro: fixture com cara de análise. As perguntas de
+   * verdade moram nos Ajustes da MAISA, e os números voltam quando houver fonte. */
 
   return (
     <TelaGrade>
@@ -839,34 +843,15 @@ export function Mais() {
           <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:12px;background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
             <Icon name="card" size={19} sw={1.9} />
           </span>
-          <span style={s("flex:1;min-width:160px;line-height:1.3")}>
-            <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title)")}>Plano {st.cadastro.negocio.plano}</span>
-            <span className="n" style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:2px")}>{fmt(st.cadastro.negocio.precoPlano)}/mês</span>
-          </span>
-          {/* estado de cobrança com tom semântico de verdade — antes "em dia" era um chip neutro
-              idêntico ao do nome do plano, ou seja um status de pagamento sem cor de status. */}
-          <Badge tone="success" dot>em dia</Badge>
+          {/* ⚠️ A MESMA FONTE DA GAVETA (`resumoDaAssinatura`, 25/09/2026, T5 e 08 P0-4). A linha
+              lia `cadastro.negocio.plano`/`precoPlano` (R$ 149,90 de fixture) e desenhava "em dia"
+              fixo, e a gaveta, um clique depois, dizia "em teste · nenhuma forma de pagamento". */}
+          <LinhaDoPlano />
+          <Icon name="chevron-right" size={17} sw={2} style={s("flex-shrink:0;color:var(--muted)")} />
         </button>
       </section>
 
       <Conexoes />
-
-      <section>
-        <SectionTitle title="Conteúdo e números" sub="O que a MAISA responde e como o mês foi" />
-        <GradeCartoes>
-          {conteudo.map((i) => (
-            <Cartao
-              key={i.id}
-              dot="neutral"
-              titulo={i.titulo}
-              sub={i.sub}
-              resumo={i.resumo}
-              chips={i.chips}
-              onClick={i.onClick}
-            />
-          ))}
-        </GradeCartoes>
-      </section>
 
       {/* Contato do suporte — rodapé, não cartão: não é algo que se "abre". */}
       <div style={s("display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:16px;background:var(--surface);border:1px solid var(--line);flex-wrap:wrap")}>
@@ -878,7 +863,7 @@ export function Mais() {
           <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:2px")}>Fale com o suporte da MAISA pelo WhatsApp — respondemos em minutos.</span>
         </span>
         <a
-          href="https://wa.me/5511999999999"
+          href={`https://wa.me/${D.WHATSAPP_DA_MAISA}`}
           target="_blank"
           rel="noopener noreferrer"
           className="m-hov-bright m-press m-focus"

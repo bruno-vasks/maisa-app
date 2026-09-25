@@ -792,6 +792,9 @@ export type StoreValue = {
   cancelarNota: (ref: string) => void;
   /** Clientes com valor fechado no mês — a base do Faturamento. */
   fechamento: LinhaDeFaturamento[];
+  /** "setembro de 2026": o mês do que falta emitir, pela competência que o servidor devolveu
+   *  (`aFaturar[].competencia`); sem nenhuma, o mês de hoje. Substitui `D.PERIODO` (T5). */
+  mesDoFechamento: string;
   /** O que o lote REALMENTE vai emitir. Hero, topbar e lote leem daqui — fonte única. */
   emitiveis: LinhaDeFaturamento[];
   loteAberto: boolean;
@@ -2411,6 +2414,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * o que o servidor não manda (canal, serviço) — esses são de exibição, e o que decide
    * dinheiro vem inteiro do servidor.
    */
+  const mesDoFechamento = useMemo(
+    () => D.rotuloDaCompetencia((faturamento?.aFaturar ?? []).map((a) => a.competencia), D.HOJE.iso),
+    [faturamento],
+  );
+
   const fechamento = useMemo<LinhaDeFaturamento[]>(() => {
     if (!faturamento) return [];
     const porId = new Map(cadastro.clientes.map((c) => [c.id, c]));
@@ -4240,7 +4248,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas,
-    notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, emitiveis,
+    notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     secAtiva, abrirSecao,
     assistente: ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
@@ -4272,7 +4280,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas,
-    notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, emitiveis,
+    notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     secAtiva, abrirSecao,
     ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,

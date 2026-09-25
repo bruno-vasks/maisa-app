@@ -4,13 +4,16 @@
  * ser importado por Server e Client Components.
  * -------------------------------------------------------------------------- */
 
+import { WHATSAPP_DA_MAISA } from "@/nucleo/dominio/suporte";
+
 export type ICP = "barbeiros" | "terapeutas";
 export type Nivel = "topo" | "meio" | "base";
 
-/* Número da MAISA no WhatsApp, em E.164 sem o "+". É o mesmo número da LP
- * oficial em lp/terapeutas/index.html — se trocar aqui, troque lá também: a LP
- * é HTML estático e não importa este módulo. */
-export const WHATSAPP_NUMERO = "5511994294906";
+/* Número da MAISA no WhatsApp, em E.164 sem o "+". Mora em `nucleo/dominio/suporte.ts`
+ * desde 25/09/2026, porque o painel usa o mesmo no "Falar com o suporte" e não importa
+ * daqui. É o mesmo número da LP oficial em lp/terapeutas/index.html: se trocar, troque lá
+ * também, porque a LP é HTML estático e não importa módulo nenhum. */
+export const WHATSAPP_NUMERO = WHATSAPP_DA_MAISA;
 
 /* E-mail de contato secundário (canal alternativo ao WhatsApp). Ponto único —
  * >>> TROCAR pelo endereço real antes de publicar <<<
