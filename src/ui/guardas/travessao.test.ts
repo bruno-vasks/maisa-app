@@ -83,7 +83,6 @@ const DIVIDA: Divida = {
   "src/ui/detalhe.tsx": [15, "24/09/2026 · gavetas, 3.1 (01 P2-24)"],
   "src/ui/estado/store.tsx": [28, "24/09/2026 · toasts do store, 3.1"],
   "src/ui/telas/AMaisa.tsx": [12, "24/09/2026 · ajustes, 2.37 (07 P1.9)"],
-  "src/ui/telas/Agenda.tsx": [1, "24/09/2026 · agenda, 3.1 (03 P2-21)"],
   "src/ui/telas/Contatos.tsx": [4, "24/09/2026 · contatos, 2.27 (05 P2-2)"],
   "src/ui/telas/Conversas.tsx": [1, "24/09/2026 · conversas, 3.1 (04 P2-2)"],
   "src/ui/telas/DocumentoFiscal.tsx": [3, "24/09/2026 · fiscal, 2.31 (06 P2-4)"],

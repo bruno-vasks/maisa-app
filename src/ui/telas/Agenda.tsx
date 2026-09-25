@@ -662,40 +662,99 @@ function Seletor({ visoes, visao, onTrocar, reduzido }: { visoes: [Visao, string
  * A grade sai: arrastar não existe no toque e seis colunas num celular são
  * ilegíveis. Vira linha do tempo do dia escolhido. */
 
+/** Trechos livres do dia, para a lista do celular: meias-horas vagas seguidas viram UMA linha
+ *  ("14:30 livre, até 16:00"), com a primeira agenda que tem aquele começo. Sem isso o celular
+ *  não tinha onde tocar para marcar (03 P0-1); com uma linha por meia hora, 18 linhas de "livre"
+ *  empurrariam os atendimentos para fora da tela. Só agendas lidas (1A.4) e nada no passado. */
+function trechosLivres(data: string, agendas: string[], faltam: string[], vagasDe: (pid: string, data: string, min: number) => number[]) {
+  const porHora = new Map<number, string>();
+  for (const pid of agendas) {
+    if (faltam.includes(pid)) continue;
+    for (const h of vagasDe(pid, data, 30)) if (!porHora.has(h)) porHora.set(h, pid);
+  }
+  const horas = [...porHora.keys()].sort((a, b) => a - b);
+  const trechos: { inicio: number; fim: number; pid: string }[] = [];
+  for (const h of horas) {
+    const ultimo = trechos[trechos.length - 1];
+    if (ultimo && Math.abs(ultimo.fim - h) < 1e-6) ultimo.fim = h + PASSO;
+    else trechos.push({ inicio: h, fim: h + PASSO, pid: porHora.get(h)! });
+  }
+  return trechos;
+}
+
 function LinhaDoTempo({ data }: { data: string }) {
   const st = useStore();
   const itens = st.agendamentosDoDia(data);
   const bloqueios = st.bloqueiosDoDia(data);
-  if (!itens.length && !bloqueios.length) {
+  const livres = trechosLivres(data, st.cadastro.agendas, st.leituraAgenda.faltam ?? [], st.vagasDe);
+  const hoje = data === D.HOJE.iso;
+  if (!itens.length && !bloqueios.length && !livres.length) {
+    /* ⚠️ Saiu "A MAISA marca sozinha pelo WhatsApp" (03 P0-1): é falso para quem escolheu agenda
+       fixa (`assistente.ativa = false`), e o vazio não tinha saída. */
     return (
       <EmptyState
-        title={data === D.HOJE.iso ? "Dia livre" : `Nada em ${D.rotuloDia(data)}`}
-        sub="A MAISA marca sozinha pelo WhatsApp — quando entrar algo, aparece aqui."
-        semSaida="dívida de 24/09/2026: o 1B.4 põe Marcar atendimento neste vazio"
+        title={hoje ? "Nada marcado hoje" : `Nada em ${D.rotuloDia(data)}`}
+        sub="Ninguém de expediente com horário livre neste dia."
+        action={<Btn icon="plus" onClick={() => st.novoAgendamento(null, { dia: data })}>Marcar atendimento</Btn>}
       />
     );
   }
+
+  /* A lista é POR HORA, e intercala os três: compromisso do Google, atendimento e trecho livre. */
+  type Linha =
+    | { tipo: "bloq"; inicio: number; b: Bloqueio }
+    | { tipo: "ag"; inicio: number; ag: AgendamentoVivo }
+    | { tipo: "livre"; inicio: number; fim: number; pid: string };
+  const linhas: Linha[] = [
+    ...bloqueios.map((b) => ({ tipo: "bloq" as const, inicio: b.inicio, b })),
+    ...itens.map((ag) => ({ tipo: "ag" as const, inicio: ag.inicio, ag })),
+    ...livres.map((l) => ({ tipo: "livre" as const, ...l })),
+  ].sort((x, y) => x.inicio - y.inicio);
+
   return (
     <div style={s("display:flex;flex-direction:column;gap:10px;padding:16px")}>
-      {bloqueios.map((b) => (
-        <button
-          key={b.id}
-          onClick={() => st.abrir(b.id)}
-          className="m-press m-focus"
-          style={s("display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:16px;background:var(--surface-2);border:1px dashed var(--border);color:var(--muted);cursor:pointer")}
-        >
-          <span style={s("flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;width:44px")}>
-            <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data)")}>{D.hhmm(b.inicio)}</span>
-            <span className="n" style={s("font-size:var(--t-micro)")}>{b.duracao}min</span>
-          </span>
-          <span style={s("flex:1;min-width:0")}>
-            <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{b.titulo}</span>
-            <span style={s("display:block;font-size:var(--t-label);margin-top:2px")}>sua agenda do Google</span>
-          </span>
-          <Icon name="pin" size={16} sw={2} />
-        </button>
-      ))}
-      {itens.map((ag) => {
+      {linhas.map((l) => {
+        if (l.tipo === "livre") {
+          const quem = st.cadastro.agendas.length > 1 ? ` com ${D.primeiroNome(st.nomeDoProfissional(l.pid))}` : "";
+          return (
+            <button
+              key={`livre@${l.inicio}`}
+              type="button"
+              onClick={() => st.novoAgendamento({ profissionalId: l.pid, inicio: l.inicio, data })}
+              aria-label={`Marcar atendimento em ${D.rotuloDia(data)} às ${D.hhmm(l.inicio)}${quem}`}
+              className="m-hov-bg m-press m-focus"
+              style={s("display:flex;align-items:center;gap:12px;text-align:left;min-height:48px;padding:10px 14px;border-radius:12px;background:transparent;border:1px dashed var(--border-field);cursor:pointer;color:var(--primary-dark)")}
+            >
+              <span className="n" style={s("flex-shrink:0;width:44px;text-align:center;font-size:var(--t-sm);font-weight:var(--w-data)")}>{D.hhmm(l.inicio)}</span>
+              <span style={s("flex:1;min-width:0;font-size:var(--t-sm);font-weight:var(--w-title)")}>
+                livre{l.fim - l.inicio > PASSO ? `, até ${D.hhmm(l.fim)}` : ""}{quem}
+              </span>
+              <Icon name="plus" size={18} sw={2.2} />
+            </button>
+          );
+        }
+        if (l.tipo === "bloq") {
+          const b = l.b;
+          return (
+            <button
+              key={b.id}
+              onClick={() => st.abrir(b.id)}
+              className="m-press m-focus"
+              style={s("display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:16px;background:var(--surface-2);border:1px dashed var(--border);color:var(--muted);cursor:pointer")}
+            >
+              <span style={s("flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;width:44px")}>
+                <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data)")}>{D.hhmm(b.inicio)}</span>
+                <span className="n" style={s("font-size:var(--t-micro)")}>{b.duracao}min</span>
+              </span>
+              <span style={s("flex:1;min-width:0")}>
+                <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{b.titulo}</span>
+                <span style={s("display:block;font-size:var(--t-label);margin-top:2px")}>sua agenda do Google</span>
+              </span>
+              <Icon name="pin" size={16} sw={2} />
+            </button>
+          );
+        }
+        const ag = l.ag;
         const tom = tomDoBloco(ag);
         return (
           <button
