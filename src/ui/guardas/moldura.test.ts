@@ -71,7 +71,7 @@ function usosDeTelaGrade(): Achado[] {
 const DIVIDA: Divida = {
   "src/ui/telas/Contatos.tsx": [2, "25/09/2026 · moldura de Contatos com a faixa do modo e a busca (2.27)"],
   "src/ui/telas/DocumentoFiscal.tsx": [1, "25/09/2026 · Documento fiscal enxuto (2.31)"],
-  "src/ui/telas/Grades.tsx": [3, "25/09/2026 · Clientes (1C.8) e a emissão de recibos (1C.9)"],
+  "src/ui/telas/Grades.tsx": [1, "25/09/2026 · a emissão de recibos (1C.9)"],
 };
 
 describe("G15 · moldura sem corte", () => {

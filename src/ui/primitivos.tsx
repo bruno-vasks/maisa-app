@@ -258,7 +258,7 @@ export function Filtros({ opcoes, ativo, onChange }: { opcoes: string[]; ativo: 
             key={o}
             onClick={() => onChange(o)}
             aria-pressed={on}
-            className="m-press m-focus m-hov-prim-border"
+            className="m-press m-focus m-hov-prim-border m-filtro"
             style={s(`font-size:var(--t-sm);font-weight:var(--w-title);padding:8px 16px;border-radius:999px;cursor:pointer;white-space:nowrap;border:1px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"};color:${on ? "var(--primary-dark)" : "var(--muted)"}`)}
           >
             {o}
@@ -435,8 +435,9 @@ export function Estado({ forma, tom = "neutral", children }: { forma: FormaDeEst
  * valores alinhados à direita DENTRO de cada cartão, e cartões de largura diferente, os números
  * nunca formavam coluna, então "qual é o meu serviço mais caro?" exigia varredura em zigue-zague.
  *
- * A grade de cartões continua certa onde a unidade é uma PESSOA com rosto (Clientes), e no mobile,
- * onde 6 colunas não caberiam — quem escolhe é a tela, passando `mobile`.
+ * Clientes também saiu da grade em 25/09/2026 (1C.8): com 200 pessoas, cartão com o telefone
+ * atrás do hover não serve para achar ninguém; virou lista de linhas com busca. No mobile, onde 6
+ * colunas não caberiam, quem escolhe o desenho é a tela, passando `mobile`.
  *
  * Ordenação é local ao componente: é estado de visualização, não decisão do usuário que mereça
  * persistir. Colunas numéricas alinham à direita e recebem `.n` (tabular-nums). */

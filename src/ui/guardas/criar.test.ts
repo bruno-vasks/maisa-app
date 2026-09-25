@@ -21,6 +21,7 @@ const ONDE: Record<string, { rotulos: readonly string[]; motivo: string }> = {
   "src/ui/componentes/AppShell.tsx": { rotulos: ROTULOS, motivo: "o mapa `TELA` (slot) e o menu \"Novo\"" },
   "src/ui/detalhe.tsx": { rotulos: ["Marcar atendimento"], motivo: "o botão que confirma o rascunho, na gaveta \"Novo atendimento\"" },
   "src/ui/telas/Agenda.tsx": { rotulos: ["Marcar atendimento"], motivo: "o vazio do dia no celular, que sem ele não tinha saída (03 P0-1)" },
+  "src/ui/telas/Grades.tsx": { rotulos: ["Novo cliente"], motivo: "o vazio de Clientes sem ninguém cadastrado, que sem ele não tinha saída (1C.8)" },
   "src/ui/estado/store.tsx": { rotulos: ["Novo serviço"], motivo: "o nome com que o serviço criado nasce (`criarServico`), não um botão" },
 };
 

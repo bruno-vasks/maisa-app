@@ -8,6 +8,7 @@
  * Num app onde todo detalhe vive em gaveta, isto é o atalho que evita 3 cliques
  * (ir na tela → achar o cartão → abrir). */
 
+import { casaBusca } from "@/ui/estado/busca";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { s, Icon, Monogram, fmt } from "@/ui/primitivos";
 import * as D from "@/adaptadores/saida/demo";
@@ -91,7 +92,9 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
   const filtrados = useMemo(() => {
     const q = normal(busca.trim());
     if (!q) return itens.filter((i) => i.grupo === "Telas");
-    return itens.filter((i) => normal(i.titulo).includes(q) || normal(i.sub).includes(q)).slice(0, 24);
+    /* O telefone da linha vem formatado ("(11) 98123-4567"): digitar "981234567" só acha se a
+     * comparação for pelos dígitos (1C.8, 05 P0-1). `casaBusca` com nome nulo só casa número. */
+    return itens.filter((i) => normal(i.titulo).includes(q) || normal(i.sub).includes(q) || casaBusca({ nome: null, numeros: [i.sub] }, busca)).slice(0, 24);
   }, [busca, itens]);
 
   // Reabrir sempre começa limpo — a paleta é de ida, não guarda sessão.

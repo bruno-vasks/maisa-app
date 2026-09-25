@@ -14,6 +14,7 @@ import { useIsMobile, useEstreita } from "@/ui/useIsMobile";
 import { useStore, resumoDaAssinatura, type LinhaDeFaturamento, type TelaId } from "@/ui/estado/store";
 import { Cartao, GradeCartoes, Hero, TelaGrade, type TomTag } from "@/ui/componentes/Cartao";
 import { EmitirRecibos } from "@/ui/componentes/EmitirRecibos";
+import { casaBusca } from "@/ui/estado/busca";
 /* ⚠️ AINDA AQUI, e só no caminho da NOTA FISCAL. Ele também aparece em `Documento fiscal`, que é
  * o endereço novo — mas o caminho do CNPJ ficou guardado como estava para a v2, e arrancar o
  * cartão dele desta tela agora tiraria o único aviso de "falta o certificado" de quem emite nota.
@@ -130,8 +131,16 @@ export function vocabulario(fiscal: {
 
 /* ═══════════════════════════════ CLIENTES ═══════════════════════════════ */
 
+/* Quantos desenhar de uma vez, o mesmo teto de Meus contatos: com 200 clientes a grade de
+ * cartões dava 18.066px no celular (05 P0-1), e 200 linhas com botão travam o toque. */
+const PAGINA_CLI = 60;
+const FILTROS_CLI = ["Ativos", "Inativos", "Todos"] as const;
+const ORDENS_CLI = { nome: "Nome", mes: "Mais atendimentos no mês", antigo: "Cliente há mais tempo" } as const;
+type OrdemCli = keyof typeof ORDENS_CLI;
+
 export function Clientes() {
   const st = useStore();
+  const mobile = useIsMobile();
   /* Cadastro pela tela (24/09/2026). Até aqui cliente só nascia quando marcava pelo
    * WhatsApp, e quem atende gente que já existia antes da MAISA não tinha como pô-la na
    * lista. Só o nome é obrigatório: o recibo da Rebots pede CPF e nada mais, e o telefone
@@ -140,71 +149,178 @@ export function Clientes() {
   /* Quem abre o formulário é o slot da casca ("Novo cliente" no canto da topbar, o "＋" do
    * celular, o menu "Novo"), e não mais um botão no hero (T2). */
   const novo = st.novoEmLinha === "cliente";
-
-  const ativos = st.cadastro.clientes.filter((c) => st.cliAtivo(c.id));
-  const lista = st.cadastro.clientes.filter((c) => {
-    const on = st.cliAtivo(c.id);
-    return st.filtroCli === "Todos" || (st.filtroCli === "Ativos" ? on : !on);
-  });
+  const [busca, setBusca] = React.useState("");
+  const [ordem, setOrdem] = React.useState<OrdemCli>("nome");
+  const [mostrando, setMostrando] = React.useState(PAGINA_CLI);
+  /* Mudou o recorte, volta à primeira página. Sem isto, filtrar depois de ter aberto 180
+   * mostraria 180 de um conjunto de 12, e o "Mostrar mais" sumiria sem nada ter acabado. */
+  React.useEffect(() => { setMostrando(PAGINA_CLI); }, [busca, st.filtroCli, ordem]);
 
   /* ⚠️ Antes de `GET /api/cadastro` voltar, o store segura o fixture (de propósito, contradição
    * C6), e esta tela o desenhava como a lista do negócio. Agora: esqueleto enquanto lê, a frase
    * se falhou (T4). O fixture continua sendo o valor inicial para os outros consumidores. */
   if (!st.cadastroCarregado) {
     return (
-      <TelaGrade>
+      <Moldura>
         {st.cadastroErro
           ? <FalhaDeLeitura frase="Não consegui ler seus clientes." detalhe={st.cadastroErro} tentar={() => window.location.reload()} />
-          : <Esqueleto linhas={6} altura={72} rotulo="Lendo seus clientes" />}
-      </TelaGrade>
+          : <Esqueleto linhas={6} altura={56} rotulo="Lendo seus clientes" />}
+      </Moldura>
     );
   }
 
+  const todos = st.cadastro.clientes;
+  const nAtivos = todos.filter((c) => st.cliAtivo(c.id)).length;
+  const contagem: Record<string, number> = { Ativos: nAtivos, Inativos: todos.length - nAtivos, Todos: todos.length };
+  const filtro = (FILTROS_CLI as readonly string[]).includes(st.filtroCli) ? st.filtroCli : "Ativos";
+
+  /* A busca atravessa o filtro? Não: ela procura dentro da aba, e a contagem da aba diz quanto
+   * há ali. Quem busca "Silva" em Ativos e não acha vê "Nenhum ativo com esse nome" e a aba
+   * Todos a um toque. */
+  const lista = todos
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => {
+      const on = st.cliAtivo(c.id);
+      if (filtro !== "Todos" && (filtro === "Ativos") !== on) return false;
+      return casaBusca({ nome: c.nome, numeros: [c.telefone, c.cpf] }, busca);
+    })
+    .sort((a, b) =>
+      ordem === "mes" ? b.c.atendimentos - a.c.atendimentos || a.c.nome.localeCompare(b.c.nome, "pt-BR")
+      /* O servidor devolve por `desde`, do mais antigo ao mais novo (`repositorio.ts`). */
+      : ordem === "antigo" ? a.i - b.i
+      : a.c.nome.localeCompare(b.c.nome, "pt-BR", { sensitivity: "base" }))
+    .map(({ c }) => c);
+  const visiveis = lista.slice(0, mostrando);
+  /* A contagem mora na aba: "Ativos (177)" diz o tamanho do que se vê sem um hero de 98px (256
+   * no celular) em cima da lista (05 P1-2). */
+  const abas = (
+    <Filtros
+      opcoes={FILTROS_CLI.map((f) => `${f} (${contagem[f]})`)}
+      ativo={`${filtro} (${contagem[filtro]})`}
+      onChange={(v) => st.setFiltroCli(FILTROS_CLI.find((f) => v.startsWith(f)) ?? "Ativos")}
+    />
+  );
+
   return (
-    <TelaGrade>
-      <Hero
-        rotulo="Em atendimento"
-        valor={String(ativos.length)}
-        sub={`de ${st.cadastro.clientes.length} cadastrados`}
-        marcos={[
-          { n: ativos.reduce((a, c) => a + c.atendimentos, 0), label: `atendimentos em ${D.nomeMes(D.mesDe(D.HOJE.iso))}`, tom: "primary" },
-          { n: fmtK(ativos.reduce((a, c) => a + c.valor, 0)), label: "fechado no mês", tom: "success" },
-          { n: st.cadastro.clientes.length - ativos.length, label: "inativos", tom: "neutral" },
-        ]}
-      />
-      {novo && <NovoCliente aoFechar={() => st.pedirNovo(null)} />}
-      {/* A porta de "Meus contatos" onde a tarefa nasce (1B.9, 05 P0-3, contradição C9): no
-          desktop a tela não está no rail, e o "Mais" só tem atalhos no celular. */}
-      <div style={s("display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap")}>
-        <Filtros opcoes={["Ativos", "Inativos", "Todos"]} ativo={st.filtroCli} onChange={st.setFiltroCli} />
-        <Btn variant="ghost" icon="clientes" onClick={() => st.irPara("contatos")}>Quem a MAISA atende</Btn>
-      </div>
+    <Moldura
+      rotulo="Lista de clientes"
+      cabecalho={
+        <>
+          {novo && <NovoCliente aoFechar={() => st.pedirNovo(null)} />}
+          {/* Desktop: busca, abas, ordem e a porta de Meus contatos numa linha só, e a primeira
+              cliente em y 140. Celular: busca e ordem, e as abas embaixo. */}
+          <div style={s("display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap")}>
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder={mobile ? "Nome, telefone ou CPF" : "Buscar por nome, telefone ou CPF"}
+              aria-label="Buscar cliente por nome, telefone ou CPF"
+              className="m-focus"
+              style={s(`flex:1 1 200px;min-width:0;max-width:${mobile ? "none" : "22rem"};height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none`)}
+            />
+            {!mobile && abas}
+            <select
+              value={ordem}
+              onChange={(e) => setOrdem(e.target.value as OrdemCli)}
+              aria-label="Ordem da lista"
+              className="m-focus"
+              style={s(`flex:0 0 auto;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);outline:none;cursor:pointer;${mobile ? "max-width:128px" : ""}`)}
+            >
+              {(Object.keys(ORDENS_CLI) as OrdemCli[]).map((k) => <option key={k} value={k}>{ORDENS_CLI[k]}</option>)}
+            </select>
+            {/* A porta de "Meus contatos" onde a tarefa nasce (1B.9, 05 P0-3, contradição C9): no
+                desktop a tela não está no rail. No celular a porta é o atalho do Mais. */}
+            {!mobile && (
+              <span style={s("margin-left:auto")}>
+                <Btn variant="ghost" icon="clientes" onClick={() => st.irPara("contatos")}>Quem a MAISA atende</Btn>
+              </span>
+            )}
+          </div>
+          {mobile && abas}
+        </>
+      }
+    >
       {lista.length === 0 ? (
-        <EmptyState title="Nenhum cliente aqui" sub="Troque o filtro acima para ver os outros." semSaida="o filtro fica logo acima; o 1C.8 troca esta grade pela lista com busca" />
+        busca.trim()
+          ? <EmptyState
+              title="Ninguém com esse nome, telefone ou CPF"
+              sub={filtro === "Todos" ? "Tente parte do nome, ou os últimos dígitos do telefone." : `A busca olha só os ${filtro.toLowerCase()}.`}
+              action={filtro === "Todos" ? <Btn variant="secondary" onClick={() => setBusca("")}>Limpar a busca</Btn> : <Btn variant="secondary" onClick={() => st.setFiltroCli("Todos")}>Buscar em todos</Btn>}
+            />
+          : <EmptyState
+              title={filtro === "Inativos" ? "Nenhum cliente fora do atendimento" : filtro === "Ativos" ? "Nenhum cliente em atendimento" : "Nenhum cliente cadastrado"}
+              action={filtro === "Todos" ? <Btn variant="primary" icon="plus" onClick={() => st.pedirNovo("cliente")}>Novo cliente</Btn> : <Btn variant="secondary" onClick={() => st.setFiltroCli("Todos")}>Ver todos</Btn>}
+            />
       ) : (
-        <GradeCartoes>
-          {lista.map((c) => {
-            const on = st.cliAtivo(c.id);
-            return (
-              <Cartao
-                key={c.id}
-                seed={c.id}
-                titulo={c.nome}
-                sub={`${st.nomeServico(c.servicoId)} · ${c.canal}`}
-                tag={on ? { label: "ativo", tom: "success" } : { label: "inativo", tom: "neutral" }}
-                atenuado={!on}
-                onClick={() => st.abrir(c.id)}
-                resumo={on && c.atendimentos > 0
-                  /* `v_clientes` conta a competência corrente: o mês de hoje (T5, era `D.PERIODO`). */
-                  ? `${c.atendimentos} atendimentos em ${D.rotuloDoMes(D.HOJE.iso)} · ${fmt(c.valor)} · cliente desde ${c.desde}`
-                  : `Sem atendimentos em ${D.rotuloDoMes(D.HOJE.iso)} · cliente desde ${c.desde}`}
-                chips={[...(c.telefone ? [c.telefone] : []), c.canal, ...(on ? [] : ["fora do faturamento"])]}
-              />
-            );
-          })}
-        </GradeCartoes>
+        <>
+          <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;flex-shrink:0")}>
+            {visiveis.map((c, i) => (
+              <LinhaCliente key={c.id} c={c} ativo={st.cliAtivo(c.id)} ultima={i === visiveis.length - 1} mobile={mobile} aoAbrir={() => st.abrir(c.id)} />
+            ))}
+          </div>
+          {lista.length > visiveis.length && (
+            <div style={s("display:flex;justify-content:center;flex-shrink:0")}>
+              <Btn variant="secondary" onClick={() => setMostrando((n) => n + PAGINA_CLI)}>
+                Mostrar mais {Math.min(PAGINA_CLI, lista.length - visiveis.length)} de {lista.length - visiveis.length}
+              </Btn>
+            </div>
+          )}
+        </>
       )}
-    </TelaGrade>
+    </Moldura>
+  );
+}
+
+/**
+ * Uma cliente numa linha: 56px no desktop, 64 no celular (05 K3, P1-1).
+ *
+ * O que responde as tarefas do dia fica à vista, sem hover (o `.m-exp-body` do cartão sumia no
+ * toque): nome, telefone, o mês dela, e uma marca só quando falta algo. Serviço e canal saíram:
+ * estão na ficha. Quem responde normal não ganha marca (contador que soma o normal é ignorado,
+ * 00 §2.2).
+ *
+ * A linha inteira é UM botão, que abre a ficha: no celular é um alvo de 358x64, e não um nome de
+ * 20px de altura com um link de telefone de 16px do lado. O telefone que liga está na ficha.
+ */
+function LinhaCliente({ c, ativo, ultima, mobile, aoAbrir }: { c: D.Cliente; ativo: boolean; ultima: boolean; mobile: boolean; aoAbrir: () => void }) {
+  const mes = c.atendimentos > 0
+    ? `${c.atendimentos} ${c.atendimentos === 1 ? "atendimento" : "atendimentos"} · ${fmt(c.valor)}`
+    : "Nenhum no mês";
+  const marcas = (
+    <>
+      {!c.cpf && <Estado forma="triangulo" tom="warn">Sem CPF</Estado>}
+      {!ativo && <Estado forma="anel">Fora do atendimento</Estado>}
+    </>
+  );
+  const nome = <span style={s("display:block;min-width:0;line-height:20px;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.nome}</span>;
+  const telefone = <span className="n" style={s("font-size:var(--t-label);line-height:16px;color:var(--muted);white-space:nowrap")}>{c.telefone || "Sem telefone"}</span>;
+  const base = `${ultima ? "" : "border-bottom:1px solid var(--line);"}width:100%;box-sizing:border-box;border-left:none;border-right:none;border-top:none;background:transparent;font-family:inherit;text-align:left;cursor:pointer;color:inherit;`;
+
+  if (mobile) {
+    return (
+      <button type="button" onClick={aoAbrir} aria-label={`${c.nome}, abrir ficha`} className="m-hov-bg m-focus" style={s(`${base}min-height:64px;padding:0 14px;display:flex;flex-direction:column;justify-content:center;gap:4px`)}>
+        <span style={s("display:flex;align-items:baseline;gap:10px;min-width:0;width:100%")}>
+          <span style={s("flex:1;min-width:0")}>{nome}</span>
+          {telefone}
+        </span>
+        <span style={s("display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;font-size:var(--t-label);color:var(--muted)")}>
+          <span className="n">{mes}</span>
+          {marcas}
+        </span>
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={aoAbrir} aria-label={`${c.nome}, abrir ficha`} className="m-hov-bg m-focus" style={s(`${base}min-height:56px;padding:0 16px;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1.3fr);align-items:center;gap:16px`)}>
+      <span style={s("display:flex;flex-direction:column;gap:2px;min-width:0")}>
+        {nome}
+        {telefone}
+      </span>
+      <span className="n" style={s(`font-size:var(--t-sm);color:${c.atendimentos > 0 ? "var(--ink)" : "var(--muted)"}`)}>{mes}</span>
+      <span style={s("font-size:var(--t-sm);color:var(--muted);white-space:nowrap")}>desde {c.desde}</span>
+      <span style={s("display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;justify-content:flex-end")}>{marcas}</span>
+    </button>
   );
 }
 
