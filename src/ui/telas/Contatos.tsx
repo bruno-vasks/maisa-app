@@ -56,6 +56,7 @@ import { estadoDosContatos } from "@/ui/estado/leitura";
 import { mensagemDaFalha } from "@/ui/falhas";
 import { telefoneBonito } from "@/nucleo/dominio/clientes";
 import type { Contato, ModoDoNumero } from "@/nucleo/dominio/contatos";
+import { fraseDoImport } from "@/ui/componentes/EscolhaDoNumero";
 
 type Filtro = "Falta decidir" | "Atende" | "Não atende" | "Todos";
 const FILTROS: Filtro[] = ["Falta decidir", "Atende", "Não atende", "Todos"];
@@ -122,6 +123,31 @@ export default function Contatos() {
   }, []);
 
   React.useEffect(() => { void ler(); }, [ler]);
+
+  /* ── TRAZER A AGENDA AQUI MESMO (25/09/2026, 1B.10, 05 P0-5) ──
+   * O botão do vazio fazia `irPara("assistente")`, e em Ajustes o importar só existe no modo
+   * pessoal: no modo negócio a pessoa chegava numa tela sem nada para clicar. Agora o POST sai
+   * daqui, nos dois modos (o caderno empresta nome nos dois, `dominio/contatos.ts`), e a lista
+   * aparece. A leitura pode passar de 10s (`maxDuration = 60` na rota): o botão trava com
+   * "Lendo sua agenda…". Recusa do servidor vira a frase dele, e sem WhatsApp, "Conectar". */
+  const [importando, setImportando] = React.useState(false);
+  const [falhaImport, setFalhaImport] = React.useState<string | null>(null);
+  const importar = React.useCallback(async () => {
+    if (importando) return;
+    setImportando(true);
+    setFalhaImport(null);
+    try {
+      const r = await fetch("/api/contatos", { method: "POST" }).then((x) => x.json());
+      if (!r?.ok) { setFalhaImport(r?.info ?? "Não consegui ler sua agenda do WhatsApp."); return; }
+      toast(fraseDoImport(r));
+      await ler();
+    } catch {
+      setFalhaImport("Sem conexão com o servidor. Nada foi trazido.");
+    } finally {
+      setImportando(false);
+    }
+  }, [importando, ler]);
+  const semWhatsApp = st.statusMaisa === "sem_whatsapp";
 
   /**
    * Marca um contato, otimista.
@@ -304,11 +330,17 @@ export default function Contatos() {
         {contatos.length === 0 ? (
           <EmptyState
             title="Seus contatos ainda não estão aqui"
-            sub="Traga a agenda do WhatsApp para escolher quem ela atende — e para ela chamar seus clientes pelo nome."
-            /* Leva ao lugar onde a importação acontece, em vez de só descrevê-lo. Um vazio
-               que diz "vá em Ajustes da MAISA" e não abre Ajustes da MAISA é a mesma falha
-               que criou esta tela: instrução sem porta. */
-            action={<Btn variant="primary" icon="bot" onClick={() => st.irPara("assistente")}>Trazer meus contatos</Btn>}
+            sub={semWhatsApp
+              ? "Conecte o WhatsApp para trazer a agenda dele."
+              : falhaImport
+                ? falhaImport
+                : modo === "negocio"
+                  ? "Traga seus contatos para a MAISA chamar cada um pelo nome."
+                  : "Traga a agenda do WhatsApp para escolher quem ela atende e para ela chamar seus clientes pelo nome."}
+            /* Sem WhatsApp, a saída é conectar, e esse sim leva a Ajustes. Com ele, importa aqui. */
+            action={semWhatsApp
+              ? <Btn variant="primary" icon="whatsapp" onClick={() => st.irPara("assistente")}>Conectar WhatsApp</Btn>
+              : <Btn variant="primary" icon="download" disabled={importando} onClick={() => void importar()}>{importando ? "Lendo sua agenda…" : "Trazer meus contatos do WhatsApp"}</Btn>}
           />
         ) : (
           <>

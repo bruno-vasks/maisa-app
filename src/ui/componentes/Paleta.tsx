@@ -37,6 +37,10 @@ const TELAS_BUSCA: [TelaId, string, string, string][] = [
   ["equipe", "Equipe", "Quem atende e quando", "equipe"],
   ["servicos", "Serviços", "Catálogo e preços", "tag"],
   ["assistente", "A MAISA", "Ajustes da assistente", "bot"],
+  /* As duas telas fora do rail (05 P0-3, 1B.9): no desktop, sem elas aqui, só se chegava pela URL
+     ou por um cartão que só existe num modo. As palavras do `sub` são as que se procuram. */
+  ["contatos", "Meus contatos", "Quem a MAISA atende · contatos do WhatsApp", "clientes"],
+  ["fiscal", "Documento fiscal", "Nota fiscal ou recibo · dados de quem emite", "config"],
   ["mais", "Mais", "Plano, conexões e suporte", "dots"],
 ];
 

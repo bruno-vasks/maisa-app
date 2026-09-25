@@ -172,7 +172,12 @@ export function Clientes() {
         ]}
       />
       {novo && <NovoCliente aoFechar={() => st.pedirNovo(null)} />}
-      <Filtros opcoes={["Ativos", "Inativos", "Todos"]} ativo={st.filtroCli} onChange={st.setFiltroCli} />
+      {/* A porta de "Meus contatos" onde a tarefa nasce (1B.9, 05 P0-3, contradição C9): no
+          desktop a tela não está no rail, e o "Mais" só tem atalhos no celular. */}
+      <div style={s("display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap")}>
+        <Filtros opcoes={["Ativos", "Inativos", "Todos"]} ativo={st.filtroCli} onChange={st.setFiltroCli} />
+        <Btn variant="ghost" icon="clientes" onClick={() => st.irPara("contatos")}>Quem a MAISA atende</Btn>
+      </div>
       {lista.length === 0 ? (
         <EmptyState title="Nenhum cliente aqui" sub="Troque o filtro acima para ver os outros." semSaida="o filtro fica logo acima; o 1C.8 troca esta grade pela lista com busca" />
       ) : (

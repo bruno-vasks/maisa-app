@@ -130,6 +130,20 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
           )}
         </div>
       )}
+
+      {/* A porta de "Meus contatos" também no modo negócio (1B.9): lá o caderno só empresta
+          nome, mas a tela existe e as marcações ficam guardadas. No pessoal com contatos, o
+          botão "Escolher quem ela atende" acima já é a porta. */}
+      {!(estado.modo === "pessoal" && estado.contatos.length > 0) && (
+        <button
+          type="button"
+          onClick={() => st.irPara("contatos")}
+          className="m-focus"
+          style={s("align-self:flex-start;min-height:44px;padding:0;border:none;background:transparent;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--primary);cursor:pointer;text-decoration:underline;text-underline-offset:3px")}
+        >
+          Quem a MAISA atende
+        </button>
+      )}
     </section>
   );
 }
