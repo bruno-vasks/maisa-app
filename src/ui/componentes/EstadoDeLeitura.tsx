@@ -37,22 +37,33 @@ export function Esqueleto({ linhas = 3, altura = 56, gap = 10, rotulo = "Carrega
   );
 }
 
-export function FalhaDeLeitura({ frase, detalhe, tentar, compacta }: {
+/** A sessão acabou: tentar de novo não resolve, entrar resolve. `window.location` e não
+ *  `router.push` pela mesma razão do desvio de `sem_negocio` no store: o painel meio carregado
+ *  não deve sobreviver à saída. */
+export const ENTRAR = { rotulo: "Entrar", fazer: () => { window.location.assign("/login"); } };
+
+export function FalhaDeLeitura({ frase, detalhe, tentar, acao, compacta, embutida }: {
   frase: string;
   /** O motivo que o servidor mandou, quando mandou. Vai embaixo, menor. */
   detalhe?: string;
   tentar: () => void;
+  /** No lugar de "Tentar de novo", quando repetir não resolve (sessão expirada: `ENTRAR`). */
+  acao?: { rotulo: string; fazer: () => void };
   /** Dentro de uma coluna estreita (a fila do Fluxo): alinhado à esquerda, sem respiro de tela cheia. */
   compacta?: boolean;
+  /** Dentro de um cartão que já tem o próprio respiro (o "De quem é esse número"): sem padding. */
+  embutida?: boolean;
 }) {
   return (
     <div
       role="status"
-      style={s(`display:flex;flex-direction:column;gap:10px;${compacta ? "align-items:flex-start;padding:16px" : "align-items:center;text-align:center;padding:48px 24px"}`)}
+      style={s(`display:flex;flex-direction:column;gap:10px;${embutida ? "align-items:flex-start;padding:0" : compacta ? "align-items:flex-start;padding:16px" : "align-items:center;text-align:center;padding:48px 24px"}`)}
     >
       <span style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);max-width:40ch")}>{frase}</span>
       {detalhe && <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-ui);max-width:52ch")}>{detalhe}</span>}
-      <Btn variant="secondary" onClick={tentar}>Tentar de novo</Btn>
+      {acao
+        ? <Btn variant="secondary" onClick={acao.fazer}>{acao.rotulo}</Btn>
+        : <Btn variant="secondary" onClick={tentar}>Tentar de novo</Btn>}
     </div>
   );
 }

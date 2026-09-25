@@ -22,6 +22,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { s, Icon, Btn, toast } from "@/ui/primitivos";
 import type { Contato, ModoDoNumero } from "@/nucleo/dominio/contatos";
 import { useStore } from "@/ui/estado/store";
+import { Esqueleto, FalhaDeLeitura, ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
+import { mensagemDaFalha } from "@/ui/falhas";
 
 type Estado = { modo: ModoDoNumero; contatos: Contato[] };
 
@@ -41,13 +43,22 @@ const OPCOES: { id: ModoDoNumero; titulo: string; sub: string }[] = [
 export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
   const st = useStore();
   const [estado, setEstado] = useState<Estado | null>(null);
+  /* A leitura falhou (24/09/2026, item 1A.6). Antes o cartão SUMIA (`return null`) e a pergunta
+   * que impede a MAISA de falar com o pai do dono desaparecia sem uma palavra. */
+  const [falha, setFalha] = useState<{ frase: string; detalhe?: string; entrar: boolean } | null>(null);
   const [ocupado, setOcupado] = useState<null | "modo" | "importar">(null);
 
   const ler = useCallback(async () => {
+    setFalha(null);
     try {
       const r = await fetch("/api/contatos", { cache: "no-store" }).then((x) => x.json());
-      if (r?.ok) setEstado({ modo: r.modo, contatos: r.contatos ?? [] });
-    } catch { /* Ver o `catch` de `trocar`: falar disso aqui competiria com a faixa do canal. */ }
+      if (r?.ok) { setEstado({ modo: r.modo, contatos: r.contatos ?? [] }); return; }
+      setFalha(r?.status === "login_necessario"
+        ? { frase: "Entre na sua conta para ver seus contatos.", entrar: true }
+        : { frase: "Não consegui ler seus contatos.", detalhe: mensagemDaFalha(r, "") || undefined, entrar: false });
+    } catch {
+      setFalha({ frase: "Não consegui ler seus contatos.", detalhe: "Sem conexão com o servidor.", entrar: false });
+    }
   }, []);
 
   useEffect(() => { void ler(); }, [ler]);
@@ -98,7 +109,23 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
     }
   }, [ocupado, ler]);
 
-  if (!estado) return null;
+  /* Sem leitura, o cartão existe do mesmo jeito: esqueleto enquanto lê, a frase e a saída se
+   * falhou. O que já foi lido continua se uma releitura (depois de trocar) falhar. */
+  if (!estado) {
+    return (
+      <section
+        aria-label="De quem é esse número"
+        style={s(`background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:${compacto ? "14px 15px" : "16px 18px"};display:flex;flex-direction:column;gap:12px`)}
+      >
+        <h3 style={s("margin:0;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
+          De quem é esse número?
+        </h3>
+        {falha
+          ? <FalhaDeLeitura embutida frase={falha.frase} detalhe={falha.detalhe} tentar={() => void ler()} acao={falha.entrar ? ENTRAR : undefined} />
+          : <Esqueleto linhas={2} altura={60} gap={8} rotulo="Lendo de quem é esse número" />}
+      </section>
+    );
+  }
 
   const clientes = estado.contatos.filter((c) => c.cliente === true).length;
   /* Quantos ainda não têm resposta. Vai no rótulo do botão porque é o número que diz se

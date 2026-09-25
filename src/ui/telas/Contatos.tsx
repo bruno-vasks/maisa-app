@@ -50,7 +50,10 @@
 import React from "react";
 import { s, Icon, Filtros, EmptyState, SectionTitle, Btn, toast } from "@/ui/primitivos";
 import { TelaGrade } from "@/ui/componentes/Cartao";
+import { Esqueleto, FalhaDeLeitura, ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { useStore } from "@/ui/estado/store";
+import { estadoDosContatos } from "@/ui/estado/leitura";
+import { mensagemDaFalha } from "@/ui/falhas";
 import { telefoneBonito } from "@/nucleo/dominio/clientes";
 import type { Contato, ModoDoNumero } from "@/nucleo/dominio/contatos";
 
@@ -82,10 +85,22 @@ function casa(c: Contato, busca: string): boolean {
  * o caminho rápido; a lista longa é só o fallback de quem quer varrer. */
 const PAGINA = 60;
 
+const FRASE_ERRO = "Não consegui ler seus contatos.";
+
 export default function Contatos() {
   const st = useStore();
   const [contatos, setContatos] = React.useState<Contato[] | null>(null);
-  const [modo, setModo] = React.useState<ModoDoNumero>("negocio");
+  /* ⚠️ `modo` NASCE `null` (24/09/2026, item 1A.6). Nascia "negocio", e antes da resposta, ou
+   * para sempre se ela falhasse, a tela afirmava "Este número está como só do negócio". Não
+   * sabemos de quem é o número até o servidor dizer. */
+  const [modo, setModo] = React.useState<ModoDoNumero | null>(null);
+  /** A leitura falhou. Nunca vira `[]`: lista vazia por erro é "seus contatos não estão aqui",
+   *  e o dono vai importar de novo o que já importou. */
+  const [erro, setErro] = React.useState<string | null>(null);
+  /** O motivo do servidor, embaixo da frase. */
+  const [detalhe, setDetalhe] = React.useState<string | undefined>(undefined);
+  /** A sessão acabou: o botão é "Entrar", não "Tentar de novo". */
+  const [precisaEntrar, setPrecisaEntrar] = React.useState(false);
   const [busca, setBusca] = React.useState("");
   const [filtro, setFiltro] = React.useState<Filtro>("Falta decidir");
   const [mostrando, setMostrando] = React.useState(PAGINA);
@@ -93,11 +108,17 @@ export default function Contatos() {
   const [salvando, setSalvando] = React.useState<Set<string>>(new Set());
 
   const ler = React.useCallback(async () => {
+    setErro(null);
     try {
       const r = await fetch("/api/contatos", { cache: "no-store" }).then((x) => x.json());
-      if (r?.ok) { setContatos(r.contatos ?? []); setModo(r.modo); }
-      else setContatos([]);
-    } catch { setContatos([]); }
+      if (r?.ok) { setContatos(r.contatos ?? []); setModo(r.modo); setPrecisaEntrar(false); return; }
+      setPrecisaEntrar(r?.status === "login_necessario");
+      setErro(r?.status === "login_necessario" ? "Entre na sua conta para ver seus contatos." : FRASE_ERRO);
+      setDetalhe(r?.status === "login_necessario" ? undefined : mensagemDaFalha(r, "") || undefined);
+    } catch {
+      setErro(FRASE_ERRO);
+      setDetalhe("Sem conexão com o servidor.");
+    }
   }, []);
 
   React.useEffect(() => { void ler(); }, [ler]);
@@ -226,7 +247,21 @@ export default function Contatos() {
    * que nada tivesse acabado. */
   React.useEffect(() => { setMostrando(PAGINA); }, [busca, filtro]);
 
-  if (contatos === null) return <TelaGrade><div style={{ minHeight: 200 }} /></TelaGrade>;
+  /* Três estados antes de derivar vazio ou cheio (T4). O que já foi lido fica na tela se uma
+   * releitura falhar: `estadoDosContatos` devolve "cheio" com dado na mão. */
+  const leitura = estadoDosContatos({ lidos: contatos?.length ?? null, erro });
+  if (leitura === "carregando" || contatos === null || (leitura === "erro" && contatos.length === 0)) {
+    return (
+      <TelaGrade>
+        <section>
+          <SectionTitle title="Quem a MAISA atende" />
+          {erro
+            ? <FalhaDeLeitura frase={erro} detalhe={detalhe} tentar={() => void ler()} acao={precisaEntrar ? ENTRAR : undefined} />
+            : <Esqueleto linhas={6} rotulo="Lendo seus contatos" />}
+        </section>
+      </TelaGrade>
+    );
+  }
 
   const contagem = {
     "Falta decidir": contatos.filter((c) => c.cliente == null).length,
@@ -246,7 +281,9 @@ export default function Contatos() {
           sub={
             modo === "negocio"
               ? "Neste número ela atende todo mundo — estas marcações ficam guardadas para se você mudar de ideia"
-              : "Ela atende quem você marcar aqui, e quem você não tem salvo. Cala para o resto."
+              : modo === "pessoal"
+                ? "Ela atende quem você marcar aqui, e quem você não tem salvo. Cala para o resto."
+                : undefined
           }
         />
 

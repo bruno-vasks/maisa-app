@@ -85,9 +85,11 @@ async function amostra(rotulo) {
     const achou = proibidas.filter((p) => new RegExp(`(^|[^\\p{L}])${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}])`, "u").test(txt));
     const tentar = [...document.querySelectorAll("button")].filter((b) => /Tentar de novo/.test(b.innerText)).length;
     const ocupado = document.querySelectorAll("[aria-busy=true]").length;
-    return { achou, tentar, ocupado, cab: cab.slice(0, 120) };
+    const entrar = [...document.querySelectorAll("button")].filter((b) => b.innerText.trim() === "Entrar").length;
+    const falhas = [...document.querySelectorAll("[role=status]")].map((e) => e.innerText.split("\n")[0]).filter(Boolean).slice(0, 4);
+    return { achou, tentar, entrar, ocupado, falhas, cab: cab.slice(0, 120) };
   }, PROIBIDAS);
-  console.log(`${rotulo.padEnd(10)} t=${String(Date.now() - t0).padStart(5)}ms  proibidas=${JSON.stringify(r.achou)}  tentar=${r.tentar}  aria-busy=${r.ocupado}  cabeçalho="${r.cab}"`);
+  console.log(`${rotulo.padEnd(10)} t=${String(Date.now() - t0).padStart(5)}ms  proibidas=${JSON.stringify(r.achou)}  tentar=${r.tentar}  entrar=${r.entrar}  aria-busy=${r.ocupado}  falhas=${JSON.stringify(r.falhas)}  cabeçalho="${r.cab}"`);
 }
 
 for (const ms of [150, 600, 1200]) {
