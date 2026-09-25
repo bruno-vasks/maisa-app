@@ -846,6 +846,9 @@ export type StoreValue = {
   fecharEmissao: () => void;
   /** Sobe 1 a cada emissão terminada. As telas releem o servidor quando ele muda. */
   emissoesFeitas: number;
+  /** Sobe 1 a cada ficha de cliente gravada no servidor. A emissão de recibos relê
+   *  `/api/recibos` quando ele muda: o CPF posto na ficha tira a pessoa do grupo "Sem CPF" (1C.10). */
+  clientesGravados: number;
 
   /* nota fiscal */
   notaDe: (clienteId: string) => D.Nota;
@@ -2747,6 +2750,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCadastro((c) => ({ ...c, clientes: c.clientes.map((x) => (x.id === id ? novo : x)) }));
   }, []);
 
+  const [clientesGravados, setClientesGravados] = useState(0);
   const enviarCliente = useCallback(async (id: string) => {
     cliTimer.current.delete(id);
     const pendente = cliPendente.current.get(id);
@@ -2803,6 +2807,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
        * vê o campo preenchido, e a tabela continua dizendo "sem CPF — não entra no lote".
        * Foi metade da reclamação: editar na aba Faturamento tem que MUDAR o faturamento. */
       void recarregarFaturamento();
+      /* E a lista de recibos, pelo mesmo motivo, do lado da pessoa física (1C.10). */
+      setClientesGravados((n) => n + 1);
     } catch {
       voltar();
       toast("Sem conexão com o servidor — o cliente não foi salvo.");
@@ -4577,7 +4583,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     filtroSvc, setFiltroSvc, filtroCli, setFiltroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     secAtiva, abrirSecao,
@@ -4611,7 +4617,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     filtroSvc, filtroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     secAtiva, abrirSecao,
