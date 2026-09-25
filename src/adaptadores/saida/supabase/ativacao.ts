@@ -117,7 +117,8 @@ export const ativacaoSupabase: ProgressoDeAtivacao = {
        * tela e fechou sem ler o código. O `canal.ts` do domínio já diz que pareamento
        * caído não conta. */
       { passo: "whatsapp_conectado", resposta: existe(t, "integracoes_whatsapp", { status: "conectado" }) },
-      { passo: "agenda_conectada", resposta: existe(t, "integracoes_google") },
+      /* "agenda_conectada" saiu dos passos em 25/09/2026 (1B.15): a MAISA marca sem Google
+       * (ADR-0009). Uma consulta a menos por leitura. */
       /**
        * A tabela de MENSAGEM, e não a de conversa: a conversa pode existir vazia (o painel
        * a cria ao abrir uma fila), e o que prova ativação é alguém ter FALADO.

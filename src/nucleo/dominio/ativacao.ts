@@ -28,6 +28,16 @@
  * ⚠️ A ORDEM É CONTRATO: a tela desenha os cartões nesta sequência, e `porcentagem` conta
  * quantos dos cinco estão feitos. Acrescentar um passo muda a porcentagem de todo mundo —
  * é mudança de produto, não de tipo.
+ *
+ * ★ "SUA AGENDA" (`agenda_conectada`) SAIU EM 25/09/2026 (item 1B.15 do backlog do front, 09
+ * P0-2). Desde o ADR-0009 a MAISA marca na tabela `atendimentos`, e o Google é uma camada que
+ * SOMA o que nasceu fora; ela oferece horário sem ele. O passo prendia a etapa 4 do wizard atrás
+ * de um consent de projeto OAuth não verificado (teto de 100 usuários), e a terapeuta que não
+ * quer dar a agenda a terceiros saía do onboarding sem ver nada funcionar. A porcentagem de
+ * todo mundo mudou junto, e é honesto: faltava um passo que o produto não precisa. Ligar o
+ * Google continua possível (a gaveta do profissional, a faixa da Agenda, a etapa 4 depois da
+ * primeira marcação); só não é mais cobrado. Decisão registrada no backlog; o Bruno pode
+ * reverter voltando a linha aqui e no `ativacao.test.ts`.
  */
 export const PASSOS_DE_ATIVACAO = [
   /** Existe inquilino. Verdadeiro sempre que se consegue perguntar — quem não tem negócio
@@ -47,8 +57,6 @@ export const PASSOS_DE_ATIVACAO = [
   "catalogo_ajustado",
   /** Há instância pareada. É o passo que separa "configurei" de "a MAISA atende". */
   "whatsapp_conectado",
-  /** Alguma agenda do Google ligada. Sem ela a MAISA marca no vazio. */
-  "agenda_conectada",
   /** Alguém conversou com a MAISA — a prova de que o conjunto funciona. */
   "primeira_conversa",
   /**
@@ -98,15 +106,14 @@ export function usoDoWhatsApp(a: { ativa: boolean; lembrete: boolean; avisarReci
 /**
  * Os passos que valem para este negócio, na ordem canônica.
  *
- * Sem agente, somem "Sua agenda" (é onde ELA olha antes de oferecer horário; o atendimento
- * mora na tabela, não no Google — ADR-0009) e "Ver funcionando" (não há conversa a ver).
+ * Sem agente, some "Ver funcionando" (não há conversa a ver).
  * Sem nada saindo pelo WhatsApp, some também o WhatsApp. Sem `uso`, valem todos — o lado
  * que mostra um passo a mais em vez de esconder um que importa.
  */
 export function passosQueValem(uso?: UsoDoWhatsApp): PassoDeAtivacao[] {
   if (!uso) return [...PASSOS_DE_ATIVACAO];
   return PASSOS_DE_ATIVACAO.filter((p) => {
-    if (p === "agenda_conectada" || p === "primeira_conversa") return uso.agente;
+    if (p === "primeira_conversa") return uso.agente;
     if (p === "whatsapp_conectado") return uso.whatsapp;
     return true;
   });

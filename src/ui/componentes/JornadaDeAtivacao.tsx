@@ -115,11 +115,8 @@ export function JornadaDeAtivacao() {
       ganho: "Sem ele a MAISA não atende ninguém",
       ir: () => st.irPara("assistente"),
     },
-    {
-      id: "agenda_conectada", titulo: "Sua agenda", icone: "calendar",
-      ganho: "É onde ela olha antes de oferecer horário",
-      ir: () => st.irPara("mais"),
-    },
+    /* "Sua agenda" saiu em 25/09/2026 (1B.15): a MAISA marca sem Google, e o passo deixou de
+       ser cobrado. Ver `PASSOS_DE_ATIVACAO`. */
     {
       id: "primeira_conversa", titulo: "Ver funcionando", icone: "chat",
       ganho: "Fale com ela como se fosse seu cliente",

@@ -1107,9 +1107,12 @@ type Passo = { ferramenta: string; erro: boolean };
 
 /** O que falta antes de conversar — um cartão, uma ação, e o painel sempre à mão. */
 function Falta({
-  icone, titulo, texto, acao, aoPainel,
+  icone, titulo, texto, acao, aoPainel, pular,
 }: {
   icone: string; titulo: string; texto: React.ReactNode; acao: React.ReactNode; aoPainel: () => void;
+  /** "Pular este passo" (1B.15, 09 P0-2): sem ele, quem não resolvia a falta nunca chegava à
+   *  etapa 5, a do documento fiscal. Pular não é desistir: o passo continua na jornada. */
+  pular?: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center", textAlign: "center" }}>
@@ -1121,10 +1124,20 @@ function Falta({
         <p style={s("font-size:var(--t-sm);color:var(--muted);margin:8px 0 0;line-height:1.55")}>{texto}</p>
       </div>
       {acao}
+      {pular && (
+        <button
+          type="button"
+          onClick={pular}
+          className="m-hov-bg m-press m-focus"
+          style={s("min-height:44px;padding:0 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
+        >
+          Pular este passo
+        </button>
+      )}
       <button
         onClick={aoPainel}
         className="m-focus"
-        style={s("background:none;border:none;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--muted);cursor:pointer;padding:4px 8px")}
+        style={s("background:none;border:none;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--muted);cursor:pointer;padding:4px 8px;min-height:44px")}
       >
         Abrir meu painel
       </button>
@@ -1132,8 +1145,11 @@ function Falta({
   );
 }
 
+
 /**
- * O botão que liga a agenda do Google.
+ * "Ela também pode olhar os compromissos da sua Agenda do Google." Uma linha e o link de ligar,
+ * nunca um portão (1B.15). Lê `/api/google/status` para não oferecer a quem já ligou. Herdou
+ * do `LigarAgenda`, o botão do portão que saiu, os três cuidados abaixo.
  *
  * `<a>` e não `fetch`: `/api/google/conectar` responde com um redirect para o consent do
  * Google, e um redirect seguido por `fetch` termina o consent dentro de um XHR — a pessoa
@@ -1153,40 +1169,30 @@ function Falta({
  * certa é resolvido pelo próprio `?google=` que o callback acrescenta; ver o `useEffect` de
  * retomada lá embaixo.
  */
-function LigarAgenda() {
+function OfertaDoGoogle() {
   const [pid, setPid] = useState<string | null>(null);
-  const [erro, setErro] = useState(false);
-
+  const [ligado, setLigado] = useState<boolean | null>(null);
   useEffect(() => {
     let vivo = true;
-    fetch("/api/cadastro")
-      .then((r) => r.json())
-      .then((r) => {
-        if (!vivo) return;
-        const p = r?.ok ? (r.profissionais ?? [])[0] : null;
-        if (p?.id) setPid(p.id); else setErro(true);
-      })
-      .catch(() => vivo && setErro(true));
+    Promise.all([
+      fetch("/api/cadastro").then((r) => r.json()).catch(() => null),
+      fetch("/api/google/status").then((r) => r.json()).catch(() => null),
+    ]).then(([c, g]) => {
+      if (!vivo) return;
+      const p = c?.ok ? (c.profissionais ?? [])[0]?.id ?? null : null;
+      setPid(p);
+      setLigado(!!p && Array.isArray(g?.conexoes) && g.conexoes.some((x: { profissionalId: string }) => x.profissionalId === p));
+    });
     return () => { vivo = false; };
   }, []);
-
-  if (erro) {
-    return (
-      <p style={s("font-size:var(--t-sm);color:var(--danger);margin:0")}>
-        Não consegui ler quem atende neste negócio. Tente pelo painel, em Configurações.
-      </p>
-    );
-  }
-
+  if (!pid || ligado !== false) return null;
   return (
-    <a
-      href={pid ? `/api/google/conectar?pid=${encodeURIComponent(pid)}&volta=%2Fcomecar` : undefined}
-      className="m-hov-primary m-press m-focus"
-      style={s(`display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;height:48px;border-radius:12px;font-family:inherit;font-weight:var(--w-title);font-size:var(--t-body);text-decoration:none;border:none;background:var(--primary);color:var(--on-primary);${pid ? "cursor:pointer" : "opacity:.55;cursor:progress;pointer-events:none"}`)}
-    >
-      <Icon name="calendar" size={19} sw={2} stroke="var(--on-primary)" />
-      Ligar minha agenda
-    </a>
+    <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
+      Ela também pode olhar os compromissos da sua Agenda do Google.{" "}
+      <a href={`/api/google/conectar?pid=${encodeURIComponent(pid)}&volta=%2Fcomecar`} className="m-focus" style={s("font-weight:var(--w-title);color:var(--primary);text-decoration:underline;text-underline-offset:3px")}>
+        Ligar
+      </a>
+    </p>
   );
 }
 
@@ -1302,6 +1308,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
         texto="Falta a chave do modelo de linguagem neste ambiente. Nada do que você fez se perdeu — o resto do negócio está de pé."
         acao={null}
         aoPainel={aoPainel}
+        pular={aoSeguir}
       />
     );
   }
@@ -1351,11 +1358,14 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
                   produto funciona sendo o primeiro lugar onde ele mente. */}
               {ambiente.agendaReal
                 ? "Marcado de verdade. Está na sua agenda agora — para desmarcar, é só pedir a ela."
-                : "Marcado. Neste ambiente a agenda é de demonstração, então o horário não sai daqui — em produção ele cai na sua agenda do Google."}
+                : "Marcado. Neste ambiente a agenda é de demonstração, então o horário não sai daqui."}
             </span>
           )}
         </div>
       )}
+      {/* O Google DEPOIS do valor, e como oferta (1B.15): é o que traz para cá o compromisso que
+          nasceu fora. Só onde o deploy tem Google, e some para quem já ligou. */}
+      {marcou && ambiente.agendaReal && <OfertaDoGoogle />}
 
       <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
         {chips.map((c) => (
@@ -1397,7 +1407,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
           "Continuar" para o convite quando a MAISA ACABOU de marcar: é o instante de maior
           crédito do onboarding inteiro, e é nele que faz sentido apresentar o diferencial. */}
       <Botao onClick={aoSeguir} variante={marcou ? "primary" : "ghost"} full>
-        {marcou ? "Agora a nota fiscal" : "Continuar"}
+        {marcou ? "Agora o documento fiscal" : "Continuar"}
       </Botao>
     </div>
   );
@@ -1612,6 +1622,7 @@ function EtapaVerFuncionando({ feitos, aoVoltarParaWhatsApp, aoSeguir }: {
         texto="É por ele que a MAISA atende — e é nele que a resposta dela vai chegar quando você testar. Leva um minuto."
         acao={<Botao onClick={aoVoltarParaWhatsApp} full>Conectar o WhatsApp</Botao>}
         aoPainel={aoPainel}
+        pular={aoSeguir}
       />
     );
   }
@@ -1620,31 +1631,12 @@ function EtapaVerFuncionando({ feitos, aoVoltarParaWhatsApp, aoSeguir }: {
     return <div style={{ minHeight: 200 }} aria-busy="true" />;
   }
 
-  /**
-   * ⚠️ O `ambiente.agendaReal` NA CONDIÇÃO, e não só `feitos`.
-   *
-   * Num deploy SEM as variáveis do Google, `agenda_conectada` nunca pode acontecer: a rota
-   * de conectar responde 400 `nao_configurado` e não há como gravar a linha. Cobrar a
-   * conexão ali seria um beco — botão que não leva a lugar nenhum, etapa que não termina.
-   * E é justamente o ambiente em que a agenda de memória responde e a conversa funciona.
-   *
-   * Em produção, onde o Google está configurado, o portão vale inteiro: sem a linha em
-   * `integracoes_google` a MAISA não consegue nem consultar horário — `saida/google/
-   * conexoes.ts` lança na primeira pergunta, e o cabeçalho daquele arquivo já registra o
-   * desfecho: *"conversava e nunca marcava"*.
-   */
-  if (ambiente.agendaReal && !feitos.includes("agenda_conectada")) {
-    return (
-      <Falta
-        icone="calendar"
-        titulo="Falta sua agenda"
-        texto={<>A MAISA marca <strong style={s("color:var(--ink)")}>na sua agenda do Google</strong> — é lá que ela olha antes de oferecer horário. Sem isso ela conversa, mas não consegue marcar nada.</>}
-        acao={<LigarAgenda />}
-        aoPainel={aoPainel}
-      />
-    );
-  }
-
+  /* ⚠️ SEM PORTÃO DO GOOGLE (25/09/2026, 1B.15, 09 P0-2). Aqui havia "Falta sua agenda. Sem isso
+   * ela conversa, mas não consegue marcar nada", que deixou de ser verdade no ADR-0009 (04/09): a
+   * MAISA oferece horário da tabela `atendimentos`, e o calendário externo só soma. O portão
+   * prendia a pessoa num consent de projeto OAuth não verificado, e quem não ligava nunca via a
+   * etapa 5. A conversa abre direto; o Google vira uma oferta depois da primeira marcação
+   * (`OfertaDoGoogle`, dentro da `Conversa`). */
   return <Conversa ambiente={ambiente} numero={numero} aoPainel={aoPainel} aoSeguir={aoSeguir} />;
 }
 
@@ -1700,7 +1692,7 @@ export default function Comecar() {
      * ⚠️ O `motivo` VAI PARA A TELA, e essa decisão custou um diagnóstico.
      *
      * Antes o aviso era só "não consegui ligar sua agenda, tente de novo". Quando o link
-     * saiu com o parâmetro errado (ver `LigarAgenda`), a rota devolveu
+     * saiu com o parâmetro errado (ver `OfertaDoGoogle`), a rota devolveu
      * `motivo=profissional_invalido` — a resposta exata — e esta linha jogou fora. Da tela
      * o botão virou "clico e não acontece nada", e a causa só apareceu lendo o `route.ts`.
      *

@@ -43,7 +43,9 @@ async function cenario(nome, modo, mocks, passos = async () => {}) {
   const m = await medir(page);
   await page.screenshot({ path: `${OUT}/${nome}-${modo}.png` });
   await page.screenshot({ path: `${OUT}/${nome}-${modo}-full.png`, fullPage: true });
-  console.log(JSON.stringify({ nome, modo, ...m, erros }));
+  const url = page.url().replace(BASE, "");
+  const titulo = await page.evaluate(() => document.querySelector("h1")?.textContent ?? null);
+  console.log(JSON.stringify({ nome, modo, url, titulo, ...m, erros }));
   await browser.close();
 }
 
@@ -84,7 +86,11 @@ const cenarios = [
       : ok({ pronto: true, agenda: "google", exemplo: { servico: "Sessão individual", profissional: "Carla" } }),
   }, async (p) => { const c = p.locator("button").filter({ hasText: /\?|hor|marcar/i }).first(); if (await c.count()) await c.click(); await p.waitForTimeout(800); }],
   ["e5-fiscal", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": () => ok({ falta: ["cnpj"], provedorFaltando: [], config: {} }) }],
-  ["e5-fiscal-ligar-agora", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": () => ok({ falta: ["cnpj"], provedorFaltando: [], config: {} }) }, async (p) => { await p.getByText("Ligar agora").click(); await p.waitForTimeout(1500); }],
+  /* Desde 1B.14 a etapa 5 não tem mais "Ligar agora": os dois caminhos navegam para o Documento
+     fiscal com o recorte escolhido. O nome do cenário fica (o backlog o cita); ele toca "Atendo
+     como pessoa física" e mede a página em que caiu. */
+  ["e5-fiscal-ligar-agora", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": () => ok({ falta: ["cnpj"], provedorFaltando: [], config: {} }) }, async (p) => { await p.getByText("Atendo como pessoa física").click(); await p.waitForURL(/tela=fiscal/, { timeout: 30000 }); await p.waitForTimeout(2500); }],
+  ["e5-fiscal-cnpj", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(true), "**/api/fiscal*": () => ok({ falta: ["cnpj"], provedorFaltando: [], config: {} }) }, async (p) => { await p.getByText("Tenho CNPJ").click(); await p.waitForURL(/tela=fiscal/, { timeout: 30000 }); await p.waitForTimeout(2500); }],
 ];
 
 const so = process.argv[2];

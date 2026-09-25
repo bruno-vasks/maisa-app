@@ -6,8 +6,8 @@
  * mesma barra, e o afinamento do fluxo — que é justamente o que o modo demo existe para
  * permitir — seria feito contra um número inventado.
  *
- * ⚠️ `whatsapp_conectado`, `agenda_conectada` e `primeira_conversa` são SEMPRE falsos
- * aqui, e isso é honesto: sem Evolution, sem Google e sem banco de mensagens não há o que
+ * ⚠️ `whatsapp_conectado` e `primeira_conversa` são SEMPRE falsos
+ * aqui, e isso é honesto: sem Evolution e sem banco de mensagens não há o que
  * conectar nem o que ter conversado. O efeito colateral é bom — o wizard de demonstração
  * abre com os passos que faltam abertos, que é o estado que se quer exercitar.
  * ────────────────────────────────────────────────────────────────────────────── */
