@@ -9,9 +9,13 @@
  * não caberia, então "Mais" agrupa Faturamento, Equipe, Serviços e A MAISA — e a
  * aba fica acesa quando você está em qualquer uma delas.
  *
- * A topbar só mostra botão de ação primária onde existe ação de verdade
- * (Faturamento, A MAISA, Mais). Um CTA dourado em toda tela ficaria bonito, mas
- * três deles não fariam nada — e botão morto ensina o usuário a ignorar botões. */
+ * ⚠️ UM SLOT DE AÇÃO, E ELE GUARDA O "CRIAR" DA TELA (25/09/2026, T2 do backlog do front).
+ * Cada tela punha o botão num lugar (a topbar, o hero, a barra do calendário) e o celular
+ * ficava sem nenhum: não dava para marcar atendimento nem criar serviço pelo telefone. Agora
+ * a tela DECLARA a ação no mapa `TELA` (`acao`) e a casca a desenha no canto da topbar e como
+ * "＋" de 44px no cabeçalho do celular. Emitir não é criar: o "Emitir" do Fiscal fica na tela,
+ * no fim do caminho (contradição C3). Tela sem ação não ganha botão; o "＋" do celular vira o
+ * menu "Novo", que existe também na topbar. A cor é `--primary`: o ouro deixou de ser ação (C4). */
 
 import React, { useEffect, useState } from "react";
 import { s, Icon, Monogram, Toaster, ConfirmDialog, fmt } from "@/ui/primitivos";
@@ -26,7 +30,7 @@ import Conversas from "../telas/Conversas";
 import Agenda from "../telas/Agenda";
 import AMaisa from "../telas/AMaisa";
 import Contatos from "../telas/Contatos";
-import { Clientes, Faturamento, Equipe, Servicos, Mais, vocabulario } from "../telas/Grades";
+import { Clientes, Faturamento, Equipe, Servicos, Mais } from "../telas/Grades";
 import { ProgressoDeEmissao } from "./ProgressoDeEmissao";
 import { StatusDaMaisa } from "./StatusDaMaisa";
 import { DocumentoFiscal } from "../telas/DocumentoFiscal";
@@ -39,11 +43,29 @@ import { DocumentoFiscal } from "../telas/DocumentoFiscal";
  * design escrita para quem usa, com travessão, repetindo o que a tela já mostra, e o do Fiscal
  * dizia "Junho de 2026" em setembro (`D.PERIODO`). Regra 3 do texto de tela: um título, não
  * título + subtítulo (emenda 5 do `maisa-design`). O guarda `subtitulo.test.ts` reprova a volta. */
-const TELA: Record<TelaId, { rotulo: string; titulo: string; icone: string; Comp: React.ComponentType }> = {
-  fluxo: { rotulo: "Fluxo de hoje", titulo: "Fluxo de hoje", icone: "flow", Comp: FluxoHoje },
+/** A ação de criar de uma tela, no slot da casca. `peso` diz se o botão é cheio (primário) ou não. */
+type AcaoDaTela = { rotulo: string; icone: string; onClick: () => void; peso: "primario" | "secundario" };
+type St = ReturnType<typeof useStore>;
+
+const TELA: Record<TelaId, { rotulo: string; titulo: string; icone: string; Comp: React.ComponentType; acao?: (st: St) => AcaoDaTela | null }> = {
+  /* "Encaixar cliente", secundário: o primário do dia é o "Chegou"/"Concluir" do próprio Fluxo
+     (contradição C15). Abre o rascunho no próximo vago de verdade. */
+  fluxo: {
+    rotulo: "Fluxo de hoje", titulo: "Fluxo de hoje", icone: "flow", Comp: FluxoHoje,
+    acao: (st) => ({ rotulo: "Encaixar cliente", icone: "plus", peso: "secundario", onClick: () => st.novoAgendamento(null) }),
+  },
   conversas: { rotulo: "Conversas", titulo: "Conversas", icone: "chat", Comp: Conversas },
-  agenda: { rotulo: "Agenda", titulo: "Agenda", icone: "calendar", Comp: Agenda },
-  clientes: { rotulo: "Clientes", titulo: "Clientes", icone: "clientes", Comp: Clientes },
+  /* No dia que a Agenda está mostrando, a partir de agora: é o "Marcar" que morava na barra do
+     calendário, e não existia no celular (03 P0-1). */
+  agenda: {
+    rotulo: "Agenda", titulo: "Agenda", icone: "calendar", Comp: Agenda,
+    acao: (st) => ({ rotulo: "Marcar atendimento", icone: "plus", peso: "primario", onClick: () => st.novoAgendamento(null, { dia: st.diaSel }) }),
+  },
+  /* Sem ação antes de ler: a tela ainda é esqueleto, e o formulário abriria sobre nada. */
+  clientes: {
+    rotulo: "Clientes", titulo: "Clientes", icone: "clientes", Comp: Clientes,
+    acao: (st) => (st.cadastroCarregado ? { rotulo: "Novo cliente", icone: "plus", peso: "primario", onClick: () => st.pedirNovo("cliente") } : null),
+  },
   /* ⚠️ O ID CONTINUA `faturamento`, O RÓTULO VIROU "Fiscal" (Bruno, 26/08/2026: *"que vamos
      renomear para fiscal"*). O id é contrato com o link profundo (`?tela=faturamento`), com o
      `localStorage` de quem já usa e com os testes — renomeá-lo quebraria link já compartilhado
@@ -52,8 +74,15 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; icone: string; Comp
   // Fora do rail, como `contatos`: escolher entre nota fiscal e recibo é decisão de uma vez só.
   // Chega-se por "Mais" e pelo link "Documento fiscal" no próprio Faturamento.
   fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", icone: "config", Comp: DocumentoFiscal },
-  equipe: { rotulo: "Equipe", titulo: "Equipe", icone: "equipe", Comp: Equipe },
-  servicos: { rotulo: "Serviços", titulo: "Serviços", icone: "tag", Comp: Servicos },
+  equipe: {
+    rotulo: "Equipe", titulo: "Equipe", icone: "equipe", Comp: Equipe,
+    acao: (st) => (st.cadastroCarregado ? { rotulo: "Adicionar profissional", icone: "plus", peso: "primario", onClick: () => st.pedirNovo("profissional") } : null),
+  },
+  /* Catálogo sem "novo serviço" é relatório, não catálogo. */
+  servicos: {
+    rotulo: "Serviços", titulo: "Serviços", icone: "tag", Comp: Servicos,
+    acao: (st) => ({ rotulo: "Novo serviço", icone: "plus", peso: "primario", onClick: st.criarServico }),
+  },
   assistente: { rotulo: "A MAISA", titulo: "Ajustes da MAISA", icone: "bot", Comp: AMaisa },
   // Fora do rail e das abas de propósito: é tarefa de configuração que se faz uma vez, e um
   // ícone permanente na barra competiria com as telas do dia a dia. Chega-se aqui pelo
@@ -231,73 +260,127 @@ function ConfirmaLote() {
   );
 }
 
-/* ───────────────────────────── ação primária ─────────────────────────────
- * Só onde existe: emitir as notas que faltam, salvar os ajustes, chamar suporte. */
+/* ───────────────────────────── o slot e o "Novo" ─────────────────────────────
+ * Saíram daqui o "Emitir N notas" dourado do Fiscal (o botão de emitir mora na tela, onde
+ * `vocabulario()` decide se ele existe) e o "Resolver N pendências" do Fluxo (a fila já está na
+ * própria tela, e âmbar não é ação). "assistente" e "mais" nunca tiveram: os ajustes gravam
+ * sozinhos, e o suporte tem o botão dele na tela. */
 
-function AcaoPrimaria() {
+/** Os três "criar" que valem de qualquer lugar (T2). "Novo serviço" leva à tela, onde ele nasce
+ *  e a gaveta abre (contradição C17); o de cliente abre o formulário da tela de Clientes. */
+function itensDoNovo(st: St): { rotulo: string; onClick: () => void }[] {
+  return [
+    { rotulo: "Marcar atendimento", onClick: () => st.novoAgendamento(null, st.tela === "agenda" ? { dia: st.diaSel } : undefined) },
+    { rotulo: "Novo cliente", onClick: () => { st.irPara("clientes"); st.pedirNovo("cliente"); } },
+    { rotulo: "Novo serviço", onClick: () => { st.irPara("servicos"); st.criarServico(); } },
+  ];
+}
+
+/** O menu "Novo". `gatilho` desenha o botão que abre (a topbar e o "＋" do celular são diferentes). */
+function MenuNovo({ gatilho, alinhar = "direita" }: { gatilho: (p: { aberto: boolean; alternar: () => void }) => React.ReactNode; alinhar?: "direita" }) {
   const st = useStore();
-  const p = usePendencias();
+  const [aberto, setAberto] = useState(false);
+  const caixa = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e: PointerEvent) => { if (!caixa.current?.contains(e.target as Node)) setAberto(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setAberto(false); };
+    window.addEventListener("pointerdown", fora);
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("pointerdown", fora); window.removeEventListener("keydown", esc); };
+  }, [aberto]);
+  return (
+    <div ref={caixa} style={s("position:relative;flex-shrink:0")}>
+      {gatilho({ aberto, alternar: () => setAberto((v) => !v) })}
+      {aberto && (
+        <div
+          role="menu"
+          aria-label="Novo"
+          className="m-reveal"
+          style={s(`position:absolute;top:calc(100% + 8px);${alinhar === "direita" ? "right:0" : "left:0"};z-index:60;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column`)}
+        >
+          {itensDoNovo(st).map((it) => (
+            <button
+              key={it.rotulo}
+              type="button"
+              role="menuitem"
+              onClick={() => { setAberto(false); it.onClick(); }}
+              className="m-hov-bg m-focus"
+              style={s("min-height:44px;padding:0 12px;border:none;border-radius:8px;background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:10px")}
+            >
+              <Icon name="plus" size={16} sw={2.2} stroke="var(--primary)" />
+              {it.rotulo}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-  // o ÚNICO fill âmbar clicável do shell: âmbar = marca + ação primária, e é esta a ação primária.
-  // Texto em --warm-ink (7.51:1 sobre o ouro) e peso de botão (--w-title), não de dado.
-  const dourado = "height:40px;padding:0 18px;border:none;border-radius:12px;background:var(--warm);color:var(--warm-ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;text-decoration:none";
+/** O slot, na topbar (fundo navy). Primário = `--primary` cheio; secundário = contorno sobre o navy. */
+function AcaoDaTopbar() {
+  const st = useStore();
+  const a = TELA[st.tela].acao?.(st) ?? null;
+  if (!a) return null;
+  const cor = a.peso === "primario"
+    ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)"
+    : "border:1px solid var(--nav-line);background:var(--nav-active);color:var(--nav-ink)";
+  return (
+    <button
+      type="button"
+      onClick={a.onClick}
+      className={`${a.peso === "primario" ? "m-hov-primary" : "m-hov-bright"} m-press m-focus`}
+      style={s(`height:40px;padding:0 16px;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
+    >
+      <Icon name={a.icone} size={16} sw={2.3} />
+      {a.rotulo}
+    </button>
+  );
+}
 
-  if (st.tela === "faturamento") {
-    /* ⚠️ QUEM ATENDE COMO PESSOA FÍSICA NÃO EMITE NOTA FISCAL — e este era o "CTA lá em cima
-     * escrito emitir 14 notas" da reclamação de 25/08/2026. `emitiveis` conta clientes com valor
-     * fechado, não documentos possíveis: no caminho do recibo ele devolve os 14 do mês e a topbar
-     * prometia emiti-los em nota. A ação de verdade dela é gerar o arquivo, e mora no cartão do
-     * Faturamento, onde há espaço para dizer o que o arquivo faz.
-     *
-     * `carregando` também não mostra nada: piscar a promessa errada por meio segundo é a mesma
-     * mentira, mais curta. Ver `EstadoFiscalUI`. */
-    if (st.fiscal.status !== "ok" || st.fiscal.caminho === "recibo_saude") return null;
-    // st.emitiveis: a MESMA lista que o hero mostra e que o lote emite. Esta topbar tinha a regra
-    // duplicada à mão — e incluía "cancelada", que o lote não emite —, então prometia mais do que
-    // entregava. A regra de negócio agora vive só no store.
-    /* Sem escolha do documento, ou com algo faltando para o emissor aceitar, a topbar não
-     * promete: o hero da tela diz o motivo ao lado do botão desligado (1A.12). */
-    if (!vocabulario(st.fiscal).podeEmitir) return null;
-    const aEmitir = st.emitiveis.length;
-    if (!aEmitir) return null;
+/** O "Novo" da topbar: contorno sobre o navy, para não disputar com o slot. */
+function NovoDaTopbar() {
+  return (
+    <MenuNovo
+      gatilho={({ aberto, alternar }) => (
+        <button
+          type="button"
+          onClick={alternar}
+          aria-haspopup="menu"
+          aria-expanded={aberto}
+          className="m-hov-bright m-press m-focus"
+          style={s("height:40px;padding:0 12px 0 14px;border-radius:8px;border:1px solid var(--nav-line);background:transparent;color:var(--nav-ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap")}
+        >
+          Novo
+          <Icon name="chevron-down" size={15} sw={2.2} />
+        </button>
+      )}
+    />
+  );
+}
+
+/** O "＋" do celular: a ação da tela, ou o menu "Novo" onde a tela não tem ação. 44px. */
+function MaisDoCelular() {
+  const st = useStore();
+  const a = TELA[st.tela].acao?.(st) ?? null;
+  const estilo = s("width:44px;height:44px;border:1px solid var(--primary);border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer;display:flex;align-items:center;justify-content:center");
+  if (a) {
     return (
-      <button onClick={st.pedirLote} className="m-hov-bright m-press m-focus" style={s(dourado)}>
-        <Icon name="receipt" size={16} sw={2.1} />
-        Emitir {aEmitir} {aEmitir === 1 ? "nota" : "notas"}
+      <button type="button" onClick={a.onClick} aria-label={a.rotulo} title={a.rotulo} className="m-hov-primary m-press-icon m-focus" style={estilo}>
+        <Icon name="plus" size={20} sw={2.3} />
       </button>
     );
   }
-
-  // Catálogo sem "novo serviço" é relatório, não catálogo. Esta ação não existia: AcaoPrimaria
-  // retornava null para "servicos", e não havia caminho nenhum para criar um serviço no app.
-  if (st.tela === "servicos") {
-    return (
-      <button onClick={st.criarServico} className="m-hov-bright m-press m-focus" style={s(dourado)}>
-        <Icon name="plus" size={16} sw={2.3} />
-        Novo serviço
-      </button>
-    );
-  }
-
-  /* "assistente" NÃO tem mais ação aqui. O botão dourado "Salvar ajustes" era o segundo save de uma
-     não-ação: os ajustes gravam a cada tecla, e havia DOIS botões (este dourado + um azul no rodapé
-     da tela) para a mesma coisa. O rodapé foi removido junto. Estado de "salvo" agora é implícito,
-     como no resto do app. */
-
-  /* "mais" também não tem: o suporte já é um botão verde no rodapé da própria tela, onde a frase
-     "Precisa de ajuda?" dá o contexto. Dourado aqui + verde lá é a mesma ação em dois vocabulários
-     visuais na mesma dobra. Um lugar só, e é o que tem contexto. */
-
-  if (st.tela === "fluxo" && p.fila > 0) {
-    return (
-      <button onClick={() => st.irPara("conversas")} className="m-hov-bright m-press m-focus" style={s(dourado)}>
-        <Icon name="chat" size={16} sw={2} />
-        Resolver {p.fila} {p.fila === 1 ? "pendência" : "pendências"}
-      </button>
-    );
-  }
-
-  return null;
+  return (
+    <MenuNovo
+      gatilho={({ aberto, alternar }) => (
+        <button type="button" onClick={alternar} aria-label="Novo" aria-haspopup="menu" aria-expanded={aberto} className="m-hov-primary m-press-icon m-focus" style={estilo}>
+          <Icon name="plus" size={20} sw={2.3} />
+        </button>
+      )}
+    />
+  );
 }
 
 /* ───────────────────────────── topbar (desktop) ───────────────────────────── */
@@ -395,7 +478,8 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
             sozinho: até 24/09/2026 aqui pulsava "no ar" com o WhatsApp desconectado. Rótulos e
             cores por fundo moram em `StatusDaMaisa.tsx`. */}
         <StatusDaMaisa sobre="nav" />
-        <AcaoPrimaria />
+        <NovoDaTopbar />
+        <AcaoDaTopbar />
       </div>
     </header>
   );
@@ -484,10 +568,11 @@ export default function AppShell() {
               onClick={() => setPaleta(true)}
               aria-label="Buscar"
               className="m-hov-bg m-press-icon m-focus"
-              style={s("width:38px;height:38px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
+              style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
             >
               <Icon name="search" size={18} sw={1.9} />
             </button>
+            <MaisDoCelular />
             {/* O selo "m" saiu em 24/09/2026: não clicava, e os 46px dele eram o que faltava para o
                 status caber sem cortar o título ("Ajustes da ..."). A conta no celular é o 2.4. */}
           </div>

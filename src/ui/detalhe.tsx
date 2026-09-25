@@ -646,11 +646,25 @@ export function useDetalhe(id: string | null): Detalhe | null {
           }],
         },
         blocoGoogle,
+        /* Nome e papel EDITÁVEIS (1B.12, 08 P0-2): o nome é o que a MAISA diz quando confirma
+           "com quem?", e corrigir o que o cadastro adivinhou pelo e-mail pedia SQL. Grava ao
+           sair do campo. Sem "Comissão" e sem "Avaliação" (T5, 08 P1-3): nada as escreve. */
         {
-          tipo: "stats", key: "dados", label: "Dados do profissional",
-          /* Sem "Comissão" e sem "Avaliação" (T5, 08 P1-3): nada no produto escreve as duas. */
-          linhas: [["Papel", pr.papel], ["Na equipe desde", pr.desde]],
+          tipo: "campos", key: "dados", label: "Dados do profissional",
+          avisoAoSair: "Profissional atualizado",
+          campos: [
+            {
+              id: "nome", label: "Nome", valor: pr.nome, gravaAoSair: true,
+              hint: "É como a MAISA fala dele com o cliente.",
+              onChange: (v) => { if (!v.trim()) return false; st.editarProfissional(pr.id, { nome: v }); },
+            },
+            {
+              id: "papel", label: "O que faz", valor: pr.papel, gravaAoSair: true,
+              onChange: (v) => st.editarProfissional(pr.id, { papel: v }),
+            },
+          ],
         },
+        { tipo: "stats", key: "desde", linhas: [["Na equipe desde", pr.desde]] },
         {
           tipo: "stats", key: "mes", label: "No mês",
           linhas: [["Atendimentos", String(pr.atendimentosMes)]],

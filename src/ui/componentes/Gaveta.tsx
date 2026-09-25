@@ -75,7 +75,7 @@ function CampoDeTexto({ c, avisoAoSair }: { c: CampoT; avisoAoSair?: string }) {
   };
 
   const avisar = (r: boolean | null) => {
-    if (r === false) toast(`${c.label}: isso não é um número. Ficou como estava.`);
+    if (r === false) toast(c.tipo === "numero" ? `${c.label}: isso não é um número. Ficou como estava.` : `${c.label} não pode ficar vazio. Ficou como estava.`);
     else if (r === true && avisoAoSair) toast(avisoAoSair);
   };
 

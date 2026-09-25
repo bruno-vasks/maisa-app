@@ -136,7 +136,9 @@ export function Clientes() {
    * lista. Só o nome é obrigatório: o recibo da Rebots pede CPF e nada mais, e o telefone
    * só importa para quem vai falar com a MAISA. O resto da ficha é a gaveta, que abre
    * sozinha logo depois. */
-  const [novo, setNovo] = React.useState(false);
+  /* Quem abre o formulário é o slot da casca ("Novo cliente" no canto da topbar, o "＋" do
+   * celular, o menu "Novo"), e não mais um botão no hero (T2). */
+  const novo = st.novoEmLinha === "cliente";
 
   const ativos = st.cadastro.clientes.filter((c) => st.cliAtivo(c.id));
   const lista = st.cadastro.clientes.filter((c) => {
@@ -168,9 +170,8 @@ export function Clientes() {
           { n: fmtK(ativos.reduce((a, c) => a + c.valor, 0)), label: "fechado no mês", tom: "success" },
           { n: st.cadastro.clientes.length - ativos.length, label: "inativos", tom: "neutral" },
         ]}
-        acao={novo ? undefined : { label: "Novo cliente", icon: "plus", onClick: () => setNovo(true) }}
       />
-      {novo && <NovoCliente aoFechar={() => setNovo(false)} />}
+      {novo && <NovoCliente aoFechar={() => st.pedirNovo(null)} />}
       <Filtros opcoes={["Ativos", "Inativos", "Todos"]} ativo={st.filtroCli} onChange={st.setFiltroCli} />
       {lista.length === 0 ? (
         <EmptyState title="Nenhum cliente aqui" sub="Troque o filtro acima para ver os outros." semSaida="o filtro fica logo acima; o 1C.8 troca esta grade pela lista com busca" />
@@ -238,6 +239,41 @@ function NovoCliente({ aoFechar }: { aoFechar: () => void }) {
       <span style={s("display:flex;gap:8px")}>
         <Btn variant="primary" icon="check" onClick={() => void salvar()}>
           {enviando ? "Salvando…" : "Cadastrar"}
+        </Btn>
+        <Btn variant="ghost" onClick={aoFechar}>Cancelar</Btn>
+      </span>
+    </div>
+  );
+}
+
+/* Adicionar alguém à equipe (1B.12, 08 P0-2). Nome e papel, e só: o expediente nasce com o
+ * padrão do banco (seg a sáb, 9 às 19) e a rota não o aceita de propósito. A ficha abre logo
+ * depois, para ligar a agenda do Google se quiser. */
+function NovoProfissional({ aoFechar }: { aoFechar: () => void }) {
+  const st = useStore();
+  const [nome, setNome] = React.useState("");
+  const [papel, setPapel] = React.useState("");
+  const [enviando, setEnviando] = React.useState(false);
+  const pronto = nome.trim().length > 0;
+  const salvar = async () => {
+    if (!pronto || enviando) return;
+    setEnviando(true);
+    const ok = await st.criarProfissional({ nome, papel });
+    setEnviando(false);
+    if (ok) aoFechar();
+  };
+  const enter = (e: React.KeyboardEvent) => { if (e.key === "Enter") void salvar(); };
+  return (
+    <div style={s("display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:16px 18px")}>
+      <Field label="Nome" style={s("flex:1 1 220px")}>
+        <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ana Souza" autoFocus onKeyDown={enter} />
+      </Field>
+      <Field label="O que faz (opcional)" style={s("flex:1 1 200px")}>
+        <Input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Atendimento geral" onKeyDown={enter} />
+      </Field>
+      <span style={s("display:flex;gap:8px")}>
+        <Btn variant="primary" icon="check" disabled={!pronto || enviando} onClick={() => void salvar()}>
+          {enviando ? "Adicionando…" : "Adicionar"}
         </Btn>
         <Btn variant="ghost" onClick={aoFechar}>Cancelar</Btn>
       </span>
@@ -493,6 +529,8 @@ export function Equipe() {
             : []),
         ]}
       />
+      {/* Quem abre é o slot da casca, "Adicionar profissional" (T2, 1B.12). */}
+      {st.novoEmLinha === "profissional" && <NovoProfissional aoFechar={() => st.pedirNovo(null)} />}
       {mobile ? (
         <GradeCartoes>
           {st.cadastro.profissionais.map((p) => {

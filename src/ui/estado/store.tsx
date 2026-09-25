@@ -734,6 +734,15 @@ export type StoreValue = {
   /* catálogo, equipe, clientes */
   profAtivo: (id: string) => boolean;
   alternarProf: (id: string) => void;
+  /**
+   * Adiciona alguém à equipe (`PUT /api/equipe` sem `id`, 1B.12) e abre a ficha. Espera o
+   * servidor antes de pôr na lista, pelo mesmo motivo do `criarServico`: o id é dele. `true`
+   * quando deu certo (o formulário fecha); `false` deixa o formulário com o que foi digitado.
+   * Expediente não vai: a rota recusa de propósito (ver `api/equipe/route.ts`).
+   */
+  criarProfissional: (p: { nome: string; papel: string }) => Promise<boolean>;
+  /** Nome e papel, pela ficha. Grava ao sair do campo (a gaveta chama no blur). Otimista, com volta. */
+  editarProfissional: (id: string, patch: { nome?: string; papel?: string }) => void;
   svcAtivo: (id: string) => boolean;
   alternarSvc: (id: string) => void;
   /** Catálogo vivo: D.SERVICOS + edições + criados. As telas leem daqui, não de D.SERVICOS. */
@@ -2291,6 +2300,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } catch {
         voltar();
         toast("Sem conexão com o servidor — nada mudou.");
+      }
+    })();
+  }, [profissionalDe]);
+
+  const criarProfissional = useCallback(async (p: { nome: string; papel: string }) => {
+    const nome = p.nome.trim();
+    if (!nome) return false;
+    try {
+      const r = await fetch("/api/equipe", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, ...(p.papel.trim() ? { papel: p.papel.trim() } : {}) }),
+      }).then((x) => x.json());
+      if (!r?.ok || !r.profissional) { toast(r?.info ?? "Não foi possível adicionar."); return false; }
+      setCadastro((c) => ({ ...c, profissionais: [...c.profissionais, r.profissional] }));
+      setSel(r.profissional.id);
+      toast(`${D.primeiroNome(nome)} entrou na equipe`);
+      return true;
+    } catch {
+      toast("Sem conexão com o servidor. Ninguém foi adicionado.");
+      return false;
+    }
+  }, []);
+
+  const editarProfissional = useCallback((id: string, patch: { nome?: string; papel?: string }) => {
+    const atual = profissionalDe(id);
+    if (!atual) return;
+    const nome = (patch.nome ?? atual.nome).trim();
+    // Nome vazio não grava: a rota exige, e a MAISA diria "com quem?" sem nome nenhum.
+    if (!nome) return;
+    const novo = { ...atual, nome, ...(patch.papel === undefined ? {} : { papel: patch.papel.trim() }) };
+    if (novo.nome === atual.nome && novo.papel === atual.papel) return;
+    setCadastro((c) => ({ ...c, profissionais: c.profissionais.map((x) => (x.id === id ? novo : x)) }));
+    void (async () => {
+      const voltar = () => setCadastro((c) => ({ ...c, profissionais: c.profissionais.map((x) => (x.id === id ? atual : x)) }));
+      try {
+        const r = await fetch("/api/equipe", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, nome: novo.nome, papel: novo.papel }),
+        }).then((x) => x.json());
+        if (!r?.ok) { voltar(); toast(r?.info ?? "Não foi possível salvar."); return; }
+        if (r.profissional) setCadastro((c) => ({ ...c, profissionais: c.profissionais.map((x) => (x.id === id ? r.profissional : x)) }));
+      } catch {
+        voltar();
+        toast("Sem conexão com o servidor. Nada mudou.");
       }
     })();
   }, [profissionalDe]);
@@ -4340,7 +4395,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
-    profAtivo, alternarProf, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
+    profAtivo, alternarProf, criarProfissional, editarProfissional, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
     servicos, servicoDe, nomeServico, editarServico, criarServico, excluirServico,
     filtroSvc, setFiltroSvc, filtroCli, setFiltroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
@@ -4373,7 +4428,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
-    profAtivo, alternarProf, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
+    profAtivo, alternarProf, criarProfissional, editarProfissional, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
     servicos, servicoDe, nomeServico, editarServico, criarServico, excluirServico,
     filtroSvc, filtroCli,
     fiscal, aplicarFiscal, recarregarFiscal,

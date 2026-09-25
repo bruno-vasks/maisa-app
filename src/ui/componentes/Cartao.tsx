@@ -180,8 +180,9 @@ export function Hero({
             onClick={acao.desabilitada ? undefined : acao.onClick}
             disabled={acao.desabilitada}
             aria-describedby={acao.motivo ? idMotivo : undefined}
-            className={acao.desabilitada ? "m-focus" : "m-hov-bright m-press m-focus"}
-            style={s(`height:48px;padding:0 22px;border:none;border-radius:14px;font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--warm);color:var(--warm-ink);cursor:pointer"}`)}
+            /* --primary, não o ouro (25/09/2026, T2 e contradição C4): âmbar é pendência, não ação. */
+            className={acao.desabilitada ? "m-focus" : "m-hov-primary m-press m-focus"}
+            style={s(`height:48px;padding:0 22px;border:none;border-radius:12px;font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--primary);color:var(--on-primary);cursor:pointer"}`)}
           >
             {acao.icon && <Icon name={acao.icon} size={18} sw={2.1} />}
             {acao.label}
