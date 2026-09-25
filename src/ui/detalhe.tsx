@@ -229,11 +229,24 @@ export function useDetalhe(id: string | null): Detalhe | null {
       ],
     }] : [];
 
+    /* ── QUEM EMITE, DO QUE O FISCAL LEU (25/09/2026, T5 e 01 P0-6) ──
+     * A prévia escrevia `D.PRESTADOR` ("Seu Negócio — Atendimentos", um CNPJ de fixture) para
+     * todo mundo, logo acima do botão que emite de verdade. Agora é a razão social e o CNPJ de
+     * `st.fiscal.config`; sem os dois, a prévia diz que falta e o "Emitir" desliga com o aviso. */
+    const cfgFiscal = st.fiscal.config;
+    const emissor = cfgFiscal?.razaoSocial && cfgFiscal.cnpj
+      ? { nome: cfgFiscal.razaoSocial, doc: `CNPJ ${cfgFiscal.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}` }
+      : null;
+    const semEmissor: Bloco[] = emissor ? [] : [{
+      tipo: "aviso", key: "sem-emissor", tone: "warn",
+      texto: "Confirme seus dados de emissor (razão social e CNPJ) no Documento fiscal antes de emitir.",
+    }];
+
     const recibo: Bloco = {
       tipo: "recibo", key: "recibo", label: "Prévia da nota",
       recibo: {
-        prestador: D.PRESTADOR.nome,
-        doc: D.PRESTADOR.doc,
+        prestador: emissor?.nome ?? "Confirme seus dados de emissor",
+        doc: emissor?.doc ?? "",
         total: fmt(c.valor),
         linhas: [
           ["Tomador", c.nome],
@@ -246,7 +259,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
           ["CPF", cad?.cpf || c.cpf],
           ["Serviço", c.servico ?? st.nomeServico(c.servicoId)],
           ["Atendimentos sem nota", String(c.atendimentos)],
-          ["Competência", D.PERIODO],
+          ["Competência", st.mesDoFechamento],
           ["Número", nota.numero ?? "sai na emissão"],
         ],
       },
@@ -309,10 +322,11 @@ export function useDetalhe(id: string | null): Detalhe | null {
           /* Antes do recibo: quem cancelou uma nota costuma ter cancelado JUSTAMENTE porque
              o tomador estava errado, e "emitir de novo" sem corrigir repete o erro. */
           ...dadosDoTomador,
+          ...semEmissor,
           recibo,
         ],
         acoes: [
-          { label: "Emitir de novo", primaria: true, onClick: () => { st.emitirNota(c.id); st.fechar(); } },
+          { label: "Emitir de novo", primaria: true, desabilitada: !emissor, onClick: () => { st.emitirNota(c.id); st.fechar(); } },
           ...abrirFicha,
           { label: "Fechar", onClick: st.fechar },
         ],
@@ -324,7 +338,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
       /* O nome do CADASTRO no título, e não o da linha de faturamento: enquanto o dono
          digita, `linha.nome` é o que o servidor tinha antes do primeiro caractere — o
          cabeçalho ficaria brigando com o campo logo abaixo até o envio pousar. */
-      titulo: cad?.nome || c.nome, seed: c.id, sub: `Fechamento de ${D.PERIODO}`,
+      titulo: cad?.nome || c.nome, seed: c.id, sub: `Fechamento de ${st.mesDoFechamento}`,
       blocos: [
         /* O que falta para poder emitir vem ANTES de tudo. Sem CPF o `emitiveis` tira a
            pessoa do lote, então o botão "Emitir as N pendentes" simplesmente não a conta —
@@ -350,6 +364,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
             ["Serviço prestado", st.nomeServico(c.servicoId)],
           ],
         },
+        ...semEmissor,
         ...dadosDoTomador,
         recibo,
         nota.status === "erro" && nota.erro
@@ -369,7 +384,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
              qualquer jeito, e o erro voltaria como frase de provedor — longe do campo que
              resolve, que agora está nesta mesma gaveta. `c.cpf` e não `cad.cpf`: ver o aviso
              no topo dos blocos. */
-          desabilitada: !c.cpf,
+          desabilitada: !c.cpf || !emissor,
           onClick: () => { st.emitirNota(c.id); st.fechar(); },
         },
         ...abrirFicha,
@@ -488,7 +503,8 @@ export function useDetalhe(id: string | null): Detalhe | null {
           ],
         },
         {
-          tipo: "stats", key: "mes", label: `Em ${D.PERIODO}`,
+          /* `v_clientes` conta a competência corrente, ou seja, o mês de hoje (era `D.PERIODO`). */
+          tipo: "stats", key: "mes", label: `Em ${D.rotuloDoMes(D.HOJE.iso)}`,
           linhas: [
             ["Atendimentos", String(cli.atendimentos)],
             ["Valor fechado", fmt(cli.valor)],
@@ -565,11 +581,12 @@ export function useDetalhe(id: string | null): Detalhe | null {
         blocoGoogle,
         {
           tipo: "stats", key: "dados", label: "Dados do profissional",
-          linhas: [["Papel", pr.papel], ["Comissão", `${pr.comissao}%`], ["Na equipe desde", pr.desde]],
+          /* Sem "Comissão" e sem "Avaliação" (T5, 08 P1-3): nada no produto escreve as duas. */
+          linhas: [["Papel", pr.papel], ["Na equipe desde", pr.desde]],
         },
         {
           tipo: "stats", key: "mes", label: "No mês",
-          linhas: [["Atendimentos", String(pr.atendimentosMes)], ["Avaliação", pr.avaliacao.toFixed(1)]],
+          linhas: [["Atendimentos", String(pr.atendimentosMes)]],
         },
         {
           tipo: "lista", key: "svc", label: "Faz estes serviços",
@@ -996,17 +1013,9 @@ export function useDetalhe(id: string | null): Detalhe | null {
     };
   }
 
-  /* ── cartões da tela "Mais" ── */
-  if (id === "faq") {
-    return {
-      titulo: "Perguntas frequentes", sub: `${D.FAQS.length} respostas no ar · ${D.FAQS.reduce((a, f) => a + f.usos, 0).toLocaleString("pt-BR")} usos`,
-      blocos: D.FAQS.map((f) => ({
-        tipo: "texto" as const, key: f.id, label: f.pergunta,
-        texto: `${f.resposta}\n\nUsada ${f.usos.toLocaleString("pt-BR")} vezes.`,
-      })),
-      acoes: [fecharAcao],
-    };
-  }
+  /* As gavetas "faq" e "numeros" saíram em 25/09/2026 (T5, 08 P0-5): liam `D.FAQS` e
+   * `D.NUMEROS_MES`, fixture com cara de análise do negócio. As perguntas de verdade estão nos
+   * Ajustes da MAISA; os números voltam com fonte real. */
 
   /* ── Meu plano ──
    *
@@ -1084,17 +1093,6 @@ export function useDetalhe(id: string | null): Detalhe | null {
           : []),
       ],
       acoes,
-    };
-  }
-
-  if (id === "numeros") {
-    return {
-      titulo: "Números do mês", sub: D.NUMEROS_MES.periodo,
-      blocos: [
-        { tipo: "stats", key: "res", label: "Resultado", linhas: D.NUMEROS_MES.resultado },
-        { tipo: "stats", key: "mai", label: "A MAISA no mês", linhas: D.NUMEROS_MES.maisa },
-      ],
-      acoes: [fecharAcao],
     };
   }
 

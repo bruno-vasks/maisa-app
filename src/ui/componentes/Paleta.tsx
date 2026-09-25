@@ -37,7 +37,7 @@ const TELAS_BUSCA: [TelaId, string, string, string][] = [
   ["equipe", "Equipe", "Quem atende e quando", "equipe"],
   ["servicos", "Serviços", "Catálogo e preços", "tag"],
   ["assistente", "A MAISA", "Ajustes da assistente", "bot"],
-  ["mais", "Mais", "Plano, FAQ e números", "dots"],
+  ["mais", "Mais", "Plano, conexões e suporte", "dots"],
 ];
 
 export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: () => void }) {

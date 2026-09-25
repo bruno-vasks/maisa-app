@@ -59,10 +59,9 @@ function varrer(): Achado[] {
  * 24/09/2026. O "no ar" das FAQ ("12 respostas no ar") não fala do status, mas diz a mesma
  * coisa sem saber: são as `D.FAQS` de fixture, e saem com elas no 1A.10.
  */
-const DIVIDA: Divida = {
-  "src/ui/detalhe.tsx": [1, "24/09/2026 · \"respostas no ar\" das D.FAQS na gaveta do Mais (1A.10)"],
-  "src/ui/telas/Grades.tsx": [2, "24/09/2026 · \"respostas no ar\" e \"no ar\" das D.FAQS no Mais (1A.10)"],
-};
+/* Zerada em 25/09/2026: as duas dívidas eram as "respostas no ar" das `D.FAQS`, que saíram
+ * da tela no 1A.10. */
+const DIVIDA: Divida = {};
 
 describe("G11 · status da MAISA num lugar só", () => {
   it("só StatusDaMaisa.tsx afirma se a MAISA está no ar", () => {

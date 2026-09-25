@@ -74,7 +74,11 @@ os tipos são domínio puro, e importá-los é legítimo (só está no caminho e
 | `D.podeComecar(…)` | `st.podeComecarEm(…)` |
 
 Continuam fixture de verdade, e cada uso é dívida: `FAQS`, `NUMEROS_MES`, `FATURAS`,
-`PERIODO`, `PRESTADOR`, `DIAS_PADRAO`, `CFG_PADRAO`.
+`PERIODO`, `PRESTADOR`, `DIAS_PADRAO`, `CFG_PADRAO`. **Desde 25/09/2026 (1A.10) nenhuma tela
+usa os cinco primeiros**, e o guarda G3 reprova a volta com dívida zero: o mês é
+`D.rotuloDoMes(iso)` ou `st.mesDoFechamento` (a competência do servidor), quem emite é
+`st.fiscal.config`, o plano é `resumoDaAssinatura(st.assinatura)`, o suporte é
+`D.WHATSAPP_DA_MAISA`. FAQ e números do mês saíram do Mais até terem fonte.
 
 `CONVERSAS`, `THREADS` e `SUGESTOES` saíram desta lista porque saíram do repositório. O que
 as substitui:

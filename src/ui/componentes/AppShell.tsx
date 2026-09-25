@@ -190,8 +190,17 @@ function Rail() {
             <span className="m-rail-label" style={s("min-width:0;line-height:1.3")}>
               {/* nome do negócio e plano: também na voz da sidebar — é a identidade de quem usa,
                   não dado de tarefa. Peso 700 porque a Alegreya não tem 600. */}
-              <span style={s("display:block;font-family:var(--font-nav);font-size:var(--t-sm);font-weight:var(--w-nav-on);color:var(--nav-ink)")}>{st.cadastro.negocio.nome}</span>
-              <span style={s("display:block;font-family:var(--font-nav);font-size:var(--t-label);font-weight:var(--w-nav);color:var(--nav-soft)")}>Plano {st.cadastro.negocio.plano}</span>
+              {/* ⚠️ Nome e plano só depois de ler (25/09/2026, T4/T5 e contradição C6): o cadastro
+                  nasce com o fixture de propósito, e o rail o exibia como verdade ("Seu Negócio",
+                  "Plano Profissional"). O plano é o da assinatura, a mesma fonte da gaveta. */}
+              {st.cadastroCarregado
+                ? <span style={s("display:block;font-family:var(--font-nav);font-size:var(--t-sm);font-weight:var(--w-nav-on);color:var(--nav-ink)")}>{st.cadastro.negocio.nome}</span>
+                : <span aria-hidden style={s("display:block;width:110px;height:12px;margin:3px 0;border-radius:6px;background:var(--nav-active)")} />}
+              {st.assinatura.status === "ok" && st.assinatura.assinatura
+                ? <span style={s("display:block;font-family:var(--font-nav);font-size:var(--t-label);font-weight:var(--w-nav);color:var(--nav-soft)")}>Plano {st.assinatura.assinatura.plano}</span>
+                : st.assinatura.status === "carregando"
+                  ? <span aria-hidden style={s("display:block;width:80px;height:10px;margin:4px 0;border-radius:6px;background:var(--nav-active)")} />
+                  : null}
             </span>
           </div>
           <div className="m-rail-label"><UserMenu /></div>

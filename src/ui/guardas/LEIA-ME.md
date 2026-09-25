@@ -18,13 +18,13 @@ texto de JSX são o que chega à tela.
 | Arquivo | Guarda | Reprova |
 |---|---|---|
 | `travessao.test.ts` | **G1** | travessão em copy (o `—` sozinho, marca de valor ausente, passa) |
-| `fixture.test.ts` | **G3** | `D.PERIODO`, `D.PRESTADOR`, `D.FAQS`, `D.NUMEROS_MES`, `D.FATURAS`, `precoPlano` nas telas, componentes e gaveta; "dois lembretes", "Confirmado pelo WhatsApp", "já cobrou" e o suporte `5511999999999` em `src/` |
+| `fixture.test.ts` | **G3** | `D.PERIODO`, `D.PRESTADOR`, `D.FAQS`, `D.NUMEROS_MES`, `D.FATURAS`, `precoPlano` nas telas, componentes e gaveta; "dois lembretes", "Confirmado pelo WhatsApp", "já cobrou" e o suporte `5511999999999` em `src/` Dívida zero desde 25/09/2026 (1A.10). |
 | `tokens.test.ts` | **G4** | `var(--x)` sem definição em `globals.css`, no `next/font` do `layout.tsx` ou no próprio arquivo |
 | `icones.test.ts` | **G5** | nome de ícone literal fora do registro `ICONS` de `primitivos.tsx` |
 | `vh.test.ts` | **G9** | `<n>vh` sem o par `dvh` na mesma linha |
 | `endereco.test.ts` | **G10** | tela do mapa `TELA` ou membro de `TelaId` que o `?tela=` não abre; apelido (`faturamento`, `equipe`, `servicos`, `mais`) que deixou de abrir; lixo que vira tela; `?secao=` sem lista ou padrão. A regra mora em `src/ui/estado/endereco.ts` |
 | `subtitulo.test.ts` | **G17** (metade) | `sub` no mapa `TELA` da casca, ou `<p>` dentro da `Topbar`. A outra metade (`SectionTitle` com `sub`) é da Onda 2 |
-| `status.test.ts` | **G11** | "no ar", "Atendendo", "Assistente ativa", "responde automaticamente" ou "resolvendo tudo sozinha" fora de `componentes/StatusDaMaisa.tsx`. A tabela-verdade da regra está em `nucleo/dominio/status-da-maisa.test.ts` |
+| `status.test.ts` | **G11** | "no ar", "Atendendo", "Assistente ativa", "responde automaticamente" ou "resolvendo tudo sozinha" fora de `componentes/StatusDaMaisa.tsx`. A tabela-verdade da regra está em `nucleo/dominio/status-da-maisa.test.ts` Dívida zero desde 25/09/2026 (as "respostas no ar" das `D.FAQS` saíram no 1A.10). |
 | `leitura.test.ts` | **G12** | derivação de tela (`estado/leitura.ts`) que devolve vazio com a leitura em voo ou falhada |
 | `wizard.test.ts` | **G13** | arquivo alcançado pelos imports do `/comecar` que chama `useStore(` (o wizard roda fora do `StoreProvider`) |
 | `fonte.ts` | | o que as guardas têm em comum: raízes, parser, `conferirDivida` |

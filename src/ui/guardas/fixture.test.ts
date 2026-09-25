@@ -17,7 +17,7 @@
  * Pelo parser, não por regex: comentário que cita `D.PERIODO` para explicar por que saiu não
  * é tela, e não reprova.
  *
- * ⚠️ A DÍVIDA É DE 24/09/2026 e só encolhe. Quem paga tudo é o item 1A.10 do backlog.
+ * A dívida de 24/09/2026 foi paga inteira em 25/09/2026 (item 1A.10 do backlog): lista vazia.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
@@ -67,16 +67,12 @@ function varrer(onde: string[], regra: (sf: ts.SourceFile) => ts.Node[]): Achado
   return achados;
 }
 
-/** 24/09/2026. Paga o 1A.10 (tabela T5): `rotuloDoMes`, identidade real do emissor, FAQ e números fora da tela, `resumoDaAssinatura`. */
-const DIVIDA_NOMES: Divida = {
-  "src/ui/detalhe.tsx": [11, "24/09/2026 · D.PRESTADOR, D.PERIODO, D.FAQS, D.NUMEROS_MES nas gavetas (1A.10)"],
-  "src/ui/telas/Grades.tsx": [12, "24/09/2026 · D.PERIODO, D.FAQS, D.NUMEROS_MES, precoPlano em Clientes, Fiscal e Mais (1A.10)"],
-};
-
-/** 24/09/2026. Paga o 1A.10 (número de suporte). As frases do 1A.5 saíram no mesmo dia. */
-const DIVIDA_FRASES: Divida = {
-  "src/ui/telas/Grades.tsx": [1, "24/09/2026 · wa.me/5511999999999 no suporte do Mais (1A.10)"],
-};
+/* Zeradas em 25/09/2026 pelo 1A.10: `rotuloDoMes`/`st.mesDoFechamento` no lugar de
+ * `D.PERIODO`, a identidade do emissor de `st.fiscal.config` no lugar de `D.PRESTADOR`, FAQ e
+ * números de fixture fora do Mais e das gavetas, a linha do plano por `resumoDaAssinatura` e o
+ * suporte por `WHATSAPP_DA_MAISA`. Daqui em diante, qualquer achado reprova. */
+const DIVIDA_NOMES: Divida = {};
+const DIVIDA_FRASES: Divida = {};
 
 describe("G3 · fixture fora da tela", () => {
   it("nenhum nome de fixture novo nas telas, nos componentes e na gaveta", () => {
