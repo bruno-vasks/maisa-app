@@ -49,6 +49,9 @@ export const SECOES: Partial<Record<TelaId, { validas: readonly string[]; padrao
   /* `inicio` é a tela como sempre foi, do topo. `recibo` e `nota` chegam do wizard (1B.14): com a
    * escolha ainda não gravada, abrem o formulário daquele caminho. */
   fiscal: { validas: ["inicio", "dados", "autorizacao", "carne-leao", "recibo", "nota"], padrao: "inicio" },
+  /* Os recortes dos Ajustes (1C.11), na ordem de `RECORTES` (`telas/ajustes.ts`). `auto` é o
+   * padrão e não vai para a URL: WhatsApp enquanto o canal não conectou, Horário depois. */
+  assistente: { validas: ["auto", "horarios", "duvidas", "agendamentos", "comportamento", "personalidade", "whatsapp"], padrao: "auto" },
 };
 
 export function secaoDoEndereco(tela: TelaId, valor: string | null | undefined): string | null {
