@@ -28,6 +28,7 @@ texto de JSX são o que chega à tela.
 | `leitura.test.ts` | **G12** | derivação de tela (`estado/leitura.ts`) que devolve vazio com a leitura em voo ou falhada |
 | `criar.test.ts` | **G7** | "Novo cliente", "Novo serviço", "Marcar atendimento", "Adicionar profissional" ou "Encaixar cliente" como texto de tela fora da lista fechada: o mapa `TELA` e o menu "Novo" da casca, o confirmar do rascunho (`detalhe.tsx`) e o nome do serviço recém-criado (`store.tsx`). A ação de criar é declarada no mapa, não desenhada de novo pela tela (T2) |
 | `gaveta.test.ts` | **G8** | `Detalhe.acoes` deixar de ser a tupla `Rodape` (o `tsc` é quem reprova o terceiro botão), ação `tone: "danger"` sem `confirmar` em `detalhe.tsx`, ação "Fechar", ou o rodapé de `Gaveta.tsx` sem `flex-wrap:wrap` |
+| `moldura.test.ts` | **G15** | `overflow: hidden`/`clip` nas regras `.m-moldura*`, `.m-tabela-rola` e `.m-tabela-corpo` de `globals.css`, ou escrito em `Moldura.tsx` e na `Tabela` de `primitivos.tsx`; `<TelaGrade>` fora da lista de telas que ainda não viraram `Moldura` (a lista só encolhe) |
 | `wizard.test.ts` | **G13** | arquivo alcançado pelos imports do `/comecar` que chama `useStore(` (o wizard roda fora do `StoreProvider`) |
 | `fonte.ts` | | o que as guardas têm em comum: raízes, parser, `conferirDivida` |
 

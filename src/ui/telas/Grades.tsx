@@ -21,6 +21,7 @@ import { EmitirRecibos } from "@/ui/componentes/EmitirRecibos";
 import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
+import { Moldura, Contagem, PeDeAcao } from "@/ui/componentes/Moldura";
 
 /* Estado da nota → como o cartão se apresenta. Um lugar só, para as duas telas
    que mostram nota (Faturamento e a ficha do cliente) contarem a mesma coisa. */
@@ -310,7 +311,6 @@ export function Faturamento() {
   /* ★ O vocabulário da tela inteira sai daqui. Ver `vocabulario` — e leia o aviso lá antes de
      "simplificar" qualquer condição abaixo para `noLote.length`. */
   const voz = vocabulario(st.fiscal);
-  const semCpf = base.filter((c) => c.semCpf).length;
 
   /* ── ★ UM ASSUNTO POR TELA, e é isto que mudou em 26/08/2026 ──
    *
@@ -332,21 +332,21 @@ export function Faturamento() {
    * mais provável dos dois, porque sessão vence e rota falha. Ver `EstadoFiscalUI`. */
   if (voz.falhou) {
     return (
-      <TelaGrade>
+      <Moldura>
         <EmptyState
           title="Não deu para saber o que você emite"
           sub="Nota fiscal e recibo têm telas diferentes, e sem essa resposta a MAISA não mostra nenhuma das duas para não prometer o documento errado."
           action={<Btn onClick={() => void st.recarregarFiscal()}>Tentar de novo</Btn>}
         />
-      </TelaGrade>
+      </Moldura>
     );
   }
 
   if (!voz.sabemos) {
     return (
-      <TelaGrade>
+      <Moldura>
         <div style={s("height:220px;border-radius:var(--radius-card);background:var(--surface-2)")} aria-busy="true" />
-      </TelaGrade>
+      </Moldura>
     );
   }
 
@@ -360,45 +360,50 @@ export function Faturamento() {
     );
   }
 
+  /* ── ⚠️ A MOLDURA DO CNPJ (25/09/2026, 1C.2 e contradição C3) ──
+   * Em cima, parado: o mês e a contagem. No meio, e só ele rola: o cartão do certificado (quando
+   * falta) e a tabela, que é a região (`rolarPorDentro`). Embaixo, parado: o "Emitir", que fecha o
+   * caminho. Antes o botão morava no hero, no topo, e a tabela cortava em 8 de 16 clientes.
+   *
+   * ⚠️ TRÊS CASOS NO PÉ, e nenhum promete o que o emissor recusa (1A.12, 06 P0-2): sem escolha,
+   * o verbo é escolher; com falta, o "Emitir" aparece desligado com o motivo; só com escolha e
+   * nada faltando ele acende. "Mês fechado" só para quem escolheu. */
+  const valorDoLote = noLote.reduce((a, c) => a + c.valor, 0);
+  const pe = !voz.escolheu
+    ? <PeDeAcao resumo="Escolha o documento que você emite." acao={{ label: "Escolher o documento", onClick: () => st.irPara("fiscal") }} />
+    : noLote.length > 0
+      ? (
+        <PeDeAcao
+          resumo={<><span className="n">{noLote.length}</span> {noLote.length === 1 ? "nota a emitir" : "notas a emitir"} · <span className="n">{fmt(valorDoLote)}</span></>}
+          acao={{
+            label: noLote.length === 1 ? "Emitir a nota pendente" : `Emitir as ${noLote.length} pendentes`,
+            onClick: st.pedirLote,
+            ...(voz.motivo ? { desabilitada: true, motivo: voz.motivo } : {}),
+          }}
+        />
+      )
+      : processando.length > 0
+        ? <PeDeAcao resumo={`${processando.length === 1 ? "1 nota está" : `${processando.length} notas estão`} na prefeitura.`} estado={<Estado forma="anel" tom="primary">processando</Estado>} />
+        : <PeDeAcao resumo="Nada a emitir desde a última emissão." estado={<Estado forma="disco" tom="success">Mês fechado</Estado>} />;
+
   return (
-    <TelaGrade>
-      <Hero
-        rotulo={st.mesDoFechamento}
-        valor={fmt(total)}
-        sub={`em ${base.length} clientes`}
-        /* No caminho do recibo os marcos falam do MÊS, e não de documentos: os documentos são o
-           assunto do cartão logo abaixo, e ele os conta com o dado certo (`/api/recibos`). Repetir
-           aqui um contador de notas — que para ela é sempre zero-e-catorze-pendentes — era a fonte
-           do número que não fechava. */
-        marcos={voz.emiteNota
-          ? [
-            { n: emitidas.length, label: "emitidas", tom: "success" },
+    <Moldura
+      topo={
+        <Contagem
+          rotulo={st.mesDoFechamento}
+          valor={fmt(total)}
+          sub={`em ${base.length} clientes`}
+          marcos={[
+            { n: emitidas.length, label: emitidas.length === 1 ? "emitida" : "emitidas", tom: "success" },
             { n: processando.length, label: "processando", tom: "primary" },
             { n: noLote.length, label: "a emitir", tom: "warn" },
             // cancelada tem marco PRÓPRIO: não é "a emitir" (o lote não a emite) nem "emitida".
-            // Antes ela era somada em "a emitir", que é a origem do número que não fechava.
-            ...(canceladas.length ? [{ n: canceladas.length, label: "canceladas", tom: "neutral" as const }] : []),
-          ]
-          : [
-            { n: base.reduce((a, c) => a + c.atendimentos, 0), label: "atendimentos", tom: "primary" as const },
-            ...(semCpf ? [{ n: semCpf, label: "sem CPF", tom: "warn" as const }] : []),
+            ...(canceladas.length ? [{ n: canceladas.length, label: canceladas.length === 1 ? "cancelada" : "canceladas", tom: "neutral" as const }] : []),
           ]}
-        /* ⚠️ TRÊS CASOS, e nenhum promete o que o emissor recusa (1A.12, 06 P0-2):
-           sem escolha, o verbo é escolher; com falta, o "Emitir" aparece desligado com o motivo;
-           só com escolha e nada faltando ele acende. "Mês fechado" só para quem escolheu. */
-        acao={!voz.escolheu
-          ? { label: "Escolher o documento", onClick: () => st.irPara("fiscal"), motivo: "Escolha o documento que você emite." }
-          : voz.emiteNota && noLote.length > 0
-            ? {
-              label: noLote.length === 1 ? "Emitir a nota pendente" : `Emitir as ${noLote.length} pendentes`,
-              icon: "receipt",
-              onClick: st.pedirLote,
-              ...(voz.motivo ? { desabilitada: true, motivo: voz.motivo } : {}),
-            }
-            : undefined}
-        pronto={voz.escolheu && voz.emiteNota && noLote.length === 0 && processando.length === 0 ? "Mês fechado" : undefined}
-      />
-
+        />
+      }
+      pe={pe}
+    >
       {/* Acima da lista de propósito: enquanto a nota fiscal não está ligada, todo botão de
           emitir desta tela é promessa que o emissor vai recusar. O cartão desaparece sozinho
           quando não há nada a fazer (e quando o emissor não está configurado no ambiente,
@@ -452,6 +457,7 @@ export function Faturamento() {
         /* Livro-caixa é tabela. Em cartão, os R$ alinhavam à direita DENTRO de cada cartão e
            nunca formavam coluna — impossível varrer valores num fechamento de mês. */
         <Tabela
+          rolarPorDentro
           linhas={base}
           chaveDe={(c) => c.id}
           estreita={estreita}
@@ -507,7 +513,7 @@ export function Faturamento() {
           ]}
         />
       )}
-    </TelaGrade>
+    </Moldura>
   );
 }
 
@@ -519,23 +525,28 @@ export function Equipe() {
   const estreita = useEstreita();
   const ativos = st.cadastro.profissionais.filter((p) => st.profAtivo(p.id));
 
+  /* Moldura (T1, 1C.2): a contagem e o formulário de adicionar ficam parados; a tabela é a região
+     que rola. */
   return (
-    <TelaGrade>
-      <Hero
-        rotulo="Equipe"
-        valor={String(ativos.length)}
-        sub={`de ${st.cadastro.profissionais.length} recebendo agendamentos`}
-        /* "pausados" só aparece quando há algum. Com a equipe de uma pessoa o marco
-           ficava fixo em "0 pausados" — ocupando espaço para não dizer nada. */
-        marcos={[
-          { n: st.cadastro.profissionais.reduce((a, p) => a + p.atendimentosMes, 0), label: "atendimentos no mês", tom: "primary" },
-          ...(st.cadastro.profissionais.length - ativos.length > 0
-            ? [{ n: st.cadastro.profissionais.length - ativos.length, label: "pausados", tom: "neutral" as const }]
-            : []),
-        ]}
-      />
-      {/* Quem abre é o slot da casca, "Adicionar profissional" (T2, 1B.12). */}
-      {st.novoEmLinha === "profissional" && <NovoProfissional aoFechar={() => st.pedirNovo(null)} />}
+    <Moldura
+      topo={
+        <Contagem
+          rotulo="Equipe"
+          valor={String(ativos.length)}
+          sub={`de ${st.cadastro.profissionais.length} recebendo agendamentos`}
+          /* "pausados" só aparece quando há algum. Com a equipe de uma pessoa o marco
+             ficava fixo em "0 pausados" — ocupando espaço para não dizer nada. */
+          marcos={[
+            { n: st.cadastro.profissionais.reduce((a, p) => a + p.atendimentosMes, 0), label: "atendimentos no mês", tom: "primary" },
+            ...(st.cadastro.profissionais.length - ativos.length > 0
+              ? [{ n: st.cadastro.profissionais.length - ativos.length, label: "pausados", tom: "neutral" as const }]
+              : []),
+          ]}
+        />
+      }
+      /* Quem abre é o slot da casca, "Adicionar profissional" (T2, 1B.12). */
+      cabecalho={st.novoEmLinha === "profissional" ? <NovoProfissional aoFechar={() => st.pedirNovo(null)} /> : undefined}
+    >
       {mobile ? (
         <GradeCartoes>
           {st.cadastro.profissionais.map((p) => {
@@ -569,6 +580,7 @@ export function Equipe() {
            ("quem trabalha sábado?", "quem tem a maior comissão?"). Em cartão, os atributos ficavam
            atrás de hover e comparar dois exigia memória de trabalho. */
         <Tabela
+          rolarPorDentro
           linhas={st.cadastro.profissionais}
           chaveDe={(p) => p.id}
           estreita={estreita}
@@ -622,7 +634,7 @@ export function Equipe() {
           ]}
         />
       )}
-    </TelaGrade>
+    </Moldura>
   );
 }
 
@@ -636,18 +648,22 @@ export function Servicos() {
   const lista = st.servicos.filter((sv) => st.filtroSvc === "Todos" || sv.categoria === st.filtroSvc);
   const ativos = st.servicos.filter((sv) => st.svcAtivo(sv.id));
 
+  /* Moldura (T1, 1C.2): contagem e filtro parados, a tabela rola por dentro. */
   return (
-    <TelaGrade>
-      <Hero
-        rotulo="No catálogo"
-        valor={String(ativos.length)}
-        sub={`de ${st.servicos.length} serviços`}
-        marcos={[
-          { n: fmt(Math.round(ativos.reduce((a, sv) => a + sv.preco, 0) / Math.max(ativos.length, 1))), label: "ticket médio", tom: "primary" },
-          { n: st.servicos.length - ativos.length, label: "fora do catálogo", tom: "neutral" },
-        ]}
-      />
-      <Filtros opcoes={["Todos", ...D.CATEGORIAS]} ativo={st.filtroSvc} onChange={st.setFiltroSvc} />
+    <Moldura
+      topo={
+        <Contagem
+          rotulo="No catálogo"
+          valor={String(ativos.length)}
+          sub={`de ${st.servicos.length} serviços`}
+          marcos={[
+            { n: fmt(Math.round(ativos.reduce((a, sv) => a + sv.preco, 0) / Math.max(ativos.length, 1))), label: "ticket médio", tom: "primary" },
+            { n: st.servicos.length - ativos.length, label: "fora do catálogo", tom: "neutral" },
+          ]}
+        />
+      }
+      cabecalho={<Filtros opcoes={["Todos", ...D.CATEGORIAS]} ativo={st.filtroSvc} onChange={st.setFiltroSvc} />}
+    >
       {/* Faltava estado vazio: filtrar uma categoria sem serviço dava uma faixa em branco sem
           explicação, enquanto Clientes já tratava isso. */}
       {lista.length === 0 ? (
@@ -677,6 +693,7 @@ export function Servicos() {
            As três perguntas reais ("qual o mais caro", "qual demora mais", "o que está fora do ar")
            exigiam varredura em zigue-zague entre cartões cujos preços nem alinhavam. */
         <Tabela
+          rolarPorDentro
           linhas={lista}
           chaveDe={(sv) => sv.id}
           estreita={estreita}
@@ -726,7 +743,7 @@ export function Servicos() {
           ]}
         />
       )}
-    </TelaGrade>
+    </Moldura>
   );
 }
 
@@ -903,7 +920,7 @@ export function Mais() {
    * verdade moram nos Ajustes da MAISA, e os números voltam quando houver fonte. */
 
   return (
-    <TelaGrade>
+    <Moldura>
       {mobile && (
         <section>
           <SectionTitle title="Atalhos" sub="As telas que não cabem na barra de baixo" />
@@ -971,6 +988,6 @@ export function Mais() {
           Falar com o suporte
         </a>
       </div>
-    </TelaGrade>
+    </Moldura>
   );
 }

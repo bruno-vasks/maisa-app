@@ -454,7 +454,7 @@ export type Coluna<T> = {
   largura?: string;
 };
 
-export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estreita }: {
+export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estreita, rolarPorDentro }: {
   colunas: Coluna<T>[];
   linhas: T[];
   chaveDe: (l: T) => string;
@@ -463,6 +463,12 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
   rotuloLinha?: (l: T) => string;
   /** Esconde as colunas secundárias (viewport apertado). */
   estreita?: boolean;
+  /**
+   * A tabela É a região que rola da `Moldura` (T1, 25/09/2026): cresce até o fim da faixa, o
+   * cabeçalho fica parado e só o corpo rola. Sem isso ela tem a altura do conteúdo e quem rola é
+   * a região. No celular não rola por dentro (a moldura inteira rola). CSS em `.m-tabela-rola`.
+   */
+  rolarPorDentro?: boolean;
 }) {
   const [ord, setOrd] = React.useState<{ chave: string; desc: boolean } | null>(null);
   const cols = colunas.filter((c) => !estreita || !c.secundaria);
@@ -482,9 +488,13 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
   const grid = cols.map((c) => c.largura ?? "minmax(0,1fr)").join(" ");
 
   return (
-    <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden")}>
+    /* ⚠️ SEM `overflow:hidden` NO INVÓLUCRO (24/09/2026, 06 P0-1). Era ele que arredondava os
+       cantos, e era ele que cortava: filho flex com `overflow:hidden` tem altura mínima 0, então a
+       tabela encolhia até caber na tela e 8 dos 16 clientes do fechamento do CNPJ não existiam,
+       sem barra de rolagem. Agora quem arredonda é cada fatia (cabeçalho em cima, corpo embaixo). */
+    <div className={rolarPorDentro ? "m-tabela-rola" : undefined} style={s("background:var(--surface);border:1px solid var(--border);border-radius:16px")}>
       {/* cabeçalho */}
-      <div role="row" style={s(`display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surface-2)`)}>
+      <div role="row" style={s(`flex-shrink:0;display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surface-2);border-radius:15px 15px 0 0`)}>
         {cols.map((c) => {
           const ativa = ord?.chave === c.chave;
           const conteudo = (
@@ -514,7 +524,9 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
         })}
       </div>
 
-      {/* linhas */}
+      {/* linhas. Quem arredonda o hover da última é a própria linha (raio embaixo), não um
+          recorte no corpo: recorte aqui voltaria a ser o que corta (guarda G15). */}
+      <div className="m-tabela-corpo" style={s("border-radius:0 0 15px 15px")}>
       {dados.map((l, i) => {
         const conteudo = cols.map((c) => (
           <span
@@ -528,7 +540,7 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
         // Bordas SÓ em propriedades não-shorthand: misturar `border:none` com `border-bottom` no
         // mesmo elemento faz o React reclamar e pode dar bug de estilo ao reordenar (ele remove
         // uma e depois a outra). Aqui cada lado é declarado por si.
-        const linhaBase = `display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;text-align:left;width:100%;background:transparent;border-top-width:0;border-left-width:0;border-right-width:0;border-style:solid;border-color:var(--line);border-bottom-width:${i < dados.length - 1 ? "1px" : "0"};`;
+        const linhaBase = `display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;text-align:left;width:100%;background:transparent;border-top-width:0;border-left-width:0;border-right-width:0;border-style:solid;border-color:var(--line);border-bottom-width:${i < dados.length - 1 ? "1px" : "0"};${i === dados.length - 1 ? "border-radius:0 0 15px 15px;" : ""}`;
         return onLinha ? (
           <button
             key={chaveDe(l)}
@@ -543,6 +555,7 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
           <div key={chaveDe(l)} style={s(linhaBase)}>{conteudo}</div>
         );
       })}
+      </div>
     </div>
   );
 }
