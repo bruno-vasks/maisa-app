@@ -118,6 +118,9 @@ export type Rodape = readonly [] | readonly [Acao] | readonly [Acao, Acao];
 export type Detalhe = {
   titulo: string;
   sub: string;
+  /** Uma linha de estado FIXA, logo abaixo do cabeçalho, fora da rolagem (a ficha do cliente diz
+   *  se a MAISA responde a ele, 1B.11). Forma + rótulo; `acao` ao lado. */
+  faixa?: { forma: "disco" | "anel" | "triangulo"; tom: "success" | "warn" | "neutral"; texto: string; acao?: Acao };
   /** Semente do monograma. Ausente = cabeçalho sem avatar. */
   seed?: string;
   blocos: Bloco[];
@@ -496,8 +499,36 @@ export function useDetalhe(id: string | null): Detalhe | null {
     const svcCliente = st.servicoDe(cli.servicoId);
     const svcOpcoes = st.servicos.filter((sv) => st.svcAtivo(sv.id) || sv.id === cli.servicoId);
 
+    /* ── A MAISA RESPONDE A ESTA PESSOA? (25/09/2026, 1B.11, 05 P0-2) ──
+     * No número pessoal quem decide é o CADERNO de contatos, não esta ficha (`podeResponder`, no
+     * núcleo): cadastrada em Clientes e salva no celular sem marcação, ela cala. A ficha dizia
+     * "Em atendimento" e parecia responder a pergunta. Agora diz o que o caderno diz, e oferece o
+     * gesto que resolve. A regra do núcleo não muda (decisão 2 do backlog); a ponte é de tela. */
+    const primeiro = D.primeiroNome(cli.nome);
+    const cad = st.caderno;
+    const chave = D.soDigitos(cli.telefone).slice(-8);
+    const faixa: Detalhe["faixa"] = !cli.telefone
+      ? { forma: "anel", tom: "neutral", texto: `Sem telefone, a MAISA não reconhece ${primeiro} no WhatsApp.` }
+      : cad.fase === "carregando"
+        ? { forma: "anel", tom: "neutral", texto: "Conferindo se a MAISA responde…" }
+        : cad.fase === "erro"
+          ? { forma: "anel", tom: "neutral", texto: cad.frase, acao: { label: "Tentar de novo", onClick: st.recarregarCaderno } }
+          : cad.modo === "negocio"
+            ? { forma: "disco", tom: "success", texto: "A MAISA responde todo mundo neste número." }
+            : cad.cliente[chave] === true
+              ? { forma: "disco", tom: "success", texto: `A MAISA responde a ${primeiro}.` }
+              : {
+                forma: "triangulo", tom: "warn",
+                texto: cad.cliente[chave] === false
+                  ? `A MAISA não responde a ${primeiro}: nos seus contatos está como "não atende".`
+                  : chave in cad.cliente
+                    ? `A MAISA não responde a ${primeiro}: está nos seus contatos sem marcação.`
+                    : `A MAISA não responde a ${primeiro}: neste número ela só atende cliente marcado.`,
+                acao: { label: `Responder a ${primeiro}`, onClick: () => st.responderA(cli.telefone) },
+              };
+
     return {
-      titulo: cli.nome, seed: cli.id,
+      titulo: cli.nome, seed: cli.id, faixa,
       sub: `${st.nomeServico(cli.servicoId)} · ${cli.canal} · desde ${cli.desde}`,
       blocos: [
         /* ── A FICHA VIROU FORMULÁRIO (24/08/2026) ──

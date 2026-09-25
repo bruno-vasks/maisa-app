@@ -9,7 +9,7 @@
  * sabe DESENHAR blocos; não sabe o que é cliente, nota ou conversa. */
 
 import React, { useEffect, useRef } from "react";
-import { s, Icon, Monogram, Toggle, Chip, Field, Input, Select, toast } from "@/ui/primitivos";
+import { s, Icon, Monogram, Toggle, Chip, Field, Input, Select, Estado, toast } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { useStore } from "@/ui/estado/store";
 import { useDetalhe, type Acao, type AcaoDestrutiva, type Bloco, type Recibo as ReciboT, type Campo as CampoT } from "@/ui/detalhe";
@@ -525,6 +525,23 @@ export default function Gaveta() {
             <Icon name="x" size={mobile ? 19 : 17} sw={2.2} />
           </button>
         </div>
+
+        {det.faixa && (
+          <div role="status" style={s(`flex-shrink:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:${mobile ? "10px 16px" : "12px 24px"};border-bottom:1px solid var(--line);background:${det.faixa.tom === "warn" ? "var(--warn-soft)" : "var(--bg)"}`)}>
+            <span style={s("flex:1 1 200px;min-width:0")}><Estado forma={det.faixa.forma} tom={det.faixa.tom}>{det.faixa.texto}</Estado></span>
+            {det.faixa.acao && (
+              <button
+                type="button"
+                onClick={det.faixa.acao.onClick}
+                disabled={det.faixa.acao.desabilitada}
+                className="m-hov-bg m-press m-focus"
+                style={s(`flex-shrink:0;${estiloDoBotao({ desabilitada: det.faixa.acao.desabilitada }, mobile)};height:44px`)}
+              >
+                {det.faixa.acao.label}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* blocos */}
         <div style={s(`flex:1;overflow-y:auto;padding:${mobile ? "18px 20px" : "22px 24px"};display:flex;flex-direction:column;gap:22px`)}>

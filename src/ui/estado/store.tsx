@@ -23,6 +23,7 @@ import { estadoDaGravacao, semConfirmacao, type EstadoDaGravacao, type RecursoGr
 import type { Canal } from "@/nucleo/dominio/canal";
 import { statusDaMaisa, type StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
 import { MAX_DIAS_VARRIDOS, PASSO_MIN, vagasDoDia } from "@/nucleo/dominio/vagas";
+import { chaveDe, type ModoDoNumero } from "@/nucleo/dominio/contatos";
 import type { CaminhoFiscal, ConfigFiscal } from "@/nucleo/dominio/fiscal";
 import type { Faq } from "@/nucleo/dominio/faq";
 import type { Faturamento } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -702,6 +703,19 @@ export type StoreValue = {
    * Sem número completo não faz nada: `wa.me/` vazio abre o WhatsApp sem ninguém.
    */
   abrirNoWhatsApp: (id: string) => void;
+
+  /**
+   * O caderno de contatos lido (`GET /api/contatos`): o modo do número e a marcação de cada chave.
+   * Existe para a ficha do cliente dizer se a MAISA responde a ele (1B.11, 05 P0-2): no modo
+   * pessoal quem decide é o caderno, não o cadastro, e a Mariana cadastrada que está nos
+   * contatos sem marcação fica calada sem ninguém saber. A regra continua no núcleo
+   * (`podeResponder`); aqui só se lê o que ela lê.
+   */
+  caderno: { fase: "carregando" } | { fase: "erro"; frase: string } | { fase: "ok"; modo: ModoDoNumero; cliente: Record<string, boolean | null> };
+  recarregarCaderno: () => void;
+  /** Marca o telefone como cliente no caderno (`PATCH /api/contatos { telefone, cliente: true }`,
+   *  que faz upsert). Otimista, com volta se o servidor recusar. */
+  responderA: (telefone: string) => void;
 
   /* ── o cadastro, vindo do servidor ──
    * O que substituiu `import * as D from "@/adaptadores/saida/demo"` nas telas. Ver
@@ -1686,6 +1700,55 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const devolver = useCallback((id: string) => {
     void mudarPosse(id, "devolver", "Devolvida à MAISA");
   }, [mudarPosse]);
+
+  const [caderno, setCaderno] = useState<StoreValue["caderno"]>({ fase: "carregando" });
+  const recarregarCaderno = useCallback(async () => {
+    try {
+      const r = await fetch("/api/contatos", { cache: "no-store" }).then((x) => x.json());
+      if (!r?.ok) {
+        setCaderno({ fase: "erro", frase: r?.status === "login_necessario" ? "Entre na sua conta para ver se a MAISA responde." : "Não consegui ler seus contatos." });
+        return;
+      }
+      const cliente: Record<string, boolean | null> = {};
+      for (const c of (r.contatos ?? []) as { chave: string; cliente: boolean | null }[]) cliente[c.chave] = c.cliente;
+      setCaderno({ fase: "ok", modo: r.modo, cliente });
+    } catch {
+      setCaderno({ fase: "erro", frase: "Sem conexão com o servidor." });
+    }
+  }, []);
+  /* Relê ao entrar em Clientes: as marcações mudam na tela de Contatos, e a ficha diria o antigo. */
+  useEffect(() => { if (tela === "clientes" || tela === "fluxo") void recarregarCaderno(); }, [tela, recarregarCaderno]);
+
+  const responderA = useCallback((telefone: string) => {
+    const chave = chaveDe(telefone);
+    if (!chave) return;
+    let antes: boolean | null | undefined;
+    setCaderno((c) => {
+      if (c.fase !== "ok") return c;
+      antes = c.cliente[chave];
+      return { ...c, cliente: { ...c.cliente, [chave]: true } };
+    });
+    const voltar = () => setCaderno((c) => {
+      if (c.fase !== "ok") return c;
+      const cliente = { ...c.cliente };
+      if (antes === undefined) delete cliente[chave]; else cliente[chave] = antes;
+      return { ...c, cliente };
+    });
+    void (async () => {
+      try {
+        const r = await fetch("/api/contatos", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ telefone, cliente: true }),
+        }).then((x) => x.json());
+        if (!r?.ok) { voltar(); toast(r?.info ?? "Não consegui marcar como cliente."); return; }
+        toast("Marcado como cliente: a MAISA passa a responder");
+      } catch {
+        voltar();
+        toast("Sem conexão com o servidor. Nada mudou.");
+      }
+    })();
+  }, []);
 
   const abrirNoWhatsApp = useCallback((id: string) => {
     const cv = conversas.find((c) => c.id === id);
@@ -4397,7 +4460,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
     convSel, selecionarConversa, abaConv, setAbaConv, threadDe, threadCarregando,
-    enviar, enviando, assumir, devolver, abrirNoWhatsApp,
+    enviar, enviando, assumir, devolver, abrirNoWhatsApp, caderno, recarregarCaderno, responderA,
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
@@ -4430,7 +4493,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
     convSel, selecionarConversa, abaConv, threadDe, threadCarregando,
-    enviar, enviando, assumir, devolver, abrirNoWhatsApp,
+    enviar, enviando, assumir, devolver, abrirNoWhatsApp, caderno, recarregarCaderno, responderA,
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
