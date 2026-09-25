@@ -382,6 +382,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 .m-tabela-rola { flex: 0 1 auto; min-height: 240px; display: flex; flex-direction: column; }
 .m-tabela-rola > .m-tabela-corpo { flex: 1; min-height: 0; overflow-y: auto; }
 
+/* A faixa do WhatsApp nos Ajustes (1C.13, 07 P0.6). A 390px o título quebrava em duas linhas e
+   "Trocar número" ficava POR CIMA do número conectado. Em caixa estreita as ações descem para uma
+   linha própria, alinhadas com o texto (o ponto tem 9px e o respiro 14). */
+.m-canal { container-type: inline-size; }
+.m-canal-linha { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+@container (max-width: 560px) {
+  .m-canal-acoes { flex-basis: 100%; padding-left: 23px; }
+}
+
 /* No celular a moldura inteira é a região (o `<main>` da casca só dá a caixa): nada de caixa de
    rolagem aninhada. Cabeçalho e pé ficam grudados com `sticky`, nunca `fixed`. */
 @media (max-width: 900px) {

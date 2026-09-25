@@ -106,7 +106,7 @@ export function useAcaoDoStatus(): { rotulo: string; fazer: () => void } | null 
   switch (st.statusMaisa) {
     case "atendendo": return { rotulo: "Pausar a MAISA", fazer: () => st.setAssistente({ ativa: false }) };
     case "pausada": return { rotulo: "Voltar a atender", fazer: () => st.setAssistente({ ativa: true }) };
-    case "sem_whatsapp": return { rotulo: "Conectar o WhatsApp", fazer: () => st.irPara("assistente") };
+    case "sem_whatsapp": return { rotulo: "Conectar o WhatsApp", fazer: () => st.irPara("assistente", "whatsapp") };
     default: return null;
   }
 }

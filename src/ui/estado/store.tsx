@@ -869,8 +869,6 @@ export type StoreValue = {
   confirmarLote: () => void;
 
   /* ajustes da MAISA */
-  secAtiva: string | null;
-  abrirSecao: (id: string) => void;
   assistente: Assistente;
   setAssistente: (patch: Partial<Assistente>) => void;
   /**
@@ -1455,7 +1453,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [abaConv, setAbaConv] = useState<AbaConversa>("todas");
   const [filtroSvc, setFiltroSvc] = useState("Todos");
   const [filtroCli, setFiltroCli] = useState("Ativos");
-  const [secAtiva, setSecAtiva] = useState<string | null>("personalidade");
   const [salvo, setSalvo] = useState(false);
   const [railAberto, setRailAberto] = useState(false);
   // Dia visível na Agenda, data ISO. Volátil de propósito: recarregar cai em hoje, como o
@@ -3513,10 +3510,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await conectarCanal(p);
   }, [canalFaltando, conectarCanal, desconectarCanal]);
 
-  const abrirSecao = useCallback((id: string) => {
-    setSecAtiva((s) => (s === id ? null : id));
-  }, []);
-
   const setAssistente = useCallback((p: Partial<Assistente>) => {
     mexerNosAjustes({ assistente: p });
   }, [mexerNosAjustes]);
@@ -4586,7 +4579,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
-    secAtiva, abrirSecao,
     assistente: ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
@@ -4620,7 +4612,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
-    secAtiva, abrirSecao,
     ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,

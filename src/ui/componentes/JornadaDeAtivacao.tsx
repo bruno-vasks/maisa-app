@@ -159,7 +159,7 @@ export function passosDaJornada(st: StoreValue): PassoDaJornada[] {
     {
       id: "whatsapp_conectado", titulo: "WhatsApp", icone: "whatsapp",
       ganho: "Sem ele a MAISA não atende ninguém",
-      ir: () => st.irPara("assistente"),
+      ir: () => st.irPara("assistente", "whatsapp"),
     },
     /* "Sua agenda" saiu em 25/09/2026 (1B.15): a MAISA marca sem Google, e o passo deixou de
        ser cobrado. Ver `PASSOS_DE_ATIVACAO`. */

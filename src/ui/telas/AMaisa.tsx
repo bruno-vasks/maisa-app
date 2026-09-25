@@ -12,7 +12,7 @@
  * Tudo aqui é controlado pelo store, então o preview reage enquanto você digita. */
 
 import React from "react";
-import { s, Btn, Icon, Toggle } from "@/ui/primitivos";
+import { s, Btn, Icon, Toggle, Estado } from "@/ui/primitivos";
 import { DeQuemEEsseNumero } from "@/ui/componentes/DeQuemEEsseNumero";
 import { LinhaDeStatus } from "@/ui/componentes/StatusDaMaisa";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
@@ -23,14 +23,9 @@ import {
 import { useIsMobile } from "@/ui/useIsMobile";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore } from "@/ui/estado/store";
+import { Moldura } from "@/ui/componentes/Moldura";
+import { RECORTES, falasDoPreview, recorteAtivo, type RecorteId } from "@/ui/telas/ajustes";
 
-const ICONE: Record<string, string> = {
-  personalidade: "sparkle",
-  horarios: "clock",
-  agendamentos: "calendar-check",
-  duvidas: "faq",
-  comportamento: "bot",
-};
 
 /* ───────────────────────────── peças ───────────────────────────── */
 
@@ -243,13 +238,15 @@ function FaixaCanalLida() {
   const forte = conectado ? "var(--success)" : pareando ? "var(--warn)" : "var(--muted)";
   const fundo = conectado ? "var(--success-soft)" : pareando ? "var(--warn-soft)" : "var(--surface-2)";
 
+  /* Conectado, o número É o título (07 P0.6): formatado, numa linha, e não "+5511…" cru num
+   * subtítulo que o botão cobria a 390px. */
   const titulo = conectado
-    ? "WhatsApp conectado"
+    ? st.canal?.numero ? `Conectado no ${D.telefoneBonito(st.canal.numero)}` : "WhatsApp conectado"
     : pareando
       ? mostrandoCodigo ? "Aguardando o código no WhatsApp" : "Aguardando leitura do QR"
       : "WhatsApp não conectado";
   const sub = conectado
-    ? st.canal?.numero ? `+${st.canal.numero}` : "Número conectado"
+    ? null
     : pareando
       ? mostrandoCodigo
         ? "Aparelhos conectados → Conectar aparelho → Conectar com número de telefone"
@@ -272,15 +269,18 @@ function FaixaCanalLida() {
   const travado = st.canalFaltando.length > 0;
 
   return (
-    <div style={s(`flex-shrink:0;display:flex;flex-direction:column;gap:12px;padding:13px 16px;border-radius:16px;background:${fundo};border:1px solid ${forte}`)}>
-      <div style={s("display:flex;align-items:center;gap:14px")}>
+    /* `m-canal` é um contêiner (`container-type:inline-size`, `globals.css`): em caixa estreita as
+       ações descem para uma linha própria, abaixo do número (1C.13). Por @container e não por
+       `useIsMobile`, porque quem decide é a largura do bloco, não a do aparelho. */
+    <div className="m-canal" style={s(`flex-shrink:0;display:flex;flex-direction:column;gap:12px;padding:13px 16px;border-radius:12px;background:${fundo};border:1px solid ${forte}`)}>
+      <div className="m-canal-linha">
         <span style={s(`width:9px;height:9px;flex-shrink:0;border-radius:50%;background:${forte}`)} />
         <span style={s("flex:1;min-width:0")}>
           <span style={s(`display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:${forte}`)}>{titulo}</span>
-          <span style={s("display:block;font-size:var(--t-label);color:var(--ink);margin-top:2px;line-height:var(--lh-ui)")}>{sub}</span>
+          {sub && <span style={s("display:block;font-size:var(--t-label);color:var(--ink);margin-top:2px;line-height:var(--lh-ui)")}>{sub}</span>}
         </span>
 
-        <span style={s("display:flex;gap:8px;flex-shrink:0")}>
+        <span className="m-canal-acoes" style={s("display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap")}>
           {!conectado && !pareando && !travado && (
             <Btn
               variant="whats"
@@ -830,33 +830,23 @@ function Duvidas() {
   );
 }
 
-function Corpo({ id }: { id: string }) {
+function Corpo({ id }: { id: RecorteId }) {
+  const st = useStore();
+  if (id === "whatsapp") {
+    return (
+      <div style={s("display:flex;flex-direction:column;gap:16px")}>
+        <FaixaCanal />
+        {/* "De quem é esse número" só com o canal de pé (07 P1.4): antes de existir número,
+            a pergunta não tem sobre o que ser. */}
+        {st.canal?.status === "conectado" && <DeQuemEEsseNumero />}
+      </div>
+    );
+  }
   if (id === "personalidade") return <Personalidade />;
   if (id === "horarios") return <Horarios />;
   if (id === "agendamentos") return <ListaToggles itens={D.TOGGLES_AGENDAMENTO} />;
   if (id === "duvidas") return <Duvidas />;
   return <ListaToggles itens={D.TOGGLES_COMPORTAMENTO} />;
-}
-
-/* Subtítulo de cada seção — reflete a configuração atual, não um texto fixo.
-   É o que permite ler o estado do assistente sem abrir nada. */
-function resumoDaSecao(id: string, st: ReturnType<typeof useStore>): string {
-  if (id === "personalidade") return `${st.assistente.nome} · tom ${st.assistente.tom}${st.assistente.ativa ? "" : " · pausada"}`;
-  if (id === "horarios") {
-    /* A MESMA frase que vai no prompt do agente (`persona.ts` chama `semanaEmTexto`).
-     * Não é economia de código: é o que garante que o resumo na tela e o que a MAISA
-     * anuncia no WhatsApp nunca divirjam — duas formatações do mesmo dado divergem. */
-    if (!st.semana.some((d) => d.aberto)) return "Nenhum dia aberto — a MAISA não agenda";
-    return D.semanaEmTexto(st.semana);
-  }
-  if (id === "agendamentos") {
-    const n = D.TOGGLES_AGENDAMENTO.filter((t) => st.cfg[t.chave]).length;
-    return `${n} de ${D.TOGGLES_AGENDAMENTO.length} automações ligadas`;
-  }
-  /* Dúvidas caía aqui e herdava a frase do Comportamento ("Chama você quando não sabe"), que
-   * não diz nada sobre as dúvidas. Sem resumo próprio até a leitura das FAQs dizer quantas são. */
-  if (id === "duvidas") return "";
-  return st.cfg.encaminhar ? "Chama você quando não sabe" : "Responde sozinha sempre";
 }
 
 /* ───────────────────────────── preview de WhatsApp ───────────────────────────── */
@@ -869,24 +859,27 @@ function horaDaMsg(i: number) {
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
 
-function Preview() {
+/* O que ela escreve no recorte aberto, derivado do dado (`falasDoPreview`, 1C.12). */
+function Preview({ recorte }: { recorte: RecorteId | null }) {
   const st = useStore();
-  const pv = D.PREVIEWS[st.secAtiva ?? "personalidade"] ?? D.PREVIEWS.personalidade;
-  // Na Personalidade a fala vem dos dois nomes da seção, que são os que o prompt usa ("Você é
-  // ___, a assistente de atendimento de ___"). Mostrava a saudação, que não chega no cliente.
-  const msgs = st.secAtiva === "personalidade"
-    ? [
-      { de: "cliente" as const, txt: "Oi, bom dia!" },
-      /* Antes de ler, "…": os dois nomes seriam os do placeholder ("MAISA", "Seu Negócio"). */
-      { de: "bot" as const, txt: st.ajustesCarregados && st.cadastroCarregado
-        ? `Olá! Aqui é a ${st.assistente.nome || "MAISA"}, do ${st.cadastro.negocio.nome}. Como posso te ajudar?`
-        : "…" },
-    ]
-    : pv.msgs;
+  const pv = recorte
+    ? falasDoPreview(recorte, {
+      nomeAssistente: st.assistente.nome,
+      nomeNegocio: st.cadastro.negocio.nome,
+      lidos: st.ajustesCarregados && st.cadastroCarregado,
+      semana: st.semana,
+      semanaLida: st.semanaCarregada,
+      faqs: st.faqs,
+      cfg: st.cfg,
+      lembreteHoras: st.assistente.lembreteHoras,
+    })
+    : { falas: null };
+  const falas = "falas" in pv ? pv.falas : null;
 
   return (
-    <div style={s("flex:1;min-height:0;border-radius:30px;padding:9px;background:linear-gradient(150deg, oklch(0.32 0.03 262), oklch(0.20 0.02 262));box-shadow:0 22px 46px oklch(0.28 0.03 262 / 0.26);display:flex")}>
-      <div style={s("flex:1;min-width:0;border-radius:23px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column")}>
+    /* Moldura chapada, sem gradiente (emenda 3 do maisa-design). */
+    <div style={s("flex:1;min-height:0;border-radius:24px;padding:8px;background:var(--nav);display:flex")}>
+      <div style={s("flex:1;min-width:0;border-radius:18px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column")}>
         <div style={s("flex-shrink:0;display:flex;align-items:center;gap:10px;padding:13px 14px;background:var(--nav)")}>
           <span style={s("width:36px;height:36px;flex-shrink:0;border-radius:50%;background:var(--nav-active);color:var(--warm);display:flex;align-items:center;justify-content:center;font-weight:var(--w-title);font-size:var(--t-body)")}>m</span>
           <span style={s("flex:1;min-width:0")}>
@@ -896,36 +889,41 @@ function Preview() {
             <span style={s("display:flex;align-items:center;gap:5px;font-size:var(--t-micro);color:var(--nav-soft);margin-top:1px")}>
               {/* "online" só quando ela responde de verdade (interruptor E canal). */}
               <span style={s(`width:6px;height:6px;border-radius:50%;background:${st.statusMaisa === "atendendo" ? "var(--whatsapp-mark)" : "var(--nav-muted)"}`)} />
-              {st.statusMaisa === "atendendo" ? "online" : "sem responder"}{st.ajustesCarregados && ` · tom ${st.assistente.tom}`}
+              {st.statusMaisa === "atendendo" ? "online" : "sem responder"}
             </span>
           </span>
         </div>
 
         <div style={s("flex:1;min-height:0;overflow-y:auto;padding:16px 13px;display:flex;flex-direction:column;gap:9px")}>
-          <span style={s("align-self:center;font-size:var(--t-micro);font-weight:var(--w-title);color:var(--muted);background:var(--surface);padding:4px 12px;border-radius:999px")}>{pv.titulo}</span>
-          {/* O cabeçalho apresenta a MAISA como o CONTATO, então quem olha esta tela é o
-              cliente: as falas da MAISA vêm à esquerda em bolha clara, e as do cliente à
-              direita. Estava invertido, e era justo aqui que o usuário aprende quem fala. */}
-          {msgs.map((m, i) => {
-            const bot = m.de === "bot";
-            return (
-              <div
-                key={`${st.secAtiva}-${i}`}
-                className="m-bubble"
-                style={s(`max-width:84%;align-self:${bot ? "flex-start" : "flex-end"};padding:9px 13px 7px;font-size:var(--t-sm);line-height:1.5;border-radius:15px;background:${bot ? "var(--surface)" : "var(--primary-soft)"};color:${bot ? "var(--ink)" : "var(--primary-dark)"};border-bottom-${bot ? "left" : "right"}-radius:5px;box-shadow:0 1px 2px oklch(0.22 0.03 262 / 0.08)`)}
-              >
-                {m.txt}
-                <span className="n" style={s("display:block;text-align:right;margin-top:3px;font-size:var(--t-micro);font-weight:var(--w-data);color:var(--muted)")}>
-                  {horaDaMsg(i)}
-                </span>
-              </div>
-            );
-          })}
+          {"aviso" in pv ? (
+            <span style={s("margin:auto 8px;text-align:center;font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>{pv.aviso}</span>
+          ) : falas === null ? (
+            <span aria-hidden style={s("align-self:flex-start;width:60%;height:44px;border-radius:15px;background:var(--line)")} />
+          ) : (
+            /* O cabeçalho apresenta a MAISA como o CONTATO, então quem olha esta tela é o
+               cliente: as falas da MAISA vêm à esquerda em bolha clara, e as do cliente à
+               direita. Estava invertido, e era justo aqui que o usuário aprende quem fala. */
+            falas.map((m, i) => {
+              const bot = m.de === "bot";
+              return (
+                <div
+                  key={`${recorte}-${i}`}
+                  className="m-bubble"
+                  style={s(`max-width:84%;align-self:${bot ? "flex-start" : "flex-end"};padding:9px 13px 7px;font-size:var(--t-sm);line-height:1.5;border-radius:15px;background:${bot ? "var(--surface)" : "var(--primary-soft)"};color:${bot ? "var(--ink)" : "var(--primary-dark)"};border-bottom-${bot ? "left" : "right"}-radius:5px;box-shadow:0 1px 2px oklch(0.22 0.03 262 / 0.08)`)}
+                >
+                  {m.txt}
+                  <span className="n" style={s("display:block;text-align:right;margin-top:3px;font-size:var(--t-micro);font-weight:var(--w-data);color:var(--muted)")}>
+                    {horaDaMsg(i)}
+                  </span>
+                </div>
+              );
+            })
+          )}
         </div>
 
         <div style={s("flex-shrink:0;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border-top:1px solid var(--line)")}>
-          <span style={s("flex:1;background:var(--bg);border-radius:999px;padding:8px 14px;font-size:var(--t-label);color:var(--muted)")}>Mensagem</span>
-          <span style={s("width:34px;height:34px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--primary);color:var(--on-primary)")}>
+          <span style={s("flex:1;background:var(--bg);border-radius:10px;padding:8px 14px;font-size:var(--t-label);color:var(--muted)")}>Mensagem</span>
+          <span aria-hidden style={s("width:34px;height:34px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--primary);color:var(--on-primary)")}>
             <Icon name="send" size={15} sw={2} />
           </span>
         </div>
@@ -934,22 +932,22 @@ function Preview() {
   );
 }
 
-/* ───────────────────────────── seção (acordeão) ───────────────────────────── */
+/* ───────────────────────────── o recorte ───────────────────────────── */
 
 /**
- * A seção já tem o valor do servidor? (24/09/2026, item 1A.7)
+ * O recorte já tem o valor do servidor? (24/09/2026, item 1A.7)
  *
  * Antes de `GET /api/assistente` e `GET /api/horarios` voltarem, o store segura
  * `AJUSTES_PLACEHOLDER` e `SEMANA_PLACEHOLDER` (⚠️ primeira pintura, não default de produto).
  * Com os campos abertos, o dono editava "MAISA", "tom amigável" e a semana de 08:00 às 20:00
- * que nunca foram dele, e a gravação ia por cima do que estava no banco. Agora a seção só
+ * que nunca foram dele, e a gravação ia por cima do que estava no banco. Agora o recorte só
  * desenha campo com o valor lido; antes disso, esqueleto; se a leitura falhou, a frase.
  *
- * Personalidade também espera o cadastro: o nome do negócio vem dele, e o placeholder é o
- * fixture. Dúvidas tem leitura própria (`st.faqs`) e fica de fora.
+ * "Como ela fala" também espera o cadastro: o nome do negócio vem dele, e o placeholder é o
+ * fixture. Respostas prontas tem leitura própria (`st.faqs`) e o WhatsApp também (`FaixaCanal`).
  */
-function leituraDaSecao(id: string, st: ReturnType<typeof useStore>): { lida: boolean; erro: string | null } {
-  if (id === "duvidas") return { lida: true, erro: null };
+function leituraDoRecorte(id: RecorteId, st: ReturnType<typeof useStore>): { lida: boolean; erro: string | null } {
+  if (id === "duvidas" || id === "whatsapp") return { lida: true, erro: null };
   if (id === "horarios") return { lida: st.semanaCarregada, erro: st.semanaErro };
   if (id === "personalidade") {
     return { lida: st.ajustesCarregados && st.cadastroCarregado, erro: st.ajustesErro ?? st.cadastroErro };
@@ -957,97 +955,140 @@ function leituraDaSecao(id: string, st: ReturnType<typeof useStore>): { lida: bo
   return { lida: st.ajustesCarregados, erro: st.ajustesErro };
 }
 
-function Secao({ sec }: { sec: D.SecaoAjuste }) {
+function Recorte({ id }: { id: RecorteId }) {
   const st = useStore();
-  const aberta = st.secAtiva === sec.id;
-  const { lida, erro } = leituraDaSecao(sec.id, st);
+  const { lida, erro } = leituraDoRecorte(id, st);
+  if (lida) return <Corpo id={id} />;
+  /* O store não relê ajustes sob demanda (e este item só LÊ as bandeiras dele, ver o ⚠️ de
+   * coalescer no store): tentar de novo é recarregar a página. */
+  if (erro) return <FalhaDeLeitura embutida frase="Não consegui ler estes ajustes." detalhe={erro} tentar={() => window.location.reload()} />;
+  return <Esqueleto linhas={3} altura={44} rotulo={`Lendo ${tituloDe(id).toLowerCase()}`} />;
+}
 
+const tituloDe = (id: RecorteId) => RECORTES.find((r) => r.id === id)!.titulo;
+
+/** O que pede a mão do dono, marcado na navegação. Só pendência, nunca contagem de coisa boa. */
+function pendenciaDe(id: RecorteId, st: ReturnType<typeof useStore>): string | null {
+  if (id !== "whatsapp" || !st.canal) return null;
+  if (st.canal.status !== "conectado") return "Sem WhatsApp";
+  if (st.cfg.encaminhar && !st.canal.telefoneDono) return "Ninguém recebe os avisos";
+  return null;
+}
+
+/** A navegação dos recortes. No desktop, a coluna de 14rem; no celular, a lista que abre cada um. */
+function Navegacao({ ativo, celular }: { ativo: RecorteId | null; celular?: boolean }) {
+  const st = useStore();
   return (
-    <div style={s(`background:var(--surface);border:1px solid ${aberta ? "var(--primary)" : "var(--border)"};border-radius:16px;overflow:hidden;box-shadow:${aberta ? "0 14px 34px oklch(0.22 0.03 262 / 0.12)" : "var(--shadow-card)"};transition:border-color var(--dur-slow) var(--ease-out),box-shadow var(--dur-slow) var(--ease-out)`)}>
-      <button
-        onClick={() => st.abrirSecao(sec.id)}
-        aria-expanded={aberta}
-        className="m-press m-focus"
-        style={s("width:100%;display:flex;align-items:center;gap:13px;padding:16px 18px;background:transparent;border:none;cursor:pointer;text-align:left")}
-      >
-        <span style={s(`width:40px;height:40px;flex-shrink:0;border-radius:12px;display:flex;align-items:center;justify-content:center;background:${aberta ? "var(--primary)" : "var(--primary-soft)"};color:${aberta ? "var(--on-primary)" : "var(--primary-dark)"};transition:var(--tr-ui)`)}>
-          <Icon name={ICONE[sec.id]} size={20} sw={1.9} />
-        </span>
-        <span style={s("flex:1;min-width:0")}>
-          <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title)")}>{sec.titulo}</span>
-          <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>
-            {lida ? resumoDaSecao(sec.id, st) : <span aria-hidden style={s("display:inline-block;width:140px;height:10px;border-radius:6px;background:var(--line)")} />}
-          </span>
-        </span>
-        <span style={s(`flex-shrink:0;display:flex;color:var(--muted);transform:rotate(${aberta ? "180deg" : "0deg"});transition:transform var(--dur-slow) var(--ease-out)`)}>
-          <Icon name="chevron-down" size={20} sw={2.2} />
-        </span>
-      </button>
-
-      <div className={`m-acc${aberta ? " is-open" : ""}`}>
-        <div>
-          <div style={s("padding:2px 18px 20px")}>
-            {lida
-              ? <Corpo id={sec.id} />
-              : erro
-                /* O store não relê ajustes sob demanda (e este item só LÊ as bandeiras dele,
-                 * ver o ⚠️ de coalescer no store): tentar de novo é recarregar a página. */
-                ? <FalhaDeLeitura embutida frase="Não consegui ler estes ajustes." detalhe={erro} tentar={() => window.location.reload()} />
-                : <Esqueleto linhas={3} altura={44} rotulo={`Lendo ${sec.titulo.toLowerCase()}`} />}
-          </div>
-        </div>
-      </div>
-    </div>
+    <nav aria-label="Seções dos ajustes" style={s(`display:flex;flex-direction:column;${celular ? "background:var(--surface);border:1px solid var(--border);border-radius:12px" : "gap:2px"}`)}>
+      {RECORTES.map((r, i) => {
+        const on = !celular && r.id === ativo;
+        const pend = pendenciaDe(r.id, st);
+        return (
+          <button
+            key={r.id}
+            type="button"
+            onClick={() => st.irPara("assistente", r.id)}
+            aria-current={on ? "page" : undefined}
+            className="m-focus m-hov-bg"
+            style={s(`display:flex;align-items:center;gap:10px;min-height:${celular ? 56 : 44}px;padding:0 ${celular ? 16 : 12}px;border:none;${celular && i < RECORTES.length - 1 ? "border-bottom:1px solid var(--line);" : ""}border-radius:${celular ? 0 : 8}px;background:${on ? "var(--primary-soft)" : "transparent"};color:${on ? "var(--primary-dark)" : "var(--ink)"};font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);text-align:left;cursor:pointer`)}
+          >
+            <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:2px")}>
+              <span>{r.titulo}</span>
+              {pend && <Estado forma="triangulo" tom="warn">{pend}</Estado>}
+            </span>
+            {celular && <Icon name="chevron-right" size={18} sw={2} style={s("color:var(--muted);flex-shrink:0")} />}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
 /* ───────────────────────────── tela ───────────────────────────── */
 
+/*
+ * A MOLDURA DOS AJUSTES (25/09/2026, 1C.11, 07 P0.1 e §6).
+ *
+ * Fixo: a linha de status (o interruptor mestre, que já era fixo por decisão: desligar aqui para
+ * o atendimento inteiro, e ele não pode sumir de vista), a navegação dos recortes e o preview.
+ * Rola: SÓ o recorte. Conexão, "de quem é" e o telefone de aviso saíram do topo fixo, onde
+ * comiam 600px da dobra de quem só queria mudar o sábado, e viraram o recorte "WhatsApp e
+ * número", que é o padrão enquanto o canal não conecta.
+ *
+ * No celular a lista e o recorte são duas vistas escolhidas por `useIsMobile` (nunca as duas
+ * desenhadas e uma escondida): sem recorte na URL, a lista; com, o recorte e "Ajustes" para
+ * voltar. A linha de status e esse cabeçalho grudam no topo (`Moldura`, `sticky`).
+ *
+ * A faixa de rodapé com "Salvar alterações" saiu em 28/07: cada ajuste persiste sozinho, e o
+ * "Salvo" da linha de status é quem diz que gravou.
+ */
 export default function AMaisa() {
+  const st = useStore();
   const mobile = useIsMobile();
-
-  // A faixa de rodapé com "Salvar alterações" saiu: cada ajuste já persiste sozinho,
-  // então o botão não fazia nada — e ainda repetia, em azul, o "Salvar ajustes" dourado
-  // da topbar. Duas cores para a mesma não-ação.
-
-  const secoes = (
-    <div style={s("display:flex;flex-direction:column;gap:12px")}>
-      {D.SECOES_AJUSTE.map((sec) => <Secao key={sec.id} sec={sec} />)}
-    </div>
-  );
+  const ativo = recorteAtivo(st.secao, st.canal);
 
   if (mobile) {
+    const escolhido = RECORTES.find((r) => r.id === st.secao)?.id ?? null;
     return (
-      <div className="m-enter" style={s("flex:1;min-height:0;overflow-y:auto;padding:2px 16px 24px;display:flex;flex-direction:column;gap:14px")}>
-        {/* No celular o preview vem logo depois da faixa e é curto: é a prova do que
-            os ajustes abaixo fazem, então precisa estar visível sem rolar. */}
-        <FaixaAssistente />
-        <FaixaCanal />
-        <DeQuemEEsseNumero compacto />
-        <div style={s("height:340px;display:flex")}><Preview /></div>
-        {secoes}
-      </div>
+      <Moldura
+        cabecalho={
+          <>
+            <FaixaAssistente />
+            {escolhido && (
+              <div style={s("display:flex;align-items:center;gap:8px;min-height:44px")}>
+                <button
+                  type="button"
+                  onClick={() => st.irPara("assistente")}
+                  className="m-focus m-press"
+                  style={s("display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 8px 0 0;border:none;background:transparent;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--primary);cursor:pointer")}
+                >
+                  <Icon name="chevron-left" size={18} sw={2.2} /> Ajustes
+                </button>
+                <h2 style={s("margin:0;font-size:var(--t-body);font-weight:var(--w-emph);color:var(--ink)")}>{tituloDe(escolhido)}</h2>
+              </div>
+            )}
+          </>
+        }
+      >
+        {escolhido ? (
+          <>
+            <Recorte id={escolhido} />
+            {/* O preview depois da ação: é a prova do que o recorte faz, não a porta dele. */}
+            <div style={s("flex-shrink:0;display:flex;flex-direction:column;gap:8px")}>
+              <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>No WhatsApp</span>
+              <div style={s("height:320px;display:flex")}><Preview recorte={escolhido} /></div>
+            </div>
+          </>
+        ) : (
+          <Navegacao ativo={null} celular />
+        )}
+      </Moldura>
     );
   }
 
   return (
-    <div className="m-enter" style={s("flex:1;min-height:0;height:100%;display:grid;grid-template-columns:minmax(0,1fr) 306px;gap:24px;padding:22px 26px;overflow:hidden")}>
-      {/* A faixa fica fora da área que rola: o interruptor mestre não pode sumir de vista
-          enquanto o usuário mexe nas seções. */}
-      <div style={s("min-height:0;display:flex;flex-direction:column;gap:14px")}>
-        <FaixaAssistente />
-        <FaixaCanal />
-        <DeQuemEEsseNumero />
-        <div style={s("min-height:0;overflow-y:auto;padding:2px 2px 6px 0")}>
-          {secoes}
+    <Moldura cabecalho={<FaixaAssistente />}>
+      <div style={s("flex:1;min-height:0;display:grid;grid-template-columns:14rem minmax(0,1fr) 306px;grid-template-rows:minmax(0,1fr);gap:24px")}>
+        <Navegacao ativo={ativo} />
+
+        {/* A única região que rola. `position:relative` para o que se posiciona dentro dela
+            (esqueleto, avisos) não escapar para a moldura. */}
+        <section aria-label={ativo ? tituloDe(ativo) : "Ajustes"} style={s("min-height:0;overflow-y:auto;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px 22px")}>
+          {ativo ? (
+            <>
+              <h2 style={s("margin:0 0 14px;font-size:var(--t-title);font-weight:var(--w-emph);letter-spacing:var(--ls-title);color:var(--ink)")}>{tituloDe(ativo)}</h2>
+              <Recorte id={ativo} />
+            </>
+          ) : (
+            <Esqueleto linhas={4} altura={44} rotulo="Lendo o seu WhatsApp" />
+          )}
+        </section>
+
+        <div style={s("min-height:0;display:flex;flex-direction:column;gap:10px")}>
+          <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>No WhatsApp</span>
+          <Preview recorte={ativo} />
         </div>
       </div>
-
-      <div style={s("min-height:0;display:flex;flex-direction:column;gap:10px")}>
-        <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>No WhatsApp</span>
-        <Preview />
-        <span style={s("font-size:var(--t-label);line-height:1.5;color:var(--muted)")}>Muda conforme a seção aberta ao lado.</span>
-      </div>
-    </div>
+    </Moldura>
   );
 }

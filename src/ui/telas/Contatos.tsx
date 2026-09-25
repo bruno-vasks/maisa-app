@@ -337,7 +337,7 @@ export default function Contatos() {
                   : "Traga a agenda do WhatsApp para escolher quem ela atende e para ela chamar seus clientes pelo nome."}
             /* Sem WhatsApp, a saída é conectar, e esse sim leva a Ajustes. Com ele, importa aqui. */
             action={semWhatsApp
-              ? <Btn variant="primary" icon="whatsapp" onClick={() => st.irPara("assistente")}>Conectar WhatsApp</Btn>
+              ? <Btn variant="primary" icon="whatsapp" onClick={() => st.irPara("assistente", "whatsapp")}>Conectar WhatsApp</Btn>
               : <Btn variant="primary" icon="download" disabled={importando} onClick={() => void importar()}>{importando ? "Lendo sua agenda…" : "Trazer meus contatos do WhatsApp"}</Btn>}
           />
         ) : (

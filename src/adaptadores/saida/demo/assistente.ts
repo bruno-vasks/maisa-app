@@ -4,9 +4,8 @@
  * agente de WhatsApp existir, é DAQUI que sai o prompt dele — por isso o formato é
  * estruturado, e não uma frase pronta. */
 
-import type { Assistente, ChaveCfg, Dia, SecaoAjuste, Toggle } from "@/nucleo/dominio/assistente";
+import type { Assistente, ChaveCfg, Dia, Toggle } from "@/nucleo/dominio/assistente";
 import { HORAS_ANTES } from "@/nucleo/dominio/lembretes";
-import type { Msg } from "@/nucleo/dominio/conversas";
 
 /**
  * A MAISA de partida — nome, tom e se está ligada.
@@ -25,14 +24,6 @@ export const ASSISTENTE_PADRAO: Assistente = {
    * que começa num prazo diferente do banco faz a tela mentir antes de existir inquilino. */
   lembreteHoras: HORAS_ANTES,
 };
-
-export const SECOES_AJUSTE: SecaoAjuste[] = [
-  { id: "personalidade", titulo: "Personalidade", sub: "Como a MAISA fala e se apresenta" },
-  { id: "horarios", titulo: "Horário de atendimento", sub: "Quando ela pode marcar" },
-  { id: "agendamentos", titulo: "Agendamentos", sub: "O que ela faz com os horários" },
-  { id: "duvidas", titulo: "Dúvidas frequentes", sub: "O que ela responde além de agenda" },
-  { id: "comportamento", titulo: "Comportamento", sub: "Até onde ela vai sozinha" },
-];
 
 export const DIAS_PADRAO: Dia[] = [
   { nome: "Segunda", aberto: true, de: "08:00", ate: "20:00" },
@@ -77,41 +68,7 @@ export const TOGGLES_COMPORTAMENTO: Toggle[] = [
   { chave: "pix", titulo: "Pedir Pix antecipado", desc: "Para garantir o horário em dia cheio" },
 ];
 
-/** Preview de WhatsApp que acompanha a seção aberta em "A MAISA". */
-export const PREVIEWS: Record<string, { titulo: string; msgs: Msg[] }> = {
-  personalidade: {
-    titulo: "Personalidade",
-    msgs: [
-      { de: "cliente", txt: "Oi, bom dia!" },
-      { de: "bot", txt: "Olá! Aqui é a MAISA, assistente do Seu Negócio. Como posso te ajudar hoje?" },
-    ],
-  },
-  horarios: {
-    titulo: "Horário de atendimento",
-    msgs: [
-      { de: "cliente", txt: "Que horas vocês atendem?" },
-      { de: "bot", txt: "Atendo seg a sex das 8h às 20h, e sábado das 9h às 13h 🕗" },
-      { de: "cliente", txt: "E domingo?" },
-      { de: "bot", txt: "Domingo fechamos, mas já posso deixar seu horário marcado para segunda." },
-    ],
-  },
-  agendamentos: {
-    titulo: "Agendamentos",
-    msgs: [
-      { de: "cliente", txt: "Consigo marcar pra amanhã?" },
-      { de: "bot", txt: "Consigo! Tenho 14:00 e 16:00. Qual fica melhor?" },
-      { de: "cliente", txt: "16h" },
-      /* Sem prazo na fala: o preview é o mesmo para todo inquilino, e o prazo agora varia
-       * por inquilino (`lembreteHoras`). Um "3h" aqui contradiria a tela ao lado de quem
-       * escolheu 1 dia — no mesmo acordeão, um do lado do outro. */
-      { de: "bot", txt: "Fechado, 16:00 ✅ Te lembro por aqui antes do horário." },
-    ],
-  },
-  comportamento: {
-    titulo: "Comportamento",
-    msgs: [
-      { de: "cliente", txt: "Vocês fazem um serviço bem específico?" },
-      { de: "bot", txt: "Boa pergunta! Vou confirmar com o responsável e já te respondo 🙌" },
-    ],
-  },
-};
+/* `PREVIEWS` saiu em 25/09/2026 (1C.12, 07 P0.2): era texto fixo com emoji, que dizia o horário
+ * de outro negócio e "Te lembro por aqui" com o lembrete desligado. O preview agora é derivado do
+ * dado (`ui/telas/ajustes.ts`, `falasDoPreview`). `SECOES_AJUSTE` saiu junto: os recortes dos
+ * Ajustes moram lá também (`RECORTES`). */
