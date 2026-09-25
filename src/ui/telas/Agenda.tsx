@@ -694,7 +694,7 @@ function LinhaDoTempo({ data }: { data: string }) {
     return (
       <EmptyState
         title={hoje ? "Nada marcado hoje" : `Nada em ${D.rotuloDia(data)}`}
-        sub="Ninguém de expediente com horário livre neste dia."
+        sub={data < D.HOJE.iso ? "Este dia já passou." : "Ninguém de expediente com horário livre neste dia."}
         action={<Btn icon="plus" onClick={() => st.novoAgendamento(null, { dia: data })}>Marcar atendimento</Btn>}
       />
     );

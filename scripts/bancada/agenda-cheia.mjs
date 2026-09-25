@@ -68,8 +68,15 @@ if (cenario === "cancelar") { await page.locator('[role=button][aria-label*="Ate
 if (cenario === "marcar") { await page.getByRole("button", { name: "Marcar atendimento", exact: true }).first().click(); await page.waitForTimeout(800); }
 if (cenario === "marcar-serie") { await page.getByRole("button", { name: "Marcar atendimento", exact: true }).first().click(); await page.waitForTimeout(600);
   const sels = page.locator('[role=dialog] select'); await sels.nth(0).selectOption({ index: 2 }); await sels.nth(1).selectOption({ index: 1 }); await sels.nth(2).selectOption("1"); await page.waitForTimeout(600); }
+// `--rolar`: rola 600px o que rola na tela (no celular, o <main> da casca) antes de medir (1B.4).
+if (flags.includes("--rolar")) { await page.evaluate(() => { const r = [...document.querySelectorAll("main, main *")].find((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 4); (r || document.scrollingElement).scrollBy(0, 600); window.scrollBy(0, 600); }); await page.waitForTimeout(300); }
 const m = await page.evaluate(() => {
   let m_aviso = null;
+  // O botão de marcar da casca (T2): o "＋" do celular ou o slot da topbar, e se está na tela.
+  const slot = document.querySelector('header button[aria-label="Marcar atendimento"], header button[title="Marcar atendimento"]') || [...document.querySelectorAll("header button")].find((b) => b.textContent.trim() === "Marcar atendimento");
+  const sr = slot?.getBoundingClientRect();
+  const marcarNaCasca = sr ? { top: Math.round(sr.top), bottom: Math.round(sr.bottom), visivel: sr.top >= 0 && sr.bottom <= innerHeight } : null;
+  const livres = [...document.querySelectorAll('main [aria-label^="Marcar atendimento"]')].map((e) => e.textContent.trim().replace(/\s+/g, " "));
   const out = [];
   for (const el of document.querySelectorAll("*")) {
     const cs = getComputedStyle(el);
@@ -89,7 +96,7 @@ const m = await page.evaluate(() => {
   const vagos = [...document.querySelectorAll('[aria-label^="Marcar atendimento"]')].map(e => e.getAttribute("aria-label").split(" com ").pop());
   const vagosPorPessoa = vagos.reduce((m, n) => (m[n] = (m[n] || 0) + 1, m), {});
   const gaveta = dlg ? dlg.innerText.replace(/\s+/g, " ").slice(0, 900) : null;
-  return { avisoDePerigo: m_aviso, gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
+  return { marcarNaCasca, livres, avisoDePerigo: m_aviso, gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
 });
 m.getsAgenda = gets;
 console.log(JSON.stringify(m, null, 1));
