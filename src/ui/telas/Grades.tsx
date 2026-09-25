@@ -19,6 +19,7 @@ import { EmitirRecibos } from "@/ui/componentes/EmitirRecibos";
  * cartão dele desta tela agora tiraria o único aviso de "falta o certificado" de quem emite nota.
  * Quando a v2 reestruturar a nota fiscal, esta linha sai. */
 import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
+import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 
 /* Estado da nota → como o cartão se apresenta. Um lugar só, para as duas telas
    que mostram nota (Faturamento e a ficha do cliente) contarem a mesma coisa. */
@@ -107,6 +108,19 @@ export function Clientes() {
     const on = st.cliAtivo(c.id);
     return st.filtroCli === "Todos" || (st.filtroCli === "Ativos" ? on : !on);
   });
+
+  /* ⚠️ Antes de `GET /api/cadastro` voltar, o store segura o fixture (de propósito, contradição
+   * C6), e esta tela o desenhava como a lista do negócio. Agora: esqueleto enquanto lê, a frase
+   * se falhou (T4). O fixture continua sendo o valor inicial para os outros consumidores. */
+  if (!st.cadastroCarregado) {
+    return (
+      <TelaGrade>
+        {st.cadastroErro
+          ? <FalhaDeLeitura frase="Não consegui ler seus clientes." detalhe={st.cadastroErro} tentar={() => window.location.reload()} />
+          : <Esqueleto linhas={6} altura={72} rotulo="Lendo seus clientes" />}
+      </TelaGrade>
+    );
+  }
 
   return (
     <TelaGrade>

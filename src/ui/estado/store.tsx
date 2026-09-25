@@ -53,6 +53,9 @@ export type LinhaDeFaturamento = {
   servico: string | null;
   /** ⚠️ Sem CPF a prefeitura recusa — a linha aparece, mas fora do lote. */
   semCpf: boolean;
+  /** A competência que o servidor devolveu para esta linha (`YYYY-MM-DD`), ou vazio. A prévia
+   *  da nota diz o mês por ela, e não pelo mês de hoje (T5, contradição C12). */
+  competencia?: string;
 };
 import { fmt, toast } from "@/ui/primitivos";
 import { telaDoEndereco } from "./endereco";
@@ -2428,7 +2431,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return {
         id: a.clienteId, nome: a.nome, valor: a.valor, atendimentos: a.atendimentos,
         cpf: a.cpf ?? "", teste: a.teste, servicoId: c?.servicoId ?? "", canal: c?.canal ?? "—",
-        servico: a.servico, semCpf: !a.cpf,
+        servico: a.servico, semCpf: !a.cpf, competencia: a.competencia,
       };
     });
 

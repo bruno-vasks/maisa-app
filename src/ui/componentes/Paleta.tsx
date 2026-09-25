@@ -55,7 +55,9 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
       ...TELAS_BUSCA.map(([id, titulo, sub, icone]) => ({
         chave: `tela-${id}`, titulo, sub, grupo: "Telas", icone, executar: ir(id),
       })),
-      ...st.cadastro.clientes.map((c) => ({
+      /* ⚠️ Clientes, serviços e equipe só depois de ler o cadastro (T4, contradição C6): o
+       * store nasce com o fixture de propósito, e a busca o listava como se fosse do negócio. */
+      ...(st.cadastroCarregado ? st.cadastro.clientes : []).map((c) => ({
         chave: c.id, titulo: c.nome, grupo: "Clientes", seed: c.id,
         sub: c.telefone ? `${st.nomeServico(c.servicoId)} · ${c.telefone}` : st.nomeServico(c.servicoId),
         executar: abrir(c.id, "clientes"),
@@ -69,12 +71,12 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
       })),
       // st.servicos, não D.SERVICOS: um serviço que o usuário criou também se procura por aqui,
       // e um que ele renomeou tem que se achar pelo nome NOVO — é o nome que ele lembra.
-      ...st.servicos.map((sv) => ({
+      ...(st.cadastroCarregado ? st.servicos : []).map((sv) => ({
         chave: sv.id, titulo: sv.nome, grupo: "Serviços", icone: "tag",
         sub: `${fmt(sv.preco)} · ${sv.duracao} min`,
         executar: abrir(sv.id, "servicos"),
       })),
-      ...st.cadastro.profissionais.map((p) => ({
+      ...(st.cadastroCarregado ? st.cadastro.profissionais : []).map((p) => ({
         chave: p.id, titulo: p.nome, grupo: "Equipe", seed: p.id,
         sub: p.papel,
         executar: abrir(p.id, "equipe"),

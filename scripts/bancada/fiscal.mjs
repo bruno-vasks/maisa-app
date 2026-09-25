@@ -1,6 +1,8 @@
 // fiscal.mjs — fotografa a tela Fiscal / Documento fiscal do DEMO com as rotas /api/fiscal,
 // /api/recibos e /api/faturamento interceptadas (o demo não tem Supabase; nada sai daqui).
 // uso: node fiscal.mjs <cenario> <saida-sem-ext> [desktop|mobile]
+// `COMPETENCIA=2026-08-01,2026-09-01` reparte essas competências entre as linhas de /api/faturamento
+// (sem ela, a competência vem vazia e a tela usa o mês de hoje).
 import { chromium, pastaDeFotos } from "./_comum.mjs";
 
 const [, , cenario, saida, modo = "desktop"] = process.argv;
@@ -58,7 +60,7 @@ await page.route("**/api/recibos", (r) => {
 await page.route("**/api/faturamento", (r) => {
   const n = sc.fat ?? 0;
   const aFaturar = [];
-  for (let i = 0; i < n; i++) aFaturar.push({ clienteId: `c${i}`, nome: NOMES[i], valor: 200 * ((i % 4) + 1), atendimentos: (i % 4) + 1, cpf: i === 2 ? null : CPFS_OK[i % 4], teste: false, servico: "Corte + barba" });
+  for (let i = 0; i < n; i++) aFaturar.push({ clienteId: `c${i}`, nome: NOMES[i], valor: 200 * ((i % 4) + 1), atendimentos: (i % 4) + 1, cpf: i === 2 ? null : CPFS_OK[i % 4], teste: false, servico: "Corte + barba", competencia: (process.env.COMPETENCIA ?? "").split(",")[i % Math.max(1, (process.env.COMPETENCIA ?? "").split(",").length)] });
   const emitidas = [{ clienteId: "c1", status: "emitida", numero: "0412", data: "02/09/2026", valor: 400, tomadorNome: NOMES[1] }, { clienteId: "c4", status: "erro", erro: "Prefeitura recusou: CPF do tomador inválido", valor: 200 }];
   r.fulfill({ json: { ok: true, aFaturar, emitidas, ambiente: "producao", falta: [] } });
 });

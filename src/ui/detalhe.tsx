@@ -196,6 +196,10 @@ export function useDetalhe(id: string | null): Detalhe | null {
     } : null);
     if (!c) return null;
     const nota = st.notaDe(c.id);
+    /* O mês da linha, quando o servidor o mandou; senão o do fechamento inteiro. */
+    const mesDaLinha = "competencia" in c && c.competencia && /^\d{4}-\d{2}/.test(c.competencia)
+      ? D.rotuloDoMes(c.competencia)
+      : st.mesDoFechamento;
 
     /* ── QUEM É O TOMADOR, EDITÁVEL AQUI (24/08/2026) ──
      *
@@ -259,7 +263,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
           ["CPF", cad?.cpf || c.cpf],
           ["Serviço", c.servico ?? st.nomeServico(c.servicoId)],
           ["Atendimentos sem nota", String(c.atendimentos)],
-          ["Competência", st.mesDoFechamento],
+          ["Competência", mesDaLinha],
           ["Número", nota.numero ?? "sai na emissão"],
         ],
       },
@@ -338,7 +342,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
       /* O nome do CADASTRO no título, e não o da linha de faturamento: enquanto o dono
          digita, `linha.nome` é o que o servidor tinha antes do primeiro caractere — o
          cabeçalho ficaria brigando com o campo logo abaixo até o envio pousar. */
-      titulo: cad?.nome || c.nome, seed: c.id, sub: `Fechamento de ${st.mesDoFechamento}`,
+      titulo: cad?.nome || c.nome, seed: c.id, sub: `Fechamento de ${mesDaLinha}`,
       blocos: [
         /* O que falta para poder emitir vem ANTES de tudo. Sem CPF o `emitiveis` tira a
            pessoa do lote, então o botão "Emitir as N pendentes" simplesmente não a conta —
