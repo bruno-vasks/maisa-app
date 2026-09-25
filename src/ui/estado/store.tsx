@@ -152,9 +152,13 @@ type AtendimentoLido = {
  *  precisa mostrar para não oferecer um horário que não existe. Só leitura: um
  *  arrasto que fizesse PATCH aqui mexeria no compromisso pessoal de alguém. */
 export type Bloqueio = {
-  /** "bloq:<eventId>" — o prefixo é o que impede confundir com um agendamento. */
+  /** "bloq:<pid>:<eventId>" — o prefixo é o que impede confundir com um agendamento; o pid
+   *  entra porque duas agendas podem trazer o mesmo evento (um calendário compartilhado). */
   id: string;
   eventId: string;
+  /** De qual agenda a leitura veio. O bloqueio ocupa a coluna DESSA pessoa, não a de todo
+   *  mundo: o almoço do dono não tira o horário do Diego (24/09/2026, item 1A.4). */
+  profissionalId: string;
   data: string;
   inicio: number;
   fim: number;
@@ -933,6 +937,9 @@ export type LeituraAgenda = {
   info?: string;
   /** Já houve pelo menos uma leitura bem-sucedida? Separa "vazio" de "ainda não sei". */
   jaLeu: boolean;
+  /** As agendas (pid) cuja última leitura falhou. Com equipe, uma agenda pode falhar e as
+   *  outras voltarem: a coluna dela não desenha "livre" (item 1A.4). Ausente = nenhuma. */
+  faltam?: string[];
 };
 
 /**
@@ -1695,10 +1702,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * que era exatamente o que impedia o dado de vir do servidor. Agora é derivado do
    * cadastro, e por isso os callbacks que o usam ganharam dependência dele.
    *
-   * Continua sendo UMA agenda só. Quando voltar a haver equipe, isto vira laço sobre
-   * `cadastro.agendas` e o cache de agenda passa a ser por profissional.
+   * É a agenda do DONO (a primeira), e serve ao que é dele: o convite do Google e o
+   * "Reconectar". A LEITURA não usa mais só ela: desde 24/09/2026 (item 1A.4) `lerAgenda`
+   * faz um GET por agenda de `cadastro.agendas`. Antes, com equipe, só a coluna do primeiro
+   * era lida e as outras desenhavam "livre" sem ninguém ter perguntado.
    */
   const pidAgenda = cadastro.agendas[0] ?? "";
+  /** As agendas que a leitura percorre, como STRING: é dependência de `lerAgenda`, e o efeito
+   *  que busca só pode depender de strings e booleanos (ver o ⚠️ dele).
+   *
+   *  Vazia até o cadastro responder: a lista do placeholder é a do fixture, e ler com ela
+   *  gastava um GET por janela com um `pid` que o negócio real não tem. Se o cadastro FALHA,
+   *  lê com o que houver, para a Agenda dizer o erro em vez de ficar em esqueleto para sempre. */
+  const agendasLidas = cadastroCarregado || cadastroErro ? cadastro.agendas.join(",") : "";
 
   /* ── expediente ──
    * Era `D.atende(pid, data)` / `D.podeComecar(pid, data, hora)`, que liam um
@@ -3763,30 +3779,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const lerAgenda = useCallback(async (de: string, ate: string) => {
     /* Sem agenda resolvida não há o que pedir. Acontece na primeira passada (o cadastro
-     * ainda não voltou) e num negócio sem profissional ativo. Antes isto era impossível de
-     * acontecer porque `PID_AGENDA` era constante de módulo; agora é. Sem esta linha o GET
+     * ainda não voltou) e num negócio sem profissional ativo. Sem esta linha o GET
      * sairia com `pid=` vazio, o servidor recusaria com `profissional_invalido` e a tela
      * mostraria erro de agenda para uma condição que se resolve sozinha em milissegundos. */
-    if (!pidAgenda) return;
+    if (!agendasLidas) return;
+    const pids = agendasLidas.split(",");
 
-    const chave = `${de}..${ate}`;
+    const chave = `${agendasLidas}|${de}..${ate}`;
     if (leituraEmVoo.current === chave) return;
     leituraEmVoo.current = chave;
+    /* `faltam` fica durante a releitura: a coluna que falhou continua sem "livre" até voltar. */
     setLeituraAgenda((a) => ({ ...a, status: "carregando" }));
 
     try {
-      const r = await fetch(`/api/agenda?pid=${pidAgenda}&de=${de}&ate=${ate}`).then((x) => x.json());
+      /* UM GET POR AGENDA, em paralelo (24/09/2026, item 1A.4). A rota lê uma agenda por vez
+       * (`exigirAgendaPermitida` confere o `pid`), e o calendário externo que ela soma é o
+       * DAQUELA pessoa. Uma resposta que falha não derruba as outras: o que voltou entra na
+       * tela, e a faixa de erro diz que falta um pedaço. */
+      const respostas = await Promise.all(pids.map(async (pid) => {
+        try {
+          const r = await fetch(`/api/agenda?pid=${encodeURIComponent(pid)}&de=${de}&ate=${ate}`).then((x) => x.json());
+          return { pid, r };
+        } catch {
+          return { pid, r: null as any };
+        }
+      }));
 
-      if (r.ok) {
-        /* A MESMA resposta traz as duas coisas, e a marca `maisa` é o que as separa: o
-         * evento criado por este app vira ATENDIMENTO (colorido, com cliente e serviço); o
-         * resto vira BLOQUEIO (cinza, só leitura). Ver PROPS em calendario.ts.
-         *
-         * Sem essa separação, um atendimento marcado aqui voltaria da leitura como
-         * bloqueio cinza sem cliente — o app criaria o evento e depois não se reconheceria
-         * nele. */
-        const novosAtend: AtendimentoLido[] = [];
-        const novosBloq: Bloqueio[] = [];
+      /* A MESMA resposta traz as duas coisas, e a marca `maisa` é o que as separa: o
+       * evento criado por este app vira ATENDIMENTO (colorido, com cliente e serviço); o
+       * resto vira BLOQUEIO (cinza, só leitura). Ver PROPS em calendario.ts.
+       *
+       * Sem essa separação, um atendimento marcado aqui voltaria da leitura como
+       * bloqueio cinza sem cliente — o app criaria o evento e depois não se reconheceria
+       * nele. */
+      const novosAtend: AtendimentoLido[] = [];
+      const novosBloq: Bloqueio[] = [];
+      /* Qual pedaço cada resposta substitui: a agenda e a janela que ELA devolveu. */
+      const lidas: { pid: string; de: string; ate: string }[] = [];
+      for (const { pid, r } of respostas) {
+        if (!r?.ok) continue;
+        lidas.push({ pid, de: r.de, ate: r.ate });
         for (const e of (r.eventos ?? []) as any[]) {
           const base = {
             eventId: String(e.eventoId), data: e.data, inicio: e.inicio, fim: e.fim,
@@ -3796,7 +3828,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (e.maisa) {
             novosAtend.push({
               ...base,
-              profissionalId: e.maisa.profissionalId || pidAgenda,
+              profissionalId: e.maisa.profissionalId || pid,
               clienteId: e.maisa.clienteId ?? "",
               clienteNome: e.maisa.clienteNome ?? "Cliente",
               clienteTel: e.maisa.clienteTel ?? "",
@@ -3808,50 +3840,63 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               confirmado: !e.aguardandoResposta,
             });
           } else {
-            novosBloq.push({ ...base, id: `bloq:${base.eventId}`, titulo: e.titulo });
+            novosBloq.push({ ...base, id: `bloq:${pid}:${base.eventId}`, profissionalId: pid, titulo: e.titulo });
           }
         }
-        /* Cache ACUMULATIVO: só o pedaço que acabou de chegar é substituído. Navegar
-         * para setembro e voltar para agosto não refaz request, e — mais importante —
-         * o Fluxo de hoje continua com os dados de hoje enquanto a Agenda passeia. */
-        const foraDaJanela = (d: string) => d < r.de || d > r.ate;
-        setBloqueios((prev) => [...prev.filter((b) => foraDaJanela(b.data)), ...novosBloq]);
-        setAtendimentos((prev) => [...prev.filter((a) => foraDaJanela(a.data)), ...novosAtend]);
+      }
+
+      if (lidas.length > 0) {
+        /* Cache ACUMULATIVO, agora por agenda: só o pedaço (pessoa × janela) que acabou de
+         * chegar é substituído. Navegar para setembro e voltar para agosto não refaz
+         * request, o Fluxo de hoje continua com os dados de hoje enquanto a Agenda passeia,
+         * e a agenda que falhou mantém o que já tinha sido lido dela. */
+        const substituido = (pid: string, d: string) => lidas.some((l) => l.pid === pid && d >= l.de && d <= l.ate);
+        setBloqueios((prev) => [...prev.filter((b) => !substituido(b.profissionalId, b.data)), ...novosBloq]);
+        setAtendimentos((prev) => [...prev.filter((a) => !substituido(a.profissionalId, a.data)), ...novosAtend]);
+      }
+
+      const falhas = respostas.filter(({ r }) => !r?.ok);
+      if (falhas.length === 0) {
         lidoEm.current = Date.now();
         setLeituraAgenda({ status: "ok", jaLeu: true });
         return;
       }
+      const leuAlgo = lidas.length > 0;
+      const faltam = falhas.map(({ pid }) => pid);
 
-      if (r.status === "reconectar") {
+      const reconectar = falhas.find(({ r }) => r?.status === "reconectar");
+      if (reconectar) {
         // O access token morreu. `acessoValido` já apagou a linha do banco quando o
         // refresh também morreu, então relemos o status: é ele que decide se a tela
         // oferece "Reconectar" ou volta para "Conectar".
-        setLeituraAgenda((a) => ({ status: "reconectar", jaLeu: a.jaLeu, info: r.info }));
+        setLeituraAgenda((a) => ({ status: "reconectar", jaLeu: a.jaLeu || leuAlgo, info: reconectar.r.info, faltam }));
         void lerStatusGoogle();
         return;
       }
 
-      if (r.status === "limite") {
+      if (falhas.every(({ r }) => r?.status === "limite")) {
         // Cota não é erro, é "pergunte de novo daqui a pouco". A tela não muda de cara.
-        setLeituraAgenda((a) => ({ status: "limite", jaLeu: a.jaLeu }));
+        setLeituraAgenda((a) => ({ status: "limite", jaLeu: a.jaLeu || leuAlgo, faltam }));
         agendar(() => { leituraEmVoo.current = null; void lerAgenda(de, ate); }, 20_000);
         return;
       }
 
-      setLeituraAgenda((a) => ({ status: "erro", jaLeu: a.jaLeu, info: r.info ?? RESPOSTA_GOOGLE[r.status] }));
+      const r = falhas.find(({ r }) => r && r.status !== "limite")?.r;
+      const info = r ? (r.info ?? RESPOSTA_GOOGLE[r.status]) : "Sem conexão com o servidor.";
+      setLeituraAgenda((a) => ({ status: "erro", jaLeu: a.jaLeu || leuAlgo, info, faltam }));
     } catch {
-      setLeituraAgenda((a) => ({ status: "erro", jaLeu: a.jaLeu, info: "Sem conexão com o servidor." }));
+      setLeituraAgenda((a) => ({ status: "erro", jaLeu: a.jaLeu, info: "Sem conexão com o servidor.", faltam: pids }));
     } finally {
       // No caminho do `limite` o timer já reassumiu a chave; limpar aqui é inofensivo
       // porque o retry roda depois.
       if (leituraEmVoo.current === chave) leituraEmVoo.current = null;
     }
-    /* `pidAgenda` É dependência, e esquecê-la seria o bug mais caro desta mudança: ela
+    /* `agendasLidas` É dependência, e esquecê-la seria o bug mais caro desta função: ela
      * começa vazia e só ganha valor quando `/api/cadastro` responde. Um callback preso ao
-     * primeiro render capturaria `""` para sempre, o `if (!pidAgenda) return` acima
+     * primeiro render capturaria `""` para sempre, o `if (!agendasLidas) return` acima
      * devolveria toda chamada, e a agenda NUNCA carregaria — sem erro, sem request, sem
-     * nada no console. Quando era `const PID_AGENDA` de módulo isso não existia. */
-  }, [lerStatusGoogle, agendar, pidAgenda]);
+     * nada no console. */
+  }, [lerStatusGoogle, agendar, agendasLidas]);
 
   /* Buscar quando a janela muda.
    *

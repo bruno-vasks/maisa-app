@@ -155,7 +155,9 @@ export function useDetalhe(id: string | null): Detalhe | null {
           linhas: [
             ["Quando", `${D.rotuloDia(b.data)}, ${D.hhmm(b.inicio)} – ${D.hhmm(b.fim)}`],
             ["Duração", `${b.duracao} min`],
-            ["Origem", "sua agenda do Google"],
+            ["Origem", b.profissionalId && b.profissionalId !== st.pidAgenda
+              ? `agenda do Google de ${D.primeiroNome(st.nomeDoProfissional(b.profissionalId))}`
+              : "sua agenda do Google"],
             ...(b.recorrente ? ([["Repetição", "evento que se repete"]] as [string, string][]) : []),
           ],
         },

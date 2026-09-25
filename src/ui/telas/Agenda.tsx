@@ -142,6 +142,7 @@ function Regua() {
  *  na tela promete que dá para arrastar. */
 function Vagos({ data, profissionalId, chaveCol }: { data: string; profissionalId?: string; chaveCol: string }) {
   const st = useStore();
+  const faltam = st.leituraAgenda.faltam ?? [];
   const fatias = AGENDA_HORAS / PASSO;
   return (
     <>
@@ -153,7 +154,8 @@ function Vagos({ data, profissionalId, chaveCol }: { data: string; profissionalI
         // (visão de Semana) o clique tem que ESCOLHER alguém — antes caía sempre em
         // COLUNAS_AGENDA[0], então toda marcação da semana ia para o Rafael, inclusive num
         // horário em que ele já tinha ido embora, e Diego e Léo eram inagendáveis por ali.
-        const dono = profissionalId ?? st.cadastro.agendas.find((pid) => st.podeComecarEm(pid, data, inicio));
+        // Agenda cuja leitura falhou não entra na escolha: o horário dela não foi lido (1A.4).
+        const dono = profissionalId ?? st.cadastro.agendas.find((pid) => !faltam.includes(pid) && st.podeComecarEm(pid, data, inicio));
         const livre = !!dono && st.podeComecarEm(dono, data, inicio);
         const risco = s(`width:100%;height:${LINHA * PASSO}px;padding:0;border:none;border-bottom:1px ${horaCheia ? "dotted" : "solid"} var(--line)`);
 
@@ -298,6 +300,7 @@ function GradeDia({ data }: { data: string }) {
   const st = useStore();
   const doDia = st.agendamentosDoDia(data);
   const bloqueios = st.bloqueiosDoDia(data);
+  const faltam = st.leituraAgenda.faltam ?? [];
   const colunas = `58px repeat(${Math.max(st.cadastro.agendas.length, 1)},minmax(0,1fr))`;
 
   return (
@@ -314,11 +317,14 @@ function GradeDia({ data }: { data: string }) {
           // no app. Sem esta marca uma coluna em dia de folga lia como o horário mais vazio da
           // casa, e a tela de Equipe, na mesma sessão, dizia que era folga.
           const folga = !st.atendeNoDia(pid, data);
+          const semLeitura = faltam.includes(pid);
           return (
             <div key={pid} style={s(`display:flex;align-items:center;gap:9px;padding:0 10px 12px;opacity:${on && !folga ? "1" : "0.55"}`)}>
               <Monogram name={p.nome} id={pid} size={28} radius={9} />
               <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{D.primeiroNome(p.nome)}</span>
-              {folga
+              {semLeitura
+                ? <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);color:var(--danger);white-space:nowrap;flex-shrink:0")}>sem leitura</span>
+                : folga
                 ? <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);color:var(--muted);background:var(--line);padding:2px 7px;border-radius:999px;flex-shrink:0")}>folga</span>
                 : !on && <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);color:var(--muted);background:var(--line);padding:2px 7px;border-radius:999px;flex-shrink:0")}>pausado</span>}
             </div>
@@ -330,15 +336,21 @@ function GradeDia({ data }: { data: string }) {
         <Regua />
         {st.cadastro.agendas.map((pid) => {
           const blocos = doDia.filter((a) => a.profissionalId === pid);
+          /* O bloqueio é da agenda de quem o tem (item 1A.4): o almoço do dono ocupava as três
+           * colunas, e a MAISA oferecia o horário do Diego como se estivesse tomado. */
+          const meus = bloqueios.filter((b) => b.profissionalId === pid);
           // Escalonamento sobre a lista JUNTA — ver o comentário de `escalonar`.
-          const recuo = escalonar([...blocos, ...bloqueios]);
+          const recuo = escalonar([...blocos, ...meus]);
+          /* Agenda que não voltou não desenha vago: "livre" sem ter perguntado é a mentira que
+           * este item existe para tirar. O que já foi lido dela continua. */
+          const semLeitura = faltam.includes(pid);
           return (
             // `overflow:hidden` é rede de segurança: a grade desenha 07–22, mas nada impede
             // um evento às 05:00 na agenda real, e um bloco com `top` negativo escaparia
             // por cima do cabeçalho fixo das colunas.
             <div key={pid} style={s("position:relative;border-left:1px solid var(--line);overflow:hidden")}>
-              <Vagos data={data} profissionalId={pid} chaveCol={`${data}:${pid}`} />
-              {bloqueios.map((b) => <BlocoBloqueio key={b.id} b={b} recuo={recuo.get(b.id) ?? 0} />)}
+              {!semLeitura && <Vagos data={data} profissionalId={pid} chaveCol={`${data}:${pid}`} />}
+              {meus.map((b) => <BlocoBloqueio key={b.id} b={b} recuo={recuo.get(b.id) ?? 0} />)}
               {blocos.map((ag) => <Bloco key={ag.id} ag={ag} recuo={recuo.get(ag.id) ?? 0} />)}
             </div>
           );

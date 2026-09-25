@@ -1,5 +1,5 @@
 // agenda-cheia.mjs — Agenda com dado simulado (intercepta /api/cadastro, /api/agenda, /api/google/status).
-// uso: node agenda-cheia.mjs <cenario> <saida.png> [desktop|mobile|WxH] [--equipe] [--google=ok|nao] [--full]
+// uso: node agenda-cheia.mjs <cenario> <saida.png> [desktop|mobile|WxH] [--equipe] [--google=ok|nao] [--falha=<pid>] [--full]
 import { chromium, pastaDeFotos } from "./_comum.mjs";
 const [, , cenario, saida, modo = "desktop", ...flags] = process.argv;
 const equipe = flags.includes("--equipe");
@@ -35,7 +35,14 @@ for (const d of dias) {
 const seen = new Set(); const ev2 = eventos.filter(e => { const k = e.data + e.maisa.profissionalId + e.inicio; if (seen.has(k)) return false; seen.add(k); return true; });
 ev2.push({ eventoId: "gx1", data: "2026-09-24", inicio: 12, fim: 13, duracao: 60, titulo: "Almoço com a Carla", recorrente: false });
 await page.route("**/api/cadastro", r => r.fulfill({ json: base }));
-await page.route("**/api/agenda?*", r => { const u = new URL(r.request().url()); r.fulfill({ json: { ok: true, status: "ok", de: u.searchParams.get("de"), ate: u.searchParams.get("ate"), eventos: ev2 } }); });
+// Um GET por agenda (1A.4): a resposta traz só os eventos DAQUELE pid, e o compromisso do Google
+// (gx1) é da agenda do dono. `--falha=<pid>` faz a leitura dessa agenda voltar com erro.
+const falha = (flags.find(f => f.startsWith("--falha=")) || "").split("=")[1];
+const gets = [];
+await page.route("**/api/agenda?*", r => { const u = new URL(r.request().url()); const pid = u.searchParams.get("pid"); gets.push(`${pid} ${u.searchParams.get("de")}..${u.searchParams.get("ate")}`);
+  if (pid === falha) return r.fulfill({ json: { ok: false, status: "erro", info: "Falha simulada." } });
+  const dele = ev2.filter(e => e.maisa ? e.maisa.profissionalId === pid : pid === base.agendas[0]);
+  r.fulfill({ json: { ok: true, status: "ok", de: u.searchParams.get("de"), ate: u.searchParams.get("ate"), eventos: dele } }); });
 if (g === "ok") await page.route("**/api/google/status", r => r.fulfill({ json: { status: "ok", conexoes: [{ profissionalId: "pr1", googleEmail: "rafael@gmail.com" }] } }));
 if (g === "nao") await page.route("**/api/google/status", r => r.fulfill({ json: { status: "ok", conexoes: [] } }));
 await page.goto("http://localhost:3200/?tela=agenda", { waitUntil: "networkidle", timeout: 90000 });
@@ -59,8 +66,12 @@ const m = await page.evaluate(() => {
   if (dlg) { const bs = [...dlg.querySelectorAll("button")].filter(b => b.parentElement === dlg.lastElementChild); rodape = bs.map(b => { const r = b.getBoundingClientRect(); return { t: b.textContent, x: Math.round(r.x), w: Math.round(r.width), direita: Math.round(r.right) }; }); rodape = { dialogo: dlg.getBoundingClientRect().toJSON(), botoes: rodape, scrollW: dlg.lastElementChild.scrollWidth, clientW: dlg.lastElementChild.clientWidth }; }
   const regua = [...document.querySelectorAll(".n")].filter(e => /^\d\d:00$/.test(e.textContent.trim())).map(e => ({ h: e.textContent.trim(), y: Math.round(e.getBoundingClientRect().top) })).filter(x => x.y > 0 && x.y < innerHeight);
   const blocos = [...document.querySelectorAll('[role=button][aria-label]')].map(e => { const r = e.getBoundingClientRect(); return { l: e.getAttribute("aria-label").slice(0, 40), y: Math.round(r.top), h: Math.round(r.height), x: Math.round(r.x), w: Math.round(r.width) }; }).slice(0, 40);
-  return { viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos };
+  const bloqueios = [...document.querySelectorAll('[role=button][aria-label]')].filter(e => /Almoço com a Carla/.test(e.getAttribute("aria-label"))).length;
+  const vagos = [...document.querySelectorAll('[aria-label^="Marcar atendimento"]')].map(e => e.getAttribute("aria-label").split(" com ").pop());
+  const vagosPorPessoa = vagos.reduce((m, n) => (m[n] = (m[n] || 0) + 1, m), {});
+  return { viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
 });
+m.getsAgenda = gets;
 console.log(JSON.stringify(m, null, 1));
 await page.screenshot({ path: saida, fullPage: full });
 await browser.close();

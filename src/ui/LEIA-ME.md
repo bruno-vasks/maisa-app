@@ -109,7 +109,10 @@ não entra no lote".
 Duas coisas que o store passou a exigir:
 
 - **`st.pidAgenda` pode ser `""`** na primeira passada — o cadastro é assíncrono. Guarde
-  antes de mandar numa URL ou num `conectarGoogle`.
+  antes de mandar numa URL ou num `conectarGoogle`. É a agenda do dono; a **leitura** não usa
+  só ela: `lerAgenda` faz um GET por agenda de `cadastro.agendas` (desde 24/09/2026), cada
+  `Bloqueio` sabe de qual `profissionalId` veio e ocupa só a coluna dele, e
+  `leituraAgenda.faltam` lista as agendas cuja leitura falhou (a coluna delas não desenha vago).
 - **`st.cadastroErro`** não-nulo significa que o que está na tela é **placeholder de
   fixture**, não o negócio de verdade. Tela que mostra plano, preço ou contagem tem que
   dizer isso — senão o app mente com cara de dado real.
