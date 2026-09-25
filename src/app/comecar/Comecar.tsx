@@ -59,7 +59,6 @@ import { s, Icon, Toggle, toast, Toaster } from "@/ui/primitivos";
 import type { CategoriaServico, PassoDeAtivacao, Servico, UsoDoWhatsApp, Vertical } from "@/nucleo/dominio";
 import { PASSOS_DE_ATIVACAO, passosQueValem, usoDoWhatsApp } from "@/nucleo/dominio";
 import { sugestoes, type ExemploDoNegocio } from "./sugestoes";
-import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
 import {
   CodigoPareamento, ConferirNumero, NumeroDoPareamento, digitosDoTelefone, telefoneMascarado,
 } from "@/ui/componentes/Pareamento";
@@ -1431,9 +1430,24 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
  * checklist que mente. Nesse caso a etapa vira só a despedida.
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/* ── ⚠️ A ETAPA 5 NAVEGA PARA O PAINEL, E NÃO MONTA O FLUXO FISCAL AQUI (25/09/2026, 1B.14) ──
+ *
+ * "Ligar agora" montava `<LigarNotaFiscal />`, que chama `useStore()`, e o wizard roda fora do
+ * `StoreProvider` (decisão do cabeçalho): quem clicava via a página branca (09 P0-1). O fluxo
+ * inteiro já mora no Documento fiscal, com a escolha e os dois caminhos; um segundo lugar seria
+ * um segundo lugar para consertar. Então as duas escolhas abrem `/?tela=fiscal` com o recorte
+ * `recibo` ou `nota`, que já deixa o formulário certo aberto (`SECOES.fiscal`). O guarda G13
+ * reprova se o wizard voltar a alcançar componente do painel.
+ *
+ * E são três caminhos, não "ligar" e "depois" (09 P1-4): a psicóloga que atende como pessoa
+ * física não emite nota nem tem certificado, e a promessa "Só o CNPJ… depois o certificado A1"
+ * era para a metade errada do ICP. */
+const IR_AO_FISCAL = (secao: "recibo" | "nota") => `/?tela=fiscal&secao=${secao}`;
+
 function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
-  const [estado, setEstado] = useState<{ falta: string[]; provedorFaltando: string[]; ligado: boolean } | null>(null);
-  const [escolheu, setEscolheu] = useState(false);
+  const [estado, setEstado] = useState<{ falta: string[]; ligado: boolean } | null>(null);
+  /** O agente está ligado? Muda a frase do "decidir depois". `null` enquanto não se sabe. */
+  const [agente, setAgente] = useState<boolean | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -1441,41 +1455,26 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
       .then(async (r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!vivo) return;
-        /* Falha de leitura cai no MESMO estado de "não dá para oferecer": esta etapa é a
-         * última do wizard, e travá-la numa tela de erro por causa de uma consulta é perder
-         * o onboarding inteiro no último passo. */
-        if (!d?.ok) { setEstado({ falta: [], provedorFaltando: ["leitura"], ligado: false }); return; }
+        /* Falha de leitura não trava a última etapa: cai nas três escolhas, que funcionam. */
+        if (!d?.ok) { setEstado({ falta: [], ligado: false }); return; }
         setEstado({
           falta: d.falta ?? [],
-          provedorFaltando: d.provedorFaltando ?? [],
-          /* Ligado = tem empresa no emissor OU tem CPF de prestador. As duas coisas
-           * significam "o dono já decidiu qual documento sai" — e é isso que a despedida
-           * desta etapa pergunta. */
+          /* Ligado = tem empresa no emissor OU tem CPF de prestador: alguém já decidiu. */
           ligado: d.config?.empresaId != null || d.config?.prestadorCpf != null,
         });
       })
-      .catch(() => { if (vivo) setEstado({ falta: [], provedorFaltando: ["leitura"], ligado: false }); });
+      .catch(() => { if (vivo) setEstado({ falta: [], ligado: false }); });
+    fetch("/api/assistente", { cache: "no-store" })
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivo) setAgente(d?.ok ? d.assistente?.ativa === true : null); })
+      .catch(() => {});
     return () => { vivo = false; };
   }, []);
 
   if (!estado) return <div style={{ minHeight: 200 }} aria-busy="true" />;
 
-  /* ── ⚠️ "INDISPONÍVEL" DEIXOU DE SER SÓ `provedorFaltando` ──
-   *
-   * Sem `FOCUS_NFE_TOKEN` no ambiente não há como ligar NOTA FISCAL. Mas o caminho do RECIBO
-   * (Receita Saúde, para quem atende como pessoa física) não passa pelo provedor: são três
-   * campos, sem certificado e sem empresa cadastrada em lugar nenhum.
-   *
-   * Ou seja: `provedorFaltando` sozinho não pode mais apagar esta etapa. Quando ele apagava,
-   * a psicóloga que poderia ter ligado o Receita Saúde em trinta segundos terminava o
-   * onboarding sem nunca saber que isso existe — que é exatamente o desfecho ruim que esta
-   * etapa foi criada para evitar. O `LigarNotaFiscal` lá dentro já sabe oferecer só a metade
-   * que funciona. */
-  const pronto = estado.falta.length === 0 && estado.ligado;
-
-  /* Já está tudo ligado (ou não há o que ligar): só a despedida. Perguntar "quer ligar a nota
-   * fiscal?" a quem já ligou é o tipo de tela que faz a pessoa desconfiar do produto. */
-  if (pronto) {
+  /* Já está tudo ligado: só a despedida. */
+  if (estado.falta.length === 0 && estado.ligado) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center", textAlign: "center" }}>
         <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:999px;background:var(--success-soft)")}>
@@ -1486,7 +1485,7 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
             Seu documento fiscal já está ligado
           </p>
           <p style={s("font-size:var(--t-sm);color:var(--muted);margin:8px 0 0;line-height:1.55")}>
-            Você acompanha tudo em Faturamento, atendimento por atendimento.
+            Você acompanha tudo em Fiscal, atendimento por atendimento.
           </p>
         </div>
         <Botao onClick={aoPainel} full>Abrir meu painel</Botao>
@@ -1494,65 +1493,39 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
     );
   }
 
-  /* Escolheu ligar agora: o cartão do painel, aqui dentro. A saída continua na tela, em texto
-   * discreto — quem descobre no meio que o certificado está no computador do contador precisa
-   * poder sair sem sentir que abandonou o onboarding.
-   *
-   * O rótulo é neutro de propósito: "terminar depois" mentiria para quem acabou de terminar,
-   * e esta tela não sabe em qual dos dois estados o cartão está. */
-  if (escolheu) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <LigarNotaFiscal />
-        <button
-          onClick={aoPainel}
-          className="m-focus"
-          style={s("align-self:center;background:none;border:none;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--muted);cursor:pointer;padding:6px 10px")}
-        >
-          Abrir meu painel
-        </button>
-      </div>
-    );
-  }
-
-  const opcao = "display:flex;align-items:flex-start;gap:13px;width:100%;padding:16px 15px;border-radius:14px;border:1px solid var(--border);background:var(--surface);font-family:inherit;text-align:left;cursor:pointer";
+  const opcao = "display:flex;align-items:center;gap:13px;width:100%;min-height:64px;padding:16px 15px;border-radius:12px;border:1px solid var(--border);background:var(--surface);font-family:inherit;text-align:left;cursor:pointer;text-decoration:none;color:inherit";
+  const caminhos: { rotulo: string; sub: string; href?: string }[] = [
+    { rotulo: "Atendo como pessoa física", sub: "Recibo do Receita Saúde, no seu CPF. Sem certificado.", href: IR_AO_FISCAL("recibo") },
+    { rotulo: "Tenho CNPJ", sub: "Nota fiscal de serviço. Pede o certificado digital A1.", href: IR_AO_FISCAL("nota") },
+    {
+      rotulo: "Decidir depois, na tela Fiscal",
+      /* O que já funciona sem isto, dito pelo modo: sem agente, a MAISA não "atende e marca". */
+      sub: agente === false ? "Os lembretes já estão ligados." : agente ? "Ela já atende e marca pelo WhatsApp." : "Fica esperando na tela Fiscal.",
+    },
+  ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <p style={s("font-size:var(--t-sm);color:var(--muted);margin:0;line-height:1.6")}>
-        A MAISA emite a <strong style={s("color:var(--ink)")}>nota fiscal de serviço</strong> sozinha
-        depois de cada atendimento. É a parte que nenhuma outra agenda faz.
+        A MAISA emite o seu documento fiscal depois de cada atendimento: nota fiscal ou recibo do Receita Saúde.
       </p>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <button onClick={() => setEscolheu(true)} className="m-hov-bg m-press m-focus" style={s(opcao)}>
-          <span aria-hidden style={s("display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex-shrink:0;border-radius:999px;background:var(--primary-soft)")}>
-            <Icon name="receipt" size={17} sw={2} stroke="var(--primary-dark)" />
-          </span>
-          <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-            <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>Ligar agora</span>
-            {/* O tempo e o que vai ser pedido, ditos ANTES do clique. Descobrir no meio do
-                caminho que precisa de um arquivo que está no computador do contador é o
-                abandono mais evitável que existe. */}
-            <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-              Só o CNPJ — eu busco o resto na Receita. Depois o certificado digital A1.
-            </span>
-          </span>
-        </button>
-
-        <button onClick={aoPainel} className="m-hov-bg m-press m-focus" style={s(opcao)}>
-          <span aria-hidden style={s("display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex-shrink:0;border-radius:999px;background:var(--line)")}>
-            <Icon name="clock" size={17} sw={2} stroke="var(--muted)" />
-          </span>
-          <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-            <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>Deixar para depois</span>
-            {/* Diz ONDE fica. "Depois" sem endereço é "nunca" — e é o que transformaria a
-                escolha honesta em perda silenciosa do diferencial. */}
-            <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-              A MAISA já atende e marca. Isto fica esperando em Faturamento.
-            </span>
-          </span>
-        </button>
+        {caminhos.map((c) => {
+          const conteudo = (
+            <>
+              {/* Sem ícone em quadrado (emenda 3 do DS): o rótulo diz o caminho. */}
+              <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, flex: 1 }}>
+                <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{c.rotulo}</span>
+                <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>{c.sub}</span>
+              </span>
+            </>
+          );
+          /* `<a>` e não `router.push`: o painel é outra árvore (com `StoreProvider`), e a navegação
+             inteira garante que ele nasce lendo o `?tela=` e o `?secao=`. */
+          return c.href
+            ? <a key={c.rotulo} href={c.href} className="m-hov-bg m-press m-focus" style={s(opcao)}>{conteudo}</a>
+            : <button key={c.rotulo} type="button" onClick={aoPainel} className="m-hov-bg m-press m-focus" style={s(opcao)}>{conteudo}</button>;
+        })}
       </div>
     </div>
   );

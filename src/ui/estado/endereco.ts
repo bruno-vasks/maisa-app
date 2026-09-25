@@ -40,8 +40,9 @@ export function telaDoEndereco(valor: string | null | undefined): TelaId | null 
 
 /** `?secao=` por tela: a lista fechada e o padrão. */
 export const SECOES: Partial<Record<TelaId, { validas: readonly string[]; padrao: string }>> = {
-  /* `inicio` é a tela como sempre foi, do topo. */
-  fiscal: { validas: ["inicio", "dados", "autorizacao", "carne-leao"], padrao: "inicio" },
+  /* `inicio` é a tela como sempre foi, do topo. `recibo` e `nota` chegam do wizard (1B.14): com a
+   * escolha ainda não gravada, abrem o formulário daquele caminho. */
+  fiscal: { validas: ["inicio", "dados", "autorizacao", "carne-leao", "recibo", "nota"], padrao: "inicio" },
 };
 
 export function secaoDoEndereco(tela: TelaId, valor: string | null | undefined): string | null {

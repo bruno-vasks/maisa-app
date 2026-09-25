@@ -69,9 +69,9 @@ function chamaUseStore(arquivo: string): number | null {
 }
 
 /** Arquivo → motivo e data. Fechada: sai quando o wizard deixar de importar o arquivo, ou ele deixar de ler o store. */
-const DIVIDA: Record<string, string> = {
-  "src/ui/componentes/LigarNotaFiscal.tsx": "24/09/2026 · o \"Ligar agora\" da etapa 5 (09 P0-1). Paga o 1B.14: o botão navega para /?tela=fiscal",
-};
+/* Vazia desde 25/09/2026 (1B.14): a etapa 5 navega para /?tela=fiscal em vez de montar o
+ * `LigarNotaFiscal`, que era a única entrada. */
+const DIVIDA: Record<string, string> = {};
 
 describe("G13 · wizard sem componente do painel", () => {
   it("nenhum arquivo alcançado pelo /comecar chama useStore(), fora da dívida", () => {

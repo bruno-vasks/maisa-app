@@ -68,7 +68,7 @@ function varrer(): Achado[] {
 /** Dívida de 24/09/2026, por arquivo. Só encolhe. Quem paga: Onda 3, item 3.1 (e cada onda, nas telas que tocar). */
 const DIVIDA: Divida = {
   "src/app/cadastro/page.tsx": [4, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
-  "src/app/comecar/Comecar.tsx": [17, "24/09/2026 · wizard, 3.1 (09 P2-5)"],
+  "src/app/comecar/Comecar.tsx": [16, "24/09/2026 · wizard, 3.1 (09 P2-5)"],
   "src/app/esqueci/page.tsx": [2, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
   "src/app/login/page.tsx": [1, "24/09/2026 · entrada, 3.1 (09 P2-5)"],
   "src/app/nova-senha/page.tsx": [2, "24/09/2026 · entrada, 3.1 (09 P2-5)"],

@@ -107,7 +107,8 @@ export function DocumentoFiscal() {
   /** Qual troca está pedindo confirmação. `null` = nenhuma. */
   const [confirmar, setConfirmar] = useState<Modo | null>(null);
   /** Escolha ainda NÃO gravada: serve só para revelar o formulário certo abaixo. */
-  const [escolha, setEscolha] = useState<Modo | null>(null);
+  /* `?secao=recibo|nota` (o wizard, 1B.14) já chega com o caminho escolhido, sem gravar nada. */
+  const [escolha, setEscolha] = useState<Modo | null>(st.secao === "recibo" || st.secao === "nota" ? st.secao : null);
 
   const sabemos = st.fiscal.status === "ok";
   const config = sabemos ? st.fiscal.config : null;
