@@ -430,6 +430,12 @@ export default function Conversas() {
 
   // Voltar ao layout de duas colunas cancela o modo "conversa aberta".
   useEffect(() => { if (!mobile) setAbertaNoMobile(false); }, [mobile]);
+  /* A conversa aberta no celular é tela cheia (T11, 04 P1-12): cabeçalho e abas da casca somem e
+     a thread ganha os ~130px deles. O "voltar" da thread devolve os dois. Desmontar desliga, para
+     a próxima tela não nascer sem abas. */
+  const { setTelaCheia } = st;
+  useEffect(() => { setTelaCheia(mobile && abertaNoMobile); }, [mobile, abertaNoMobile, setTelaCheia]);
+  useEffect(() => () => setTelaCheia(false), [setTelaCheia]);
 
   if (mobile) {
     return (

@@ -40,7 +40,6 @@ const DIVIDA: Divida = {
   "src/app/esqueci/page.tsx": [1, "24/09/2026 · fundo da entrada (3.4)"],
   "src/app/login/page.tsx": [2, "24/09/2026 · fundo da entrada (3.4)"],
   "src/app/nova-senha/page.tsx": [1, "24/09/2026 · fundo da entrada (3.4)"],
-  "src/ui/componentes/AppShell.tsx": [2, "24/09/2026 · altura da casca nas duas larguras (1C.4, T11)"],
 };
 
 describe("G9 · sem vh congelado", () => {

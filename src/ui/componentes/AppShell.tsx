@@ -19,7 +19,7 @@
 
 import React, { useEffect, useState } from "react";
 import { s, Icon, Monogram, Toaster, ConfirmDialog, fmt } from "@/ui/primitivos";
-import { useIsMobile } from "@/ui/useIsMobile";
+import { useLayout } from "@/ui/useIsMobile";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type TelaId } from "@/ui/estado/store";
 import UserMenu from "./UserMenu";
@@ -499,8 +499,10 @@ function TabBar() {
     <nav
       aria-label="Navegação principal"
       style={{
-        ...s("flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:8px 6px 0;display:grid;grid-template-columns:repeat(5,1fr);gap:2px"),
-        paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+        /* 6px em cima e 8px embaixo (eram 8 e 10): com o cabeçalho de 56px, o cromo inteiro fica em
+           128px de 844 (T11 pede ≤ 130; eram 162). */
+        ...s("flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:6px 6px 0;display:grid;grid-template-columns:repeat(5,1fr);gap:2px"),
+        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
       }}
     >
       {ABAS.map((aba) => {
@@ -534,7 +536,8 @@ function TabBar() {
 
 export default function AppShell() {
   const st = useStore();
-  const mobile = useIsMobile();
+  const layout = useLayout();
+  const mobile = layout === "celular";
   const [paleta, setPaleta] = useState(false);
   const Ativa = TELA[st.tela].Comp;
 
@@ -551,18 +554,27 @@ export default function AppShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  /* O quadro antes de saber a largura: só o fundo. Ver `useLayout` (T11): pintar o painel de
+     mesa aqui mostrava o rail por um quadro no celular. */
+  if (layout === null) {
+    return <div className="m-altura-tela" style={s("background:var(--bg)")} />;
+  }
+
   if (mobile) {
+    const cheia = st.telaCheia;
     return (
-      <div style={{
-        ...s("display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg)"),
+      /* ⚠️ `m-altura-tela` e não `height:100vh` (G9): no Safari do iPhone `100vh` é a janela com a
+         barra de endereço recolhida, e com ela à mostra as abas iam para trás dela. */
+      <div className="m-altura-tela" style={{
+        ...s("display:flex;flex-direction:column;overflow:hidden;background:var(--bg)"),
         paddingTop: "env(safe-area-inset-top)",
       }}>
-        <header style={s("flex-shrink:0;padding:12px 16px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px")}>
-          <div style={s("min-width:0")}>
-            {/* sobrancelha em caixa-alta: --ls-caps é o único tracking positivo do sistema (era .14em) */}
-            <div style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{D.HOJE.label}</div>
-            <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{TELA[st.tela].titulo}</h1>
-          </div>
+        {/* ⚠️ CABEÇALHO DE 56px (T11, 25/09/2026): título, status curto, lupa e o "＋". A data saiu:
+            Hoje e Agenda já a escrevem, e nas outras telas ela era uma linha de 86px que não
+            servia a nada. Cromo total (cabeçalho + abas) ≤ 130px de 844. */}
+        {!cheia && (
+        <header style={s("flex-shrink:0;height:56px;padding:0 12px 0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px")}>
+          <h1 style={s("min-width:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{TELA[st.tela].titulo}</h1>
           <div style={s("display:flex;align-items:center;gap:8px;flex-shrink:0")}>
             {/* O celular não tinha status nenhum: quem só usa o app pelo telefone nunca sabia se
                 a MAISA estava respondendo. Curto, porque divide 390px com título e busca. */}
@@ -580,6 +592,7 @@ export default function AppShell() {
                 status caber sem cortar o título ("Ajustes da ..."). A conta no celular é o 2.4. */}
           </div>
         </header>
+        )}
 
         {/* ⚠️ Os avisos também no celular (25/09/2026, 1A.11, 01 P0-5), e pelo mesmo motivo do
             desktop FORA do `key={st.tela}`: dentro dele remontariam a cada troca de aba. Até aqui
@@ -590,7 +603,7 @@ export default function AppShell() {
           <Ativa />
         </main>
 
-        <TabBar />
+        {!cheia && <TabBar />}
         <Gaveta />
         <Paleta aberta={paleta} fechar={() => setPaleta(false)} />
         <Toaster />
@@ -601,7 +614,7 @@ export default function AppShell() {
   }
 
   return (
-    <div style={s("display:flex;gap:14px;height:100vh;padding:14px;overflow:hidden;background:transparent")}>
+    <div className="m-altura-tela" style={s("display:flex;gap:14px;padding:14px;overflow:hidden;background:transparent")}>
       <Rail />
       <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:22px;overflow:hidden;background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow-card)")}>
         <Topbar onBuscar={() => setPaleta(true)} />

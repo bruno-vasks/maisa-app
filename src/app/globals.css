@@ -395,3 +395,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
   .m-tabela-rola { min-height: 0; }
   .m-tabela-rola > .m-tabela-corpo { overflow-y: visible; }
 }
+
+/* A altura da casca (T11, 25/09/2026, guarda G9). `vh` de reserva para navegador sem `dvh`;
+   no Safari do iPhone `100vh` conta a barra de endereço recolhida e as abas iam para trás dela. */
+.m-altura-tela { height: 100vh; height: 100dvh; }

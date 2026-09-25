@@ -23,3 +23,25 @@ export function useIsMobile(query = "(max-width: 900px)"): boolean {
 export function useEstreita(): boolean {
   return useIsMobile("(max-width: 1200px)");
 }
+
+/**
+ * A casca decide entre rail e abas ANTES de pintar (T11, 25/09/2026, contradição C14).
+ *
+ * `useIsMobile` devolve `false` no primeiro render (não há `window` no servidor), então no
+ * celular o primeiro quadro era o painel de mesa, com o rail, e só depois virava abas. Aqui o
+ * primeiro render devolve `null`, e a casca pinta só o fundo nesse quadro.
+ *
+ * ⚠️ SÓ A CASCA USA ISTO. `useIsMobile` continua como está: os Ajustes derivam o caminho QR ou
+ * código no render e dependem de o primeiro ser `false` (`AMaisa.tsx`, C14).
+ */
+export function useLayout(query = "(max-width: 900px)"): "celular" | "mesa" | null {
+  const [l, setL] = useState<"celular" | "mesa" | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const sync = () => setL(mq.matches ? "celular" : "mesa");
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [query]);
+  return l;
+}

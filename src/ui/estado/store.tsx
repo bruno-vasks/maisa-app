@@ -633,6 +633,10 @@ export type StoreValue = {
   irPara: (t: TelaId, secao?: string) => void;
   /** O recorte pedido da tela atual (`?secao=` ou `irPara(t, secao)`). `null` = tela sem seções. */
   secao: string | null;
+  /** A tela pediu o celular inteiro (T11, 25/09/2026): a casca esconde o cabeçalho e as abas.
+   *  Hoje só a conversa aberta pede, e ela tem o próprio "voltar". Trocar de tela desliga. */
+  telaCheia: boolean;
+  setTelaCheia: (v: boolean) => void;
   /** id aberto na Gaveta (cliente, agendamento, conversa, serviço, seção…). */
   sel: string | null;
   abrir: (id: string) => void;
@@ -1469,8 +1473,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   /* O formulário de criar em linha (T2): quem pede é a casca ("Novo cliente" no slot ou no
    * menu "Novo"), quem desenha é a tela. Trocar de tela o fecha, como fecha a gaveta. */
   const [novoEmLinha, setNovoEmLinha] = useState<"cliente" | "profissional" | null>(null);
+  const [telaCheia, setTelaCheia] = useState(false);
   const irPara = useCallback((t: TelaId, s?: string) => {
-    setTela(t); setSel(null); setCancelarPedido(null); setRemarcacao(null); setNovoEmLinha(null);
+    setTela(t); setSel(null); setCancelarPedido(null); setRemarcacao(null); setNovoEmLinha(null); setTelaCheia(false);
     setSecao(secaoDoEndereco(t, s));
   }, []);
   const pedirNovo = useCallback((tipo: "cliente" | "profissional" | null) => setNovoEmLinha(tipo), []);
@@ -4549,7 +4554,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /* ── valor ── */
   const value = useMemo<StoreValue>(() => ({
-    tela, irPara, secao, sel, abrir, fechar,
+    tela, irPara, secao, telaCheia, setTelaCheia, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
     remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,
@@ -4583,7 +4588,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
     railAberto, setRailAberto,
   }), [
-    tela, irPara, secao, sel, abrir, fechar,
+    tela, irPara, secao, telaCheia, setTelaCheia, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
     remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,
