@@ -7,6 +7,8 @@ import { falha } from "@/adaptadores/entrada/http/respostas";
 // ATENDIMENTO — marcar e cancelar. Sempre no servidor.
 //
 // POST   → marca o atendimento (com videochamada, se pedido) e devolve o link
+// PATCH  → remarca: { profissionalId, maisaAg, data, inicio } (1B.5, 25/09/2026). Mesmo
+//          evento e mesmo Meet; `foraDoCalendario` diz que o Google ficou no horário antigo
 // DELETE → cancela
 //
 // ⚠️ ESTA ROTA MORAVA EM `/api/google/evento`, E O NOME MENTIA (ADR-0009). O que ela cria
@@ -91,6 +93,25 @@ export async function POST(request: Request) {
        * que a agenda dele NÃO recebeu o evento. Ver o caso de uso. */
       foraDoCalendario: r.foraDoCalendario,
     });
+  } catch (e) {
+    return falha("atendimentos", e);
+  }
+}
+
+export async function PATCH(request: Request) {
+  const porteiro = await exigirSessao();
+  if (barrou(porteiro)) return porteiro.barrado;
+
+  const body = await request.json().catch(() => ({} as any));
+
+  try {
+    const r = await app.remarcarAtendimento(porteiro.tenant, {
+      agendaId: String(body?.profissionalId ?? ""),
+      maisaAg: String(body?.maisaAg ?? ""),
+      data: String(body?.data ?? ""),
+      inicio: Number(body?.inicio),
+    });
+    return NextResponse.json({ ok: true, ...r, status: r.situacao });
   } catch (e) {
     return falha("atendimentos", e);
   }

@@ -26,6 +26,7 @@ import {
   criarCancelarAtendimento, criarDesconectarAgenda, criarLerAgenda, criarListarConexoes,
 } from "@/nucleo/aplicacao/agenda";
 import { criarOferecerHorarios } from "@/nucleo/aplicacao/oferecer-horarios";
+import { criarRemarcarAtendimento } from "@/nucleo/aplicacao/remarcar-atendimento";
 import {
   criarAjustarCliente,
   criarAjustarNegocio,
@@ -504,6 +505,8 @@ export const app = {
   /** A série ("toda semana") é o mesmo `agendarAtendimento`, uma vez por data. */
   agendarRecorrente: criarAgendarRecorrente({ agendar: agendarAtendimento }),
   cancelarAtendimento: criarCancelarAtendimento({ agenda, negocio, registro }),
+  /** Banco primeiro, calendário externo depois (1B.5). Mesma chave, mesmo evento, mesmo Meet. */
+  remarcarAtendimento: criarRemarcarAtendimento({ agenda, negocio, registro }),
   /* `registro` entrou nos quatro (ADR-0009): a agenda do produto é a fonte, `agenda` é
    * a camada aditiva por cima dela. Antes só os dois primeiros o recebiam, e era por isso
    * que ler a grade e oferecer horário não funcionavam sem Google. */
