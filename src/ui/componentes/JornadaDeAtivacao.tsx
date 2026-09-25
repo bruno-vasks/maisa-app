@@ -113,14 +113,14 @@ export function JornadaDeAtivacao() {
   return (
     <section
       aria-label="O que falta para a MAISA atender sozinha"
-      style={s("flex-shrink:0;height:48px;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 6px 0 4px;border:1px solid var(--border);border-radius:12px;background:var(--surface)")}
+      style={s("flex-shrink:0;height:48px;box-sizing:border-box;display:flex;align-items:center;gap:4px;padding:0 4px 0 1px;border:1px solid var(--border);border-radius:12px;background:var(--surface)")}
     >
       <button
         type="button"
         onClick={() => st.abrir("jornada")}
         aria-label={`${r.faltam === 1 ? "Falta 1 passo" : `Faltam ${r.faltam} passos`} para a MAISA atender sozinha. Ver os passos`}
         className="m-hov-bg m-press m-focus"
-        style={s("flex:1;min-width:0;height:40px;display:flex;align-items:center;gap:8px;padding:0 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;text-align:left;color:var(--ink)")}
+        style={s("flex:1;min-width:0;height:44px;display:flex;align-items:center;gap:8px;padding:0 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;text-align:left;color:var(--ink)")}
       >
         <span style={s("flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--t-sm)")}>
           <span style={s("font-weight:var(--w-title)")}>{r.faltam === 1 ? "Falta 1 passo" : `Faltam ${r.faltam} passos`}</span>
@@ -128,7 +128,7 @@ export function JornadaDeAtivacao() {
         </span>
         <Icon name="chevron-right" size={16} sw={2} style={s("flex-shrink:0;color:var(--muted)")} />
       </button>
-      {seguinte?.ir && <Btn variant="secondary" size="sm" onClick={seguinte.ir}>Continuar</Btn>}
+      {seguinte?.ir && <Btn variant="secondary" size="sm" onClick={seguinte.ir} style={{ height: 44 }}>Continuar</Btn>}
     </section>
   );
 }

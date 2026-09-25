@@ -144,7 +144,7 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
           type="button"
           onClick={() => st.avancarEtapa(ag.id)}
           className="m-hov-bg m-press m-focus"
-          style={s("flex-shrink:0;height:40px;min-width:88px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
+          style={s("flex-shrink:0;height:44px;min-width:88px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
         >
           {verbo}
         </button>
@@ -153,9 +153,11 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
   );
 }
 
+/** O título do grupo gruda no topo da região enquanto o grupo passa: a lista abre rolada até
+ *  agora, e sem isso as linhas âmbar apareciam sem dizer o que são. */
 function TituloDoGrupo({ children, n, tom }: { children: React.ReactNode; n: number; tom?: "warn" }) {
   return (
-    <div style={s("display:flex;align-items:center;gap:8px;padding:0 8px;min-height:32px")}>
+    <div style={s(`position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:0 8px;min-height:36px;background:${tom === "warn" ? "var(--warn-soft)" : "var(--bg)"}`)}>
       {tom === "warn" && <Icon name="alert" size={15} sw={2.2} style={s("color:var(--warn)")} />}
       <span style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${tom === "warn" ? "var(--warn)" : "var(--ink)"}`)}>{children}</span>
       <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data);color:var(--muted)")}>{n}</span>
@@ -164,30 +166,37 @@ function TituloDoGrupo({ children, n, tom }: { children: React.ReactNode; n: num
 }
 
 /** A lista do dia. `ancora` marca o fim do que vem, para a região abrir rolada até agora. */
-function ListaDoDia({ passaram, depois, feitos, ancora }: {
+function ListaDoDia({ passaram, depois, feitos, ancora, proximosPrimeiro }: {
   passaram: AgendamentoVivo[]; depois: AgendamentoVivo[]; feitos: AgendamentoVivo[];
   ancora?: React.Ref<HTMLDivElement>;
+  /** No celular "A seguir" vem antes de "Passaram sem chegada": a página rola do topo, e onze
+   *  linhas do que passou empurravam o que vem para a quarta tela. No desktop a ordem é a da
+   *  hora e a região abre rolada até agora. */
+  proximosPrimeiro?: boolean;
 }) {
   const [verFeitos, setVerFeitos] = useState(false);
   /* O total só quando toda sessão trouxe o valor: somar metade e chamar de "hoje" seria o número
    * inventado que 1A.5 tirou da gaveta. */
   const valores = feitos.map((a) => a.valor);
   const total = valores.length && valores.every((v) => v != null) ? valores.reduce<number>((t, v) => t + (v ?? 0), 0) : null;
+  const blocoPassaram = passaram.length ? (
+    <section aria-label="Passaram sem chegada" style={s("background:var(--warn-soft);border-radius:12px;padding:4px 8px")}>
+      <TituloDoGrupo n={passaram.length} tom="warn">Passaram sem chegada</TituloDoGrupo>
+      {passaram.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
+    </section>
+  ) : null;
   return (
     <div style={s("display:flex;flex-direction:column;gap:18px")}>
-      {!!passaram.length && (
-        <section aria-label="Passaram sem chegada" style={s("background:var(--warn-soft);border-radius:12px;padding:10px 8px 4px")}>
-          <TituloDoGrupo n={passaram.length} tom="warn">Passaram sem chegada</TituloDoGrupo>
-          {passaram.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
+      {!proximosPrimeiro && blocoPassaram}
+      {!!depois.length && (
+        <section aria-label="A seguir">
+          <TituloDoGrupo n={depois.length}>A seguir</TituloDoGrupo>
+          {depois.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
         </section>
       )}
-      <section aria-label="A seguir">
-        <TituloDoGrupo n={depois.length}>A seguir</TituloDoGrupo>
-        {depois.length
-          ? depois.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)
-          : <div style={s("padding:10px 8px;font-size:var(--t-sm);color:var(--muted)")}>Mais ninguém marcado hoje depois do próximo.</div>}
-        <div ref={ancora} />
-      </section>
+      {/* Sem altura e sem gap próprio: é só o ponto "agora" da lista, para a região abrir nele. */}
+      <div ref={ancora} aria-hidden style={s("margin-top:-18px")} />
+      {proximosPrimeiro && blocoPassaram}
       {!!feitos.length && (
         <section aria-label="Feitos hoje">
           <button
@@ -382,18 +391,32 @@ export default function FluxoHoje() {
   );
 
   /* A lista abre rolada até agora (02 #5): o fim do que vem encosta no pé da região, e o que
-   * passou por último fica logo acima. Uma vez por montagem, só no desktop (no celular a página
-   * é que rola, e a ordem já põe o Agora em cima). */
+   * passou por último fica logo acima. Só no desktop (no celular a página é que rola, e a ordem
+   * já põe o Agora em cima). A região muda de altura depois da montagem (a jornada chega com
+   * `/api/ativacao`, a faixa Agora cresce com quem entra em atendimento), então o alinhamento se
+   * refaz a cada mudança de tamanho, até a pessoa rolar com a mão: daí a rolagem é dela. */
   const ancora = useRef<HTMLDivElement>(null);
-  const rolou = useRef(false);
   useEffect(() => {
-    if (mobile || dia !== "cheio" || rolou.current) return;
-    const el = ancora.current;
-    const regiao = el?.closest<HTMLElement>("[data-regiao]");
-    if (!el || !regiao) return;
-    rolou.current = true;
-    const fim = el.getBoundingClientRect().bottom - regiao.getBoundingClientRect().top + regiao.scrollTop;
-    regiao.scrollTop = Math.max(0, fim - regiao.clientHeight + 24);
+    if (mobile || dia !== "cheio") return;
+    const regiao = ancora.current?.closest<HTMLElement>("[data-regiao]");
+    if (!regiao) return;
+    let minha = false;
+    let dela = false;
+    const alinhar = () => {
+      const el = ancora.current;
+      if (dela || !el) return;
+      const fim = el.getBoundingClientRect().bottom - regiao.getBoundingClientRect().top + regiao.scrollTop;
+      const alvo = Math.max(0, Math.round(fim - regiao.clientHeight + 24));
+      if (Math.abs(regiao.scrollTop - alvo) < 2) return;
+      minha = true;
+      regiao.scrollTop = alvo;
+    };
+    const aoRolar = () => { if (minha) { minha = false; return; } dela = true; };
+    alinhar();
+    const ro = new ResizeObserver(alinhar);
+    ro.observe(regiao);
+    regiao.addEventListener("scroll", aoRolar, { passive: true });
+    return () => { ro.disconnect(); regiao.removeEventListener("scroll", aoRolar); };
   }, [mobile, dia]);
 
   const lista = dia === "cheio"
@@ -408,8 +431,7 @@ export default function FluxoHoje() {
         <JornadaDeAtivacao />
         {agora}
         <FilaResumida />
-        {dia === "cheio" && <span style={s("font-size:var(--t-body);font-weight:var(--w-title);margin-bottom:-6px")}>Hoje</span>}
-        {lista}
+        {dia === "cheio" ? <ListaDoDia passaram={partes.passaram} depois={partes.depois} feitos={partes.feitos} proximosPrimeiro /> : lista}
       </Moldura>
     );
   }
