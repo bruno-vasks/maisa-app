@@ -64,6 +64,8 @@ import {
   CodigoPareamento, ConferirNumero, NumeroDoPareamento, digitosDoTelefone, telefoneMascarado,
 } from "@/ui/componentes/Pareamento";
 import { useIsMobile } from "@/ui/useIsMobile";
+import { OpcoesDoNumero, useCaderno } from "@/ui/componentes/EscolhaDoNumero";
+import type { ModoDoNumero } from "@/nucleo/dominio/contatos";
 
 /* ───────────────────────────── as etapas ───────────────────────────── */
 
@@ -642,6 +644,72 @@ function EtapaCatalogo({ aoSeguir }: { aoSeguir: () => void }) {
 
 /* ───────────────────────────── etapa 3 · o WhatsApp ───────────────────────────── */
 
+/**
+ * De quem é esse número, logo depois de conectar. As peças são as do painel
+ * (`EscolhaDoNumero`), sem store: o wizard roda fora do `StoreProvider` (guarda G13).
+ *
+ * Nada vem pré-marcado, mesmo com o servidor dizendo `pessoal`: esse valor é o padrão de
+ * segurança do banco, não uma resposta dela. "Continuar" só aparece depois que o `PATCH
+ * /api/contatos` aceitou a escolha. No pessoal, o convite para trazer a agenda vem junto,
+ * porque é o caderno que diz quem é cliente.
+ */
+function PerguntaDoNumero({ aoSeguir }: { aoSeguir: () => void }) {
+  const { ocupado, trocar, importar, estado } = useCaderno();
+  const [escolhido, setEscolhido] = useState<ModoDoNumero | null>(null);
+  const [gravado, setGravado] = useState(false);
+  const [recado, setRecado] = useState<Recado>(null);
+  const [trazidos, setTrazidos] = useState<string | null>(null);
+
+  const escolher = async (m: ModoDoNumero) => {
+    if (ocupado) return;
+    setEscolhido(m);
+    setGravado(false);
+    setRecado(null);
+    const erro = await trocar(m);
+    if (erro) { setRecado(falhou(erro)); setEscolhido(null); return; }
+    setGravado(true);
+  };
+
+  const trazer = async () => {
+    if (ocupado) return;
+    const r = await importar();
+    if (!r.ok) { setRecado(falhou(r.frase)); return; }
+    setRecado(null);
+    setTrazidos(r.frase);
+  };
+
+  return (
+    <div style={s("width:100%;display:flex;flex-direction:column;gap:12px;text-align:left")}>
+      <div>
+        <p style={s("margin:0;font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>De quem é esse número?</p>
+        <p style={s("margin:4px 0 0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
+          Decide quem a MAISA atende. Dá para mudar depois, nos Ajustes.
+        </p>
+      </div>
+      <OpcoesDoNumero modo={escolhido} aoEscolher={(m) => void escolher(m)} desligado={ocupado !== null} />
+      <Aviso recado={recado} />
+      {gravado && escolhido === "pessoal" && (
+        <div style={s("display:flex;flex-direction:column;gap:9px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--surface)")}>
+          <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
+            Traga sua agenda para marcar seus clientes. Sem ela, a MAISA só responde número novo que
+            chega pedindo horário.
+          </p>
+          {trazidos
+            ? <p role="status" style={s("margin:0;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--success)")}>{trazidos}</p>
+            : (
+              <Botao variante="ghost" ocupado={ocupado === "importar"} onClick={() => void trazer()}>
+                {ocupado === "importar" ? "Lendo sua agenda…" : (estado?.contatos.length ?? 0) > 0 ? "Atualizar meus contatos" : "Trazer meus contatos"}
+              </Botao>
+            )}
+        </div>
+      )}
+      {gravado
+        ? <Botao onClick={aoSeguir} full>Continuar</Botao>
+        : <p style={s("margin:0;font-size:var(--t-label);color:var(--muted)")}>Escolha uma das duas para seguir.</p>}
+    </div>
+  );
+}
+
 function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
   const [qrcode, setQrcode] = useState<string | null>(null);
   /** Os 8 caracteres do "Conectar com número de telefone". `null` = pareamento por QR. */
@@ -848,7 +916,10 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
           <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>WhatsApp conectado</p>
           {numero && <p style={s("font-size:var(--t-sm);color:var(--muted);margin:4px 0 0")}>+{numero}</p>}
         </div>
-        <Botao onClick={aoSeguir} full>Continuar</Botao>
+        {/* ⚠️ A PERGUNTA VEM AQUI, ANTES DE SEGUIR (25/09/2026, 1A.15, 09 P0-3). O modo nasce
+            `pessoal` e o caderno nasce vazio: sem perguntar, a pessoa saía com "conectado" e
+            uma MAISA que calava para os clientes salvos no celular dela. */}
+        <PerguntaDoNumero aoSeguir={aoSeguir} />
       </div>
     );
   }
@@ -856,8 +927,9 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <p style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5;margin:0")}>
-        Use o WhatsApp <strong style={s("color:var(--ink);font-weight:var(--w-title)")}>do negócio</strong> — é
-        o número que seus clientes já conhecem. A MAISA responde por ele; você continua vendo tudo.
+        {/* Dizia "use o WhatsApp do negócio", e o ICP roda no número pessoal (09 P0-3). */}
+        Conecte o WhatsApp <strong style={s("color:var(--ink);font-weight:var(--w-title)")}>onde seus clientes já falam com você</strong>.
+        A MAISA responde por ele, e você continua vendo tudo.
       </p>
 
       {status === "pareando" && mostrandoCodigo && codigo ? (
@@ -899,7 +971,7 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
             style={s("width:232px;height:232px;border-radius:14px;border:1px solid var(--border);background:var(--surface);padding:8px")}
           />
           <ol style={s("margin:0;padding-left:18px;font-size:var(--t-sm);color:var(--muted);line-height:1.7")}>
-            <li>Abra o WhatsApp no celular do negócio</li>
+            <li>Abra o WhatsApp no celular com esse número</li>
             <li>Toque em <strong style={s("color:var(--ink)")}>Aparelhos conectados</strong></li>
             <li>Toque em <strong style={s("color:var(--ink)")}>Conectar aparelho</strong> e aponte para o código</li>
           </ol>
@@ -909,7 +981,7 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-              Número do WhatsApp do negócio
+              Número do WhatsApp
             </span>
             <input
               value={telefoneMascarado(digitos)}
@@ -1182,8 +1254,21 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
       const trilha: Passo[] = d.trilha ?? [];
       if (trilha.some((p) => p.ferramenta === "oferecer_horarios" && !p.erro)) setConsultou(true);
 
-      for (const b of (d.bolhas ?? []) as string[]) {
+      const bolhas = (d.bolhas ?? []) as string[];
+      for (const b of bolhas) {
         setFalas((f) => [...f, { de: "maisa", txt: b }]);
+      }
+      /* ⚠️ BOLHA VAZIA É SILÊNCIO, E SILÊNCIO TEM MOTIVO (1A.15, 09 P0-3). A rota devolve
+       * `ok:true, bolhas:[]` quando a MAISA decide calar (número pessoal, conversa assumida) e
+       * manda o porquê em `motivo`. Antes a fala do "cliente" aparecia, o "digitando…" sumia,
+       * e nada: sem uma palavra. Quando escalou, o aviso de baixo já fala. */
+      if (bolhas.length === 0 && !d.escalou) {
+        setFalas((f) => [...f, {
+          de: "aviso",
+          txt: d.motivo
+            ? `Ela ficou calada: ${String(d.motivo).replace(/\.$/, "")}. No WhatsApp de verdade seria igual. Quem ela atende se muda em "De quem é esse número", nos Ajustes.`
+            : "Ela ficou calada, e o servidor não disse por quê.",
+        }]);
       }
 
       /* O horário marcado sai da TRILHA e não do texto da resposta, e essa distinção é o

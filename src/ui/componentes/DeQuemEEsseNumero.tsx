@@ -18,96 +18,32 @@
  * A regra em si é `nucleo/dominio/contatos.ts` — pura e testada. Esta tela é só a pergunta.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import React, { useCallback, useEffect, useState } from "react";
-import { s, Icon, Btn, toast } from "@/ui/primitivos";
-import type { Contato, ModoDoNumero } from "@/nucleo/dominio/contatos";
+import React, { useCallback } from "react";
+import { s, Btn, toast } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import { Esqueleto, FalhaDeLeitura, ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
-import { mensagemDaFalha } from "@/ui/falhas";
-
-type Estado = { modo: ModoDoNumero; contatos: Contato[] };
-
-const OPCOES: { id: ModoDoNumero; titulo: string; sub: string }[] = [
-  {
-    id: "pessoal",
-    titulo: "É meu número pessoal também",
-    sub: "Ela só atende quem você marcar como cliente — e número novo que chega pedindo horário. Cala para todo o resto.",
-  },
-  {
-    id: "negocio",
-    titulo: "É só do negócio",
-    sub: "Ela atende todo mundo que escrever.",
-  },
-];
+import type { ModoDoNumero } from "@/nucleo/dominio/contatos";
+/* A pergunta, os dois botões e a leitura do caderno moram em `EscolhaDoNumero.tsx`, sem store,
+ * desde 25/09/2026 (1A.15): o wizard faz a mesma pergunta logo depois de conectar. */
+import { OpcoesDoNumero, useCaderno } from "@/ui/componentes/EscolhaDoNumero";
 
 export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
   const st = useStore();
-  const [estado, setEstado] = useState<Estado | null>(null);
-  /* A leitura falhou (24/09/2026, item 1A.6). Antes o cartão SUMIA (`return null`) e a pergunta
+  /* A leitura falhou (24/09/2026, item 1A.6)? Antes o cartão SUMIA (`return null`) e a pergunta
    * que impede a MAISA de falar com o pai do dono desaparecia sem uma palavra. */
-  const [falha, setFalha] = useState<{ frase: string; detalhe?: string; entrar: boolean } | null>(null);
-  const [ocupado, setOcupado] = useState<null | "modo" | "importar">(null);
-
-  const ler = useCallback(async () => {
-    setFalha(null);
-    try {
-      const r = await fetch("/api/contatos", { cache: "no-store" }).then((x) => x.json());
-      if (r?.ok) { setEstado({ modo: r.modo, contatos: r.contatos ?? [] }); return; }
-      setFalha(r?.status === "login_necessario"
-        ? { frase: "Entre na sua conta para ver seus contatos.", entrar: true }
-        : { frase: "Não consegui ler seus contatos.", detalhe: mensagemDaFalha(r, "") || undefined, entrar: false });
-    } catch {
-      setFalha({ frase: "Não consegui ler seus contatos.", detalhe: "Sem conexão com o servidor.", entrar: false });
-    }
-  }, []);
-
-  useEffect(() => { void ler(); }, [ler]);
+  const { estado, falha, ocupado, ler, trocar: gravarModo, importar: trazer } = useCaderno();
 
   const trocar = useCallback(async (modo: ModoDoNumero) => {
     if (ocupado) return;
-    setOcupado("modo");
-    /* Otimista, com reversão pelo `ler()` do `finally`: a escolha é um toque e a espera de um
-     * round-trip num par de botões parece travamento. Se o servidor recusar (não há canal
-     * pareado, por exemplo), a releitura devolve o valor de verdade. */
-    setEstado((e) => (e ? { ...e, modo } : e));
-    try {
-      const r = await fetch("/api/contatos", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ modo }),
-      }).then((x) => x.json());
-      if (!r?.ok) toast(r?.info ?? "Não consegui salvar essa escolha");
-    } catch {
-      toast("Sem conexão com o servidor");
-    } finally {
-      setOcupado(null);
-      void ler();
-    }
-  }, [ocupado, ler]);
+    const erro = await gravarModo(modo);
+    if (erro) toast(erro);
+  }, [ocupado, gravarModo]);
 
   const importar = useCallback(async () => {
     if (ocupado) return;
-    setOcupado("importar");
-    try {
-      const r = await fetch("/api/contatos", { method: "POST" }).then((x) => x.json());
-      if (!r?.ok) { toast(r?.info ?? "Não consegui ler seus contatos"); return; }
-      /* Os TRÊS números, e é deliberado. A agenda do Bruno tem 1.840 entradas e 374
-       * utilizáveis — o resto é grupo ou `@lid` sem telefone. Dizer só "374 importados" faria
-       * ele procurar os outros 1.466; dizer os três explica sozinho. */
-      const perdidos = Math.max(0, (r.lidos ?? 0) - (r.total ?? 0));
-      toast(
-        r.novos === 0
-          ? `Nada novo — seus ${r.total} contatos já estavam aqui`
-          : `${r.novos} ${r.novos === 1 ? "contato" : "contatos"} ${r.novos === 1 ? "novo" : "novos"}`
-            + (perdidos ? ` · ${perdidos} da sua agenda não têm telefone utilizável` : ""),
-      );
-    } catch {
-      toast("Sem conexão com o servidor");
-    } finally {
-      setOcupado(null);
-      void ler();
-    }
-  }, [ocupado, ler]);
+    const r = await trazer();
+    toast(r.frase);
+  }, [ocupado, trazer]);
 
   /* Sem leitura, o cartão existe do mesmo jeito: esqueleto enquanto lê, a frase e a saída se
    * falhou. O que já foi lido continua se uma releitura (depois de trocar) falhar. */
@@ -146,35 +82,7 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
         </p>
       </div>
 
-      <div style={s("display:flex;flex-direction:column;gap:8px")}>
-        {OPCOES.map((o) => {
-          const ativo = estado.modo === o.id;
-          return (
-            <button
-              key={o.id}
-              onClick={() => void trocar(o.id)}
-              aria-pressed={ativo}
-              className="m-hov-bg m-press m-focus"
-              style={s(`display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;font-family:inherit;padding:11px 12px;border-radius:12px;cursor:pointer;border:1.5px solid ${ativo ? "var(--primary)" : "var(--border)"};background:${ativo ? "var(--primary-soft)" : "var(--surface)"}`)}
-            >
-              {/* Círculo com ✓ e não só a borda colorida: cor sozinha é o sinal mais frágil
-                  que existe, e esta escolha decide silêncio. */}
-              <span
-                aria-hidden
-                style={s(`display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0;margin-top:1px;border-radius:99px;border:1.5px solid ${ativo ? "var(--primary)" : "var(--border-field)"};background:${ativo ? "var(--primary)" : "transparent"}`)}
-              >
-                {ativo && <Icon name="check" size={12} sw={3} stroke="var(--on-primary)" />}
-              </span>
-              <span style={s("display:flex;flex-direction:column;gap:2px;min-width:0")}>
-                <span style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${ativo ? "var(--primary-dark)" : "var(--ink)"}`)}>
-                  {o.titulo}
-                </span>
-                <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>{o.sub}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <OpcoesDoNumero modo={estado.modo} aoEscolher={(m) => void trocar(m)} />
 
       {estado.modo === "pessoal" && (
         <div style={s("display:flex;flex-direction:column;gap:9px;padding-top:11px;border-top:1px solid var(--line)")}>
