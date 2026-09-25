@@ -338,11 +338,12 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
             </select>
           </label>
 
-          {/* ⚠️ NÃO BLOQUEIA, E A FRASE DIZ ISSO — o campo 16 do arquivo aceita vazio (manual
-              2.1, pergunta 25). Marcar como obrigatório impediria de fechar o mês por um dado
-              que a Receita nem exige.
+          {/* ⚠️ OBRIGATÓRIO PARA EMITIR, desde 25/09/2026 (1A.13): a emissão é pela Rebots, que
+              exige o registro para habilitar a emitente, e a tela Fiscal bloqueia sem ele. Dizia
+              "dá para deixar em branco" (verdade só para o arquivo do e-CAC) e ela andava em
+              círculo entre as duas telas. Ver `faltaParaEmitirRecibo`.
 
-              Mas ele importa por dois motivos que a frase precisa carregar: é o que o plano de
+              E ele importa por dois motivos que a frase precisa carregar: é o que o plano de
               saúde exige para reembolsar o paciente, e é o número que **tem que estar também no
               Carnê-Leão dela** — que é de onde vem o erro "Registro profissional não informado
               pelo conselho profissional". A Receita cruza CPF ↔ base do conselho; digitar aqui
@@ -362,8 +363,8 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               <span style={s("display:flex;gap:7px;align-items:flex-start;font-size:var(--t-label);color:var(--warn);line-height:1.5")}>
                 <Icon name="alert" size={14} />
                 <span>
-                  Dá para deixar em branco, mas o mesmo número precisa estar cadastrado no seu
-                  Carnê-Leão — senão a Receita recusa o arquivo com{" "}
+                  O registro no conselho é obrigatório para emitir. E o mesmo número precisa estar
+                  cadastrado no seu Carnê-Leão, senão a Receita recusa com{" "}
                   <em>&ldquo;registro profissional não informado pelo conselho&rdquo;</em>. Depois
                   de salvar, veja o passo a passo em <strong>Pronto para emitir?</strong>
                 </span>

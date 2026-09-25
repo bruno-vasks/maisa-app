@@ -9,8 +9,8 @@
  * descobriria no e-CAC, sozinha, em vocabulário de Receita. Por isso `nao_da_para_saber` é
  * inatingível por configuração — e há teste que tenta e falha de propósito.
  *
- * E que o CRP NÃO bloqueia. O campo 16 do arquivo aceita vazio; o que trava é o cadastro dela.
- * Tratar como obrigatório impediria de fechar o mês por um dado que a Receita nem exige.
+ * E, desde 25/09/2026, que o CRP BLOQUEIA a emissão pela MAISA: a Rebots exige o registro para
+ * habilitar a emitente (ver o cabeçalho de `checklist-recibo.ts` e `faltaParaEmitirRecibo`).
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
@@ -19,6 +19,7 @@ import {
   passosDaProcuracao,
   AVISO_ASSINADOR,
   checklistDoRecibo, faltaNoChecklist, partesDoChecklist, seAindaRecusar,
+  faltaParaEmitirRecibo, faltaNosDados,
 } from "./checklist-recibo";
 import type { ConfigFiscal } from "./fiscal";
 
@@ -61,12 +62,12 @@ describe("o que a gente consegue conferir", () => {
     expect(item(carla(), "profissao").detalhe).toContain("255");
   });
 
-  /* ★ NÃO BLOQUEIA, e a frase na tela diz isso. Sem essa palavra ela para o fechamento do mês
-   * achando que precisa resolver antes — e não precisa. */
-  it("sem registro é `falta`, mas a frase avisa que não bloqueia", () => {
+  /* ★ MUDOU DE PROPÓSITO EM 25/09/2026: a frase dizia "Não bloqueia gerar" enquanto a tela
+   * Fiscal bloqueava, e ela andava em círculo. Agora as duas dizem a mesma coisa. */
+  it("sem registro é `falta`, e a frase diz que é obrigatório para emitir", () => {
     const i = item(carla({ registroProfissional: null }), "registro");
     expect(i.estado).toBe("falta");
-    expect(i.detalhe).toContain("Não bloqueia gerar");
+    expect(i.detalhe).toContain("obrigatório para emitir");
   });
 });
 
@@ -486,5 +487,37 @@ describe("★ a ressalva do certificado fica fora da lista numerada", () => {
   /* Quem não outorgou não tem item nenhum — e portanto nenhum aviso sobre assinar coisa alguma. */
   it("sem procuração, o item não existe", () => {
     expect(outorga(carla())).toBeUndefined();
+  });
+});
+
+describe("★ faltaParaEmitirRecibo: uma regra só para a Fiscal e o Documento fiscal (1A.13)", () => {
+  const ids = (c: ConfigFiscal) => faltaParaEmitirRecibo(c, HOJE).map((f) => f.id);
+
+  it("tudo certo e sem procurador: nada falta (sem representação não bloqueia, decisão aberta)", () => {
+    expect(ids(carla())).toEqual([]);
+  });
+
+  it("CPF, profissão e registro, cada um na sua frase", () => {
+    expect(ids(carla({ prestadorCpf: null, ocupacaoSaude: null, registroProfissional: "  " }))).toEqual(["cpf", "profissao", "registro"]);
+    expect(faltaParaEmitirRecibo(carla({ registroProfissional: null }), HOJE)[0].frase).toContain("CRP");
+  });
+
+  it("autorização vencida bloqueia, com a data, e a bola é dela", () => {
+    const f = faltaParaEmitirRecibo(carla({ procuradorDocumento: "62025689000166", procuracaoValidaAte: "2026-08-01", procuracaoAceitaEm: "2026-01-10" }), HOJE);
+    expect(f).toEqual([{ id: "autorizacao", quem: "voce", frase: "Sua autorização venceu em 01/08/2026." }]);
+  });
+
+  it("autorização esperando o nosso aceite bloqueia, e a bola é nossa", () => {
+    const f = faltaParaEmitirRecibo(carla({ procuradorDocumento: "62025689000166", procuracaoValidaAte: "2027-08-01", procuracaoAceitaEm: null }), HOJE);
+    expect(f.map((x) => [x.id, x.quem])).toEqual([["autorizacao", "nos"]]);
+  });
+
+  it("representada e válida: não bloqueia", () => {
+    expect(ids(carla({ procuradorDocumento: "62025689000166", procuracaoValidaAte: "2027-08-01", procuracaoAceitaEm: "2026-08-02" }))).toEqual([]);
+  });
+
+  it("faltaNosDados separa o que se resolve num formulário", () => {
+    const f = faltaParaEmitirRecibo(carla({ registroProfissional: null, procuradorDocumento: "62025689000166", procuracaoValidaAte: "2026-08-01", procuracaoAceitaEm: "2026-01-10" }), HOJE);
+    expect(faltaNosDados(f).map((x) => x.id)).toEqual(["registro"]);
   });
 });

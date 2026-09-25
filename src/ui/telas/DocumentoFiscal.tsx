@@ -58,6 +58,8 @@ import { useStore } from "@/ui/estado/store";
 import { TelaGrade } from "@/ui/componentes/Cartao";
 import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
 import { LoteReceitaSaude } from "@/ui/componentes/LoteReceitaSaude";
+import { faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
+import { hojeISO } from "@/nucleo/dominio/tempo";
 
 type Modo = "nota" | "recibo";
 
@@ -274,7 +276,10 @@ export function DocumentoFiscal() {
       {/* ── ★ O PRÓXIMO PASSO, DITO EM VOZ ALTA ──
           Esta tela respondia uma pergunta e parava. Quem terminava de escolher ficava olhando para
           uma configuração sem saber que o trabalho acontece em outro lugar. */}
-      {modo === "recibo" && (
+      {/* ⚠️ SÓ COM A ESCOLHA GRAVADA E NADA BLOQUEANDO (25/09/2026, 1A.13, 06 P0-4). Aparecia com
+          `modo === "recibo"`, inclusive antes de gravar e sem o CRP: o único botão primário da
+          tela levava de volta ao bloqueio da tela Fiscal. A regra é `faltaParaEmitirRecibo`. */}
+      {feita === "recibo" && config && faltaParaEmitirRecibo(config, hojeISO()).length === 0 && (
         <Card style={s("display:flex;align-items:center;gap:16px;flex-wrap:wrap")}>
           <span style={s("flex:1;min-width:220px")}>
             <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>

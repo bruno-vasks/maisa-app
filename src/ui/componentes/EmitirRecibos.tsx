@@ -64,8 +64,9 @@ import { s, Icon, fmt, Btn, Card, EmptyState, Badge, Toggle } from "@/ui/primiti
 import { useStore } from "@/ui/estado/store";
 import { useIsMobile } from "@/ui/useIsMobile";
 import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
-import type { ConfigFiscal } from "@/nucleo/dominio/fiscal";
-import { NOME_DA_OCUPACAO } from "@/nucleo/dominio/checklist-recibo";
+import { representacao, type ConfigFiscal } from "@/nucleo/dominio/fiscal";
+import { NOME_DA_OCUPACAO, faltaNosDados, faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
+import { hojeISO, rotuloBR } from "@/nucleo/dominio/tempo";
 import { NovoPagamento } from "@/ui/componentes/NovoPagamento";
 
 /* ── o que as rotas devolvem ─────────────────────────────────────────────── */
@@ -215,11 +216,23 @@ function BarraDeEtapas({ etapa, ir }: { etapa: number; ir: (n: number) => void }
   );
 }
 
-/** Linha do emitente. Read-only de propósito — quem muda é a tela de configuração. */
+/**
+ * Linha do emitente. Read-only de propósito — quem muda é a tela de configuração.
+ *
+ * ★ E A AUTORIZAÇÃO DE ACESSO MORA AQUI (25/09/2026, 1A.13, 06 P0-3). Ela é a única peça que
+ * vence e depende das mãos dela, e não aparecia em lugar nenhum: vencida em 01/09, "Emitir 11
+ * recibos" aceso, e os 11 voltavam recusados. Válida, a linha diz até quando; vencida ou
+ * esperando o nosso aceite, a linha fica âmbar com a frase de `faltaParaEmitirRecibo`, e
+ * "Renovar autorização" quando a bola é dela.
+ */
 function Emitente({ config }: { config: ConfigFiscal }) {
   const st = useStore();
   const nome = NOME_DA_OCUPACAO[config.ocupacaoSaude ?? "psicologo"];
+  const hoje = hojeISO();
+  const rep = representacao(config, hoje);
+  const bloqueio = faltaParaEmitirRecibo(config, hoje).find((f) => f.id === "autorizacao");
   return (
+    <div style={s("display:flex;flex-direction:column;gap:8px")}>
     <div style={s("display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 4px")}>
       <span style={s("font-size:var(--t-label);color:var(--muted)")}>Emitente</span>
       <span className="n-mach" style={s("font-size:var(--t-label);color:var(--ink);font-weight:var(--w-title)")}>
@@ -245,6 +258,20 @@ function Emitente({ config }: { config: ConfigFiscal }) {
             tela sugeririam dois lugares. Aqui, ao lado do dado, o verbo basta. */}
         Editar
       </button>
+    </div>
+    {bloqueio ? (
+      <div role="status" style={s("display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;border:1px solid var(--warn-line);background:var(--warn-soft)")}>
+        <Icon name="alert" size={16} style={s("flex-shrink:0;color:var(--warn)")} />
+        <span style={s("flex:1;min-width:200px;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{bloqueio.frase}</span>
+        {bloqueio.quem === "voce" && (
+          <Btn size="sm" onClick={() => st.irPara("fiscal")}>Renovar autorização</Btn>
+        )}
+      </div>
+    ) : rep.modo === "representada" ? (
+      <span style={s("padding:0 4px;font-size:var(--t-label);color:var(--muted)")}>
+        {rep.ate ? `Autorização de acesso vale até ${rotuloBR(rep.ate)}` : "Autorização de acesso sem prazo, vale até você cancelar"}
+      </span>
+    ) : null}
     </div>
   );
 }
@@ -429,11 +456,16 @@ export function EmitirRecibos() {
    * Mas sem registro a emissão falha **no canal**, não aqui: o `/issuers` da Rebots exige
    * `registration` para habilitar um emitente novo. Ou seja, o CTA ficaria clicável e cada recibo
    * voltaria recusado, um por um. Bloquear com a frase certa é mais honesto que deixar tentar. */
-  const semRegistro = !(fiscal.config.registroProfissional ?? "").trim();
+  /* Desde 25/09/2026 a regra mora em `faltaParaEmitirRecibo` (domínio, com teste), a mesma do
+   * Documento fiscal: antes cada tela tinha a sua e as duas se contradiziam (06 P0-4). */
+  const faltas = faltaParaEmitirRecibo(fiscal.config, hojeISO());
+  const semRegistro = faltas.some((f) => f.id === "registro");
+  /** Autorização vencida ou esperando aceite: a lista aparece, o CTA desliga com a frase. */
+  const bloqueioDaAutorizacao = faltas.find((f) => f.id === "autorizacao") ?? null;
 
   /* ⚠️ FALTA CONFIGURAÇÃO: a tela não oferece um botão que o servidor vai recusar. Um bloco, uma
    * frase, um caminho — e o caminho é a outra tela, porque é lá que isso se resolve agora. */
-  if (fiscal.falta.length > 0 || semRegistro) {
+  if (fiscal.falta.length > 0 || faltaNosDados(faltas).length > 0) {
     const pendencias = [...fiscal.falta, ...(semRegistro ? ["o seu registro no conselho"] : [])];
     return (
       <Card style={s("display:flex;flex-direction:column;gap:14px;align-items:flex-start")}>
@@ -449,7 +481,7 @@ export function EmitirRecibos() {
             a Receita recusa o documento sem isso.
           </p>
         </div>
-        <Btn icon="config" onClick={() => st.irPara("fiscal")}>Ir para Documento fiscal</Btn>
+        <Btn icon="edit" onClick={() => st.irPara("fiscal")}>Preencher meus dados</Btn>
       </Card>
     );
   }
@@ -466,7 +498,7 @@ export function EmitirRecibos() {
    * lista mostra e se o CTA está clicável. */
 
   const previaItem = aEmitir[Math.min(previa, Math.max(aEmitir.length - 1, 0))];
-  const travado = aEmitir.length === 0 || emitindoAgora;
+  const travado = aEmitir.length === 0 || emitindoAgora || bloqueioDaAutorizacao !== null;
 
   /* ── painel da direita: os números e o botão ─────────────────────────────── */
 
@@ -575,10 +607,12 @@ export function EmitirRecibos() {
             ? "Nada a emitir"
             : aEmitir.length === 1 ? "Emitir 1 recibo" : `Emitir ${aEmitir.length} recibos`}
       </button>
-      <span style={s("text-align:center;font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-        {aEmitir.length === 0
-          ? "Todo atendimento pago do mês já tem recibo."
-          : "Emissão definitiva. Cancelamento em até 10 dias."}
+      <span style={s(`text-align:center;font-size:var(--t-label);color:${bloqueioDaAutorizacao ? "var(--warn)" : "var(--muted)"};font-weight:${bloqueioDaAutorizacao ? "var(--w-title)" : "inherit"};line-height:1.5`)}>
+        {bloqueioDaAutorizacao
+          ? bloqueioDaAutorizacao.frase
+          : aEmitir.length === 0
+            ? "Todo atendimento pago do mês já tem recibo."
+            : "Emissão definitiva. Cancelamento em até 10 dias."}
       </span>
     </Card>
   );

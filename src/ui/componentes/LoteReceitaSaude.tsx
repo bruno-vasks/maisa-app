@@ -33,7 +33,7 @@ import { useStore } from "@/ui/estado/store";
 import { cpfValido } from "@/nucleo/dominio/clientes";
 import {
   CONSELHO, LINK_CARNE_LEAO, NOME_DA_OCUPACAO, checklistDoRecibo, faltaNoChecklist,
-  partesDoChecklist, seAindaRecusar,
+  partesDoChecklist, seAindaRecusar, faltaNosDados, faltaParaEmitirRecibo,
   type ItemDoChecklist,
 } from "@/nucleo/dominio/checklist-recibo";
 import type { OcupacaoSaude } from "@/nucleo/dominio/recibo-saude";
@@ -493,10 +493,10 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
   const { meusDados, noEcac } = partesDoChecklist(checklist);
   const faltaMeusDados = faltaNoChecklist(meusDados);
   const faltaNoEcac = faltaNoChecklist(noEcac);
-  /* ⚠️ `falta` (de `fiscalFaltando`) é o que IMPEDE gerar — CPF e profissão. O registro do
-   * conselho também aparece como pendência e NÃO impede: pintar o bloco de amarelo por causa
-   * dele mandaria a pessoa parar o fechamento do mês por um campo que não trava nada. */
-  const bloqueia = falta.length > 0;
+  /* ⚠️ O QUE IMPEDE EMITIR É `faltaParaEmitirRecibo` (domínio), desde 25/09/2026 (1A.13): CPF,
+   * profissão E o registro no conselho, que a Rebots exige. O registro "não impedia" aqui e
+   * impedia na tela Fiscal, e o botão primário apontava para a parede (06 P0-4). */
+  const bloqueia = falta.length > 0 || (config ? faltaNosDados(faltaParaEmitirRecibo(config, hojeISO())).length > 0 : false);
   /* Aberto por conta própria quando há pendência do outro lado do muro. Autorização vencida
    * dentro de um acordeão fechado é a pior forma de dar a única notícia que para a emissão. */
   const ecacAberto = checklistAberto ?? faltaNoEcac > 0;
@@ -545,8 +545,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
                   {resumoDosDados(config, meusDados)}
                 </span>
               </span>
-              {/* Primário só quando IMPEDE gerar. O registro do conselho é pendência sem ser
-                  bloqueio, e um botão âmbar por causa dele faria parar o mês à toa. */}
+              {/* Primário só quando IMPEDE emitir (inclusive o registro, ver `bloqueia`). */}
               <Btn variant={bloqueia ? "primary" : "ghost"} icon="edit" onClick={abrirDados}>
                 {faltaMeusDados > 0 ? "Preencher meus dados" : "Corrigir"}
               </Btn>
@@ -587,7 +586,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
               </label>
 
               <label style={s("display:grid;gap:5px;font-size:var(--t-label);color:var(--muted)")}>
-                Seu {CONSELHO[fOcupacao]} — não bloqueia gerar o arquivo
+                Seu {CONSELHO[fOcupacao]}, obrigatório para emitir
                 <input
                   value={fRegistro}
                   onChange={(e) => setFRegistro(e.target.value)}

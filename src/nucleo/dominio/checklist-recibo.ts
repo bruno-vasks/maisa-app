@@ -24,12 +24,14 @@
  * que está tudo certo e descobriria no e-CAC, sozinha, em vocabulário de Receita. Então o item
  * aparece como "só você sabe", com o link e as palavras exatas dos botões que ela vai ver.
  *
- * ── POR QUE O CRP NÃO BLOQUEIA ──
+ * ── ⚠️ O CRP BLOQUEIA, DESDE 25/09/2026 ──
  *
- * Porque o campo 16 do arquivo **aceita vazio** (manual 2.1, pergunta 25), e o que trava a
- * emissão é o cadastro dela, não o nosso campo. Tratar como obrigatório impediria de gerar
- * arquivo por causa de um dado que a Receita nem exige — e o custo de errar para esse lado é
- * ela não conseguir fechar o mês por nada.
+ * Até aqui ele não bloqueava, e o motivo era do caminho do ARQUIVO: o campo 16 do CSV aceita
+ * vazio (manual 2.1, pergunta 25). Só que o produto não emite mais por arquivo: emite pela
+ * Rebots, e o `/issuers` de lá **exige** `registration` para habilitar a emitente
+ * (`EmitirRecibos.tsx`, que já bloqueava). A tela Fiscal bloqueava, o Documento fiscal dizia
+ * "não bloqueia" e mandava de volta: laço (06 P0-4 da auditoria do front). A regra agora é uma
+ * só, `faltaParaEmitirRecibo`, e as frases dizem "obrigatório para emitir".
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { procuracaoAVencer, representacao, type ConfigFiscal } from "./fiscal";
@@ -330,9 +332,9 @@ export function checklistDoRecibo(c: ConfigFiscal, hoje: string): ItemDoChecklis
     estado: registro ? "pronto" : "falta",
     detalhe: registro
       ? `${registro} — vai no arquivo, e é o que a Receita cruza com a base do ${conselho}.`
-      /* ⚠️ "Não bloqueia" está na frase de propósito: sem isso ela para o fechamento do mês
-       * achando que precisa resolver antes, e não precisa. */
-      : `Preencha para o número ir no arquivo. Não bloqueia gerar, mas é o que a Receita confere contra o ${conselho}.`,
+      /* ⚠️ "Obrigatório para emitir" na frase: é o que a Rebots exige para habilitar a emitente,
+       * e a tela Fiscal bloqueia sem ele. Ver o cabeçalho e `faltaParaEmitirRecibo`. */
+      : `O registro no conselho é obrigatório para emitir. É também o que a Receita confere contra o ${conselho}.`,
   });
 
   /* ── ★ A PROCURAÇÃO, QUANDO EXISTE ──
@@ -517,4 +519,52 @@ export function seAindaRecusar(ocupacao: OcupacaoSaude | null): string[] {
     `Registro ativo há mais de 30 dias, cadastro em dia e ainda recusando: escreva para`
     + ` ${EMAIL_RECEITA_SAUDE}. É o canal da Receita para este caso específico.`,
   ];
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ O QUE IMPEDE A MAISA DE EMITIR O RECIBO — UMA REGRA SÓ (25/09/2026, 1A.13).
+ *
+ * A tela Fiscal, o Documento fiscal e o cartão de dados davam três respostas para a mesma
+ * pergunta (06 P0-3 e P0-4 da auditoria do front): a Fiscal bloqueava sem CRP, o cartão dizia
+ * "não bloqueia", e ninguém olhava a autorização — vencida em 01/09, o botão "Emitir 11
+ * recibos" aceso, e os 11 voltavam recusados um por um.
+ *
+ * Soma o que `fiscalFaltando` pede (CPF e profissão), o registro no conselho, e a autorização
+ * de acesso quando ela não vale: `vencida` (é dela renovar) e `aguardando_aceite` (é nosso
+ * aceitar, e por isso `quem: "nos"`: a tela não manda ela procurar um botão que não existe do
+ * lado dela).
+ *
+ * ⚠️ `propria` (sem procurador) NÃO entra, e é decisão de 25/09/2026 com pergunta aberta: os
+ * casos de uso (`aplicacao/recibos.ts`, `recibo-unitario.ts`) não recusam sem representação, e
+ * nenhuma leitura daqui diz se o canal recusa. Bloquear seria inventar regra; o Bruno decide.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export type FaltaDoRecibo = {
+  id: "cpf" | "profissao" | "registro" | "autorizacao";
+  /** Uma frase de gente, pronta para ir ao lado do botão desligado. */
+  frase: string;
+  /** De quem é a bola. `nos` = ela não tem o que fazer. */
+  quem: "voce" | "nos";
+};
+
+export function faltaParaEmitirRecibo(c: ConfigFiscal, hoje: string): FaltaDoRecibo[] {
+  const falta: FaltaDoRecibo[] = [];
+  const conselho = c.ocupacaoSaude ? CONSELHO[c.ocupacaoSaude] : "registro no conselho";
+  if (soDigitos(c.prestadorCpf ?? "").length !== 11) falta.push({ id: "cpf", quem: "voce", frase: "Falta o seu CPF." });
+  if (!c.ocupacaoSaude) falta.push({ id: "profissao", quem: "voce", frase: "Falta a sua profissão." });
+  if (!(c.registroProfissional ?? "").trim()) {
+    falta.push({ id: "registro", quem: "voce", frase: `Falta o seu ${conselho}: o registro no conselho é obrigatório para emitir.` });
+  }
+  const rep = representacao(c, hoje);
+  if (rep.modo === "vencida") {
+    falta.push({ id: "autorizacao", quem: "voce", frase: `Sua autorização venceu em ${rotuloBR(rep.ate)}.` });
+  } else if (rep.modo === "aguardando_aceite") {
+    falta.push({ id: "autorizacao", quem: "nos", frase: "Sua autorização está com a gente: falta a MAISA confirmar. Você não precisa fazer nada." });
+  }
+  return falta;
+}
+
+/** A parte da falta que se resolve num formulário daqui (CPF, profissão, registro). */
+export function faltaNosDados(faltas: FaltaDoRecibo[]): FaltaDoRecibo[] {
+  return faltas.filter((f) => f.id !== "autorizacao");
 }
