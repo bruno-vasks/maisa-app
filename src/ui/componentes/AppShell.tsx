@@ -364,10 +364,13 @@ function NovoDaTopbar() {
 function MaisDoCelular() {
   const st = useStore();
   const a = TELA[st.tela].acao?.(st) ?? null;
-  const estilo = s("width:44px;height:44px;border:1px solid var(--primary);border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer;display:flex;align-items:center;justify-content:center");
+  /* Cheio só quando é o primário da tela; o "Encaixar" do Fluxo e o menu "Novo" são contorno,
+     para a dobra ter um primário só (e a tela o dela, quando tiver). */
+  const cheio = a?.peso === "primario";
+  const estilo = s(`width:44px;height:44px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;${cheio ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--primary)"}`);
   if (a) {
     return (
-      <button type="button" onClick={a.onClick} aria-label={a.rotulo} title={a.rotulo} className="m-hov-primary m-press-icon m-focus" style={estilo}>
+      <button type="button" onClick={a.onClick} aria-label={a.rotulo} title={a.rotulo} className={`${cheio ? "m-hov-primary" : "m-hov-bg"} m-press-icon m-focus`} style={estilo}>
         <Icon name="plus" size={20} sw={2.3} />
       </button>
     );
@@ -375,7 +378,7 @@ function MaisDoCelular() {
   return (
     <MenuNovo
       gatilho={({ aberto, alternar }) => (
-        <button type="button" onClick={alternar} aria-label="Novo" aria-haspopup="menu" aria-expanded={aberto} className="m-hov-primary m-press-icon m-focus" style={estilo}>
+        <button type="button" onClick={alternar} aria-label="Novo" aria-haspopup="menu" aria-expanded={aberto} className="m-hov-bg m-press-icon m-focus" style={estilo}>
           <Icon name="plus" size={20} sw={2.3} />
         </button>
       )}

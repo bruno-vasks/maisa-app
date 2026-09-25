@@ -3,11 +3,11 @@ const OUT = pastaDeFotos("01-casca");
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const out = {};
-for (const t of ["agenda","servicos","fluxo","clientes","faturamento"]) {
+for (const t of ["agenda","servicos","fluxo","clientes","equipe","faturamento"]) {
   await page.goto(`http://localhost:3200/?tela=${t}`, { waitUntil: "networkidle" }); await page.waitForTimeout(1000);
   out[t] = await page.evaluate(() => {
     const bs = [...document.querySelectorAll("button, a")].map(b => (b.innerText || b.getAttribute("aria-label") || "").trim().replace(/\n/g," ")).filter(Boolean);
-    return { marcarVago: document.querySelectorAll('button[aria-label^="Marcar atendimento"]').length, criar: bs.filter(x => /novo|marcar|emitir|criar|adicionar|lançar/i.test(x)) };
+    return { marcarVago: document.querySelectorAll('button[aria-label^="Marcar atendimento"]').length, criar: bs.filter(x => /novo|marcar|emitir|criar|adicionar|lançar|encaixar/i.test(x)) };
   });
 }
 // paleta bbox mobile e desktop

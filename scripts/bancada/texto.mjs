@@ -17,7 +17,8 @@ const page = await browser.newPage({ viewport: vp, deviceScaleFactor: 1 });
 await page.goto(`http://localhost:3200/?tela=${tela}`, { waitUntil: "networkidle", timeout: 90000 });
 await page.waitForTimeout(espera);
 for (const c of lista("clicar")) {
-  await page.getByText(c, { exact: false }).first().click();
+  // Por texto visível, ou pelo nome acessível (o "＋" do celular só tem `aria-label`).
+  await page.getByText(c, { exact: false }).or(page.getByRole("button", { name: c, exact: true })).first().click();
   await page.waitForTimeout(800);
 }
 const r = await page.evaluate((procuras) => {

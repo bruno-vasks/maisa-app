@@ -4186,18 +4186,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [agendamentosDoDia, bloqueiosDoDia, expedienteDe]);
 
   const proximoVago = useCallback((desde?: string) => {
+    /* Primeiro nas agendas LIDAS; se nenhuma tem vago (ou nenhuma foi lida, como no demo sem
+     * login), pelo expediente de todas: melhor propor um horário que o servidor confere do que
+     * abrir o rascunho às 09:00 de um dia que já passou das 09:00. */
     const faltam = leituraAgenda.faltam ?? [];
-    const pids = cadastro.agendas.filter((pid) => !faltam.includes(pid));
-    let data = desde && desde > D.HOJE.iso ? desde : D.HOJE.iso;
-    for (let i = 0; i < MAX_DIAS_VARRIDOS; i++, data = D.somarDias(data, 1)) {
-      let melhor: { profissionalId: string; data: string; inicio: number } | null = null;
-      for (const pid of pids) {
-        const h = vagasDe(pid, data, PASSO_MIN)[0];
-        if (h !== undefined && (!melhor || h < melhor.inicio)) melhor = { profissionalId: pid, data, inicio: h };
+    const lidas = cadastro.agendas.filter((pid) => !faltam.includes(pid));
+    const varrer = (pids: string[]) => {
+      let data = desde && desde > D.HOJE.iso ? desde : D.HOJE.iso;
+      for (let i = 0; i < MAX_DIAS_VARRIDOS; i++, data = D.somarDias(data, 1)) {
+        let melhor: { profissionalId: string; data: string; inicio: number } | null = null;
+        for (const pid of pids) {
+          const h = vagasDe(pid, data, PASSO_MIN)[0];
+          if (h !== undefined && (!melhor || h < melhor.inicio)) melhor = { profissionalId: pid, data, inicio: h };
+        }
+        if (melhor) return melhor;
       }
-      if (melhor) return melhor;
-    }
-    return null;
+      return null;
+    };
+    return varrer(lidas) ?? (lidas.length < cadastro.agendas.length ? varrer(cadastro.agendas) : null);
   }, [cadastro.agendas, leituraAgenda.faltam, vagasDe]);
 
   const novoAgendamento = useCallback((

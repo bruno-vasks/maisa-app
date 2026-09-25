@@ -246,6 +246,8 @@ export function Chip({ children, tone = "neutral" }: { children: React.ReactNode
 }
 
 /* Barra de filtro por chip — um estado só, sempre visível (nada de dropdown escondendo o filtro ativo). */
+/* O filtro ligado é tinta, não fill (25/09/2026, T2): com fundo `--primary` ele disputava com
+ * a ação de criar da tela, e a regra é um primário por dobra. Seleção é estado; o fill é ação. */
 export function Filtros({ opcoes, ativo, onChange }: { opcoes: string[]; ativo: string; onChange: (v: string) => void }) {
   return (
     <div style={s("display:flex;gap:8px;flex-wrap:wrap")} role="group" aria-label="Filtrar">
@@ -257,7 +259,7 @@ export function Filtros({ opcoes, ativo, onChange }: { opcoes: string[]; ativo: 
             onClick={() => onChange(o)}
             aria-pressed={on}
             className="m-press m-focus m-hov-prim-border"
-            style={s(`font-size:var(--t-sm);font-weight:var(--w-title);padding:8px 16px;border-radius:999px;cursor:pointer;white-space:nowrap;border:1px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary)" : "var(--surface)"};color:${on ? "var(--on-primary)" : "var(--muted)"}`)}
+            style={s(`font-size:var(--t-sm);font-weight:var(--w-title);padding:8px 16px;border-radius:999px;cursor:pointer;white-space:nowrap;border:1px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"};color:${on ? "var(--primary-dark)" : "var(--muted)"}`)}
           >
             {o}
           </button>
