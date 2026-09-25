@@ -311,7 +311,7 @@ function AcaoPrimaria() {
  * Fica na Topbar, e não numa tela: o cadastro alimenta TODAS elas, então o aviso precisa
  * viajar junto com a casca. Vermelho e no topo de propósito — é para incomodar.
  */
-function AvisoCadastro() {
+function AvisoCadastro({ celular }: { celular?: boolean }) {
   const st = useStore();
   if (!st.cadastroErro) return null;
 
@@ -319,11 +319,11 @@ function AvisoCadastro() {
     <div
       role="status"
       style={s(
-        "flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px 24px;" +
+        `flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px ${celular ? 16 : 24}px;` +
         "background:var(--danger-soft);color:var(--danger);border-bottom:1px solid var(--danger)",
       )}
     >
-      <Icon name="alert" size={15} />
+      <Icon name="alert" size={15} style={s("flex-shrink:0")} />
       <span style={s("font-size:var(--t-label);font-weight:var(--w-title)")}>
         {st.cadastroErro} Os dados abaixo são de exemplo, não do seu negócio.
       </span>
@@ -345,7 +345,7 @@ function AvisoCadastro() {
  * A informação existia e não chegava a ninguém — que é o mesmo defeito que o `ajustesErro`
  * foi criado para não ter.
  */
-function AvisoAjustes() {
+function AvisoAjustes({ celular }: { celular?: boolean }) {
   const st = useStore();
   if (!st.ajustesErro) return null;
 
@@ -353,11 +353,11 @@ function AvisoAjustes() {
     <div
       role="status"
       style={s(
-        "flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px 24px;" +
+        `flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px ${celular ? 16 : 24}px;` +
         "background:var(--danger-soft);color:var(--danger);border-bottom:1px solid var(--danger)",
       )}
     >
-      <Icon name="alert" size={15} />
+      <Icon name="alert" size={15} style={s("flex-shrink:0")} />
       <span style={s("font-size:var(--t-label);font-weight:var(--w-title)")}>
         {st.ajustesErro} Os ajustes da MAISA abaixo podem não ser os que ela está usando.
       </span>
@@ -490,6 +490,11 @@ export default function AppShell() {
           </div>
         </header>
 
+        {/* ⚠️ Os avisos também no celular (25/09/2026, 1A.11, 01 P0-5), e pelo mesmo motivo do
+            desktop FORA do `key={st.tela}`: dentro dele remontariam a cada troca de aba. Até aqui
+            o celular mostrava o fixture como dado do negócio sem uma palavra. */}
+        <AvisoCadastro celular />
+        <AvisoAjustes celular />
         <main key={st.tela} style={s("flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden")}>
           <Ativa />
         </main>
