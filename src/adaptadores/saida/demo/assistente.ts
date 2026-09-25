@@ -57,7 +57,11 @@ export const CFG_PADRAO: Record<ChaveCfg, boolean> = {
 };
 
 export const TOGGLES_AGENDAMENTO: Toggle[] = [
-  { chave: "confirmar", titulo: "Confirmar no WhatsApp", desc: "Envia a confirmação assim que o cliente marca" },
+  /* "Confirmar no WhatsApp" (`confirmar`) SAIU DA TELA em 25/09/2026 (1A.9, 07 P0.3): nada
+   * em `src/` nem em `supabase/` lê a chave, e a ferramenta de marcar manda confirmar SEMPRE
+   * (`ferramentas.ts`, "Depois de chamar, confirme…"). Desligar não desligava. A chave segue no
+   * banco e no tipo; volta para cá quando o prompt ler as duas ramas (decisão do Bruno: mexe
+   * em custo e cache do prompt). */
   /* ⚠️ O TÍTULO PERDEU O "3h" DE PROPÓSITO. O prazo agora é `assistente.lembreteHoras`,
    * escolhido por inquilino — um número fixo aqui viraria rótulo mentindo para quem pôs
    * 24h, e é a tela que ele abre para conferir. Quem mostra o prazo é o seletor ao lado,

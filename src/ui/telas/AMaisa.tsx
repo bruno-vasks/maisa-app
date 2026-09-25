@@ -565,16 +565,10 @@ function Personalidade() {
         </div>
       </div>
 
-      <label style={s("display:flex;flex-direction:column;gap:7px")}>
-        <Rotulo>Mensagem de saudação</Rotulo>
-        <textarea
-          rows={3}
-          value={st.assistente.saudacao}
-          onChange={(e) => st.setAssistente({ saudacao: e.target.value })}
-          className="m-focus"
-          style={s("width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);line-height:1.55;color:var(--ink);outline:none;resize:vertical;min-height:88px")}
-        />
-      </label>
+      {/* "Mensagem de saudação" SAIU DA TELA em 25/09/2026 (1A.9, 07 P0.3). Era gravada e
+          validada, e ninguém a lia: `persona.ts` não usa `assistente.saudacao`. O dono
+          escrevia uma saudação caprichada, via no preview, e o cliente nunca recebia. O campo
+          continua no banco e no caso de uso; volta quando o prompt ler (decisão do Bruno). */}
       {/* "Assistente ativa" saiu daqui: era cartão dentro de cartão e o interruptor
           mestre não pertence à seção de tom de voz. Agora é a FaixaAssistente. */}
     </div>
@@ -878,10 +872,16 @@ function horaDaMsg(i: number) {
 function Preview() {
   const st = useStore();
   const pv = D.PREVIEWS[st.secAtiva ?? "personalidade"] ?? D.PREVIEWS.personalidade;
-  // A saudação vem do campo que está sendo editado, não do dataset — é isso que
-  // faz o preview responder enquanto você digita.
+  // Na Personalidade a fala vem dos dois nomes da seção, que são os que o prompt usa ("Você é
+  // ___, a assistente de atendimento de ___"). Mostrava a saudação, que não chega no cliente.
   const msgs = st.secAtiva === "personalidade"
-    ? [{ de: "cliente" as const, txt: "Oi, bom dia!" }, { de: "bot" as const, txt: st.assistente.saudacao || "…" }]
+    ? [
+      { de: "cliente" as const, txt: "Oi, bom dia!" },
+      /* Antes de ler, "…": os dois nomes seriam os do placeholder ("MAISA", "Seu Negócio"). */
+      { de: "bot" as const, txt: st.ajustesCarregados && st.cadastroCarregado
+        ? `Olá! Aqui é a ${st.assistente.nome || "MAISA"}, do ${st.cadastro.negocio.nome}. Como posso te ajudar?`
+        : "…" },
+    ]
     : pv.msgs;
 
   return (
