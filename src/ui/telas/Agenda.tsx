@@ -76,25 +76,6 @@ function tomDoBloco(ag: AgendamentoVivo): { bg: string; ac: string; fg: string }
   return { bg: "var(--surface-2)", ac: "var(--border)", fg: "var(--ink)" };
 }
 
-/** O primeiro horário do dia em que ALGUÉM está de expediente, e quem é.
- *  `null` num dia em que a casa não abre.
- *
- *  Recebe `agendas` e `podeComecar` por parâmetro em vez de ler o fixture: é função de
- *  módulo, não tem acesso ao store, e o cadastro agora vem do servidor. Ler uma constante
- *  importada aqui era justamente o que congelava a lista de agendas no import. */
-function primeiroVago(
-  data: string,
-  agendas: string[],
-  podeComecar: (pid: string, data: string, inicio: number) => boolean,
-): { pid: string; inicio: number } | null {
-  for (let i = 0; i < AGENDA_HORAS / PASSO; i++) {
-    const inicio = AGENDA_INICIO + i * PASSO;
-    const pid = agendas.find((p) => podeComecar(p, data, inicio));
-    if (pid) return { pid, inicio };
-  }
-  return null;
-}
-
 /** Só o que a grade precisa saber para empilhar: quando começa e quando acaba. */
 type Ocupa = { id: string; inicio: number; fim: number };
 
@@ -174,7 +155,7 @@ function Vagos({ data, profissionalId, chaveCol }: { data: string; profissionalI
         return (
           <button
             key={chave}
-            onClick={() => st.novoAgendamento(dono, inicio, data)}
+            onClick={() => st.novoAgendamento({ profissionalId: dono, inicio, data })}
             aria-label={`Marcar atendimento em ${D.rotuloDia(data)} às ${D.hhmm(inicio)} com ${D.primeiroNome(st.nomeDoProfissional(dono))}`}
             className="m-focus m-hov-bg"
             style={{ ...risco, background: "transparent", cursor: "pointer", transition: "background-color var(--dur-fast) var(--ease-out)" }}
@@ -901,14 +882,10 @@ export default function Agenda() {
         {!hoje && visao !== "mes" && <Badge>hoje é {D.rotuloDia(D.HOJE.iso)}</Badge>}
 
         <div style={s("margin-left:auto;display:flex;align-items:center;gap:10px")}>
+          {/* O "Marcar" que morava aqui foi para o slot da casca (T2, contradição C2): "Marcar
+              atendimento" no canto da topbar e no "＋" do celular, o mesmo lugar nas duas
+              larguras. Esta barra fica só com navegação. */}
           <Seletor visoes={visoes} visao={visao} onTrocar={setVisao} reduzido={reduzido} />
-          {!mobile && (
-            // Abre o rascunho no primeiro horário do dia que tenha alguém de expediente — e não no
-            // primeiro da lista às 09:00, que na segunda-feira era o Diego, que folga segunda.
-            <Btn size="sm" icon="plus" onClick={() => { const p = primeiroVago(dia, st.cadastro.agendas, st.podeComecarEm); if (p) st.novoAgendamento(p.pid, p.inicio, dia); }}>
-              Marcar
-            </Btn>
-          )}
         </div>
       </div>
 

@@ -75,14 +75,45 @@ export type Recibo = {
   total: string;
 };
 
+/** Um botão do rodapé da gaveta. Nunca destrutivo: o que apaga mora em `mais` (ver `AcaoDestrutiva`). */
 export type Acao = {
   /** Desabilita a ação — usada quando falta preencher algo. */
   desabilitada?: boolean;
   label: string;
   primaria?: boolean;
-  tone?: "danger";
+  tone?: undefined;
   onClick?: () => void;
 };
+
+/**
+ * ⚠️ O QUE APAGA PEDE DOIS TOQUES, E SÓ EXISTE NO MENU "Mais ações" (25/09/2026, T6).
+ *
+ * O primeiro toque não faz nada no mundo: guarda `confirmar.chave` em `st.cancelarPedido`, e a
+ * gaveta troca o rodapé por "Voltar" + `confirmar.rotulo`, com `confirmar.aviso` colado em cima,
+ * fora da região que rola (o "Não dá para desfazer" ficava rolado para fora da vista). O segundo
+ * toque chama `onClick`. Abrir outra coisa, fechar ou trocar de tela descarta o pedido (o
+ * mecanismo é o do cancelar atendimento, `store.tsx`, `abrir`/`fechar`/`irPara`).
+ *
+ * O tipo é o guarda (G8): `tone: "danger"` exige `confirmar`, e `Detalhe.acoes` não aceita
+ * `AcaoDestrutiva`, então o `tsc` reprova o botão vermelho solto no rodapé.
+ */
+export type AcaoDestrutiva = {
+  label: string;
+  tone: "danger";
+  desabilitada?: boolean;
+  confirmar: {
+    /** Identifica o pedido no store. Única por gaveta e por coisa (`excluir:sv3`, o id do atendimento). */
+    chave: string;
+    /** Rótulo do segundo toque: "Confirmar cancelamento". */
+    rotulo: string;
+    /** O que acontece, dito antes: fica fixo acima do rodapé. */
+    aviso: string;
+  };
+  onClick: () => void;
+};
+
+/** No máximo dois botões no rodapé (01 C6, contradição C1). O resto vai para `mais`. */
+export type Rodape = readonly [] | readonly [Acao] | readonly [Acao, Acao];
 
 export type Detalhe = {
   titulo: string;
@@ -90,16 +121,32 @@ export type Detalhe = {
   /** Semente do monograma. Ausente = cabeçalho sem avatar. */
   seed?: string;
   blocos: Bloco[];
-  acoes: Acao[];
+  /**
+   * ⚠️ TUPLA DE PROPÓSITO (T6, G8): com três botões soltos o rodapé cortava o terceiro a 390px
+   * e a 680px (`casca5.mjs`). Sem ação real, `[]`: a gaveta fica sem rodapé e fecha pelo X. Não
+   * existe mais "Fechar" como ação — era o primário azul de gaveta que não tinha o que fazer.
+   */
+  acoes: Rodape;
+  /** O menu "Mais ações": o que não cabe nos dois, e todo destrutivo. */
+  mais?: readonly (Acao | AcaoDestrutiva)[];
 };
+
+/** Monta o rodapé de até dois, pulando o que não se aplica. Dois parâmetros, e não uma lista:
+ *  um terceiro botão não compila. */
+export function rodape(a?: Acao | null | false, b?: Acao | null | false): Rodape {
+  const x = a || null;
+  const y = b || null;
+  if (x && y) return [x, y];
+  if (x) return [x];
+  if (y) return [y];
+  return [];
+}
 
 /* ───────────────────────────── hook ───────────────────────────── */
 
 export function useDetalhe(id: string | null): Detalhe | null {
   const st = useStore();
   if (!id) return null;
-
-  const fecharAcao: Acao = { label: "Fechar", primaria: true, onClick: st.fechar };
 
   /**
    * O que dizer embaixo do campo de CPF.
@@ -169,15 +216,10 @@ export function useDetalhe(id: string | null): Detalhe | null {
           texto: "Este horário está ocupado na sua agenda do Google, então a MAISA não o oferece a nenhum cliente. Ele é só leitura aqui — para mudar ou apagar, use o Google Calendar.",
         },
       ],
-      acoes: [
-        ...(b.meetLink
-          ? [{ label: "Entrar no Meet", primaria: true, onClick: () => window.open(b.meetLink!, "_blank", "noopener") } as Acao]
-          : []),
-        ...(b.htmlLink
-          ? [{ label: "Abrir no Google Calendar", primaria: !b.meetLink, onClick: () => window.open(b.htmlLink!, "_blank", "noopener") } as Acao]
-          : []),
-        { label: "Fechar", onClick: st.fechar },
-      ],
+      acoes: rodape(
+        !!b.meetLink && { label: "Entrar no Meet", primaria: true, onClick: () => window.open(b.meetLink!, "_blank", "noopener") },
+        !!b.htmlLink && { label: "Abrir no Google Calendar", primaria: !b.meetLink, onClick: () => window.open(b.htmlLink!, "_blank", "noopener") },
+      ),
     };
   }
 
@@ -278,9 +320,9 @@ export function useDetalhe(id: string | null): Detalhe | null {
      * emitida: o e-mail ou o telefone estarem errados não muda o documento que já saiu, e é
      * na tela de Faturamento que o dono repara nisso. `abrir` troca o id da gaveta — a de
      * cliente abre no lugar desta, sem passar pela lista. */
-    const abrirFicha: Acao[] = cad
-      ? [{ label: "Abrir ficha do cliente", onClick: () => st.abrir(cad.id) }]
-      : [];
+    const abrirFicha: Acao | null = cad
+      ? { label: "Abrir ficha do cliente", onClick: () => st.abrir(cad.id) }
+      : null;
 
     if (nota.status === "emitida") {
       return {
@@ -296,15 +338,22 @@ export function useDetalhe(id: string | null): Detalhe | null {
           },
           ...(nota.erro ? [{ tipo: "aviso", key: "er", texto: nota.erro, tone: "danger" } as Bloco] : []),
         ],
-        acoes: [
-          nota.pdf
-            ? { label: "Baixar PDF", primaria: true, onClick: () => window.open(nota.pdf, "_blank", "noopener") }
-            : fecharAcao,
-          /* Pela REF, e não pelo cliente: a partir do segundo mês um cliente tem VÁRIAS notas,
-             e cancelar "a nota do cliente" cancelaria a errada. */
-          ...(nota.ref ? [{ label: "Cancelar nota", tone: "danger" as const, onClick: () => st.cancelarNota(nota.ref!) }] : []),
-          ...abrirFicha,
-        ],
+        acoes: rodape(
+          !!nota.pdf && { label: "Baixar PDF", primaria: true, onClick: () => window.open(nota.pdf, "_blank", "noopener") },
+          abrirFicha,
+        ),
+        /* Pela REF, e não pelo cliente: a partir do segundo mês um cliente tem VÁRIAS notas,
+           e cancelar "a nota do cliente" cancelaria a errada. Cancelar vai à prefeitura: dois
+           toques, como todo destrutivo (T6). */
+        mais: nota.ref ? [{
+          label: "Cancelar nota", tone: "danger",
+          confirmar: {
+            chave: `cancelar-nota:${nota.ref}`,
+            rotulo: "Confirmar cancelamento",
+            aviso: `${nota.numero ? `Cancelar a nota ${nota.numero}` : "Cancelar esta nota"} avisa a prefeitura na hora. Não dá para desfazer: para corrigir, emita outra depois.`,
+          },
+          onClick: () => st.cancelarNota(nota.ref!),
+        }] : undefined,
       };
     }
 
@@ -318,7 +367,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
         /* Sem os campos do tomador AQUI, de propósito: a nota está em voo, e um CPF
            trocado no meio do caminho não entra nela — o documento já foi montado. Ver o
            bloco `dadosDoTomador`. O atalho para a ficha fica, para depois. */
-        acoes: [fecharAcao, ...abrirFicha],
+        acoes: rodape(abrirFicha),
       };
     }
 
@@ -334,11 +383,10 @@ export function useDetalhe(id: string | null): Detalhe | null {
           ...semEmissor,
           recibo,
         ],
-        acoes: [
+        acoes: rodape(
           { label: "Emitir de novo", primaria: true, desabilitada: !!bloqueio, onClick: () => { st.emitirNota(c.id); st.fechar(); } },
-          ...abrirFicha,
-          { label: "Fechar", onClick: st.fechar },
-        ],
+          abrirFicha,
+        ),
       };
     }
 
@@ -385,7 +433,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
             }
             : { tipo: "aviso", key: "av", texto: "Emitir é irreversível: a nota vai para a prefeitura na hora. Para corrigir depois, só cancelando." },
       ],
-      acoes: [
+      acoes: rodape(
         {
           label: nota.status === "erro" ? "Tentar de novo" : "Emitir nota",
           primaria: true,
@@ -396,9 +444,8 @@ export function useDetalhe(id: string | null): Detalhe | null {
           desabilitada: !c.cpf || !!bloqueio,
           onClick: () => { st.emitirNota(c.id); st.fechar(); },
         },
-        ...abrirFicha,
-        { label: "Fechar", onClick: st.fechar },
-      ],
+        abrirFicha,
+      ),
     };
   }
 
@@ -412,16 +459,35 @@ export function useDetalhe(id: string | null): Detalhe | null {
       pendente: "a emitir", processando: "processando", emitida: `emitida · ${nota.numero ?? ""}`.trim(),
       cancelada: "cancelada", erro: "com erro",
     };
-    const acoes: Acao[] = [];
-    if (cv) acoes.push({ label: "Abrir conversa", primaria: true, onClick: irParaConversa(cv.id) });
-    if (cli.valor > 0) {
-      acoes.push({
-        label: "Ver a nota do mês",
-        primaria: !cv,
-        onClick: () => { st.irPara("faturamento"); st.abrir(`nf-${cli.id}`); },
-      });
-    }
-    if (!acoes.length) acoes.push(fecharAcao);
+    /* O RODAPÉ É O QUE SE FAZ COM A PESSOA (25/09/2026, T6 e 05 F3). Era "Abrir conversa" e
+     * "Ver a nota do mês", e para quem ainda não escreveu, "Fechar": a ficha só deixava editar.
+     * Marcar horário é o primário (abre o rascunho com ela escolhida, no próximo vago); tirar de
+     * atendimento saiu do cartão com chave e foi para o menu, em dois toques (contradição C18). */
+    const emiteRecibo = st.fiscal.status === "ok" && st.fiscal.caminho === "recibo_saude";
+    const verFiscal: Acao | null = cli.valor > 0
+      ? {
+        label: emiteRecibo ? "Ver no Fiscal" : "Ver a nota do mês",
+        onClick: () => { st.irPara("faturamento"); if (!emiteRecibo) st.abrir(`nf-${cli.id}`); },
+      }
+      : null;
+    const acoes = rodape(
+      ativo && { label: "Marcar horário", primaria: true, onClick: () => st.novoAgendamento(null, { clienteId: cli.id }) },
+      cv ? { label: "Abrir conversa", primaria: !ativo, onClick: irParaConversa(cv.id) } : !ativo && verFiscal,
+    );
+    const mais: (Acao | AcaoDestrutiva)[] = [
+      ...(verFiscal && (ativo || cv) ? [verFiscal] : []),
+      ativo
+        ? {
+          label: "Tirar de atendimento", tone: "danger",
+          confirmar: {
+            chave: `tirar:${cli.id}`,
+            rotulo: "Tirar de atendimento",
+            aviso: `${D.primeiroNome(cli.nome)} sai da agenda e do fechamento do mês. Dá para voltar a atender por esta ficha.`,
+          },
+          onClick: () => { st.alternarCli(cli.id); st.pedirCancelamento(null); },
+        }
+        : { label: "Voltar a atender", onClick: () => st.alternarCli(cli.id) },
+    ];
 
     /* Só os serviços ATIVOS na lista, mais o que este cliente já tem — mesmo arranjo do
        select do rascunho. Um cliente cujo serviço habitual saiu do catálogo continuaria
@@ -520,19 +586,12 @@ export function useDetalhe(id: string | null): Detalhe | null {
             ["Nota fiscal", cli.valor > 0 ? rotuloNota[nota.status] : "sem valor no mês"],
           ],
         },
-        {
-          tipo: "toggles", key: "st", label: "Situação",
-          toggles: [{
-            titulo: ativo ? "Em atendimento" : "Fora de atendimento",
-            desc: ativo
-              ? "Aparece na agenda e entra no fechamento do mês"
-              : "Não entra na agenda nem no faturamento",
-            on: ativo,
-            alternar: () => st.alternarCli(cli.id),
-          }],
-        },
+        /* Só quem está fora ganha a linha: "em atendimento" é o normal, e o cartão com chave
+           que dizia isso para todo mundo saiu (o gesto está em "Mais ações"). */
+        ...(ativo ? [] : [{ tipo: "aviso" as const, key: "fora", tone: "warn" as const, texto: "Fora de atendimento: não aparece na agenda nem no fechamento do mês." }]),
       ],
       acoes,
+      mais,
     };
   }
 
@@ -566,14 +625,13 @@ export function useDetalhe(id: string | null): Detalhe | null {
               : "Entre na sua conta para conectar uma agenda do Google.",
           };
 
-    const acoesGoogle: Acao[] = [];
-    if (st.google.status === "ok") {
-      acoesGoogle.push(
-        conexao
-          ? { label: ocupado ? "Desconectando…" : "Desconectar do Google", desabilitada: ocupado, onClick: () => st.desconectarGoogle(pr.id) }
-          : { label: "Conectar agenda do Google", onClick: () => st.conectarGoogle(pr.id) },
-      );
-    }
+    /* Conectar fica no rodapé (é o que falta fazer); desconectar vai para o menu: é o raro. */
+    const conectar: Acao | null = st.google.status === "ok" && !conexao
+      ? { label: "Conectar agenda do Google", onClick: () => st.conectarGoogle(pr.id) }
+      : null;
+    const desconectar: Acao | null = st.google.status === "ok" && conexao
+      ? { label: ocupado ? "Desconectando…" : "Desconectar do Google", desabilitada: ocupado, onClick: () => st.desconectarGoogle(pr.id) }
+      : null;
 
     return {
       titulo: pr.nome, seed: pr.id, sub: `${pr.papel} · na equipe desde ${pr.desde}`,
@@ -612,11 +670,11 @@ export function useDetalhe(id: string | null): Detalhe | null {
           }),
         },
       ],
-      acoes: [
-        ...acoesGoogle,
-        { label: "Ver na agenda", primaria: !acoesGoogle.length, onClick: () => st.irPara("agenda") },
-        { label: "Fechar", onClick: st.fechar },
-      ],
+      acoes: rodape(
+        { label: "Ver na agenda", primaria: !conectar, onClick: () => st.irPara("agenda") },
+        conectar && { ...conectar, primaria: true },
+      ),
+      mais: desconectar ? [desconectar] : undefined,
     };
   }
 
@@ -633,8 +691,57 @@ export function useDetalhe(id: string | null): Detalhe | null {
     const completo = !!r.clienteId && !!r.servicoId && valorDigitado !== null;
     const cada = r.cadaSemanas ?? 0;
     const sessoes = D.ocorrenciasDaSerie(cada, r.meses ?? 3);
-    const { enviando, erro } = st.rascunhoEstado;
+    const { enviando, erro, tentou } = st.rascunhoEstado;
     const contaAg = st.googleDe(r.profissionalId);
+
+    /* ── QUANDO E COM QUEM, EDITÁVEIS (25/09/2026, T2) ──
+     * O rascunho nascia só do clique num vago, então dia, hora e pessoa vinham prontos e não
+     * mudavam. Com o "Novo" da casca, "Encaixar cliente" e "Marcar horário" da ficha ele nasce
+     * no próximo vago de verdade (`st.proximoVago`), e quem marca precisa poder trocar. As
+     * horas são as vagas daquela pessoa naquele dia (`st.vagasDe`, a conta do agente), mais a
+     * escolhida. Depois da primeira tentativa, travam: ver `rascunhoEstado.tentou` no store. */
+    const duracaoR = svEscolhido?.duracao ?? 30;
+    const dias = Array.from({ length: 21 }, (_, i) => D.somarDias(D.HOJE.iso, i)).filter((d) => !D.fechado(d));
+    if (!dias.includes(r.data)) dias.unshift(r.data);
+    const horas = st.vagasDe(r.profissionalId, r.data, duracaoR);
+    if (!horas.includes(r.inicio)) horas.push(r.inicio);
+    horas.sort((a, b) => a - b);
+    const semVago = st.vagasDe(r.profissionalId, r.data, duracaoR).length === 0;
+    const agendas = st.cadastro.agendas;
+    const quando: Bloco = tentou
+      ? { tipo: "stats", key: "quando", label: "Quando", linhas: [
+          ["Dia", D.rotuloLongo(r.data)], ["Horário", D.hhmm(r.inicio)], ["Com", st.nomeDoProfissional(r.profissionalId)],
+        ] }
+      : {
+        tipo: "campos", key: "quando", label: "Quando",
+        campos: [
+          {
+            id: "dia", label: "Dia", valor: r.data, tipo: "select", opcoes: dias,
+            rotuloOpcao: (v) => (v === D.HOJE.iso ? `Hoje, ${D.rotuloDia(v)}` : D.rotuloLongo(v)),
+            /* Trocar o dia leva ao primeiro vago dele, se a hora antiga não servir. */
+            onChange: (v) => {
+              const livres = st.vagasDe(r.profissionalId, v, duracaoR);
+              st.editarRascunho({ data: v, ...(livres.length && !livres.includes(r.inicio) ? { inicio: livres[0] } : {}) });
+            },
+          },
+          {
+            id: "hora", label: "Horário", valor: String(r.inicio), tipo: "select", opcoes: horas.map(String),
+            rotuloOpcao: (v) => D.hhmm(Number(v)),
+            hint: semVago ? `${D.primeiroNome(st.nomeDoProfissional(r.profissionalId))} não tem horário livre neste dia.` : undefined,
+            onChange: (v) => st.editarRascunho({ inicio: Number(v) }),
+          },
+          ...(agendas.length > 1
+            ? [{
+              id: "quem", label: "Com", valor: r.profissionalId, tipo: "select" as const, opcoes: agendas,
+              rotuloOpcao: (v: string) => st.nomeDoProfissional(v),
+              onChange: (v: string) => {
+                const livres = st.vagasDe(v, r.data, duracaoR);
+                st.editarRascunho({ profissionalId: v, ...(livres.length && !livres.includes(r.inicio) ? { inicio: livres[0] } : {}) });
+              },
+            }]
+            : []),
+        ],
+      };
     return {
       titulo: "Novo atendimento",
       sub: `${r.data === D.HOJE.iso ? "hoje" : D.rotuloLongo(r.data)}, ${D.hhmm(r.inicio)}, com ${D.primeiroNome(st.nomeDoProfissional(r.profissionalId))}`,
@@ -689,6 +796,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
             },
           ],
         },
+        quando,
         {
           tipo: "campos", key: "repete", label: "Repetição",
           campos: [
@@ -732,7 +840,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
           ? [{ tipo: "aviso" as const, key: "erro", tone: "danger" as const, texto: erro }]
           : []),
       ],
-      acoes: [
+      acoes: rodape(
         { label: "Descartar", onClick: () => st.descartarRascunho() },
         {
           label: enviando ? "Marcando…" : erro ? "Tentar de novo" : cada ? `Marcar ${sessoes} sessões` : "Marcar atendimento",
@@ -740,7 +848,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
           desabilitada: !completo || enviando,
           onClick: () => st.confirmarRascunho(),
         },
-      ],
+      ),
     };
   }
 
@@ -835,10 +943,18 @@ export function useDetalhe(id: string | null): Detalhe | null {
        * que é justamente quem mais precisa dele.
        *
        * `ativo: false` (o toggle acima) continua sendo o certo para "não faço mais isso". */
-      acoes: [
-        { label: "Excluir serviço", tone: "danger", onClick: () => void st.excluirServico(sv.id) },
-        fecharAcao,
-      ],
+      /* Sem rodapé: tudo aqui grava sozinho, e o "Fechar" azul era o único botão cheio da
+       * gaveta, para não fazer nada. Excluir mora no menu, em dois toques (T6). */
+      acoes: [],
+      mais: [{
+        label: "Excluir serviço", tone: "danger",
+        confirmar: {
+          chave: `excluir:${sv.id}`,
+          rotulo: "Excluir de vez",
+          aviso: `${sv.nome} sai do catálogo e a MAISA para de oferecer. O que já foi marcado e faturado continua. Não dá para desfazer: para "não faço mais", use o interruptor do catálogo.`,
+        },
+        onClick: () => void st.excluirServico(sv.id),
+      }],
     };
   }
 
@@ -850,11 +966,14 @@ export function useDetalhe(id: string | null): Detalhe | null {
   if (cv) {
     const estado = cv.estado;
     const assumida = estado === "voce";
-    // O número já vem com DDI do WhatsApp; o `55` fixo daqui era para o telefone do fixture.
-    const zap = `https://wa.me/${cv.telefone}`;
+    /* O número já vem com DDI do WhatsApp. Sem ele (conversa antiga), NENHUM link: `wa.me/`
+     * vazio abria o WhatsApp sem ninguém (04 P0-4), e os 8 dígitos da chave não são telefone. */
+    const zap: Acao | null = cv.telefone
+      ? { label: "Abrir no WhatsApp", onClick: () => st.abrirNoWhatsApp(cv.id) }
+      : null;
     return {
       titulo: cv.nome, seed: cv.id,
-      sub: `${D.telefoneBonito(cv.telefone || cv.id)} · última mensagem às ${D.horaDeISO(cv.atualizadaEm)}`,
+      sub: `${cv.telefone ? D.telefoneBonito(cv.telefone) : "Número incompleto"} · última mensagem às ${D.horaDeISO(cv.atualizadaEm)}`,
       blocos: [
         { tipo: "msgs", key: "th", label: "Conversa", msgs: st.threadDe(cv.id) },
         {
@@ -872,15 +991,19 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 : "A MAISA está respondendo sozinha. Assuma se quiser falar você mesmo.",
         },
       ],
+      /* ⚠️ O WHATSAPP NÃO É O PRIMÁRIO (04 P0-3). Com a conversa assumida, o botão cheio era
+       * "Responder no WhatsApp": o que o dono escreve lá não volta para esta tela nem para a
+       * memória da MAISA. Responder é aqui; o WhatsApp fica no menu, e assume antes de abrir. */
       acoes: assumida
-        ? [
-          { label: "Responder no WhatsApp", primaria: true, onClick: () => window.open(zap, "_blank", "noopener") },
+        ? rodape(
+          { label: "Abrir conversa", primaria: true, onClick: irParaConversa(cv.id) },
           { label: "Devolver à MAISA", onClick: () => st.devolver(cv.id) },
-        ]
-        : [
+        )
+        : rodape(
           { label: "Assumir conversa", primaria: true, onClick: () => { st.assumir(cv.id); st.selecionarConversa(cv.id); st.irPara("conversas"); } },
           { label: "Abrir na tela", onClick: irParaConversa(cv.id) },
-        ],
+        ),
+      mais: zap ? [zap] : undefined,
     };
   }
 
@@ -899,59 +1022,68 @@ export function useDetalhe(id: string | null): Detalhe | null {
       atendendo: "Concluir atendimento",
       feito: "Reabrir",
     };
-    const acoes: Acao[] = [];
-    if (ehHoje) {
-      acoes.push({
+    /* O verbo do balcão, só no dia. */
+    const etapa: Acao | null = ehHoje
+      ? {
         label: rotulo[ag.etapa],
         primaria: true,
         onClick: () => {
           st.moverEtapa(ag.id, ag.etapa === "feito" ? "chegando" : ag.etapa === "chegando" ? "atendendo" : "feito");
           st.fechar();
         },
-      });
-    }
+      }
+      : null;
 
     /* ── Google Calendar + Meet ──
      * Não há mais "criar evento": o atendimento JÁ É o evento. O que existe aqui é o que
      * se faz com um evento que existe — mandar o link, abrir no Google, cancelar. */
     const conexaoAg = st.googleDe(ag.profissionalId);
     const ocupadoAg = st.googleOcupado(ag.id);
-    const pedindoCancelar = st.cancelarPedido === ag.id;
 
-    if (ag.meetLink) {
-      const link = ag.meetLink;
-      // wa.me com texto pronto: abre o WhatsApp (app ou web) com a mensagem digitada,
-      // faltando só apertar enviar. É o envio REAL possível hoje — a MAISA que dispara
-      // sozinha depende da API oficial, que este protótipo ainda não tem.
-      const msg = `Oi, ${D.primeiroNome(ag.cliente.nome)}! Seu ${ag.servico.nome.toLowerCase()} com ${D.primeiroNome(ag.profissional.nome)} é ${D.rotuloLongo(ag.data)}, às ${D.hhmm(ag.inicio)}. Link para entrar: ${link}`;
-      const zapAg = `https://wa.me/55${ag.cliente.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
-      acoes.push({
+    // wa.me com texto pronto: abre o WhatsApp (app ou web) com a mensagem digitada,
+    // faltando só apertar enviar. É o envio REAL possível hoje — a MAISA que dispara
+    // sozinha depende da API oficial, que este protótipo ainda não tem.
+    const enviarLink: Acao | null = ag.meetLink
+      ? {
         label: "Enviar link no WhatsApp",
-        primaria: !ehHoje,
         // Cliente vindo do evento e não do catálogo pode estar sem telefone.
         desabilitada: !ag.cliente.telefone,
-        onClick: () => window.open(zapAg, "_blank", "noopener"),
-      });
-    }
-    if (ag.htmlLink) {
-      const link = ag.htmlLink;
-      acoes.push({ label: "Abrir no Google Calendar", onClick: () => window.open(link, "_blank", "noopener") });
-    }
+        onClick: () => {
+          const msg = `Oi, ${D.primeiroNome(ag.cliente.nome)}! Seu ${ag.servico.nome.toLowerCase()} com ${D.primeiroNome(ag.profissional.nome)} é ${D.rotuloLongo(ag.data)}, às ${D.hhmm(ag.inicio)}. Link para entrar: ${ag.meetLink}`;
+          window.open(`https://wa.me/55${ag.cliente.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+        },
+      }
+      : null;
+    const abrirGoogle: Acao | null = ag.htmlLink
+      ? { label: "Abrir no Google Calendar", onClick: () => window.open(ag.htmlLink!, "_blank", "noopener") }
+      : null;
+    const abrirConversa: Acao | null = cvAg ? { label: "Abrir conversa", onClick: irParaConversa(cvAg.id) } : null;
 
-    /* Cancelar em DOIS toques, na própria gaveta.
-     *
-     * É a única ação do app que apaga algo numa agenda real — e, se houver convidado, o
-     * Google dispara um aviso de cancelamento por e-mail. Um clique só, num botão que fica
-     * ao lado de "Dar chegada", é acidente esperando acontecer. O segundo toque troca o
-     * rótulo e acende o aviso logo abaixo; sair da gaveta desfaz o pedido. */
-    acoes.push({
-      label: ocupadoAg ? "Cancelando…" : pedindoCancelar ? "Confirmar cancelamento" : "Cancelar atendimento",
+    /* ⚠️ CANCELAR EM DOIS TOQUES, NO MENU (T6). É a única ação do app que apaga algo numa
+     * agenda real — e, se houver convidado, o Google dispara um aviso de cancelamento por
+     * e-mail. Ficava no rodapé ao lado de "Dar chegada", e a 390px era o terceiro botão,
+     * cortado. O primeiro toque só pede; o aviso sobe colado ao rodapé; sair da gaveta desfaz
+     * o pedido (`cancelarPedido`, a chave é o id do atendimento, como sempre foi). */
+    const cancelar: AcaoDestrutiva = {
+      label: ocupadoAg ? "Cancelando…" : "Cancelar atendimento",
       tone: "danger",
       desabilitada: ocupadoAg,
-      onClick: () => (pedindoCancelar ? st.cancelarAtendimento(ag.id) : st.pedirCancelamento(ag.id)),
-    });
+      confirmar: {
+        chave: ag.id,
+        rotulo: ocupadoAg ? "Cancelando…" : "Confirmar cancelamento",
+        aviso: `Cancelar apaga o atendimento de ${D.rotuloLongo(ag.data)}, ${D.hhmm(ag.inicio)}${ag.htmlLink ? ", e o evento da agenda do Google" : ""}${ag.meetLink ? " (o link do Meet para de funcionar)" : ""}. Se houver convidado, ele recebe o aviso de cancelamento. Não dá para desfazer.`,
+      },
+      onClick: () => st.cancelarAtendimento(ag.id),
+    };
 
-    if (cvAg) acoes.push({ label: "Abrir conversa", onClick: irParaConversa(cvAg.id), primaria: !ehHoje && !acoes.length });
+    /* Dois no rodapé: o verbo do dia (se for hoje) e o primeiro que existir entre conversa e
+     * link do Meet. O resto vai para "Mais ações". */
+    const segundos = [abrirConversa, enviarLink, abrirGoogle].filter((a): a is Acao => !!a);
+    const noRodape = etapa ? segundos.slice(0, 1) : segundos.slice(0, 2);
+    const acoes = etapa
+      ? rodape(etapa, noRodape[0])
+      : rodape(noRodape[0] && { ...noRodape[0], primaria: true }, noRodape[1]);
+    const mais: (Acao | AcaoDestrutiva)[] = [...segundos.filter((a) => !noRodape.includes(a)), cancelar];
 
     const quando = ehHoje ? "hoje" : D.rotuloDia(ag.data);
     const situacao = passado
@@ -1013,12 +1145,9 @@ export function useDetalhe(id: string | null): Detalhe | null {
               ? "Sem confirmação, o horário pode furar. Vale uma ligação se estiver perto da hora."
               : "Sem confirmação ainda. Se chegar perto do dia assim, vale uma mensagem." } as Bloco]
           : []),
-        ...(pedindoCancelar
-          ? [{ tipo: "aviso", key: "canc", tone: "danger", texto:
-              `Cancelar apaga o evento de ${D.rotuloLongo(ag.data)}, ${D.hhmm(ag.inicio)}, da agenda do Google${ag.meetLink ? " (o link do Meet para de funcionar)" : ""}. Se houver convidado, ele recebe o aviso de cancelamento. Não dá para desfazer.` } as Bloco]
-          : []),
       ],
       acoes,
+      mais,
     };
   }
 
@@ -1049,32 +1178,26 @@ export function useDetalhe(id: string | null): Detalhe | null {
    * aparece. */
   if (id === "plano") {
     const r = resumoDaAssinatura(st.assinatura);
-    const acoes: Acao[] = [];
-
     /* Const local em vez de `r.assinar!` no callback: o `!` calaria o TypeScript no lugar
      * exato em que um `null` viraria um POST sem plano. */
     const aAssinar = r.assinar;
-    if (aAssinar) {
-      acoes.push({
+    /* Sem "Fechar" (T6): sem assinar nem gerenciar, a gaveta fica sem rodapé e fecha pelo X. */
+    const acoes = rodape(
+      aAssinar && {
         /* O rótulo diz o plano E o preço. "Assinar" sozinho é um botão que cobra sem
          * dizer quanto — e o valor só apareceria na página do provedor, depois do clique. */
         label: st.cobrancaOcupada ? "Abrindo pagamento…" : aAssinar.label,
         primaria: true,
         desabilitada: st.cobrancaOcupada,
         onClick: () => st.assinarPlano(aAssinar.plano),
-      });
-    }
-    if (r.gerenciar) {
-      acoes.push({
+      },
+      r.gerenciar && {
         label: "Gerenciar cobrança",
         primaria: !aAssinar,
         desabilitada: st.cobrancaOcupada,
         onClick: () => st.abrirPortalDeCobranca(),
-      });
-    }
-    /* "Fechar" só é a ação primária quando não há nenhuma outra — dois botões dourados na
-     * mesma gaveta fazem o olho escolher o errado. */
-    acoes.push(acoes.length ? { label: "Fechar", onClick: st.fechar } : fecharAcao);
+      },
+    );
 
     return {
       titulo: "Meu plano",

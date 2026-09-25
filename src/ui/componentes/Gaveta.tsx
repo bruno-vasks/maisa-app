@@ -12,7 +12,7 @@ import React, { useEffect, useRef } from "react";
 import { s, Icon, Monogram, Toggle, Chip, Field, Input, Select, toast } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { useStore } from "@/ui/estado/store";
-import { useDetalhe, type Bloco, type Recibo as ReciboT, type Campo as CampoT } from "@/ui/detalhe";
+import { useDetalhe, type Acao, type AcaoDestrutiva, type Bloco, type Recibo as ReciboT, type Campo as CampoT } from "@/ui/detalhe";
 
 /* ───────────────────────────── blocos ───────────────────────────── */
 
@@ -282,6 +282,137 @@ function RenderBloco({ b }: { b: Bloco }) {
   );
 }
 
+/* ───────────────────────────── rodapé ─────────────────────────────
+ * ⚠️ NO MÁXIMO DOIS BOTÕES E "Mais ações" (25/09/2026, T6, contradição C1). Com cinco ações
+ * soltas o rodapé de um atendimento de hoje com Meet cortava três botões a 390px e dois a
+ * 680px (`casca5.mjs`): o "Cancelar atendimento" era o que sumia. O teto é o tipo `Rodape`
+ * (tupla, o `tsc` reprova o terceiro); `flex-wrap` é a rede, se um rótulo longo não couber.
+ *
+ * Destrutivo só existe no menu, e o primeiro toque só PEDE: o rodapé vira "Voltar" + o
+ * rótulo de confirmação, com o aviso colado em cima, fora da região que rola. */
+
+/** Botão desligado sem opacidade reduzida, como o `Btn` (emenda do DS): fundo de linha, tinta apagada. */
+function estiloDoBotao(a: { primaria?: boolean; tone?: "danger"; desabilitada?: boolean }, mobile: boolean): string {
+  const cor = a.desabilitada
+    ? "border:1px solid var(--line);background:var(--line);color:var(--muted)"
+    : a.tone === "danger"
+      ? "border:1px solid var(--danger);background:var(--danger-soft);color:var(--danger)"
+      : a.primaria
+        ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)"
+        : "border:1px solid var(--border);background:var(--surface);color:var(--ink)";
+  // rótulo de botão é --t-sm nos dois tamanhos de tela (mesmo passo do Btn); o que muda no
+  // mobile é a área de toque (a altura), não a letra.
+  return `height:${mobile ? "48px" : "44px"};padding:0 18px;border-radius:12px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${a.desabilitada ? "not-allowed" : "pointer"};white-space:nowrap;${cor}`;
+}
+
+function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonly (Acao | AcaoDestrutiva)[]; mobile: boolean }) {
+  const st = useStore();
+  const [menu, setMenu] = React.useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
+  // Trocar de gaveta fecha o menu (o rodapé é o mesmo componente para ids diferentes).
+  useEffect(() => { setMenu(false); }, [st.sel]);
+  useEffect(() => {
+    if (!menu) return;
+    const fora = (e: PointerEvent) => { if (!caixa.current?.contains(e.target as Node)) setMenu(false); };
+    window.addEventListener("pointerdown", fora);
+    return () => window.removeEventListener("pointerdown", fora);
+  }, [menu]);
+
+  const pedida = mais.find((a): a is AcaoDestrutiva => a.tone === "danger" && st.cancelarPedido === a.confirmar.chave);
+  const pad = {
+    ...s(`padding:${mobile ? "12px 16px" : "14px 24px 18px"};border-top:1px solid var(--line);background:var(--bg);display:flex;flex-wrap:wrap;gap:10px;flex-shrink:0`),
+    paddingBottom: mobile ? "max(16px, env(safe-area-inset-bottom))" : undefined,
+  };
+
+  if (pedida) {
+    return (
+      <>
+        {/* O aviso fica fora da região que rola, colado ao rodapé: é a última coisa lida antes do toque. */}
+        <div role="alert" style={s(`flex-shrink:0;display:flex;gap:10px;align-items:flex-start;padding:${mobile ? "12px 16px" : "14px 24px"};border-top:1px solid var(--danger);background:var(--danger-soft);color:var(--danger)`)}>
+          <span style={s("flex-shrink:0;display:flex;padding-top:1px")}><Icon name="alert" size={18} sw={2} /></span>
+          <span style={s("font-size:var(--t-sm);line-height:1.5")}>{pedida.confirmar.aviso}</span>
+        </div>
+        <div style={pad}>
+          <button type="button" onClick={() => st.pedirCancelamento(null)} className="m-hov-bg m-press m-focus" style={s(`flex:1;${estiloDoBotao({}, mobile)}`)}>
+            Voltar
+          </button>
+          <button
+            type="button"
+            onClick={pedida.desabilitada ? undefined : pedida.onClick}
+            disabled={pedida.desabilitada}
+            className="m-press m-focus"
+            style={s(`flex:1;${estiloDoBotao({ desabilitada: pedida.desabilitada }, mobile)}${pedida.desabilitada ? "" : ";border:1px solid var(--danger);background:var(--danger);color:var(--on-primary)"}`)}
+          >
+            {pedida.confirmar.rotulo}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (!acoes.length && !mais.length) return null;
+
+  const tocar = (a: Acao | AcaoDestrutiva) => {
+    if (a.desabilitada) return;
+    setMenu(false);
+    if (a.tone === "danger") st.pedirCancelamento(a.confirmar.chave);
+    else a.onClick?.();
+  };
+
+  return (
+    <div style={pad}>
+      {acoes.map((a) => (
+        <button
+          key={a.label}
+          type="button"
+          onClick={() => tocar(a)}
+          disabled={a.desabilitada}
+          className={`${a.primaria && !a.desabilitada ? "m-hov-primary" : a.desabilitada ? "" : "m-hov-bg"} m-press m-focus`}
+          style={s(`flex:${a.primaria ? "1 1 auto" : "0 1 auto"};min-width:0;${estiloDoBotao(a, mobile)}`)}
+        >
+          {a.label}
+        </button>
+      ))}
+      {mais.length > 0 && (
+        <div ref={caixa} style={s(`position:relative;${acoes.length ? "margin-left:auto" : "flex:1"}`)}>
+          <button
+            type="button"
+            onClick={() => setMenu((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            className="m-hov-bg m-press m-focus"
+            style={s(`${acoes.length ? "" : "width:100%;"}display:inline-flex;align-items:center;justify-content:center;gap:6px;${estiloDoBotao({}, mobile)}`)}
+          >
+            Mais ações
+            <Icon name="chevron-down" size={16} sw={2} />
+          </button>
+          {menu && (
+            <div
+              role="menu"
+              className="m-reveal"
+              style={s("position:absolute;right:0;bottom:calc(100% + 8px);z-index:2;min-width:240px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}
+            >
+              {mais.map((a) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => tocar(a)}
+                  disabled={a.desabilitada}
+                  className={`${a.desabilitada ? "" : "m-hov-bg"} m-focus`}
+                  style={s(`min-height:44px;padding:0 12px;border:none;border-radius:8px;background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${a.desabilitada ? "not-allowed" : "pointer"};color:${a.desabilitada ? "var(--muted)" : a.tone === "danger" ? "var(--danger)" : "var(--ink)"}`)}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ───────────────────────────── a gaveta ───────────────────────────── */
 
 export default function Gaveta() {
@@ -342,12 +473,13 @@ export default function Gaveta() {
   // invertida (sobe de baixo), mas troca o matiz 60 (marrom) pelo 262 de --shadow-pop.
   // Nenhum dos dois tem borda: com sombra de pop, borda de 1px é o par "ghost-card" banido — o que
   // separa a gaveta do fundo é o backdrop.
+  /* Teto em `dvh`, com o `vh` de reserva na mesma declaração (G9): no Safari do iPhone, 86vh é
+   * a altura com a barra de endereço recolhida, e a folha passava por baixo dela. */
   const painelEstilo = mobile
-    ? s("position:fixed;left:0;right:0;bottom:0;z-index:81;max-height:86vh;background:var(--surface);border-radius:16px 16px 0 0;box-shadow:0 -20px 50px oklch(0.20 0.03 262 / 0.22);display:flex;flex-direction:column;outline:none")
+    ? s("position:fixed;left:0;right:0;bottom:0;z-index:81;max-height:86vh;max-height:86dvh;background:var(--surface);border-radius:16px 16px 0 0;box-shadow:0 -20px 50px oklch(0.20 0.03 262 / 0.22);display:flex;flex-direction:column;outline:none")
     : {
-      ...s("position:fixed;top:50%;left:50%;z-index:81;background:var(--surface);border-radius:16px;box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden;outline:none"),
+      ...s("position:fixed;top:50%;left:50%;z-index:81;background:var(--surface);border-radius:16px;box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden;outline:none;max-height:min(760px, calc(100vh - 88px));max-height:min(760px, calc(100dvh - 88px))"),
       width: "min(680px, calc(100vw - 80px))",
-      maxHeight: "min(760px, calc(100vh - 88px))",
     };
 
   return (
@@ -366,15 +498,11 @@ export default function Gaveta() {
         className={mobile ? "m-sheet" : "m-modal"}
         style={painelEstilo}
       >
-        {/* alça — só no mobile, sinaliza que a folha é arrastável/descartável */}
-        {mobile && (
-          <div style={s("padding:12px 0 4px;display:flex;justify-content:center;flex-shrink:0")}>
-            <span style={s("width:42px;height:5px;border-radius:99px;background:var(--border)")} />
-          </div>
-        )}
+        {/* A alça saiu (25/09/2026, T6 e 05 F5): prometia arrastar e não havia gesto nenhum, e o
+            celular não tinha botão de fechar. Agora o X aparece nas duas larguras. */}
 
         {/* cabeçalho */}
-        <div style={s(`padding:${mobile ? "10px 20px 16px" : "22px 24px 18px"};border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:14px;flex-shrink:0`)}>
+        <div style={s(`padding:${mobile ? "14px 12px 14px 16px" : "22px 24px 18px"};border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:14px;flex-shrink:0`)}>
           {det.seed && <Monogram name={det.titulo} id={det.seed} size={mobile ? 46 : 48} radius={15} />}
           <div style={s("flex:1;min-width:0")}>
             {/* era 19px no mobile e 20px no desktop — 1px não é hierarquia. Um passo só, e é o
@@ -382,17 +510,17 @@ export default function Gaveta() {
             <h2 style={s("font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg);line-height:1.2")}>{det.titulo}</h2>
             <p style={s("font-size:var(--t-sm);color:var(--muted);margin-top:4px;line-height:1.4")}>{det.sub}</p>
           </div>
-          {!mobile && (
-            <button
-              onClick={st.fechar}
-              title="Fechar"
-              aria-label="Fechar"
-              className="m-hov-bg m-press-icon m-focus"
-              style={s("width:36px;height:36px;flex-shrink:0;border:1px solid var(--border);border-radius:11px;background:var(--bg);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
-            >
-              <Icon name="x" size={17} sw={2.2} />
-            </button>
-          )}
+          {/* 44px no celular: é o único jeito de fechar a folha além do fundo escurecido. */}
+          <button
+            type="button"
+            onClick={st.fechar}
+            title="Fechar"
+            aria-label="Fechar"
+            className="m-hov-bg m-press-icon m-focus"
+            style={s(`width:${mobile ? 44 : 36}px;height:${mobile ? 44 : 36}px;flex-shrink:0;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center`)}
+          >
+            <Icon name="x" size={mobile ? 19 : 17} sw={2.2} />
+          </button>
         </div>
 
         {/* blocos */}
@@ -400,32 +528,8 @@ export default function Gaveta() {
           {det.blocos.map((b) => <RenderBloco key={b.key} b={b} />)}
         </div>
 
-        {/* ações */}
-        <div style={{
-          ...s(`padding:${mobile ? "14px 20px" : "16px 24px 20px"};border-top:1px solid var(--line);background:var(--bg);display:flex;gap:10px;flex-shrink:0`),
-          paddingBottom: mobile ? "max(20px, env(safe-area-inset-bottom))" : undefined,
-        }}>
-          {det.acoes.map((a) => {
-            const cor = a.tone === "danger"
-              ? "border:1px solid var(--danger-soft);background:var(--danger-soft);color:var(--danger)"
-              : a.primaria
-                ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)"
-                : "border:1px solid var(--border);background:var(--surface);color:var(--muted)";
-            // rótulo de botão é --t-sm nos dois tamanhos de tela (mesmo passo do Btn de ui.tsx);
-            // o que muda no mobile é a área de toque (a altura), não a letra.
-            return (
-              <button
-                key={a.label}
-                onClick={a.onClick}
-                disabled={a.desabilitada}
-                className={`${a.primaria && !a.desabilitada ? "m-hov-primary" : a.desabilitada ? "" : "m-hov-bg"} m-press m-focus`}
-                style={s(`flex:${a.primaria ? "1" : "0 1 auto"};height:${mobile ? "50px" : "46px"};padding:0 20px;border-radius:13px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${a.desabilitada ? "not-allowed" : "pointer"};white-space:nowrap;${cor}${a.desabilitada ? ";opacity:.5" : ""}`)}
-              >
-                {a.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* ações: até dois e "Mais ações"; sem ação, sem rodapé (fecha pelo X) */}
+        <Rodape acoes={det.acoes} mais={det.mais ?? []} mobile={mobile} />
       </div>
     </>
   );

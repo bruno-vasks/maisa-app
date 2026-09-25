@@ -22,6 +22,7 @@ import { TELEFONE_MIN_DIGITOS, emailPlausivel, soDigitos } from "@/nucleo/domini
 import { estadoDaGravacao, semConfirmacao, type EstadoDaGravacao, type RecursoGravado } from "@/ui/estado/leitura";
 import type { Canal } from "@/nucleo/dominio/canal";
 import { statusDaMaisa, type StatusDaMaisa } from "@/nucleo/dominio/status-da-maisa";
+import { MAX_DIAS_VARRIDOS, PASSO_MIN, vagasDoDia } from "@/nucleo/dominio/vagas";
 import type { CaminhoFiscal, ConfigFiscal } from "@/nucleo/dominio/fiscal";
 import type { Faq } from "@/nucleo/dominio/faq";
 import type { Faturamento } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -637,9 +638,11 @@ export type StoreValue = {
   agendamentoPorId: (id: string) => AgendamentoVivo | undefined;
   moverEtapa: (id: string, etapa: D.Etapa) => void;
   avancarEtapa: (id: string) => void;
-  /** Id do atendimento com um cancelamento à espera do segundo toque. */
+  /** O destrutivo à espera do segundo toque: o id do atendimento, ou a `confirmar.chave` de
+   *  qualquer `AcaoDestrutiva` da gaveta (`excluir:sv3`, `cancelar-nota:<ref>`). */
   cancelarPedido: string | null;
-  pedirCancelamento: (id: string) => void;
+  /** `null` desiste ("Voltar"). Abrir, fechar e trocar de tela também desistem. */
+  pedirCancelamento: (chave: string | null) => void;
   /** ⚠️ APAGA o evento na agenda real e avisa quem estiver convidado. Peça confirmação. */
   cancelarAtendimento: (id: string) => void;
   /** Itens da fila "Precisa de você" que ainda não foram resolvidos. */
@@ -691,6 +694,14 @@ export type StoreValue = {
   /** Assumir CALA A MAISA naquela conversa, no servidor. Devolver a solta de novo. */
   assumir: (id: string) => void;
   devolver: (id: string) => void;
+  /**
+   * Abre a conversa no WhatsApp do aparelho. ⚠️ Se a MAISA conduz, ASSUME ANTES (1B.7, 04 P0-3):
+   * o que o dono escreve lá chega como `fromMe` e é descartado (`contexto.ts`), então com a
+   * MAISA no comando seriam duas vozes, e a dela sem saber da dele. O POST sai antes do
+   * `window.open`, no mesmo gesto (abrir depois de um `await` o navegador bloqueia).
+   * Sem número completo não faz nada: `wa.me/` vazio abre o WhatsApp sem ninguém.
+   */
+  abrirNoWhatsApp: (id: string) => void;
 
   /* ── o cadastro, vindo do servidor ──
    * O que substituiu `import * as D from "@/adaptadores/saida/demo"` nas telas. Ver
@@ -902,8 +913,22 @@ export type StoreValue = {
   /** Atendimento sendo marcado (clique num horário vago), antes de virar evento no Google. */
   rascunho: D.RascunhoAgendamento | null;
   /** O POST em voo, e o que voltou se ele falhou. Quem mostra é a gaveta. */
-  rascunhoEstado: { enviando: boolean; erro?: string };
-  novoAgendamento: (profissionalId: string, inicio: number, data: string) => void;
+  rascunhoEstado: { enviando: boolean; erro?: string; tentou?: boolean };
+  /**
+   * Abre o rascunho na gaveta. Com `onde` (o clique num vago), dia, hora e profissional vêm dele.
+   * Sem `onde` (o "Novo" da casca, "Encaixar cliente", "Marcar horário" da ficha), o próximo vago
+   * de verdade a partir de agora (`proximoVago`), e a gaveta deixa trocar dia, hora e pessoa.
+   * `clienteId` já escolhe a pessoa (e o preço da ficha dela).
+   */
+  novoAgendamento: (onde?: { profissionalId: string; inicio: number; data: string } | null, extra?: { clienteId?: string; dia?: string }) => void;
+  /** Horários em que `pid` pode começar `duracaoMin` neste dia: expediente, o que já está
+   *  marcado e os compromissos da agenda dele, e nada no passado (`vagasDoDia` do domínio). */
+  vagasDe: (pid: string, data: string, duracaoMin: number) => number[];
+  /** O primeiro vago a partir de `desde` (hoje, se omitido), varrendo até 21 dias; `null` sem nenhum. */
+  proximoVago: (desde?: string) => { profissionalId: string; data: string; inicio: number } | null;
+  /** O formulário em linha de criar que a casca pediu ("Novo cliente", "Adicionar profissional"). */
+  novoEmLinha: "cliente" | "profissional" | null;
+  pedirNovo: (tipo: "cliente" | "profissional" | null) => void;
   editarRascunho: (patch: Partial<D.RascunhoAgendamento>) => void;
   /** ⚠️ CRIA o evento na agenda real do profissional. */
   confirmarRascunho: () => void;
@@ -1402,10 +1427,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   /* O recorte (1A.14): só o Documento fiscal tem, por enquanto (`SECOES` em `endereco.ts`). O
    * T9 do backlog faz a URL espelhar tudo; até lá, `?secao=` é instrução de chegada, como `?tela=`. */
   const [secao, setSecao] = useState<string | null>(null);
+  /* O formulário de criar em linha (T2): quem pede é a casca ("Novo cliente" no slot ou no
+   * menu "Novo"), quem desenha é a tela. Trocar de tela o fecha, como fecha a gaveta. */
+  const [novoEmLinha, setNovoEmLinha] = useState<"cliente" | "profissional" | null>(null);
   const irPara = useCallback((t: TelaId, s?: string) => {
-    setTela(t); setSel(null); setCancelarPedido(null);
+    setTela(t); setSel(null); setCancelarPedido(null); setNovoEmLinha(null);
     setSecao(secaoDoEndereco(t, s));
   }, []);
+  const pedirNovo = useCallback((tipo: "cliente" | "profissional" | null) => setNovoEmLinha(tipo), []);
   const abrir = useCallback((id: string) => { setSel(id); setCancelarPedido(null); }, []);
   const fechar = useCallback(() => { setSel(null); setCancelarPedido(null); }, []);
 
@@ -1648,6 +1677,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const devolver = useCallback((id: string) => {
     void mudarPosse(id, "devolver", "Devolvida à MAISA");
   }, [mudarPosse]);
+
+  const abrirNoWhatsApp = useCallback((id: string) => {
+    const cv = conversas.find((c) => c.id === id);
+    if (!cv?.telefone) return;
+    if (cv.estado !== "voce") {
+      void mudarPosse(id, "assumir", "A MAISA parou de responder aqui. O que você escrever no WhatsApp não aparece nesta tela.");
+    }
+    window.open(`https://wa.me/${cv.telefone}`, "_blank", "noopener");
+  }, [conversas, mudarPosse]);
 
   /**
    * RESPONDER — manda mensagem de verdade no WhatsApp da pessoa.
@@ -3833,7 +3871,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * qual atendimento é o pedido, e abrir/fechar a gaveta o descarta: um "Confirmar" que
    * sobrevive à navegação é um clique acidental esperando acontecer.
    */
-  const pedirCancelamento = useCallback((id: string) => setCancelarPedido(id), []);
+  const pedirCancelamento = useCallback((chave: string | null) => setCancelarPedido(chave), []);
 
   const cancelarAtendimento = useCallback(async (id: string) => {
     const ag = agendamentoPorId(id);
@@ -4060,10 +4098,66 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * Mora nesta altura do arquivo porque depende de `lerStatusGoogle`. */
   const [rascunho, setRascunho] = useState<D.RascunhoAgendamento | null>(null);
   /** Enquanto o POST está no ar, e o que voltou se ele falhou. A gaveta é quem mostra. */
-  const [rascunhoEstado, setRascunhoEstado] = useState<{ enviando: boolean; erro?: string }>({ enviando: false });
+  /* `tentou`: já saiu um POST deste rascunho. Depois do primeiro, dia, hora e pessoa travam na
+   * gaveta: "Tentar de novo" reusa o `maisaAg`, e o servidor devolveria o evento da primeira
+   * tentativa, no horário antigo, como se fosse o novo. */
+  const [rascunhoEstado, setRascunhoEstado] = useState<{ enviando: boolean; erro?: string; tentou?: boolean }>({ enviando: false });
   const criacaoEmVoo = useRef(false);
 
-  const novoAgendamento = useCallback((profissionalId: string, inicio: number, data: string) => {
+  /** Índice por data — mesma razão do `porDia`: a grade do mês pergunta 42 vezes por render. */
+  const bloqPorDia = useMemo(() => {
+    const m = new Map<string, Bloqueio[]>();
+    for (const b of bloqueios) {
+      const lista = m.get(b.data);
+      if (lista) lista.push(b);
+      else m.set(b.data, [b]);
+    }
+    m.forEach((lista) => lista.sort((x, y) => x.inicio - y.inicio));
+    return m;
+  }, [bloqueios]);
+
+  const bloqueiosDoDia = useCallback((data: string) => bloqPorDia.get(data) ?? SEM_BLOQUEIO, [bloqPorDia]);
+  /* ── o vago de verdade, para quem marca sem clicar num vago (T2) ──
+   * A grade sabe onde está o vago porque DESENHA os blocos; o "Novo" da casca não tem grade.
+   * `vagasDoDia` é a mesma conta que o agente de WhatsApp faz: expediente, o que está marcado,
+   * os compromissos do Google da agenda dessa pessoa, e a antecedência mínima. Só enxerga a
+   * janela lida (o mês): além dela, o servidor é quem recusa o conflito. */
+  const vagasDe = useCallback((pid: string, data: string, duracaoMin: number) => {
+    const ocupados = [
+      ...agendamentosDoDia(data).filter((a) => a.profissionalId === pid),
+      ...bloqueiosDoDia(data).filter((b) => !b.profissionalId || b.profissionalId === pid),
+    ].map((o) => ({ data, inicio: o.inicio, fim: o.fim }));
+    return vagasDoDia({ data, expediente: expedienteDe(pid), duracaoMin, ocupados, agora: Date.now() });
+  }, [agendamentosDoDia, bloqueiosDoDia, expedienteDe]);
+
+  const proximoVago = useCallback((desde?: string) => {
+    const faltam = leituraAgenda.faltam ?? [];
+    const pids = cadastro.agendas.filter((pid) => !faltam.includes(pid));
+    let data = desde && desde > D.HOJE.iso ? desde : D.HOJE.iso;
+    for (let i = 0; i < MAX_DIAS_VARRIDOS; i++, data = D.somarDias(data, 1)) {
+      let melhor: { profissionalId: string; data: string; inicio: number } | null = null;
+      for (const pid of pids) {
+        const h = vagasDe(pid, data, PASSO_MIN)[0];
+        if (h !== undefined && (!melhor || h < melhor.inicio)) melhor = { profissionalId: pid, data, inicio: h };
+      }
+      if (melhor) return melhor;
+    }
+    return null;
+  }, [cadastro.agendas, leituraAgenda.faltam, vagasDe]);
+
+  const novoAgendamento = useCallback((
+    onde?: { profissionalId: string; inicio: number; data: string } | null,
+    extra?: { clienteId?: string; dia?: string },
+  ) => {
+    /* Sem vago clicado, o próximo de verdade. Sem nenhum em 21 dias (ninguém de expediente,
+     * agenda cheia), o rascunho nasce hoje com a primeira agenda e a gaveta diz que não há
+     * horário: melhor que um clique que não abre nada. */
+    const alvo = onde ?? proximoVago(extra?.dia) ?? {
+      profissionalId: cadastro.agendas[0] ?? "", data: extra?.dia ?? D.HOJE.iso, inicio: 9,
+    };
+    const { profissionalId, inicio, data } = alvo;
+    /* A pessoa já escolhida (ficha do cliente): traz o preço da ficha, como o select faria. */
+    const cl = extra?.clienteId ? cadastro.clientes.find((c) => c.id === extra.clienteId) : undefined;
     /* ⚠️ AQUI HAVIA UM `if (!conectado)` QUE RECUSAVA O CLIQUE com "Conecte a agenda do
      * Google em Minha Equipe — é lá que o atendimento é criado". Era o terceiro portão do
      * ADR-0009, e o que sobrou: os dois da leitura saíram, este não. O servidor já gravava
@@ -4076,15 +4170,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
      * retentativa depois de uma falha reusar a mesma chave — o servidor consulta por ela
      * antes de inserir (ver buscarPorProp), então "Tentar de novo" depois de um timeout
      * não cria um segundo evento. Um uuid sorteado por tentativa não protegeria de nada. */
-    setRascunho({ id, maisaAg: uuid(), data, profissionalId, inicio, clienteId: "", servicoId: "" });
+    setRascunho({
+      id, maisaAg: uuid(), data, profissionalId, inicio, clienteId: cl?.id ?? "", servicoId: "",
+      ...(cl?.valorSessao != null ? { valor: String(cl.valorSessao) } : {}),
+    });
     setRascunhoEstado({ enviando: false });
+    setCancelarPedido(null);
     setSel(id);
-  }, []);
+  }, [proximoVago, cadastro.agendas, cadastro.clientes]);
 
   const editarRascunho = useCallback((p: Partial<D.RascunhoAgendamento>) => {
     setRascunho((r) => (r ? { ...r, ...p } : r));
     // Mexeu em algo depois de falhar: some o erro velho, que já não descreve o que há na tela.
-    setRascunhoEstado((e) => (e.erro ? { enviando: false } : e));
+    setRascunhoEstado((e) => (e.erro ? { enviando: false, tentou: e.tentou } : e));
   }, []);
 
   const confirmarRascunho = useCallback(async () => {
@@ -4120,7 +4218,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const comGoogle = google.conexoes.some((c) => c.profissionalId === r.profissionalId);
 
     criacaoEmVoo.current = true;
-    setRascunhoEstado({ enviando: true });
+    setRascunhoEstado({ enviando: true, tentou: true });
     try {
       const resp = await fetch("/api/atendimentos", {
         method: "POST",
@@ -4206,16 +4304,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (resp.status === "reconectar") {
-        setRascunhoEstado({ enviando: false, erro: "O acesso ao Google expirou. Reconecte a agenda em Minha Equipe e tente de novo." });
+        setRascunhoEstado({ enviando: false, tentou: true, erro: "O acesso ao Google expirou. Reconecte a agenda em Minha Equipe e tente de novo." });
         void lerStatusGoogle();
         return;
       }
-      setRascunhoEstado({ enviando: false, erro: RESPOSTA_GOOGLE[resp.status] ?? resp.info ?? "Não foi possível marcar." });
+      setRascunhoEstado({ enviando: false, tentou: true, erro: RESPOSTA_GOOGLE[resp.status] ?? resp.info ?? "Não foi possível marcar." });
     } catch {
       /* Rede caiu. O evento PODE ter sido criado — por isso o erro fala em "tentar de
        * novo" e não em "não foi criado": só o `maisaAg` sabe a verdade, e ele garante que
        * a segunda tentativa encontre o primeiro em vez de criar outro. */
-      setRascunhoEstado({ enviando: false, erro: "Sem conexão com o servidor. Tentar de novo é seguro — não cria duplicado." });
+      setRascunhoEstado({ enviando: false, tentou: true, erro: "Sem conexão com o servidor. Tentar de novo é seguro — não cria duplicado." });
     } finally {
       criacaoEmVoo.current = false;
     }
@@ -4227,19 +4325,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSel(null);
   }, []);
 
-  /** Índice por data — mesma razão do `porDia`: a grade do mês pergunta 42 vezes por render. */
-  const bloqPorDia = useMemo(() => {
-    const m = new Map<string, Bloqueio[]>();
-    for (const b of bloqueios) {
-      const lista = m.get(b.data);
-      if (lista) lista.push(b);
-      else m.set(b.data, [b]);
-    }
-    m.forEach((lista) => lista.sort((x, y) => x.inicio - y.inicio));
-    return m;
-  }, [bloqueios]);
-
-  const bloqueiosDoDia = useCallback((data: string) => bloqPorDia.get(data) ?? SEM_BLOQUEIO, [bloqPorDia]);
   const bloqueioPorId = useCallback((id: string) => bloqueios.find((b) => b.id === id), [bloqueios]);
 
   /* ── valor ── */
@@ -4251,7 +4336,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
     convSel, selecionarConversa, abaConv, setAbaConv, threadDe, threadCarregando,
-    enviar, enviando, assumir, devolver,
+    enviar, enviando, assumir, devolver, abrirNoWhatsApp,
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
@@ -4272,6 +4357,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     salvo, salvar, gravacao,
     diaSel, verDia,
     rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
+    vagasDe, proximoVago, novoEmLinha, pedirNovo,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
     bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
     railAberto, setRailAberto,
@@ -4283,7 +4369,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
     convSel, selecionarConversa, abaConv, threadDe, threadCarregando,
-    enviar, enviando, assumir, devolver,
+    enviar, enviando, assumir, devolver, abrirNoWhatsApp,
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
@@ -4303,6 +4389,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ajustes.cfg, alternarCfg,
     salvo, salvar, gravacao,
     diaSel, rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
+    vagasDe, proximoVago, novoEmLinha, pedirNovo,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
     bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
     railAberto,
