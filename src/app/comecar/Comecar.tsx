@@ -1325,7 +1325,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
       <div style={s("display:flex;flex-direction:column;gap:10px;min-height:180px;max-height:300px;overflow-y:auto;padding:14px;border-radius:14px;border:1px solid var(--border);background:var(--surface-2)")}>
         {falas.length === 0 && (
           <p style={s("margin:auto;max-width:30ch;text-align:center;font-size:var(--t-sm);color:var(--muted);line-height:1.55")}>
-            Toque numa das frases abaixo — é o que um cliente seu escreveria.
+            Toque numa das frases abaixo: é o que um cliente seu escreveria.
           </p>
         )}
         {falas.map((f, i) => <BolhaSim key={i} fala={f} />)}
@@ -1357,7 +1357,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
                   Dizer "está na sua agenda" ali seria a tela que existe para provar que o
                   produto funciona sendo o primeiro lugar onde ele mente. */}
               {ambiente.agendaReal
-                ? "Marcado de verdade. Está na sua agenda agora — para desmarcar, é só pedir a ela."
+                ? "Marcado de verdade. Está na sua agenda agora. Para desmarcar, é só pedir a ela."
                 : "Marcado. Neste ambiente a agenda é de demonstração, então o horário não sai daqui."}
             </span>
           )}
@@ -1456,8 +1456,8 @@ const IR_AO_FISCAL = (secao: "recibo" | "nota") => `/?tela=fiscal&secao=${secao}
 
 function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
   const [estado, setEstado] = useState<{ falta: string[]; ligado: boolean } | null>(null);
-  /** O agente está ligado? Muda a frase do "decidir depois". `null` enquanto não se sabe. */
-  const [agente, setAgente] = useState<boolean | null>(null);
+  /** O que já sai pelo WhatsApp: muda a frase do "decidir depois". `null` enquanto não se sabe. */
+  const [uso, setUso] = useState<{ agente: boolean; lembrete: boolean } | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -1476,7 +1476,7 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
       .catch(() => { if (vivo) setEstado({ falta: [], ligado: false }); });
     fetch("/api/assistente", { cache: "no-store" })
       .then(async (r) => (r.ok ? r.json() : null))
-      .then((d) => { if (vivo) setAgente(d?.ok ? d.assistente?.ativa === true : null); })
+      .then((d) => { if (vivo && d?.ok) setUso({ agente: d.assistente?.ativa === true, lembrete: d.cfg?.lembrete === true }); })
       .catch(() => {});
     return () => { vivo = false; };
   }, []);
@@ -1509,8 +1509,9 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
     { rotulo: "Tenho CNPJ", sub: "Nota fiscal de serviço. Pede o certificado digital A1.", href: IR_AO_FISCAL("nota") },
     {
       rotulo: "Decidir depois, na tela Fiscal",
-      /* O que já funciona sem isto, dito pelo modo: sem agente, a MAISA não "atende e marca". */
-      sub: agente === false ? "Os lembretes já estão ligados." : agente ? "Ela já atende e marca pelo WhatsApp." : "Fica esperando na tela Fiscal.",
+      /* O que já funciona sem isto, dito pelo que está ligado de verdade: sem agente ela não
+         "atende e marca", e sem lembrete ligado dizer que os lembretes saem seria mentir. */
+      sub: uso?.agente ? "Ela já atende e marca pelo WhatsApp." : uso?.lembrete ? "Os lembretes já saem pelo WhatsApp." : "Fica esperando na tela Fiscal.",
     },
   ];
 

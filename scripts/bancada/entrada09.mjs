@@ -87,6 +87,8 @@ const cenarios = [
     const conf = p.locator("button", { hasText: /enviar/i }); if (await conf.count()) await conf.first().click();
   }],
   ["e4-sem-cerebro", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(true), "**/api/canal": () => ok({ canal: { status: "conectado", numero: "5511994294906" } }) }],
+  /* 1B.15: sem a chave do modelo, "Pular este passo" leva à etapa 5 (o título medido tem de ser o dela). */
+  ["e4-sem-cerebro-pular", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(true), "**/api/canal": () => ok({ canal: { status: "conectado", numero: "5511994294906" } }), "**/api/fiscal*": fiscalVazio }, pularSeFalta],
   ["e4-falta-agenda", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(true), "**/api/canal": () => ok({ canal: { status: "conectado", numero: "5511994294906" } }), "**/api/laboratorio": () => ok({ pronto: true, agenda: "google", exemplo: { servico: "Sessão individual", profissional: "Carla" } }) }],
   ["e4-conversa", {
     "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado", "agenda_conectada"]), "**/api/assistente*": assistente(true),
@@ -95,6 +97,21 @@ const cenarios = [
       ? ok({ bolhas: ["Oi! Aqui é a MAISA, assistente do Espaço Carla Guth.", "Tenho quinta às 15h ou sexta às 10h para a sessão individual. Qual fica melhor?"], trilha: [{ ferramenta: "oferecer_horarios", erro: false }] })
       : ok({ pronto: true, agenda: "google", exemplo: { servico: "Sessão individual", profissional: "Carla" } }),
   }, async (p) => { const c = p.locator("button").filter({ hasText: /\?|hor|marcar/i }).first(); if (await c.count()) await c.click(); await p.waitForTimeout(800); }],
+  /* 1B.15: o Google vira oferta DEPOIS de marcar, e só onde o deploy tem Google (agenda "google"). */
+  ["e4-marcou-oferta", {
+    "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(true),
+    "**/api/canal": () => ok({ canal: { status: "conectado", numero: "5511994294906" } }),
+    "**/api/cadastro*": () => ok({ profissionais: [{ id: "pr-1", nome: "Carla" }] }),
+    "**/api/google/status*": () => ok({ conexoes: [] }),
+    "**/api/laboratorio": (req) => req.method() === "POST"
+      ? ok({ bolhas: ["Marquei quinta às 15h para a sessão individual."], trilha: [{ ferramenta: "agendar", erro: false }] })
+      : ok({ pronto: true, agenda: "google", exemplo: { servico: "Sessão individual", profissional: "Carla" } }),
+  }, async (p) => {
+    const antes = await p.getByText("Ela também pode olhar", { exact: false }).count();
+    const c = p.locator("button").filter({ hasText: /\?|hor|marcar/i }).first(); if (await c.count()) await c.click(); await p.waitForTimeout(1500);
+    const link = p.getByRole("link", { name: "Ligar" });
+    console.log(JSON.stringify({ ofertaAntesDeMarcar: antes, ofertaDepois: await p.getByText("Ela também pode olhar", { exact: false }).count(), href: (await link.count()) ? await link.getAttribute("href") : null, seguir: await p.getByRole("button", { name: "Agora o documento fiscal" }).count() }));
+  }],
   ["e5-fiscal", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": fiscalVazio }, pularSeFalta],
   /* Desde 1B.14 a etapa 5 não tem mais "Ligar agora": os dois caminhos navegam para o Documento
      fiscal com o recorte escolhido. O nome do cenário fica (o backlog o cita); ele toca "Atendo
