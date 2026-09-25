@@ -110,6 +110,9 @@ export type AgendamentoVivo = {
    *  bloqueio (`bloq:`) e de um rascunho ainda não criado (`novo-…`). */
   id: string;
   eventId: string;
+  /** A chave do atendimento na tabela (`maisaAg`). É por ela que se remarca (1B.5). Ausente
+   *  numa série recém-criada com Google, até a leitura seguinte trazê-la. */
+  ag?: string;
   /** Data ISO, "YYYY-MM-DD". */
   data: string;
   inicio: number;
@@ -139,6 +142,8 @@ export type AgendamentoVivo = {
 /** Um atendimento como o Google devolveu, antes de resolver profissional/serviço/cliente. */
 type AtendimentoLido = {
   eventId: string;
+  /** `maisa.ag` da leitura, ou a chave do rascunho que o criou. Ver `AgendamentoVivo.ag`. */
+  ag?: string;
   data: string;
   inicio: number;
   fim: number;
@@ -646,6 +651,15 @@ export type StoreValue = {
   pedirCancelamento: (chave: string | null) => void;
   /** ⚠️ APAGA o evento na agenda real e avisa quem estiver convidado. Peça confirmação. */
   cancelarAtendimento: (id: string) => void;
+  /** O novo dia e horário sendo escolhidos na gaveta de um atendimento (1B.5). `null` = nenhum.
+   *  Abrir, fechar e trocar de tela desistem, como no cancelar. */
+  remarcacao: { id: string; data: string; inicio: number } | null;
+  /** Com o id, começa no dia e horário atuais; `null` desiste ("Voltar"). */
+  pedirRemarcacao: (id: string | null) => void;
+  editarRemarcacao: (parcial: { data?: string; inicio?: number }) => void;
+  /** `PATCH /api/atendimentos`: banco primeiro, Google depois. O bloco muda de lugar só com a
+   *  resposta (não é otimista: o conflito de horário é o servidor que vê inteiro). */
+  remarcarAtendimento: (id: string) => void;
   /** Itens da fila "Precisa de você" que ainda não foram resolvidos. */
   fila: D.ItemFila[];
   resolverFila: (alvo: string) => void;
@@ -946,7 +960,7 @@ export type StoreValue = {
   novoAgendamento: (onde?: { profissionalId: string; inicio: number; data: string } | null, extra?: { clienteId?: string; dia?: string }) => void;
   /** Horários em que `pid` pode começar `duracaoMin` neste dia: expediente, o que já está
    *  marcado e os compromissos da agenda dele, e nada no passado (`vagasDoDia` do domínio). */
-  vagasDe: (pid: string, data: string, duracaoMin: number) => number[];
+  vagasDe: (pid: string, data: string, duracaoMin: number, semOAtendimento?: string) => number[];
   /** O primeiro vago a partir de `desde` (hoje, se omitido), varrendo até 21 dias; `null` sem nenhum. */
   proximoVago: (desde?: string) => { profissionalId: string; data: string; inicio: number } | null;
   /** O formulário em linha de criar que a casca pediu ("Novo cliente", "Adicionar profissional"). */
@@ -1419,6 +1433,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [sel, setSel] = useState<string | null>(null);
   /** De qual atendimento há um "Cancelar" à espera de confirmação. Ver cancelarAtendimento. */
   const [cancelarPedido, setCancelarPedido] = useState<string | null>(null);
+  /** O remarcar pela metade. Ver `remarcarAtendimento`. */
+  const [remarcacao, setRemarcacao] = useState<{ id: string; data: string; inicio: number } | null>(null);
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [alvoSolta, setAlvoSolta] = useState<string | null>(null);
   /* Começa VAZIO, não na primeira conversa: as conversas vêm do servidor, e no primeiro render
@@ -1454,12 +1470,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * menu "Novo"), quem desenha é a tela. Trocar de tela o fecha, como fecha a gaveta. */
   const [novoEmLinha, setNovoEmLinha] = useState<"cliente" | "profissional" | null>(null);
   const irPara = useCallback((t: TelaId, s?: string) => {
-    setTela(t); setSel(null); setCancelarPedido(null); setNovoEmLinha(null);
+    setTela(t); setSel(null); setCancelarPedido(null); setRemarcacao(null); setNovoEmLinha(null);
     setSecao(secaoDoEndereco(t, s));
   }, []);
   const pedirNovo = useCallback((tipo: "cliente" | "profissional" | null) => setNovoEmLinha(tipo), []);
-  const abrir = useCallback((id: string) => { setSel(id); setCancelarPedido(null); }, []);
-  const fechar = useCallback(() => { setSel(null); setCancelarPedido(null); }, []);
+  const abrir = useCallback((id: string) => { setSel(id); setCancelarPedido(null); setRemarcacao(null); }, []);
+  const fechar = useCallback(() => { setSel(null); setCancelarPedido(null); setRemarcacao(null); }, []);
 
   // Esc fecha a gaveta — atalho único, vale nas duas formas (modal e folha).
   useEffect(() => {
@@ -1947,6 +1963,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return [{
         id,
         eventId: e.eventId,
+        ag: e.ag,
         data: e.data,
         inicio: e.inicio,
         fim: e.fim,
@@ -4021,6 +4038,55 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [agendamentoPorId]);
 
+  /* ── REMARCAR (1B.5, 25/09/2026) ──
+   * Não existia: a barra da Agenda dizia "remarcar, por enquanto, é no Google Calendar", o que
+   * para quem não conectou Google era cancelar e marcar de novo (perdendo o Meet e a chave). A
+   * gaveta escolhe o dia e o horário entre as vagas daquela pessoa (`vagasDe`, sem contar o
+   * próprio atendimento), e o PATCH move a linha na tabela e, se houver, o evento lá fora com o
+   * MESMO id. A lista local só muda com a resposta: o bloco muda de lugar sem recarregar. */
+  const pedirRemarcacao = useCallback((id: string | null) => {
+    if (!id) { setRemarcacao(null); return; }
+    const a = agendamentoPorId(id);
+    if (a) { setCancelarPedido(null); setRemarcacao({ id, data: a.data, inicio: a.inicio }); }
+  }, [agendamentoPorId]);
+  const editarRemarcacao = useCallback((parcial: { data?: string; inicio?: number }) => {
+    setRemarcacao((r) => (r ? { ...r, ...parcial } : r));
+  }, []);
+  const remarcarAtendimento = useCallback(async (id: string) => {
+    const a = agendamentoPorId(id);
+    const alvo = remarcacao && remarcacao.id === id ? remarcacao : null;
+    if (!a || !a.ag || !alvo || googleEmVoo.current.has(id)) return;
+
+    googleEmVoo.current.add(id);
+    marcarOcupado(id, true);
+    try {
+      const r = await fetch("/api/atendimentos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profissionalId: a.profissionalId, maisaAg: a.ag, data: alvo.data, inicio: alvo.inicio }),
+      }).then((x) => x.json());
+
+      if (r.ok) {
+        setAtendimentos((prev) => prev.map((e) => (e.eventId === a.eventId
+          ? { ...e, data: r.data ?? alvo.data, inicio: r.inicio ?? alvo.inicio, fim: (r.inicio ?? alvo.inicio) + e.duracao / 60 }
+          : e)));
+        setRemarcacao(null);
+        const quando = alvo.data === D.HOJE.iso ? "hoje" : D.rotuloDia(alvo.data);
+        /* Havia evento no Google e ele não se mexeu: dizer, senão ele confia no horário de lá. */
+        const fora = r.foraDoCalendario ? ". O evento do Google ficou no horário antigo: mova por lá" : "";
+        toast(`Atendimento de ${a.cliente.nome} remarcado para ${quando}, ${D.hhmm(alvo.inicio)}${fora}`);
+        return;
+      }
+      /* O motivo do servidor antes do genérico: "foi cancelado", "horário ocupado" dizem o que fazer. */
+      toast((r.status === "payload_invalido" ? r.info : null) ?? RESPOSTA_GOOGLE[r.status] ?? r.info ?? "Não consegui remarcar. O atendimento continua no horário de antes.");
+    } catch {
+      toast("Sem conexão com o servidor. O atendimento continua no horário de antes.");
+    } finally {
+      googleEmVoo.current.delete(id);
+      marcarOcupado(id, false);
+    }
+  }, [agendamentoPorId, remarcacao, marcarOcupado]);
+
   /* ── LER a agenda do Google ──
    * A metade que faltava. Até aqui o app só ESCREVIA no Google e nunca olhava de volta:
    * eram dois calendários que não se conheciam. */
@@ -4088,6 +4154,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (e.maisa) {
             novosAtend.push({
               ...base,
+              ag: e.maisa.ag ? String(e.maisa.ag) : undefined,
               profissionalId: e.maisa.profissionalId || pid,
               clienteId: e.maisa.clienteId ?? "",
               clienteNome: e.maisa.clienteNome ?? "Cliente",
@@ -4240,9 +4307,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * `vagasDoDia` é a mesma conta que o agente de WhatsApp faz: expediente, o que está marcado,
    * os compromissos do Google da agenda dessa pessoa, e a antecedência mínima. Só enxerga a
    * janela lida (o mês): além dela, o servidor é quem recusa o conflito. */
-  const vagasDe = useCallback((pid: string, data: string, duracaoMin: number) => {
+  const vagasDe = useCallback((pid: string, data: string, duracaoMin: number, semOAtendimento?: string) => {
     const ocupados = [
-      ...agendamentosDoDia(data).filter((a) => a.profissionalId === pid),
+      /* `semOAtendimento`: ao remarcar, o próprio horário não conta como ocupado (1B.5). */
+      ...agendamentosDoDia(data).filter((a) => a.profissionalId === pid && a.id !== semOAtendimento),
       ...bloqueiosDoDia(data).filter((b) => !b.profissionalId || b.profissionalId === pid),
     ].map((o) => ({ data, inicio: o.inicio, fim: o.fim }));
     return vagasDoDia({ data, expediente: expedienteDe(pid), duracaoMin, ocupados, agora: Date.now() });
@@ -4378,6 +4446,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ...prev.filter((e) => !ids.has(e.eventId)),
           ...criados.map((c) => ({
             eventId: String(c.eventoId),
+            /* A chave: sem Google o `eventoId` É a chave; o avulso é a do rascunho. Numa série com
+             * Google fica sem, e a leitura seguinte a traz (o "Remarcar" só aparece com ela). */
+            ag: chaves?.includes(String(c.eventoId)) ? String(c.eventoId) : chaves ? undefined : r.maisaAg,
             data: c.data,
             inicio: r.inicio,
             fim: r.inicio + sv.duracao / 60,
@@ -4456,6 +4527,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     tela, irPara, secao, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
+    remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,
     fila, resolverFila,
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
@@ -4489,6 +4561,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     tela, irPara, secao, sel, abrir, fechar,
     agendamentos, agendamentosDoDia, agendamentoPorId, moverEtapa, avancarEtapa,
     cancelarPedido, pedirCancelamento, cancelarAtendimento,
+    remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,
     fila, resolverFila,
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
