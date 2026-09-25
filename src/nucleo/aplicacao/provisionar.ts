@@ -29,6 +29,8 @@ import type { ProvisionadorDeNegocio } from "../portas/saida/provisionador-negoc
 import { ehVertical } from "../dominio/negocio";
 import { colapsarEspaco, SEM_CONTEUDO } from "../dominio/texto";
 import { DadoInvalido } from "../dominio/erros";
+import { atendeNoWhatsAppPorPadrao } from "../dominio/assistente";
+import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
 
 /** Nome de negócio cabe numa tela e vira slug. Fora disso é engano ou abuso. */
 const NOME_MIN = 2;
@@ -41,6 +43,8 @@ const normalizar = colapsarEspaco;
 
 export function criarProvisionarNegocio(deps: {
   provisionador: ProvisionadorDeNegocio;
+  /** Para desligar a MAISA de quem nasce com ela desligada. Ver `atendeNoWhatsAppPorPadrao`. */
+  assistente?: RepositorioAssistente;
 }): ProvisionarNegocio {
   return async (sessao, p): Promise<NegocioProvisionado> => {
     const nome = normalizar(p.nome ?? "");
@@ -76,6 +80,25 @@ export function criarProvisionarNegocio(deps: {
         "Esta conta já é dona de negócios demais. Fale com a gente para liberar mais.",
         "limite",
       );
+    }
+
+    /* O banco nasce com `ativa = true` (`002_multitenant.sql`) para todo mundo. Desligar
+     * aqui, e não numa migração, porque a regra depende da vertical — e as TRÊS telas que
+     * criam negócio (wizard, assinatura, painel) passam por esta função.
+     *
+     * ⚠️ Falha para a frente: o negócio já existe, e lançar agora faria a pessoa tentar de
+     * novo e bater em "negócios demais". O WhatsApp ainda nem está conectado neste ponto,
+     * e o wizard grava o modo escolhido logo em seguida. Então: log alto e segue. */
+    if (deps.assistente && !atendeNoWhatsAppPorPadrao(p.vertical)) {
+      const t = { tenantId: r.tenantId, usuarioId: sessao.usuarioId, ator: { tipo: "usuario" as const, id: sessao.usuarioId } };
+      try {
+        await deps.assistente.salvar(t, { assistente: { ativa: false } });
+      } catch (e) {
+        console.error(
+          `[aplicacao/provisionar] o negócio ${r.tenantId} (${p.vertical}) nasceu com a MAISA LIGADA — `
+          + `não consegui desligar: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
 
     return { tenantId: r.tenantId, proximoPasso: "abrir_painel" };

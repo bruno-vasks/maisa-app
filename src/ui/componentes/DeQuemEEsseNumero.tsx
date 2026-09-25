@@ -31,7 +31,7 @@ const OPCOES: { id: ModoDoNumero; titulo: string; sub: string }[] = [
   {
     id: "pessoal",
     titulo: "É meu número pessoal também",
-    sub: "Ela atende quem você não tem salvo — e quem você marcar como cliente. Cala para o resto da sua agenda.",
+    sub: "Ela só atende quem você marcar como cliente — e número novo que chega pedindo horário. Cala para todo o resto.",
   },
   {
     id: "negocio",
@@ -181,14 +181,14 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
           <p style={s("margin:0;font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
             {estado.contatos.length === 0 ? (
               <>
-                Traga sua agenda para ela saber <strong style={s("color:var(--ink)")}>quem não atender</strong> — e
-                para chamar seus clientes pelo nome.
+                Traga sua agenda para <strong style={s("color:var(--ink)")}>marcar seus clientes</strong> — ela só
+                atende quem você marcar, e chama cada um pelo nome.
               </>
             ) : (
               <>
                 <strong style={s("color:var(--ink)")}>{estado.contatos.length}</strong> contatos aqui
                 {clientes > 0 && <>, <strong style={s("color:var(--ink)")}>{clientes}</strong> marcados como cliente</>}.
-                Ela cala para os outros e atende quem você não tem salvo.
+                Ela atende só os marcados, e número novo que pede horário.
               </>
             )}
           </p>

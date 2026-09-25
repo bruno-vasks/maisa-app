@@ -448,7 +448,24 @@ export type Atendimento = {
   nome: string | null;
 };
 
-export type AvaliarAtendimento = (t: ContextoTenant, telefone: string) => Promise<Atendimento>;
+/**
+ * O que a mensagem traz para a decisão.
+ *
+ * `anteriores` e `texto` estão aqui desde 24/09/2026: no modo pessoal, número fora do caderno
+ * só é atendido se for novo E estiver pedindo horário — e as duas perguntas precisam da
+ * conversa, não só do telefone.
+ */
+export type PedidoDeAtendimento = {
+  telefone: string;
+  /** O endereço cru do WhatsApp, quando é `…@lid`. Ver `HistoricoDoCanal.rastro`. */
+  jid?: string;
+  /** A thread da MAISA ANTES desta mensagem. */
+  anteriores: readonly Msg[];
+  /** A mensagem que acabou de chegar. */
+  texto: string;
+};
+
+export type AvaliarAtendimento = (t: ContextoTenant, p: PedidoDeAtendimento) => Promise<Atendimento>;
 
 /** O caderno inteiro + de quem é o número, para a tela desenhar as duas coisas juntas. */
 export type LerContatos = (t: ContextoTenant) => Promise<{ contatos: Contato[]; modo: ModoDoNumero }>;

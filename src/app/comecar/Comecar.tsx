@@ -41,6 +41,13 @@
  * ele acabou de desligar — com "Abrir meu painel" como única saída, que é abandono com
  * outro nome.
  *
+ * ── ★ E UM TERCEIRO TAMANHO, DESDE 24/09/2026 ──
+ *
+ * Quem assinou só para emitir recibo não passa nem pelo WhatsApp: a trilha vira negócio →
+ * catálogo → recibo. Conectar um número para nada é o tipo de passo que mata onboarding. A
+ * trilha é `passosQueValem` (`dominio/ativacao.ts`) — a MESMA conta que o cartão de jornada
+ * do painel faz, então o painel não volta a cobrar o que o wizard pulou.
+ *
  * ⚠️ SÓ A ETAPA 1 É OBRIGATÓRIA, porque é a única que CRIA alguma coisa. Todas as outras
  * têm "Pular" — e pular não é abandono: o passo continua contado em `/api/ativacao`, que
  * lê o mundo em vez de uma flag.
@@ -49,7 +56,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { s, Icon, Toggle, toast, Toaster } from "@/ui/primitivos";
-import type { CategoriaServico, PassoDeAtivacao, Servico, Vertical } from "@/nucleo/dominio";
+import type { CategoriaServico, PassoDeAtivacao, Servico, UsoDoWhatsApp, Vertical } from "@/nucleo/dominio";
+import { PASSOS_DE_ATIVACAO, passosQueValem, usoDoWhatsApp } from "@/nucleo/dominio";
 import { sugestoes, type ExemploDoNegocio } from "./sugestoes";
 import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
 import {
@@ -106,7 +114,7 @@ const VERTICAIS: { id: Vertical; rotulo: string; desc: string; icone: string }[]
  * O par de campos que cada modo grava está em `aplicarModo`.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-type Modo = "conversa" | "avisos";
+type Modo = "conversa" | "avisos" | "recibos";
 
 const MODOS: { id: Modo; rotulo: string; desc: string; icone: string }[] = [
   {
@@ -123,7 +131,25 @@ const MODOS: { id: Modo; rotulo: string; desc: string; icone: string }[] = [
     desc: "Ela não responde ninguém — só manda o lembrete e avisa quando o recibo sai",
     icone: "bell",
   },
+  {
+    /* ★ 24/09/2026. Quem só quer o documento fiscal não precisa de WhatsApp nenhum, e
+     * obrigar a conectar um número é o maior gargalo do wizard para essa pessoa. */
+    id: "recibos",
+    rotulo: "Só quero emitir recibo ou nota",
+    desc: "Sem WhatsApp: ela não conversa nem manda lembrete. Dá para ligar depois",
+    icone: "receipt",
+  },
 ];
+
+/**
+ * A ordem dos cartões por vertical. Consultório vê primeiro o que não fala com ninguém: é
+ * uma pessoa só, no celular pessoal, e muitas assinam só pelo recibo — e é a vertical que
+ * nasce com a MAISA desligada (`atendeNoWhatsAppPorPadrao`). A escolha continua sendo dela.
+ */
+const modosPara = (v: Vertical | null) => {
+  const ordem: Modo[] = v === "terapeutas" ? ["recibos", "avisos", "conversa"] : ["conversa", "avisos", "recibos"];
+  return ordem.map((id) => MODOS.find((m) => m.id === id)!);
+};
 
 /* De quanto em quanto se pergunta se o QR já foi lido, e por quanto tempo. Os mesmos
  * números do painel (`store.tsx`): 3s × 40 ≈ 2 min, mais que a validade de um QR. */
@@ -257,32 +283,39 @@ function Botao({
 /* ───────────────────────────── etapa 1 · o negócio ───────────────────────────── */
 
 /**
- * O que o modo escolhido grava — e por que são DOIS campos, não um.
+ * O que cada modo grava na assistente.
  *
- * `ativa: false` cala o agente: a mensagem do cliente entra no histórico e a MAISA não
- * responde (`entrada/whatsapp/agente.ts`). É o que "ela não responde ninguém" significa.
+ * `ativa` liga ou cala o agente (`entrada/whatsapp/agente.ts`). No modo `conversa` ele é
+ * gravado EXPLICITAMENTE: desde 24/09/2026 terapeuta nasce com a MAISA desligada
+ * (`atendeNoWhatsAppPorPadrao`), então "ela conversa" precisa ligar, não herdar.
  *
- * `avisarRecibo: true` é a outra metade da mesma frase. O padrão dele no banco é `false`
- * de propósito — é o único toggle que dispara sem ninguém por perto, do número pessoal do
- * dono (ver `ChaveCfg` em `dominio/assistente.ts`). Esse padrão protege quem NÃO pediu;
- * quem escolhe este modo pediu, com todas as letras, no texto do cartão. Deixá-lo `false`
- * aqui faria a tela prometer um aviso que nunca sai.
+ * `avisarRecibo: true` no modo `avisos`: o padrão dele no banco é `false` de propósito — é o
+ * único toggle que dispara sem ninguém por perto, do número pessoal do dono. Quem escolhe
+ * este modo pediu, com todas as letras, no texto do cartão.
  *
- * ⚠️ `lembrete` não aparece porque já nasce `true` (`002_multitenant.sql`). Regravá-lo
- * daria um segundo lugar decidindo o mesmo padrão, e o dia em que os dois discordassem
- * ninguém saberia qual vale.
+ * `recibos` desliga as TRÊS coisas que saem pelo WhatsApp (agente, lembrete, aviso). É isso
+ * que faz o WhatsApp sumir da trilha e do cartão de jornada — `usoDoWhatsApp` deriva dos
+ * mesmos três campos, e não de um "modo" guardado à parte.
  */
-const aplicarModo = async (modo: Modo): Promise<boolean> => {
-  if (modo === "conversa") return true;
+const AJUSTES_DO_MODO: Record<Modo, { assistente: { ativa: boolean }; cfg?: Record<string, boolean> }> = {
+  conversa: { assistente: { ativa: true } },
+  avisos: { assistente: { ativa: false }, cfg: { avisarRecibo: true } },
+  recibos: { assistente: { ativa: false }, cfg: { lembrete: false, avisarRecibo: false } },
+};
+
+/**
+ * Grava o modo e devolve o uso do WhatsApp que FICOU no servidor — lido da resposta, não
+ * suposto da escolha. `undefined` quando o PATCH não passa: valem todos os passos, o lado
+ * que mostra uma etapa a mais em vez de esconder uma.
+ */
+const aplicarModo = async (modo: Modo): Promise<UsoDoWhatsApp | undefined> => {
   const r = await fetch("/api/assistente", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ assistente: { ativa: false }, cfg: { avisarRecibo: true } }),
+    body: JSON.stringify(AJUSTES_DO_MODO[modo]),
   }).then((x) => x.json()).catch(() => null);
-  /* Devolve se o agente FICOU ativo — o PATCH que não passa deixa de pé o padrão do banco,
-   * que é ligado. Quem chama usa isto para decidir a trilha, então errar para "ligado" é o
-   * lado seguro: mostra uma etapa a mais, em vez de esconder a demonstração de quem a quer. */
-  return !r?.ok;
+  if (!r?.ok || !r.assistente || !r.cfg) return undefined;
+  return usoDoWhatsApp({ ativa: r.assistente.ativa, lembrete: r.cfg.lembrete, avisarRecibo: r.cfg.avisarRecibo });
 };
 
 /** Um cartão de escolha — o mesmo desenho para a vertical e para o modo. */
@@ -304,7 +337,7 @@ function Escolha({
   );
 }
 
-function EtapaNegocio({ aoCriar }: { aoCriar: (agenteAtivo: boolean) => void }) {
+function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) => void }) {
   const [nome, setNome] = useState("");
   const [vertical, setVertical] = useState<Vertical | null>(null);
   const [modo, setModo] = useState<Modo | null>(null);
@@ -335,13 +368,13 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (agenteAtivo: boolean) => void }) 
       /* ⚠️ O AJUSTE FALHA PARA A FRENTE, e é decisão, não descuido: o negócio JÁ EXISTE
        * quando esta linha roda. Barrar aqui deixaria a pessoa presa numa etapa que só sabe
        * criar — e a segunda tentativa bateria em "você já tem um negócio". Então o wizard
-       * segue com o agente ligado (o padrão do banco) e diz o que não pegou; o mesmo par de
-       * toggles está na tela "A MAISA", que é onde ela conserta em dois cliques. */
-      const agenteAtivo = await aplicarModo(modo);
-      if (modo === "avisos" && agenteAtivo) {
-        toast("Criei seu negócio, mas não consegui desligar as respostas automáticas — ajuste em “A MAISA”.");
+       * segue com a trilha completa e diz o que não pegou; os mesmos toggles estão na tela
+       * "A MAISA", que é onde ela conserta em dois cliques. */
+      const uso = await aplicarModo(modo);
+      if (!uso) {
+        toast("Criei seu negócio, mas não consegui gravar como a MAISA vai trabalhar — ajuste em “A MAISA”.");
       }
-      aoCriar(agenteAtivo);
+      aoCriar(uso);
     } catch {
       setRecado(falhou("Sem conexão com o servidor. Tente de novo."));
       setOcupado(false);
@@ -392,7 +425,7 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (agenteAtivo: boolean) => void }) 
         <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45;margin-bottom:2px")}>
           Dá para trocar quando quiser, na tela “A MAISA”.
         </span>
-        {MODOS.map((m) => (
+        {modosPara(vertical).map((m) => (
           <Escolha
             key={m.id} on={modo === m.id} icone={m.icone} rotulo={m.rotulo} desc={m.desc}
             onClick={() => { setModo(m.id); setRecado(null); }}
@@ -1564,17 +1597,20 @@ export default function Comecar() {
   const [etapa, setEtapa] = useState<EtapaId | null>(null);
   const [feitos, setFeitos] = useState<PassoDeAtivacao[]>([]);
   /**
-   * O agente responde neste inquilino? É o que decide se a etapa "Ver funcionando" existe.
+   * Os passos que valem para este negócio — é o que decide se "Conectar o WhatsApp" e "Ver
+   * funcionando" existem. Ver `passosQueValem`.
    *
-   * ⚠️ LIDO DO SERVIDOR NA RETOMADA, e não guardado da escolha da etapa 1. Quem volta do
-   * consent do Google, dá F5 ou fecha o navegador e reabre passa por aqui sem ter respondido
-   * nada — e sem esta leitura o wizard mostraria de novo a etapa que a pessoa desligou.
-   * Mesmo princípio de `dominio/ativacao.ts`: perguntar ao mundo, não a uma flag local.
+   * ⚠️ LIDO DO SERVIDOR NA RETOMADA (`/api/ativacao` devolve `passos`), e não guardado da
+   * escolha da etapa 1. Quem volta do consent do Google, dá F5 ou fecha e reabre passa por
+   * aqui sem ter respondido nada — e sem esta leitura o wizard mostraria de novo a etapa
+   * que a pessoa desligou.
    *
-   * `true` de partida porque é o padrão do banco. Errar para ligado mostra uma etapa a mais;
-   * errar para desligado esconde a demonstração de quem a quer.
+   * Todos de partida: errar para "vale" mostra uma etapa a mais; errar para "não vale"
+   * esconde a de quem a quer.
    */
-  const [agenteAtivo, setAgenteAtivo] = useState(true);
+  const [valem, setValem] = useState<readonly PassoDeAtivacao[]>(PASSOS_DE_ATIVACAO);
+  const temWhatsApp = valem.includes("whatsapp_conectado");
+  const temVer = valem.includes("primeira_conversa");
 
   /**
    * Onde retomar — perguntado ao MUNDO, não a uma flag.
@@ -1620,27 +1656,21 @@ export default function Comecar() {
       toast(`Não consegui ligar sua agenda${motivo ? ` — ${motivo.replace(/_/g, " ")}` : ""}.`);
     }
 
-    /* O modo vem junto da retomada: as duas respostas decidem a MESMA coisa (onde parar), e
-     * pedi-las em sequência daria uma pintura com a trilha de cinco passos antes de encolher
-     * para quatro. `catch` para ligado — ver o padrão do estado. */
-    Promise.all([
-      fetch("/api/ativacao").then(async (r) => ({ status: r.status, corpo: await r.json().catch(() => null) })),
-      fetch("/api/assistente").then((r) => r.json()).catch(() => null),
-    ])
-      .then(([{ status, corpo }, ajustes]) => {
+    fetch("/api/ativacao").then(async (r) => ({ status: r.status, corpo: await r.json().catch(() => null) }))
+      .then(({ status, corpo }) => {
         if (!vivo) return;
         if (status === 409) { setEtapa("negocio"); return; }
         if (status === 401) { router.push("/login?next=%2Fcomecar"); return; }
         const f: PassoDeAtivacao[] = corpo?.feitos ?? [];
         setFeitos(f);
-        const ativa = ajustes?.ok ? ajustes.assistente?.ativa !== false : true;
-        setAgenteAtivo(ativa);
-        /* Sem agente não existe "Ver funcionando": a etapa demonstra uma conversa que não vai
-         * acontecer, e é a única que exige a agenda do Google. Quem a desligou cai no passo
-         * seguinte, que é o documento fiscal. */
-        const depoisDoWhatsApp: EtapaId = ativa ? "ver" : "fiscal";
+        const v: readonly PassoDeAtivacao[] = Array.isArray(corpo?.passos) ? corpo.passos : PASSOS_DE_ATIVACAO;
+        setValem(v);
+        /* Sem agente não existe "Ver funcionando"; sem nada saindo pelo WhatsApp não existe
+         * nem o WhatsApp. Quem cai fora dos dois vai direto ao documento fiscal. */
+        const depoisDoWhatsApp: EtapaId = v.includes("primeira_conversa") ? "ver" : "fiscal";
+        const depoisDoCatalogo: EtapaId = v.includes("whatsapp_conectado") ? "whatsapp" : depoisDoWhatsApp;
         if (google) { setEtapa(depoisDoWhatsApp); return; }
-        setEtapa(f.includes("whatsapp_conectado") ? depoisDoWhatsApp : f.includes("catalogo_ajustado") ? "whatsapp" : "catalogo");
+        setEtapa(f.includes("whatsapp_conectado") ? depoisDoWhatsApp : f.includes("catalogo_ajustado") ? depoisDoCatalogo : "catalogo");
       })
       .catch(() => vivo && setEtapa("negocio"));
     return () => { vivo = false; };
@@ -1668,9 +1698,11 @@ export default function Comecar() {
   const podePular = etapa === "catalogo" || etapa === "whatsapp";
   /* A trilha mostra só o que vai acontecer. Deixar a bolinha de uma etapa que o wizard vai
    * pular é prometer um passo a mais e depois sumir com ele — o contador andaria de 3 para 5. */
-  const etapas = agenteAtivo ? ETAPAS : ETAPAS.filter((e) => e.id !== "ver");
+  const etapas = ETAPAS.filter((e) => (e.id === "whatsapp" ? temWhatsApp : e.id === "ver" ? temVer : true));
   /** Depois do WhatsApp: demonstrar a conversa, ou o documento fiscal para quem não tem agente. */
-  const depoisDoWhatsApp: EtapaId = agenteAtivo ? "ver" : "fiscal";
+  const depoisDoWhatsApp: EtapaId = temVer ? "ver" : "fiscal";
+  /** Depois do catálogo: o WhatsApp, ou — para quem só emite recibo — direto ao que importa. */
+  const depoisDoCatalogo: EtapaId = temWhatsApp ? "whatsapp" : depoisDoWhatsApp;
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 20px 48px", overflow: "hidden" }}>
@@ -1691,9 +1723,9 @@ export default function Comecar() {
 
         <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:24px 22px")}>
           {etapa === "negocio" && (
-            <EtapaNegocio aoCriar={(ativa) => { setAgenteAtivo(ativa); avancar("catalogo"); }} />
+            <EtapaNegocio aoCriar={(uso) => { setValem(passosQueValem(uso)); avancar("catalogo"); }} />
           )}
-          {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar("whatsapp")} />}
+          {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar(depoisDoCatalogo)} />}
           {etapa === "whatsapp" && <EtapaWhatsApp aoSeguir={() => avancar(depoisDoWhatsApp)} />}
           {etapa === "ver" && <EtapaVerFuncionando feitos={feitos} aoVoltarParaWhatsApp={() => avancar("whatsapp")} aoSeguir={() => avancar("fiscal")} />}
           {etapa === "fiscal" && <EtapaNotaFiscal aoPainel={aoPainelDoWizard} />}
@@ -1704,7 +1736,7 @@ export default function Comecar() {
             responde 409 em toda rota. */}
         {podePular && (
           <button
-            onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar(etapa === "catalogo" ? "whatsapp" : depoisDoWhatsApp); }}
+            onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar(etapa === "catalogo" ? depoisDoCatalogo : depoisDoWhatsApp); }}
             className="m-focus"
             style={s("align-self:center;background:none;border:none;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--muted);cursor:pointer;padding:8px 12px")}
           >

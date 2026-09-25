@@ -6,7 +6,7 @@
  * `negocios` — e o nome que o cliente vai ver em toda tela pelo resto da assinatura.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DadoInvalido } from "@/nucleo/dominio/erros";
 import type {
   IdentidadeDaSessao, NegocioCriado, PedidoDeNegocio, ProvisionadorDeNegocio,
@@ -90,5 +90,44 @@ describe("teto do banco", () => {
   it("limite_de_negocios vira DadoInvalido no campo 'limite'", async () => {
     resposta = { ok: false, motivo: "limite_de_negocios" };
     expect(await campoRecusado({ nome: "Mais um", vertical: "generico" })).toBe("limite");
+  });
+});
+
+/* ★ 24/09/2026: terapeuta nasce com a MAISA desligada no WhatsApp. As três telas que criam
+ * negócio passam por aqui, então é aqui que o padrão tem que valer. */
+describe("★ a MAISA nasce ligada ou desligada", () => {
+  const gravados: { tenantId: string; ativa: unknown }[] = [];
+  const assistente = {
+    ler: async () => null,
+    salvar: async (t: { tenantId: string }, p: { assistente?: { ativa?: boolean } }) => {
+      gravados.push({ tenantId: t.tenantId, ativa: p.assistente?.ativa });
+      return {} as never;
+    },
+  };
+  const comAssistente = criarProvisionarNegocio({ provisionador: fake, assistente });
+
+  beforeEach(() => { gravados.length = 0; });
+
+  it("terapeuta nasce DESLIGADA", async () => {
+    await comAssistente(sessao, { nome: "Psicologia Regina", vertical: "terapeutas" });
+    expect(gravados).toEqual([{ tenantId: "tenant-de-mentira", ativa: false }]);
+  });
+
+  it("barbearia nasce ligada — ninguém mexe", async () => {
+    await comAssistente(sessao, { nome: "Barbearia do Zé", vertical: "barbeiros" });
+    expect(gravados).toEqual([]);
+  });
+
+  /* O negócio já existe quando o desligar falha: lançar faria a pessoa tentar de novo e
+   * bater no teto de negócios. */
+  it("se não conseguir desligar, o negócio ainda é criado — com log", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    const quebrado = criarProvisionarNegocio({
+      provisionador: fake,
+      assistente: { ...assistente, salvar: async () => { throw new Error("RLS"); } },
+    });
+    await expect(quebrado(sessao, { nome: "Clínica", vertical: "terapeutas" })).resolves.toMatchObject({ tenantId: "tenant-de-mentira" });
+    expect(erro).toHaveBeenCalled();
+    erro.mockRestore();
   });
 });

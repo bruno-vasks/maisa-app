@@ -55,6 +55,9 @@ type Passo = {
 export function JornadaDeAtivacao() {
   const st = useStore();
   const [feitos, setFeitos] = useState<PassoDeAtivacao[] | null>(null);
+  /** Os passos que valem para ESTE negócio (`passosQueValem`). Quem só emite recibo não vê
+   *  WhatsApp, agenda nem "ver funcionando" — cobrar o que não serve é gargalo. */
+  const [valem, setValem] = useState<readonly PassoDeAtivacao[]>(PASSOS_DE_ATIVACAO);
   const [formado, setFormado] = useState(true); // pessimista: não pisca antes de saber
 
   useEffect(() => {
@@ -68,6 +71,7 @@ export function JornadaDeAtivacao() {
         if (!d?.ok) return;
         const f: PassoDeAtivacao[] = d.feitos ?? [];
         setFeitos(f);
+        if (Array.isArray(d.passos)) setValem(d.passos);
         /* Grava no momento em que fecha, e não na próxima montagem: quem termina o último
          * passo aqui dentro vê o cartão sumir na hora, e não no próximo F5. */
         if (d.completo && typeof window !== "undefined") {
@@ -135,7 +139,7 @@ export function JornadaDeAtivacao() {
 
   if (formado || feitos === null) return null;
 
-  const total = PASSOS_DE_ATIVACAO.length;
+  const total = valem.length;
   const prontos = feitos.length;
   const pct = Math.round((prontos / total) * 100);
   if (prontos >= total) return null;
@@ -167,7 +171,7 @@ export function JornadaDeAtivacao() {
       </div>
 
       <div style={s("display:flex;flex-direction:column;gap:8px")}>
-        {PASSOS.map((p) => {
+        {PASSOS.filter((p) => valem.includes(p.id)).map((p) => {
           const feito = feitos.includes(p.id);
           const clicavel = !feito && !!p.ir;
 

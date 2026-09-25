@@ -1,14 +1,13 @@
 /* ─────────────────────────────────────────────────────────────────────────────
- * A COSTURA DO CADERNO — e a única decisão deste repositório que FALHA ABERTA.
+ * A COSTURA DO CADERNO — e, desde 24/09/2026, uma decisão que FALHA FECHADA.
  *
  * A regra de quem a MAISA atende é pura e está testada em `dominio/contatos.test.ts`. O que
- * se prova aqui é o comportamento quando os DADOS dela não chegam — e essa é a parte que
- * ninguém pensa até acontecer.
+ * se prova aqui é o comportamento quando os DADOS dela não chegam, e a ordem em que eles são
+ * pedidos (banco → WhatsApp → modelo), que é custo.
  *
- * O caso concreto que motivou: o código vai para produção ANTES de alguém rodar
- * `013_contatos.sql` no SQL Editor. Nessa janela a tabela `contatos` não existe, a coluna
- * `modo` não existe, e toda mensagem de WhatsApp passa pelo `avaliarAtendimento`. Se ele
- * falhasse fechado, o produto inteiro emudeceria por causa de uma migração pendente.
+ * Até 24/09 isto falhava aberto, para uma migração pendente não emudecer o produto. Caiu
+ * quando a MAISA respondeu três pessoas da vida pessoal de uma cliente: no número pessoal,
+ * falar por engano é o erro caro.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it, vi } from "vitest";
@@ -20,6 +19,8 @@ import type { RepositorioContatos } from "../portas/saida/repositorio-contatos";
 import type { ContatosDoCanal } from "../portas/saida/contatos-do-canal";
 import type { ContextoTenant } from "../dominio/tenant";
 import type { ModoDoNumero } from "../dominio/contatos";
+import type { HistoricoDoCanal } from "../portas/saida/historico-do-canal";
+import type { PedidoDeAtendimento } from "../portas/entrada/casos-de-uso";
 import { DadoInvalido } from "../dominio/erros";
 
 const t: ContextoTenant = { tenantId: "n1", usuarioId: "u1", ator: { tipo: "usuario", id: "u1" } };
@@ -45,59 +46,138 @@ const provedor = (over: Partial<ContatosDoCanal> = {}): ContatosDoCanal => ({
   ...over,
 });
 
+const pedido = (texto = "oi", over: Partial<PedidoDeAtendimento> = {}): PedidoDeAtendimento => ({
+  telefone: "5511994294906", anteriores: [], texto, ...over,
+});
+const semRastro: HistoricoDoCanal = { rastro: async () => ({ jaEscreveramParaEle: false, maisAntiga: null }) };
+const nuncaChamar = async () => { throw new Error("não deveria perguntar"); };
+
+function avaliador(over: {
+  contatos?: Partial<RepositorioContatos>;
+  canal?: HistoricoDoCanal;
+  pedeHorario?: (m: readonly string[]) => Promise<boolean>;
+} = {}) {
+  return criarAvaliarAtendimento({
+    contatos: repo(over.contatos),
+    canal: over.canal ?? semRastro,
+    pedeHorario: over.pedeHorario ?? (async () => false),
+    agora: () => new Date("2026-09-24T20:00:00Z"),
+  });
+}
+
 describe("avaliar se a MAISA atende", () => {
-  /* ⚠️ O teste que dá nome ao arquivo. Os dois erros não custam o mesmo:
-   *   fechada → um cliente pagante emudecido no meio de uma tentativa de marcar, e o dono
-   *             só descobre se a pessoa reclamar (ou ela vai embora calada);
-   *   aberta  → a MAISA responde um contato pessoal UMA vez, com a mensagem visível na tela
-   *             de Conversas e um `console.error` explicando.
-   * Por isso, e só por isso, esta é a exceção à regra da casa de falhar fechado. */
-  it("FALHA ABERTA quando o banco não responde", async () => {
+  /* ★ Desde 24/09/2026 falha FECHADA. A aposta antiga (falar por engano é raro e barato)
+   * caiu com 30 mensagens para três pessoas da vida pessoal de uma terapeuta. */
+  it("★ FALHA FECHADA quando o banco não responde", async () => {
     const erro = vi.spyOn(console, "error").mockImplementation(() => {});
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({
+    const avaliar = avaliador({
+      contatos: {
         ler: async () => { throw new Error('relation "public.contatos" does not exist'); },
         modo: async () => { throw new Error('column "modo" does not exist'); },
-      }),
+      },
     });
 
-    await expect(avaliar(t, "5511994294906")).resolves.toEqual({ pode: true, motivo: null, nome: null });
-    /* E grita no log: falha aberta silenciosa é falha aberta permanente. */
+    const r = await avaliar(t, pedido());
+    expect(r.pode).toBe(false);
+    expect(r.motivo).toBeTruthy();
     expect(erro).toHaveBeenCalled();
     erro.mockRestore();
   });
 
-  it("sem telefone utilizável, trata como desconhecido — que é atender", async () => {
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({ ler: async () => { throw new Error("não deveria consultar"); } }),
+  it("★ FALHA FECHADA quando a Evolution não responde", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    const avaliar = avaliador({
+      canal: { rastro: async () => { throw new Error("timeout"); } },
+      pedeHorario: async () => true,
     });
-    await expect(avaliar(t, "123")).resolves.toEqual({ pode: true, motivo: null, nome: null });
+    expect((await avaliar(t, pedido("quero marcar"))).pode).toBe(false);
+    erro.mockRestore();
   });
 
-  /* Modo ausente (inquilino sem canal, ou coluna recém-criada sem valor) cai no padrão
-   * `pessoal`. É o mesmo fail-safe do domínio: o erro barato é calar. */
   it("modo nulo cai no padrão, que protege a vida pessoal", async () => {
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({
-        modo: async () => null,
-        ler: async () => ({ chave: "94294906", nome: "Pai", cliente: null }),
-      }),
+    const avaliar = avaliador({
+      contatos: { modo: async () => null, ler: async () => ({ chave: "94294906", nome: "Pai", cliente: null }) },
     });
-    const r = await avaliar(t, "5511994294906");
+    const r = await avaliar(t, pedido());
     expect(r.pode).toBe(false);
     expect(r.motivo).toContain("Pai");
   });
 
-  /* O nome volta junto com a decisão para o agente não precisar de uma segunda consulta no
-   * caminho quente — é o que faz a MAISA dizer "Oi, Fernanda!" em vez de "Oi!". */
   it("devolve o nome do caderno junto com o sim", async () => {
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({
-        modo: async () => "negocio",
-        ler: async () => ({ chave: "94294906", nome: "Fernanda", cliente: null }),
-      }),
+    const avaliar = avaliador({
+      contatos: { modo: async () => "negocio", ler: async () => ({ chave: "94294906", nome: "Fernanda", cliente: null }) },
     });
-    await expect(avaliar(t, "5511994294906")).resolves.toEqual({ pode: true, motivo: null, nome: "Fernanda" });
+    await expect(avaliar(t, pedido())).resolves.toEqual({ pode: true, motivo: null, nome: "Fernanda" });
+  });
+
+  /* A ordem é custo: negócio e caderno decidem sem ir à Evolution nem ao modelo. */
+  it("no caderno, não consulta WhatsApp nem modelo", async () => {
+    const avaliar = avaliador({
+      contatos: { ler: async () => ({ chave: "94294906", nome: "Fernanda", cliente: true }) },
+      canal: { rastro: nuncaChamar },
+      pedeHorario: nuncaChamar,
+    });
+    expect((await avaliar(t, pedido())).pode).toBe(true);
+  });
+
+  it("com histórico antigo, cala sem perguntar ao modelo", async () => {
+    const avaliar = avaliador({
+      canal: { rastro: async () => ({ jaEscreveramParaEle: false, maisAntiga: "2026-07-16T16:00:00Z" }) },
+      pedeHorario: nuncaChamar,
+    });
+    const r = await avaliar(t, pedido("quero marcar uma sessão"));
+    expect(r.pode).toBe(false);
+    expect(r.motivo).toContain("já conversava");
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ O CASO DA REGINA, 24/09/2026, REPRODUZIDO.
+ *
+ * Caderno com 39 contatos, todos "não atender". Quem escreveu não estava entre eles.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+describe("★ número pessoal, fora do caderno", () => {
+  it("amiga que já conversava com a dona: cala", async () => {
+    const avaliar = avaliador({
+      canal: { rastro: async () => ({ jaEscreveramParaEle: true, maisAntiga: null }) },
+      pedeHorario: nuncaChamar,
+    });
+    expect((await avaliar(t, pedido("Amiga do Kibe 🥰"))).pode).toBe(false);
+  });
+
+  it("número novo que só cumprimenta: cala", async () => {
+    const avaliar = avaliador({ pedeHorario: async () => false });
+    const r = await avaliar(t, pedido("oi, tudo bem?"));
+    expect(r.pode).toBe(false);
+    expect(r.motivo).toContain("pedido claro");
+  });
+
+  it("número novo pedindo horário: atende e vira cliente no caderno", async () => {
+    const marcar = vi.fn(async () => {});
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    let vistas: readonly string[] = [];
+    const avaliar = avaliador({
+      contatos: { marcar },
+      pedeHorario: async (m) => { vistas = m; return true; },
+    });
+
+    const r = await avaliar(t, pedido("queria marcar uma sessão", {
+      anteriores: [{ de: "cliente", txt: "oi", em: "2026-09-24T19:58:00Z" }],
+    }));
+
+    expect(r.pode).toBe(true);
+    /* O classificador vê a conversa de chegada inteira, não só a última fala. */
+    expect(vistas).toEqual(["oi", "queria marcar uma sessão"]);
+    /* Sem isto, a segunda mensagem dela já não seria de número novo e a MAISA emudeceria
+     * no meio da marcação. */
+    expect(marcar).toHaveBeenCalledWith(t, expect.objectContaining({ chave: "94294906", cliente: true }));
+    info.mockRestore();
+  });
+
+  it("sem telefone legível, cala", async () => {
+    const avaliar = avaliador({ pedeHorario: async () => true });
+    expect((await avaliar(t, pedido("quero marcar", { telefone: "123" }))).pode).toBe(false);
   });
 });
 
@@ -248,56 +328,5 @@ describe("marcarContatos", () => {
     await marcar(t, { chaves: ["11994294906"], cliente: null });
 
     expect(recebido).toBeNull();
-  });
-});
-
-
-/* ─────────────────────────────────────────────────────────────────────────────
- * ★ A TRAVA DO CADERNO VAZIO, NO CAMINHO QUENTE.
- *
- * A regra é do domínio e tem teste lá. Estes aqui prendem a COSTURA: que a aplicação
- * realmente pergunta se o caderno está vazio, e que a resposta chega em `podeResponder`.
- * Sem isto, a trava existiria no domínio e nunca seria acionada em produção — que é
- * exatamente o tipo de bug que passa em toda revisão.
- * ────────────────────────────────────────────────────────────────────────────── */
-
-describe("★ caderno vazio, no caminho quente", () => {
-  it("cala e explica quando a agenda nunca foi importada", async () => {
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({ estaVazio: async () => true, modo: async () => "pessoal" }),
-    });
-
-    const r = await avaliar(t, "5511994294906");
-
-    expect(r.pode).toBe(false);
-    expect(r.motivo).toContain("Importe os contatos");
-  });
-
-  it("com agenda importada, atende o desconhecido de novo", async () => {
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({ estaVazio: async () => false, modo: async () => "pessoal" }),
-    });
-
-    expect((await avaliar(t, "5511994294906")).pode).toBe(true);
-  });
-
-  /* ⚠️ FALHA ABERTA quando o banco não responde, e a trava cai junto — consciente. Um banco
-   * fora do ar é evento raro e ruidoso; o caderno vazio é estado silencioso e duradouro, e é
-   * o segundo que a trava existe para pegar. */
-  it("banco fora do ar continua atendendo, como sempre foi", async () => {
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({ estaVazio: async () => { throw new Error("banco fora"); } }),
-    });
-
-    expect((await avaliar(t, "5511994294906")).pode).toBe(true);
-  });
-
-  /* No número do negócio a trava não vale, e a costura tem que respeitar isso. */
-  it("no modo negócio, caderno vazio não cala", async () => {
-    const avaliar = criarAvaliarAtendimento({
-      contatos: repo({ estaVazio: async () => true, modo: async () => "negocio" }),
-    });
-
-    expect((await avaliar(t, "5511994294906")).pode).toBe(true);
   });
 });

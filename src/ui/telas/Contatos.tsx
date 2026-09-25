@@ -282,7 +282,7 @@ export default function Contatos() {
             modo === "negocio"
               ? "Neste número ela atende todo mundo — estas marcações ficam guardadas para se você mudar de ideia"
               : modo === "pessoal"
-                ? "Ela atende quem você marcar aqui, e quem você não tem salvo. Cala para o resto."
+                ? "Ela atende quem você marcar aqui, e número novo que chega pedindo horário. Cala para o resto."
                 : undefined
           }
         />

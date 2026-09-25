@@ -49,7 +49,7 @@ const ROTULO_CURTO: Record<Conhecido, string> = {
 
 /** A consequência, não o mecanismo. */
 export const FRASE: Record<Conhecido, string> = {
-  atendendo: "A MAISA responde no WhatsApp sozinha e chama você quando precisar.",
+  atendendo: "A MAISA responde seus clientes sozinha e chama você quando precisar. No número pessoal, só cliente marcado e número novo pedindo horário.",
   pausada: "As mensagens ficam esperando você responder.",
   sem_whatsapp: "A MAISA não responde ninguém até o WhatsApp conectar.",
 };

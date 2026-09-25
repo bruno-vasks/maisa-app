@@ -18,6 +18,7 @@
 
 import type { RascunhoDeContato, RepositorioContatos } from "@/nucleo/portas/saida/repositorio-contatos";
 import type { ContatoDoProvedor, ContatosDoCanal } from "@/nucleo/portas/saida/contatos-do-canal";
+import type { HistoricoDoCanal } from "@/nucleo/portas/saida/historico-do-canal";
 import type { Contato, ModoDoNumero } from "@/nucleo/dominio/contatos";
 import { MODO_PADRAO, chaveDe } from "@/nucleo/dominio/contatos";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
@@ -132,3 +133,13 @@ export function limparContatosDemo(): void {
   CADERNO.clear();
   MODOS.clear();
 }
+
+/**
+ * O rastro de mentira: toda conversa é vazia. Só existe para o ambiente sem Evolution
+ * conseguir exercitar a decisão — e "vazia" aqui ainda passa pelo portão da intenção.
+ */
+export const historicoDoCanalDemo: HistoricoDoCanal = {
+  async rastro() {
+    return { jaEscreveramParaEle: false, maisAntiga: null };
+  },
+};

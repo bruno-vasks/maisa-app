@@ -15,7 +15,7 @@
 
 import type { ProgressoDeAtivacao } from "@/nucleo/portas/saida/progresso-ativacao";
 import type { PassoDeAtivacao, ProgressoDaAtivacao } from "@/nucleo/dominio/ativacao";
-import { progressoDe } from "@/nucleo/dominio/ativacao";
+import { progressoDe, usoDoWhatsApp, type UsoDoWhatsApp } from "@/nucleo/dominio/ativacao";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { clienteDoContexto } from "./contexto-cliente";
 
@@ -93,6 +93,21 @@ async function existe(
   return (count ?? 0) > 0;
 }
 
+/**
+ * Para que o negócio usa o WhatsApp. `undefined` quando não deu para ler — e aí valem todos
+ * os passos, o lado seguro (ver `passosQueValem`).
+ */
+async function uso(t: ContextoTenant): Promise<UsoDoWhatsApp | undefined> {
+  const supabase = clienteDoContexto(t);
+  const { data, error } = await supabase
+    .from("assistente")
+    .select("ativa, lembrete, avisar_recibo")
+    .eq("tenant_id", t.tenantId)
+    .maybeSingle<{ ativa: boolean; lembrete: boolean; avisar_recibo: boolean | null }>();
+  if (error || !data) return undefined;
+  return usoDoWhatsApp({ ativa: data.ativa, lembrete: data.lembrete, avisarRecibo: data.avisar_recibo === true });
+}
+
 export const ativacaoSupabase: ProgressoDeAtivacao = {
   async ler(t: ContextoTenant): Promise<ProgressoDaAtivacao> {
     const perguntas: { passo: PassoDeAtivacao; resposta: Promise<boolean> }[] = [
@@ -140,7 +155,10 @@ export const ativacaoSupabase: ProgressoDeAtivacao = {
       { passo: "nota_fiscal_ligada", resposta: fiscalPronto(t) },
     ];
 
-    const resultados = await Promise.allSettled(perguntas.map((p) => p.resposta));
+    const [resultados, usoDoNegocio] = await Promise.all([
+      Promise.allSettled(perguntas.map((p) => p.resposta)),
+      uso(t).catch(() => undefined),
+    ]);
 
     /* `negocio_criado` entra sem consulta: chegar aqui já É a prova. Perguntar ao banco
      * se o inquilino existe seria uma ida para confirmar o que o cookie já garantiu. */
@@ -159,6 +177,6 @@ export const ativacaoSupabase: ProgressoDeAtivacao = {
       );
     });
 
-    return progressoDe(feitos);
+    return progressoDe(feitos, usoDoNegocio);
   },
 };

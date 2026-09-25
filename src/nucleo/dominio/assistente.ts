@@ -7,6 +7,23 @@
  * dado estruturado, e não texto pronto.
  * ────────────────────────────────────────────────────────────────────────────── */
 
+import type { Vertical } from "./negocio";
+
+/**
+ * A MAISA nasce atendendo no WhatsApp?
+ *
+ * ★ TERAPEUTA NASCE COM ELA DESLIGADA, desde 24/09/2026. No mesmo dia, a MAISA de uma
+ * psicóloga respondeu três pessoas da vida pessoal dela. Consultório é, quase sempre, uma
+ * pessoa só atendendo pelo celular pessoal (o modo do número nasce `pessoal`, ver
+ * `MODO_PADRAO`), e muita terapeuta assina só pelo recibo. Para esse público, "ligado" tem
+ * que ser um gesto dela — no wizard ("Ela conversa e marca sozinha") ou na tela "A MAISA".
+ *
+ * Barbearia continua nascendo ligada: responder quem pede corte é o produto inteiro lá.
+ */
+export function atendeNoWhatsAppPorPadrao(vertical: Vertical): boolean {
+  return vertical !== "terapeutas";
+}
+
 export const TONS = ["amigável", "profissional", "descontraído"] as const;
 export type Tom = (typeof TONS)[number];
 

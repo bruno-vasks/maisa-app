@@ -349,6 +349,8 @@ export type Envelope = {
   conversaId?: string;
   /** Presente quando a mensagem não era (só) texto. */
   midia?: Midia;
+  /** O `…@lid` cru, quando a mensagem chegou assim. Ver `MensagemRecebida.jid`. */
+  jid?: string;
 };
 
 const texto = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -519,6 +521,9 @@ export function normalizar(corpo: any): Envelope | null {
 
     return {
       de,
+      /* O `@lid` cru, quando foi assim que chegou: o histórico da conversa pode morar sob ele,
+       * e é o histórico que diz se esta pessoa é nova. Ver `HistoricoDoCanal`. */
+      jid: jid.endsWith("@lid") ? jid : undefined,
       /* `sender` é o JID de quem RECEBEU (a instância). A Evolution nem sempre manda, e
        * a documentação dela se contradiz — então ele é um bônus, não a base: quem
        * identifica o negócio aqui é `instancia`. Ver o cabeçalho deste arquivo. */

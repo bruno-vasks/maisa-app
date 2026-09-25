@@ -10,7 +10,8 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
-import { PASSOS_DE_ATIVACAO, progressoDe, type PassoDeAtivacao } from "./ativacao";
+import { PASSOS_DE_ATIVACAO, passosQueValem, progressoDe, usoDoWhatsApp, type PassoDeAtivacao } from "./ativacao";
+import { atendeNoWhatsAppPorPadrao } from "./assistente";
 
 describe("progresso da ativação", () => {
   it("negócio recém-criado tem 1 de 6 — nunca zero", () => {
@@ -50,7 +51,7 @@ describe("progresso da ativação", () => {
 
   it("nada feito é 0 e não quebra", () => {
     const p = progressoDe([]);
-    expect(p).toEqual({ feitos: [], porcentagem: 0, completo: false });
+    expect(p).toEqual({ feitos: [], passos: [...PASSOS_DE_ATIVACAO], porcentagem: 0, completo: false });
   });
 
   /* ⚠️ Este teste existe para DOER quando alguém acrescentar um passo. Não é redundância:
@@ -70,5 +71,41 @@ describe("progresso da ativação", () => {
        * a MAISA marcar o primeiro horário é cobrar trabalho antes de mostrar valor. */
       "nota_fiscal_ligada",
     ]);
+  });
+});
+
+/* ★ 24/09/2026. Quem só emite recibo não pode ver o painel cobrando WhatsApp para sempre. */
+describe("★ os passos que valem para cada uso", () => {
+  it("sem uso informado, valem todos", () => {
+    expect(passosQueValem()).toEqual([...PASSOS_DE_ATIVACAO]);
+  });
+
+  it("só recibo: nem WhatsApp, nem agenda, nem 'ver funcionando'", () => {
+    const uso = usoDoWhatsApp({ ativa: false, lembrete: false, avisarRecibo: false });
+    expect(passosQueValem(uso)).toEqual(["negocio_criado", "catalogo_ajustado", "nota_fiscal_ligada"]);
+  });
+
+  it("agenda fixa: WhatsApp continua (o lembrete sai por ele), agenda e conversa não", () => {
+    const uso = usoDoWhatsApp({ ativa: false, lembrete: true, avisarRecibo: true });
+    expect(passosQueValem(uso)).toEqual(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado", "nota_fiscal_ligada"]);
+  });
+
+  it("com agente, valem todos", () => {
+    expect(passosQueValem(usoDoWhatsApp({ ativa: true, lembrete: false, avisarRecibo: false }))).toEqual([...PASSOS_DE_ATIVACAO]);
+  });
+
+  it("a barra mede o que vale: só-recibo com tudo que importa feito fecha em 100", () => {
+    const uso = usoDoWhatsApp({ ativa: false, lembrete: false, avisarRecibo: false });
+    const p = progressoDe(["negocio_criado", "catalogo_ajustado", "nota_fiscal_ligada"], uso);
+    expect(p.porcentagem).toBe(100);
+    expect(p.completo).toBe(true);
+  });
+});
+
+describe("★ a MAISA nasce ligada?", () => {
+  it("terapeuta não; barbearia e genérico sim", () => {
+    expect(atendeNoWhatsAppPorPadrao("terapeutas")).toBe(false);
+    expect(atendeNoWhatsAppPorPadrao("barbeiros")).toBe(true);
+    expect(atendeNoWhatsAppPorPadrao("generico")).toBe(true);
   });
 });

@@ -62,7 +62,13 @@ const HISTORICO = 20;
  */
 const MAX_TOKENS = 2000;
 
-export type MensagemRecebida = { de: string; texto: string };
+export type MensagemRecebida = {
+  de: string;
+  texto: string;
+  /** O endereço cru, quando o WhatsApp mandou `…@lid`. Serve para achar o histórico da
+   *  conversa, que pode estar guardado sob ele. Ver `HistoricoDoCanal`. */
+  jid?: string;
+};
 
 /** Um passo de ferramenta, para inspeção. Alimenta o laboratório de conversa: ver que a
  *  MAISA chamou `oferecer_horarios` ANTES de falar de agenda é a única forma de saber
@@ -262,7 +268,12 @@ export function criarAgente(deps: Dependencias) {
      * "MAISA não fala"; quem fala é ele, quando quiser, como já fazia antes de ter MAISA.
      *
      * A decisão em si é `dominio/contatos.podeResponder`, pura e testada. Aqui só se obedece. */
-    const atendimento = await deps.avaliarAtendimento(t, perfil.telefone);
+    const atendimento = await deps.avaliarAtendimento(t, {
+      telefone: perfil.telefone,
+      jid: recebida.jid,
+      anteriores,
+      texto,
+    });
     if (!atendimento.pode) {
       console.info(`[whatsapp/agente] silêncio para ${perfil.telefone} no inquilino ${t.tenantId}: ${atendimento.motivo}`);
       return vazia({ motivo: atendimento.motivo ?? "contato pessoal do dono" });

@@ -72,8 +72,50 @@ export const PASSOS_DE_ATIVACAO = [
 
 export type PassoDeAtivacao = (typeof PASSOS_DE_ATIVACAO)[number];
 
+/**
+ * Para que este negócio usa o WhatsApp — e portanto quais passos fazem sentido para ele.
+ *
+ * ★ ENTROU EM 24/09/2026, e o motivo é gargalo de onboarding. Quem assinou a MAISA só para
+ * emitir recibo era obrigado a atravessar "Conectar o WhatsApp" no wizard e depois via o
+ * painel cobrando WhatsApp, agenda e "ver funcionando" para sempre, com a barra parada em
+ * 50%. Cada passo que não serve para a pessoa é um motivo a mais para ela desistir.
+ *
+ * Derivado dos ajustes da assistente, nunca guardado à parte (mesmo princípio do
+ * cabeçalho): quem liga a MAISA depois ganha os passos de volta sem que ninguém lembre.
+ */
+export type UsoDoWhatsApp = {
+  /** A MAISA responde no WhatsApp (`assistente.ativa`). */
+  agente: boolean;
+  /** Algo sai pelo WhatsApp: o agente, o lembrete ou o aviso de recibo. */
+  whatsapp: boolean;
+};
+
+/** Os ajustes que decidem o uso. Uma função para o wizard e o adaptador não divergirem. */
+export function usoDoWhatsApp(a: { ativa: boolean; lembrete: boolean; avisarRecibo: boolean }): UsoDoWhatsApp {
+  return { agente: a.ativa, whatsapp: a.ativa || a.lembrete || a.avisarRecibo };
+}
+
+/**
+ * Os passos que valem para este negócio, na ordem canônica.
+ *
+ * Sem agente, somem "Sua agenda" (é onde ELA olha antes de oferecer horário; o atendimento
+ * mora na tabela, não no Google — ADR-0009) e "Ver funcionando" (não há conversa a ver).
+ * Sem nada saindo pelo WhatsApp, some também o WhatsApp. Sem `uso`, valem todos — o lado
+ * que mostra um passo a mais em vez de esconder um que importa.
+ */
+export function passosQueValem(uso?: UsoDoWhatsApp): PassoDeAtivacao[] {
+  if (!uso) return [...PASSOS_DE_ATIVACAO];
+  return PASSOS_DE_ATIVACAO.filter((p) => {
+    if (p === "agenda_conectada" || p === "primeira_conversa") return uso.agente;
+    if (p === "whatsapp_conectado") return uso.whatsapp;
+    return true;
+  });
+}
+
 export type ProgressoDaAtivacao = {
   feitos: PassoDeAtivacao[];
+  /** Os passos que valem para este negócio. Ver `passosQueValem`. */
+  passos: PassoDeAtivacao[];
   /** 0–100, inteiro. Quem arredonda é aqui, para tela e teste concordarem. */
   porcentagem: number;
   /** `true` quando não falta nada. A tela usa para esconder o cartão de vez. */
@@ -88,10 +130,13 @@ export type ProgressoDaAtivacao = {
  * dia em que um passo entrar na lista — e o sintoma seria a barra chegando a 100% com um
  * cartão ainda aberto.
  */
-export function progressoDe(feitos: readonly PassoDeAtivacao[]): ProgressoDaAtivacao {
-  /* Filtra pela lista canônica e deduplica: quem monta o array é um adaptador, e um passo
-   * repetido passaria de 100%. Também garante a ORDEM, que é contrato com a tela. */
-  const unicos = PASSOS_DE_ATIVACAO.filter((p) => feitos.includes(p));
-  const porcentagem = Math.round((unicos.length / PASSOS_DE_ATIVACAO.length) * 100);
-  return { feitos: unicos, porcentagem, completo: unicos.length === PASSOS_DE_ATIVACAO.length };
+export function progressoDe(feitos: readonly PassoDeAtivacao[], uso?: UsoDoWhatsApp): ProgressoDaAtivacao {
+  /* Filtra pela lista que vale e deduplica: quem monta o array é um adaptador, e um passo
+   * repetido passaria de 100%. Também garante a ORDEM, que é contrato com a tela. Um passo
+   * cumprido que não vale (WhatsApp conectado de quem só emite recibo) não conta: a barra
+   * mede o que falta para ESTE negócio. */
+  const passos = passosQueValem(uso);
+  const unicos = passos.filter((p) => feitos.includes(p));
+  const porcentagem = Math.round((unicos.length / passos.length) * 100);
+  return { feitos: unicos, passos, porcentagem, completo: unicos.length === passos.length };
 }

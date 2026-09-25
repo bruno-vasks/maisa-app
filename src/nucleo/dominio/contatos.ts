@@ -14,11 +14,28 @@
  * informação que falta é do dono, e por isso ela é uma PERGUNTA, feita uma vez, no
  * pareamento: este número é só do negócio, ou é o seu também?
  *
- * ── POR QUE NÃO É UMA LISTA DE PERMISSÃO ──
+ * ── ★ NO MODO PESSOAL, ELA VIROU LISTA DE PERMISSÃO (24/09/2026) ──
  *
- * Porque lista de permissão faz a MAISA ignorar exatamente quem traz dinheiro: cliente novo
- * não está em contato nenhum. É o argumento do Bruno e ele é decisivo. O caderno entra pelo
- * outro lado — ele diz quem é da VIDA PESSOAL, e só no modo em que essa distinção existe.
+ * Até aqui o desenho era o oposto: "quem não está no caderno é o lead, responde". Caiu em
+ * produção. A Psicologia Regina importou a agenda, marcou TODOS os 39 contatos como "não
+ * atender" — e a MAISA respondeu três pessoas da vida dela mesmo assim, uma delas numa
+ * conversa de 19 mensagens. Medido: a agenda dela na Evolution tem 2.238 entradas, 2.119
+ * (95%) são `@lid` sem telefone. O caderno cobria 2% de quem ela conhece, e os outros 98%
+ * eram "desconhecido = lead". Os três já conversavam com ela no WhatsApp desde julho e
+ * setembro; o produto só não perguntou.
+ *
+ * "Não está no caderno" nunca significou "é um estranho". Significa "o import não trouxe".
+ * Então no modo pessoal a regra agora é a do Bruno, com as palavras dele: **a MAISA só
+ * responde se a pessoa REALMENTE QUISER.** Ou seja:
+ *
+ *   • contato marcado como cliente → atende;
+ *   • qualquer outro contato do caderno → cala;
+ *   • fora do caderno → só atende se for NÚMERO NOVO de verdade (ver `ehNumeroNovo`) E a
+ *     mensagem for CLARAMENTE um pedido de horário. As duas coisas, não uma.
+ *
+ * O custo é conhecido e aceito: o lead que escreve "oi, tudo bem?" e some não é atendido.
+ * Esse custa uma venda. O erro oposto custa uma mensagem de robô no WhatsApp de uma amiga da
+ * terapeuta, que não se apaga — e aconteceu duas vezes (24/08 e 24/09).
  *
  * ── O QUE O CADERNO FAZ NOS DOIS MODOS ──
  *
@@ -45,7 +62,8 @@ import { soDigitos } from "./clientes";
 export type ModoDoNumero =
   /** Linha do negócio. Ela responde todo mundo. */
   | "negocio"
-  /** Também é o celular pessoal do dono. Ela responde desconhecido e quem ele marcar. */
+  /** Também é o celular pessoal do dono. Ela responde quem ele marcou como cliente, e
+   *  número novo que chega pedindo horário. Mais ninguém. */
   | "pessoal";
 
 export const MODO_PADRAO: ModoDoNumero = "pessoal";
@@ -88,6 +106,58 @@ export function chaveDe(telefone: string | null | undefined): string {
 }
 
 /**
+ * Quanto tempo um número desconhecido continua "novo" depois da primeira mensagem.
+ *
+ * Existe porque lead de verdade quase nunca abre com o pedido: escreve "oi", espera, e só
+ * depois diz "queria marcar uma sessão". Sem janela, o "oi" faria dele um número com
+ * histórico e o pedido seguinte cairia no silêncio. 24h cobre a conversa de chegada e não
+ * cobre quem já conversava com o dono semana passada.
+ */
+export const JANELA_NUMERO_NOVO_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * O que o WhatsApp do dono já viu deste número, antes da MAISA decidir.
+ *
+ * Vem do provedor (a Evolution guarda o histórico que o celular sincronizou ao parear) e é o
+ * dado que faltava em 24/09: os três que a MAISA respondeu tinham conversa com a Regina
+ * desde julho. O celular sabia; o caderno, não.
+ */
+export type RastroNoCanal = {
+  /** Alguém deste WhatsApp — o dono ou a MAISA — já escreveu para este número. */
+  jaEscreveramParaEle: boolean;
+  /** A mensagem mais antiga da conversa, em ISO. `null` = conversa vazia. */
+  maisAntiga: string | null;
+};
+
+/**
+ * Este número é NOVO de verdade — alguém que nunca falou com o dono?
+ *
+ * Falha fechada em tudo que é dúvida:
+ *   • o dono (ou a MAISA) já escreveu para ele → não é novo. Resposta do dono é relação;
+ *   • a thread da MAISA tem fala que não é do cliente → não é novo, pelo mesmo motivo;
+ *   • a mensagem mais antiga, em QUALQUER das duas fontes, tem mais que a janela → não é
+ *     novo. É quem já conversava antes.
+ *
+ * `anteriores` é a thread da MAISA ANTES da mensagem atual. O que o provedor tem e o banco
+ * não tem é o histórico de antes do pareamento — por isso as duas fontes.
+ */
+export function ehNumeroNovo(p: {
+  rastro: RastroNoCanal;
+  anteriores: readonly { de: string; em?: string }[];
+  agora: Date;
+}): boolean {
+  if (p.rastro.jaEscreveramParaEle) return false;
+  if (p.anteriores.some((m) => m.de !== "cliente")) return false;
+
+  const datas = [p.rastro.maisAntiga, ...p.anteriores.map((m) => m.em ?? null)]
+    .filter((d): d is string => !!d)
+    .map((d) => Date.parse(d))
+    .filter((n) => Number.isFinite(n));
+  if (datas.length === 0) return true;
+  return p.agora.getTime() - Math.min(...datas) <= JANELA_NUMERO_NOVO_MS;
+}
+
+/**
  * A MAISA pode responder esta pessoa?
  *
  * Função pura, e é aqui que a decisão mora — não no adaptador do webhook nem num `if` dentro
@@ -99,55 +169,33 @@ export function chaveDe(telefone: string | null | undefined): string {
 export type Atendimento = {
   modo: ModoDoNumero;
   contato: Contato | null;
+  /** Ver `ehNumeroNovo`. Só pesa fora do caderno, no modo pessoal. */
+  numeroNovo: boolean;
   /**
-   * O caderno tem ZERO linhas?
+   * A mensagem é CLARAMENTE um pedido de horário? Quem decide é um classificador estrito
+   * (`aplicacao/intencao.ts`) que responde "não" na dúvida.
    *
-   * ★ ENTROU EM 24/08/2026, DEPOIS DE ACONTECER. O dono conectou o WhatsApp pessoal dele sem
-   * ter importado a agenda, e a MAISA passou a responder **todo mundo que escrevia para o
-   * número dele** — inclusive gente conhecida. Não foi bug: foi esta função fazendo o que
-   * está escrito, sem o dado de que ela depende.
-   *
-   * Com o caderno vazio, "não está no caderno" deixa de significar "é um lead" e passa a
-   * significar "eu não sei nada sobre ninguém". São coisas diferentes, e antes disto o
-   * código não conseguia distingui-las.
+   * Só é perguntado quando o resto já deixou passar — é uma chamada de modelo, e custa.
+   * Quando não se perguntou, vale `false`.
    */
-  cadernoVazio: boolean;
+  querMarcar: boolean;
 };
 
 export function podeResponder(p: Atendimento): boolean {
   /* Linha do negócio: não há vida pessoal para proteger. Responde todo mundo, inclusive —
-   * e principalmente — quem ela nunca viu, que é o lead.
-   *
-   * O caderno vazio não muda nada aqui, e a ordem importa: quem declarou o número como linha
-   * de negócio não tem contato pessoal a proteger, e travar por caderno vazio silenciaria
-   * justamente o caso em que responder desconhecido é o produto inteiro. */
+   * e principalmente — quem ela nunca viu, que é o lead. */
   if (p.modo === "negocio") return true;
-
-  /* ── ⚠️ A TRAVA, E ELA FALHA FECHADO ──
-   *
-   * Modo pessoal + caderno vazio = a regra de baixo não tem contra o que proteger. Toda
-   * pessoa do mundo cai em "desconhecido", e "desconhecido" atende.
-   *
-   * Os dois erros não são simétricos. Calar até a agenda ser importada custa um lead — que é
-   * recuperável, visível na tela de Conversas, e o dono resolve com um clique. Responder o
-   * conhecido custa uma mensagem de robô no WhatsApp pessoal de terceiro, que não se apaga e
-   * que ninguém pediu. Aqui o barato é calar.
-   *
-   * ⚠️ E o silêncio NÃO É MUDO: `motivoDoSilencio` devolve a frase e a tela mostra. Silêncio
-   * sem motivo registrado é o modo de falha mais caro deste canal. */
-  if (p.cadernoVazio) return false;
-
-  /* Modo pessoal, número DESCONHECIDO: é o lead. Responde.
-   *
-   * ⚠️ Esta linha é o coração do desenho e ela parece contraintuitiva de fora: a MAISA
-   * atende justamente quem ela não conhece. É deliberado — quem não está na agenda do dono
-   * de uma barbearia é, quase sempre, alguém que achou o número procurando corte. Uma lista
-   * de permissão faria o contrário e perderia essa pessoa. */
-  if (!p.contato) return true;
 
   /* Está no caderno. Só responde se o dono disse que é cliente. `null` (nunca disse) cala:
    * ver o ⚠️ de `MODO_PADRAO` — o erro barato é este. */
-  return p.contato.cliente === true;
+  if (p.contato) return p.contato.cliente === true;
+
+  /* ── ⚠️ FORA DO CADERNO, NO NÚMERO PESSOAL ──
+   *
+   * Aqui morava "desconhecido é o lead, responde", e foi essa linha que falou com as amigas
+   * da Regina em 24/09/2026. Fora do caderno não quer dizer estranho: com 95% da agenda em
+   * `@lid`, quer dizer "o import não trouxe". Então as DUAS condições, sem atalho. */
+  return p.numeroNovo && p.querMarcar;
 }
 
 /**
@@ -159,17 +207,18 @@ export function podeResponder(p: Atendimento): boolean {
 export function motivoDoSilencio(p: Atendimento): string | null {
   if (podeResponder(p)) return null;
 
-  /* A frase da trava vem PRIMEIRO e é acionável: quem lê isto não fez o import, e a causa
-   * verdadeira do silêncio é essa — não o contato. Dizer "não foi marcado como cliente" aqui
-   * mandaria o dono marcar pessoa por pessoa para consertar algo que um botão resolve. */
-  if (p.cadernoVazio) {
-    return "A MAISA está calada porque seus contatos ainda não foram importados. Sem a agenda, "
-      + "ela não tem como saber quem é cliente e quem é da sua vida pessoal — e neste número ela "
-      + "responderia todo mundo. Importe os contatos para ela voltar a atender.";
+  if (p.contato) {
+    const quem = p.contato.nome?.trim();
+    return quem
+      ? `${quem} está nos seus contatos e não foi marcado como cliente — neste número a MAISA só atende cliente marcado.`
+      : "Este número está nos seus contatos e não foi marcado como cliente.";
   }
 
-  const quem = p.contato?.nome?.trim();
-  return quem
-    ? `${quem} está nos seus contatos e não foi marcado como cliente — neste número a MAISA só atende cliente e quem ela não conhece.`
-    : "Este número está nos seus contatos e não foi marcado como cliente.";
+  if (!p.numeroNovo) {
+    return "Este número já conversava com você antes e não está marcado como cliente. No seu número pessoal "
+      + "a MAISA só atende cliente marcado — e número novo que chega pedindo horário.";
+  }
+
+  return "Número novo, mas a mensagem não é um pedido claro de horário. No seu número pessoal a MAISA só "
+    + "entra quando a pessoa quer marcar.";
 }

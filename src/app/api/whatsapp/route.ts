@@ -121,7 +121,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const resposta = await agenteWhatsapp()(resolucao.tenant, { de: envelope.de, texto: envelope.texto });
+    const resposta = await agenteWhatsapp()(resolucao.tenant, { de: envelope.de, texto: envelope.texto, jid: envelope.jid });
 
     /* As bolhas voltam no corpo. Em produção quem entrega é o `CanalDeMensagens` (o
      * agente já chamou); aqui elas servem para conversar com a MAISA por `curl` e

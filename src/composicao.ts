@@ -106,7 +106,9 @@ import { agendaDemo, conexoesDemo } from "@/adaptadores/saida/demo/agenda";
 import { criarCanalEvolution } from "@/adaptadores/saida/evolution/canal-evolution";
 import { criarContatosEvolution } from "@/adaptadores/saida/evolution/contatos-evolution";
 import { contatosSupabase } from "@/adaptadores/saida/supabase/contatos";
-import { contatosDemo, contatosDoCanalDemo } from "@/adaptadores/saida/demo/contatos";
+import { contatosDemo, contatosDoCanalDemo, historicoDoCanalDemo } from "@/adaptadores/saida/demo/contatos";
+import { criarHistoricoDoCanalEvolution } from "@/adaptadores/saida/evolution/historico-do-canal-evolution";
+import { criarDetectarPedidoDeHorario } from "@/nucleo/aplicacao/intencao";
 import {
   criarAvaliarAtendimento, criarDefinirModoDoNumero, criarImportarContatos,
   criarLerContatos, criarMarcarContato,
@@ -488,6 +490,11 @@ const contatosRepo = isSupabaseConfigured ? contatosSupabase : contatosDemo;
 const contatosProvedor = isEvolutionConfigured
   ? criarContatosEvolution({ instanciaDe: instanciaDoInquilino })
   : contatosDoCanalDemo;
+/* O rastro da conversa no WhatsApp: o dado que faltou em 24/09/2026. Mesma instância, mesma
+ * regra do `contatosProvedor` acima. */
+const historicoDoCanal = isEvolutionConfigured
+  ? criarHistoricoDoCanalEvolution({ instanciaDe: instanciaDoInquilino })
+  : historicoDoCanalDemo;
 
 const agendarAtendimento = criarAgendarAtendimento({ agenda, negocio, registro });
 
@@ -563,7 +570,7 @@ export const app = {
    * ou encenado. Sem banco, `provisionadorDemo` devolve um uuid de mentira para que o
    * fluxo inteiro seja percorrível por `curl` antes de existir tela.
    */
-  provisionarNegocio: criarProvisionarNegocio({ provisionador }),
+  provisionarNegocio: criarProvisionarNegocio({ provisionador, assistente }),
 
   /**
    * OS AJUSTES DA MAISA — a mesma linha que o agente lê para montar o prompt.
@@ -624,7 +631,15 @@ export const app = {
    * pode cair com o banco de pé, e é justamente aí que a MAISA precisa continuar decidindo
    * quem atender com o caderno que já tem.
    */
-  avaliarAtendimento: criarAvaliarAtendimento({ contatos: contatosRepo }),
+  avaliarAtendimento: criarAvaliarAtendimento({
+    contatos: contatosRepo,
+    canal: historicoDoCanal,
+    /* O MESMO modelo do agente, resolvido na hora: os imports dele vêm mais abaixo neste
+     * arquivo, e o Anthropic só se monta quando o Gemini não está configurado. */
+    pedeHorario: criarDetectarPedidoDeHorario({
+      modelo: () => (isGeminiConfigured ? modeloGemini : criarModeloAnthropic()),
+    }),
+  }),
   lerContatos: criarLerContatos({ contatos: contatosRepo }),
   importarContatos: criarImportarContatos({ contatos: contatosRepo, provedor: contatosProvedor }),
   marcarContato: criarMarcarContato({ contatos: contatosRepo }),
