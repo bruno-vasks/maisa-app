@@ -26,7 +26,7 @@ import Conversas from "../telas/Conversas";
 import Agenda from "../telas/Agenda";
 import AMaisa from "../telas/AMaisa";
 import Contatos from "../telas/Contatos";
-import { Clientes, Faturamento, Equipe, Servicos, Mais } from "../telas/Grades";
+import { Clientes, Faturamento, Equipe, Servicos, Mais, vocabulario } from "../telas/Grades";
 import { ProgressoDeEmissao } from "./ProgressoDeEmissao";
 import { StatusDaMaisa } from "./StatusDaMaisa";
 import { DocumentoFiscal } from "../telas/DocumentoFiscal";
@@ -255,6 +255,9 @@ function AcaoPrimaria() {
     // st.emitiveis: a MESMA lista que o hero mostra e que o lote emite. Esta topbar tinha a regra
     // duplicada à mão — e incluía "cancelada", que o lote não emite —, então prometia mais do que
     // entregava. A regra de negócio agora vive só no store.
+    /* Sem escolha do documento, ou com algo faltando para o emissor aceitar, a topbar não
+     * promete: o hero da tela diz o motivo ao lado do botão desligado (1A.12). */
+    if (!vocabulario(st.fiscal).podeEmitir) return null;
     const aEmitir = st.emitiveis.length;
     if (!aEmitir) return null;
     return (

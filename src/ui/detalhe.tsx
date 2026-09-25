@@ -241,10 +241,15 @@ export function useDetalhe(id: string | null): Detalhe | null {
     const emissor = cfgFiscal?.razaoSocial && cfgFiscal.cnpj
       ? { nome: cfgFiscal.razaoSocial, doc: `CNPJ ${cfgFiscal.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}` }
       : null;
-    const semEmissor: Bloco[] = emissor ? [] : [{
-      tipo: "aviso", key: "sem-emissor", tone: "warn",
-      texto: "Confirme seus dados de emissor (razão social e CNPJ) no Documento fiscal antes de emitir.",
-    }];
+    /* E o que o servidor diz que falta (`fiscalFaltando`, o certificado, por exemplo): a mesma
+     * regra do hero do Fiscal (1A.12), para a gaveta não emitir o que a tela desligou. */
+    const faltaFiscal = st.fiscal.status === "ok" ? st.fiscal.falta : [];
+    const bloqueio = !emissor
+      ? "Confirme seus dados de emissor (razão social e CNPJ) no Documento fiscal antes de emitir."
+      : faltaFiscal.length
+        ? `Falta ${faltaFiscal.join(", ")} para emitir. Resolva no Documento fiscal.`
+        : null;
+    const semEmissor: Bloco[] = bloqueio ? [{ tipo: "aviso", key: "sem-emissor", tone: "warn", texto: bloqueio }] : [];
 
     const recibo: Bloco = {
       tipo: "recibo", key: "recibo", label: "Prévia da nota",
@@ -330,7 +335,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
           recibo,
         ],
         acoes: [
-          { label: "Emitir de novo", primaria: true, desabilitada: !emissor, onClick: () => { st.emitirNota(c.id); st.fechar(); } },
+          { label: "Emitir de novo", primaria: true, desabilitada: !!bloqueio, onClick: () => { st.emitirNota(c.id); st.fechar(); } },
           ...abrirFicha,
           { label: "Fechar", onClick: st.fechar },
         ],
@@ -388,7 +393,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
              qualquer jeito, e o erro voltaria como frase de provedor — longe do campo que
              resolve, que agora está nesta mesma gaveta. `c.cpf` e não `cad.cpf`: ver o aviso
              no topo dos blocos. */
-          desabilitada: !c.cpf || !emissor,
+          desabilitada: !c.cpf || !!bloqueio,
           onClick: () => { st.emitirNota(c.id); st.fechar(); },
         },
         ...abrirFicha,

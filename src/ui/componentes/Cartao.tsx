@@ -140,9 +140,12 @@ export function Hero({
   valor: string;
   sub: string;
   marcos: Marco[];
-  acao?: { label: string; icon?: string; onClick: () => void };
+  /** `desabilitada` desenha o botão desligado de verdade; `motivo` vai escrito ao lado (e ligado
+   *  por `aria-describedby`), com ou sem botão ligado. */
+  acao?: { label: string; icon?: string; onClick: () => void; desabilitada?: boolean; motivo?: string };
   pronto?: string;
 }) {
+  const idMotivo = React.useId();
   return (
     <div style={s("display:flex;align-items:center;gap:26px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:20px 22px;box-shadow:var(--shadow-card)")}>
       <div style={s("min-width:0")}>
@@ -168,14 +171,22 @@ export function Hero({
         ))}
       </div>
       {acao && (
-        <button
-          onClick={acao.onClick}
-          className="m-hov-bright m-press m-focus"
-          style={s("margin-left:auto;height:48px;padding:0 22px;border:none;border-radius:14px;background:var(--warm);color:var(--warm-ink);font-size:var(--t-body);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:10px;white-space:nowrap")}
-        >
-          {acao.icon && <Icon name={acao.icon} size={18} sw={2.1} />}
-          {acao.label}
-        </button>
+        <span style={s("margin-left:auto;display:inline-flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end")}>
+          {acao.motivo && (
+            <span id={idMotivo} style={s(`font-size:var(--t-sm);font-weight:var(--w-data);color:${acao.desabilitada ? "var(--warn)" : "var(--ink)"}`)}>{acao.motivo}</span>
+          )}
+          <button
+            type="button"
+            onClick={acao.desabilitada ? undefined : acao.onClick}
+            disabled={acao.desabilitada}
+            aria-describedby={acao.motivo ? idMotivo : undefined}
+            className={acao.desabilitada ? "m-focus" : "m-hov-bright m-press m-focus"}
+            style={s(`height:48px;padding:0 22px;border:none;border-radius:14px;font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--warm);color:var(--warm-ink);cursor:pointer"}`)}
+          >
+            {acao.icon && <Icon name={acao.icon} size={18} sw={2.1} />}
+            {acao.label}
+          </button>
+        </span>
       )}
       {!acao && pronto && (
         <span style={s("margin-left:auto;display:inline-flex;align-items:center;gap:9px;height:48px;padding:0 20px;border-radius:14px;background:var(--success-soft);color:var(--success);font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap")}>

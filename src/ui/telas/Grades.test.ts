@@ -23,7 +23,7 @@ import { vocabulario } from "./Grades";
 
 describe("quem emite nota fiscal ganha os verbos de nota fiscal", () => {
   it("municipal emite nota", () => {
-    expect(vocabulario({ status: "ok", caminho: "municipal" })).toEqual({ sabemos: true, emiteNota: true, falhou: false });
+    expect(vocabulario({ status: "ok", caminho: "municipal" })).toMatchObject({ sabemos: true, emiteNota: true, falhou: false });
   });
 
   it("ambiente nacional também", () => {
@@ -35,7 +35,7 @@ describe("★ pessoa física não emite nota fiscal em hipótese nenhuma", () =>
   /* O TESTE QUE JUSTIFICA O ARQUIVO. Sem ele, o hero volta a anunciar "14 a emitir" e a topbar
    * volta a oferecer o botão dourado — para uma psicóloga que não tem nota fiscal para emitir. */
   it("recibo_saude não tem verbo de emitir", () => {
-    expect(vocabulario({ status: "ok", caminho: "recibo_saude" })).toEqual({ sabemos: true, emiteNota: false, falhou: false });
+    expect(vocabulario({ status: "ok", caminho: "recibo_saude" })).toMatchObject({ sabemos: true, emiteNota: false, falhou: false, podeEmitir: false });
   });
 });
 
@@ -43,7 +43,7 @@ describe("⚠️ enquanto não sabemos, ninguém promete nada", () => {
   /* `null !== "recibo_saude"` é `true` — o jeito ingênuo de escrever isto acende o botão errado
    * durante o carregamento e o apaga depois. Meio segundo de promessa falsa continua sendo uma. */
   it("carregando não emite nota", () => {
-    expect(vocabulario({ status: "carregando", caminho: null })).toEqual({ sabemos: false, emiteNota: false, falhou: false });
+    expect(vocabulario({ status: "carregando", caminho: null })).toMatchObject({ sabemos: false, emiteNota: false, falhou: false, podeEmitir: false });
   });
 
   it("erro na leitura também não", () => {
@@ -76,5 +76,47 @@ describe("★ erro tem saída, carregando não precisa de uma", () => {
 
   it("ok não é `falhou`", () => {
     expect(vocabulario({ status: "ok", caminho: "recibo_saude" }).falhou).toBe(false);
+  });
+});
+
+/* ── ★ ESCOLHA E FALTA (25/09/2026, item 1A.12, 06 P0-2) ─────────────────────
+ *
+ * O hero e a topbar liam só `caminho` e `emitiveis`: quem NUNCA escolheu o documento (config
+ * vazia cai em `municipal`) via "Emitir 13 notas", e quem estava sem certificado via os dois
+ * dourados acesos, com "Falta o certificado" logo abaixo. Sem pendência, "Mês fechado" para
+ * quem nunca configurou nada. */
+describe("★ sem escolha, o verbo é escolher; com falta, o botão desliga com o motivo", () => {
+  const vazia = { prestadorCpf: null, cnpj: null, empresaId: null };
+  const cnpj = { prestadorCpf: null, cnpj: "12345678000199", empresaId: 77 };
+
+  it("config vazia: emite nota pelo caminho padrão, mas NÃO escolheu e NÃO pode emitir", () => {
+    const v = vocabulario({ status: "ok", caminho: "municipal", config: vazia, falta: ["o CNPJ de quem emite"] });
+    expect(v.emiteNota).toBe(true);
+    expect(v.escolheu).toBe(false);
+    expect(v.podeEmitir).toBe(false);
+  });
+
+  it("escolheu CNPJ e falta o certificado: escolheu, não pode emitir, e o motivo é a frase do servidor", () => {
+    const v = vocabulario({ status: "ok", caminho: "municipal", config: cnpj, falta: ["o certificado digital da empresa"] });
+    expect(v.escolheu).toBe(true);
+    expect(v.podeEmitir).toBe(false);
+    expect(v.motivo).toBe("Falta o certificado digital da empresa.");
+  });
+
+  it("escolheu e nada falta: pode emitir, sem motivo", () => {
+    const v = vocabulario({ status: "ok", caminho: "municipal", config: cnpj, falta: [] });
+    expect(v.podeEmitir).toBe(true);
+    expect(v.motivo).toBe(null);
+  });
+
+  it("duas faltas viram uma frase", () => {
+    expect(vocabulario({ status: "ok", caminho: "municipal", config: cnpj, falta: ["a razão social", "o certificado"] }).motivo)
+      .toBe("Falta a razão social e o certificado.");
+  });
+
+  it("carregando não escolheu nada e não tem falta (não afirma nem uma coisa nem outra)", () => {
+    const v = vocabulario({ status: "carregando", caminho: null, config: cnpj, falta: ["x"] });
+    expect(v.escolheu).toBe(false);
+    expect(v.falta).toEqual([]);
   });
 });

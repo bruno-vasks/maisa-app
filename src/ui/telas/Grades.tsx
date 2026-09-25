@@ -19,6 +19,7 @@ import { EmitirRecibos } from "@/ui/componentes/EmitirRecibos";
  * cartão dele desta tela agora tiraria o único aviso de "falta o certificado" de quem emite nota.
  * Quando a v2 reestruturar a nota fiscal, esta linha sai. */
 import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
+import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 
 /* Estado da nota → como o cartão se apresenta. Um lugar só, para as duas telas
@@ -81,14 +82,48 @@ type Vocabulario = {
    * erro na cara, porque erro tem "tentar de novo".
    */
   falhou: boolean;
+  /**
+   * Alguém ESCOLHEU o documento (a regra é `escolhaFeita`, nunca o `caminho`: config vazia cai
+   * em `municipal` de propósito, e derivar dali prometeu "Emitir 13 notas" para quem nunca
+   * escolheu). Sem escolha: nenhum verbo de emitir e nenhum "Mês fechado" (1A.12, 06 P0-2).
+   */
+  escolheu: boolean;
+  /**
+   * O que falta para o emissor aceitar, como o servidor escreveu (`fiscalFaltando`), e a frase
+   * do botão desligado. Com escolha e falta, o "Emitir" aparece DESLIGADO com o motivo: some-lo
+   * esconderia o caminho, acendê-lo prometeria o que a prefeitura vai recusar.
+   */
+  falta: string[];
+  motivo: string | null;
+  /** Emite nota, escolheu, e nada falta. Só aí existe botão de emitir aceso. */
+  podeEmitir: boolean;
 };
 
-export function vocabulario(fiscal: { status: string; caminho: string | null }): Vocabulario {
+/** "Falta o certificado digital da empresa", "Falta o CNPJ de quem emite e o certificado…". */
+function fraseDaFalta(falta: string[]): string | null {
+  if (!falta.length) return null;
+  const lista = falta.length === 1 ? falta[0] : `${falta.slice(0, -1).join(", ")} e ${falta[falta.length - 1]}`;
+  return `Falta ${lista}.`;
+}
+
+export function vocabulario(fiscal: {
+  status: string;
+  caminho: string | null;
+  config?: Parameters<typeof escolhaFeita>[0];
+  falta?: string[];
+}): Vocabulario {
   const sabemos = fiscal.status === "ok";
+  const emiteNota = sabemos && fiscal.caminho !== "recibo_saude";
+  const escolheu = sabemos && escolhaFeita(fiscal.config ?? null) !== null;
+  const falta = sabemos ? fiscal.falta ?? [] : [];
   return {
     sabemos,
     falhou: fiscal.status === "erro",
-    emiteNota: sabemos && fiscal.caminho !== "recibo_saude",
+    emiteNota,
+    escolheu,
+    falta,
+    motivo: fraseDaFalta(falta),
+    podeEmitir: emiteNota && escolheu && falta.length === 0,
   };
 }
 
@@ -307,14 +342,20 @@ export function Faturamento() {
             { n: base.reduce((a, c) => a + c.atendimentos, 0), label: "atendimentos", tom: "primary" as const },
             ...(semCpf ? [{ n: semCpf, label: "sem CPF", tom: "warn" as const }] : []),
           ]}
-        acao={voz.emiteNota && noLote.length > 0
-          ? {
-            label: noLote.length === 1 ? "Emitir a nota pendente" : `Emitir as ${noLote.length} pendentes`,
-            icon: "receipt",
-            onClick: st.pedirLote,
-          }
-          : undefined}
-        pronto={voz.emiteNota && noLote.length === 0 && processando.length === 0 ? "Mês fechado" : undefined}
+        /* ⚠️ TRÊS CASOS, e nenhum promete o que o emissor recusa (1A.12, 06 P0-2):
+           sem escolha, o verbo é escolher; com falta, o "Emitir" aparece desligado com o motivo;
+           só com escolha e nada faltando ele acende. "Mês fechado" só para quem escolheu. */
+        acao={!voz.escolheu
+          ? { label: "Escolher o documento", onClick: () => st.irPara("fiscal"), motivo: "Escolha o documento que você emite." }
+          : voz.emiteNota && noLote.length > 0
+            ? {
+              label: noLote.length === 1 ? "Emitir a nota pendente" : `Emitir as ${noLote.length} pendentes`,
+              icon: "receipt",
+              onClick: st.pedirLote,
+              ...(voz.motivo ? { desabilitada: true, motivo: voz.motivo } : {}),
+            }
+            : undefined}
+        pronto={voz.escolheu && voz.emiteNota && noLote.length === 0 && processando.length === 0 ? "Mês fechado" : undefined}
       />
 
       {/* Acima da lista de propósito: enquanto a nota fiscal não está ligada, todo botão de
