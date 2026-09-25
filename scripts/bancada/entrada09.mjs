@@ -49,6 +49,16 @@ async function cenario(nome, modo, mocks, passos = async () => {}) {
   await browser.close();
 }
 
+/* Com a chave do modelo faltando (o demo sem .env.local) a etapa 4 é o "Falta" com "Pular este
+   passo" (1B.15): é o caminho até a etapa 5, e o cenário o percorre como a pessoa percorreria. */
+const pularSeFalta = async (p) => {
+  const b = p.getByRole("button", { name: "Pular este passo" });
+  if (await b.count()) { await b.click({ timeout: 10000 }); await p.waitForTimeout(800); }
+};
+/* Um negócio que ainda não escolheu: é o que o GET /api/fiscal devolve de verdade (caminho de
+   config vazia é "municipal"). Sem o `caminho` o painel fica no esqueleto, e a medida da página
+   em que o wizard cai mediria o mock, não a tela. */
+const fiscalVazio = () => ok({ falta: ["cnpj"], provedorFaltando: [], caminho: "municipal", config: { empresaId: null, prestadorCpf: null, cnpj: null } });
 const ok = (body) => ({ status: 200, body: { ok: true, status: "ok", ...body } });
 const assistente = (ativa) => () => ok({ assistente: { nome: "MAISA", ativa }, cfg: {} });
 const ativacao = (feitos, st = 200) => () => (st === 409 ? { status: 409, body: { ok: false, status: "sem_negocio" } } : ok({ feitos, porcentagem: 0, completo: false }));
@@ -85,12 +95,12 @@ const cenarios = [
       ? ok({ bolhas: ["Oi! Aqui é a MAISA, assistente do Espaço Carla Guth.", "Tenho quinta às 15h ou sexta às 10h para a sessão individual. Qual fica melhor?"], trilha: [{ ferramenta: "oferecer_horarios", erro: false }] })
       : ok({ pronto: true, agenda: "google", exemplo: { servico: "Sessão individual", profissional: "Carla" } }),
   }, async (p) => { const c = p.locator("button").filter({ hasText: /\?|hor|marcar/i }).first(); if (await c.count()) await c.click(); await p.waitForTimeout(800); }],
-  ["e5-fiscal", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": () => ok({ falta: ["cnpj"], provedorFaltando: [], config: {} }) }],
+  ["e5-fiscal", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": fiscalVazio }, pularSeFalta],
   /* Desde 1B.14 a etapa 5 não tem mais "Ligar agora": os dois caminhos navegam para o Documento
      fiscal com o recorte escolhido. O nome do cenário fica (o backlog o cita); ele toca "Atendo
      como pessoa física" e mede a página em que caiu. */
-  ["e5-fiscal-ligar-agora", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": () => ok({ falta: ["cnpj"], provedorFaltando: [], config: {} }) }, async (p) => { await p.getByText("Atendo como pessoa física").click(); await p.waitForURL(/tela=fiscal/, { timeout: 30000 }); await p.waitForTimeout(2500); }],
-  ["e5-fiscal-cnpj", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(true), "**/api/fiscal*": () => ok({ falta: ["cnpj"], provedorFaltando: [], config: {} }) }, async (p) => { await p.getByText("Tenho CNPJ").click(); await p.waitForURL(/tela=fiscal/, { timeout: 30000 }); await p.waitForTimeout(2500); }],
+  ["e5-fiscal-ligar-agora", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(false), "**/api/fiscal*": fiscalVazio }, async (p) => { await pularSeFalta(p); await p.getByText("Atendo como pessoa física").click({ timeout: 15000 }); await p.waitForURL(/tela=fiscal/, { timeout: 30000 }); await p.waitForTimeout(2500); }],
+  ["e5-fiscal-cnpj", { "**/api/ativacao*": ativacao(["negocio_criado", "catalogo_ajustado", "whatsapp_conectado"]), "**/api/assistente*": assistente(true), "**/api/fiscal*": fiscalVazio }, async (p) => { await pularSeFalta(p); await p.getByText("Tenho CNPJ").click({ timeout: 15000 }); await p.waitForURL(/tela=fiscal/, { timeout: 30000 }); await p.waitForTimeout(2500); }],
 ];
 
 const so = process.argv[2];

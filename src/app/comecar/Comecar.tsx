@@ -1305,7 +1305,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
       <Falta
         icone="alert"
         titulo="A MAISA está sem cérebro configurado"
-        texto="Falta a chave do modelo de linguagem neste ambiente. Nada do que você fez se perdeu — o resto do negócio está de pé."
+        texto="Falta a chave do modelo de linguagem neste ambiente. Nada do que você fez se perdeu: o resto do negócio está de pé."
         acao={null}
         aoPainel={aoPainel}
         pular={aoSeguir}

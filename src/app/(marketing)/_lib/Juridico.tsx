@@ -6,9 +6,10 @@
  * Porque o Google as EXIGE para verificar um app que pede escopo sensível, e
  * `calendar.events` é sensível. Sem verificação, a tela de consentimento mostra o aviso de
  * "app não verificado" e trava em 100 usuários — o que na prática significa que nenhum
- * cliente da MAISA consegue ligar a agenda dele. Isso trava dois dos seis passos do
- * onboarding (`agenda_conectada` e `primeira_conversa`), e `primeira_conversa` é o passo
- * que decide se a pessoa fica.
+ * cliente da MAISA consegue ligar a agenda dele. Até 25/09/2026 isso travava dois dos seis
+ * passos do onboarding (`agenda_conectada` e `primeira_conversa`); desde o 1B.15 a agenda do
+ * Google saiu dos passos (a MAISA marca sem ela, ADR-0009) e virou oferta, mas quem quer ligar
+ * continua esbarrando no mesmo aviso.
  *
  * ⚠️ O REVISOR ABRE A URL. Até 17/08/2026 a única menção a "privacidade" no material
  * público era um `<span>` morto no rodapé da LP — texto sem link. Política que não abre é
