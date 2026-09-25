@@ -825,6 +825,9 @@ function resumoDaSecao(id: string, st: ReturnType<typeof useStore>): string {
     const n = D.TOGGLES_AGENDAMENTO.filter((t) => st.cfg[t.chave]).length;
     return `${n} de ${D.TOGGLES_AGENDAMENTO.length} automações ligadas`;
   }
+  /* Dúvidas caía aqui e herdava a frase do Comportamento ("Chama você quando não sabe"), que
+   * não diz nada sobre as dúvidas. Sem resumo próprio até a leitura das FAQs dizer quantas são. */
+  if (id === "duvidas") return "";
   return st.cfg.encaminhar ? "Chama você quando não sabe" : "Responde sozinha sempre";
 }
 
@@ -859,7 +862,7 @@ function Preview() {
             <span style={s("display:flex;align-items:center;gap:5px;font-size:var(--t-micro);color:var(--nav-soft);margin-top:1px")}>
               {/* "online" só quando ela responde de verdade (interruptor E canal). */}
               <span style={s(`width:6px;height:6px;border-radius:50%;background:${st.statusMaisa === "atendendo" ? "var(--whatsapp-mark)" : "var(--nav-muted)"}`)} />
-              {st.statusMaisa === "atendendo" ? "online" : "sem responder"} · tom {st.assistente.tom}
+              {st.statusMaisa === "atendendo" ? "online" : "sem responder"}{st.ajustesCarregados && ` · tom ${st.assistente.tom}`}
             </span>
           </span>
         </div>
@@ -899,9 +902,31 @@ function Preview() {
 
 /* ───────────────────────────── seção (acordeão) ───────────────────────────── */
 
+/**
+ * A seção já tem o valor do servidor? (24/09/2026, item 1A.7)
+ *
+ * Antes de `GET /api/assistente` e `GET /api/horarios` voltarem, o store segura
+ * `AJUSTES_PLACEHOLDER` e `SEMANA_PLACEHOLDER` (⚠️ primeira pintura, não default de produto).
+ * Com os campos abertos, o dono editava "MAISA", "tom amigável" e a semana de 08:00 às 20:00
+ * que nunca foram dele, e a gravação ia por cima do que estava no banco. Agora a seção só
+ * desenha campo com o valor lido; antes disso, esqueleto; se a leitura falhou, a frase.
+ *
+ * Personalidade também espera o cadastro: o nome do negócio vem dele, e o placeholder é o
+ * fixture. Dúvidas tem leitura própria (`st.faqs`) e fica de fora.
+ */
+function leituraDaSecao(id: string, st: ReturnType<typeof useStore>): { lida: boolean; erro: string | null } {
+  if (id === "duvidas") return { lida: true, erro: null };
+  if (id === "horarios") return { lida: st.semanaCarregada, erro: st.semanaErro };
+  if (id === "personalidade") {
+    return { lida: st.ajustesCarregados && st.cadastroCarregado, erro: st.ajustesErro ?? st.cadastroErro };
+  }
+  return { lida: st.ajustesCarregados, erro: st.ajustesErro };
+}
+
 function Secao({ sec }: { sec: D.SecaoAjuste }) {
   const st = useStore();
   const aberta = st.secAtiva === sec.id;
+  const { lida, erro } = leituraDaSecao(sec.id, st);
 
   return (
     <div style={s(`background:var(--surface);border:1px solid ${aberta ? "var(--primary)" : "var(--border)"};border-radius:16px;overflow:hidden;box-shadow:${aberta ? "0 14px 34px oklch(0.22 0.03 262 / 0.12)" : "var(--shadow-card)"};transition:border-color var(--dur-slow) var(--ease-out),box-shadow var(--dur-slow) var(--ease-out)`)}>
@@ -917,7 +942,7 @@ function Secao({ sec }: { sec: D.SecaoAjuste }) {
         <span style={s("flex:1;min-width:0")}>
           <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title)")}>{sec.titulo}</span>
           <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>
-            {resumoDaSecao(sec.id, st)}
+            {lida ? resumoDaSecao(sec.id, st) : <span aria-hidden style={s("display:inline-block;width:140px;height:10px;border-radius:6px;background:var(--line)")} />}
           </span>
         </span>
         <span style={s(`flex-shrink:0;display:flex;color:var(--muted);transform:rotate(${aberta ? "180deg" : "0deg"});transition:transform var(--dur-slow) var(--ease-out)`)}>
@@ -928,7 +953,13 @@ function Secao({ sec }: { sec: D.SecaoAjuste }) {
       <div className={`m-acc${aberta ? " is-open" : ""}`}>
         <div>
           <div style={s("padding:2px 18px 20px")}>
-            <Corpo id={sec.id} />
+            {lida
+              ? <Corpo id={sec.id} />
+              : erro
+                /* O store não relê ajustes sob demanda (e este item só LÊ as bandeiras dele,
+                 * ver o ⚠️ de coalescer no store): tentar de novo é recarregar a página. */
+                ? <FalhaDeLeitura embutida frase="Não consegui ler estes ajustes." detalhe={erro} tentar={() => window.location.reload()} />
+                : <Esqueleto linhas={3} altura={44} rotulo={`Lendo ${sec.titulo.toLowerCase()}`} />}
           </div>
         </div>
       </div>

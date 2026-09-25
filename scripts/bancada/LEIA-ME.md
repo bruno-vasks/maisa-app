@@ -47,6 +47,7 @@ em `BANCADA_FOTOS`, se definida. Foto não é versionada: git não esquece PNG.
 | `clientes-audit.mjs`, `clientes-paleta2.mjs` | Clientes e Meus contatos com 200 clientes e 400 contatos; a busca da Paleta. |
 | `fiscal.mjs` | Fiscal e Documento fiscal nos cenários `recibo-cheio`, `recibo-vazio`, `recibo-sem-registro`, `recibo-procuracao-vencida`, `cnpj`, `cnpj-sem-cert`, `nada-com-atend`, `nada`. `cenario+roda`, `+rolar`, `+doc`, `+botao:<nome>` encadeiam ações. |
 | `ajustes.mjs`, `ajustes-parear.mjs`, `ajustes-texto.mjs` | Ajustes da MAISA: seções, pareamento por código, texto visível. |
+| `ajustes-leitura.mjs` | Ajustes com `/api/assistente`, `/api/horarios`, `/api/cadastro` e `/api/canal` atrasados (`--atraso=`) ou falhando (`--erro`): abre as cinco seções antes e depois da resposta e conta campos editáveis, valores do placeholder ("MAISA", "Seu Negócio", "08:00", "20:00") e "Conectar WhatsApp" (1A.7). |
 | `aud08.mjs`, `aud08b.mjs` | Equipe, Serviços e Mais; `aud08b` digita 30, 45 e "90,50" nos campos da gaveta de serviço (o defeito do 30 que vira 50). |
 | `entrada09.mjs`, `entrada09b.mjs` | O `/comecar` e as rotas de entrada com `/api` simulada. |
 
