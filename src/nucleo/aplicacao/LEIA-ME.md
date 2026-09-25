@@ -9,6 +9,7 @@ portas de saída que recebe por parâmetro.
 |---|---|---|
 | `agendar-atendimento.ts` | `AgendarAtendimento` | `AgendaExterna`, `RepositorioNegocio` |
 | `agenda.ts` | `LerAgenda`, `CancelarAtendimento`, `ListarConexoes`, `DesconectarAgenda` | `AgendaExterna`, `ConexoesDeAgenda`, `RepositorioNegocio` |
+| `remarcar-atendimento.ts` | `RemarcarAtendimento` (tipo declarado no próprio arquivo, fora de `portas/entrada`, 25/09/2026, 1B.5) | `AgendaExterna`, `RepositorioNegocio`, `RegistroDeAtendimentos` · banco primeiro (`registrar` de novo com a mesma `maisaAg`), **relê a linha** para não dizer "movido" quando o upsert engoliu a falha, e só então o `remarcar` do calendário, num `try` (`foraDoCalendario` se ele lançar). Mesmo `eventoId`, mesmo Meet |
 | `notas.ts` | `EmitirNota`, `ConsultarNota`, `CancelarNota`, `LerFaturamento` | `EmissorFiscal` · `RepositorioFiscal` · `RepositorioNotas` |
 | `fiscal.ts` | `LerEstadoFiscal`, `ConsultarCnpj`, `LigarNotaFiscal`, `EnviarCertificado`, `LiberarProducaoFiscal` | `RepositorioFiscal` · `CadastroDeEmissor` |
 | `conversas.ts` | `ListarConversas`, `LerConversa`, `ResponderConversa`, `MudarPosseConversa` | `RepositorioHistorico`, `RepositorioConversas`, `CanalDeMensagens` |

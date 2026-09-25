@@ -22,6 +22,7 @@ de regra aparecer aqui, ele está no lugar errado — o lugar é
 |---|---|---|---|
 | `/api/agenda` | GET | `lerAgenda` | `ok` + `de`/`ate`/`eventos` — atendimentos do produto + o que vier do calendário externo |
 | `/api/atendimentos` | POST | `agendarAtendimento` | `criado` \| `ja_existia` + `eventoId`, `meetLink`, `inicioISO`, `semMeet`, `foraDoCalendario` |
+| `/api/atendimentos` | PATCH | `remarcarAtendimento` | `remarcado` \| `mesmo_horario` + `eventoId`, `meetLink`, `data`, `inicio`, `inicioISO`, `foraDoCalendario` · corpo `{ profissionalId, maisaAg, data, inicio }` |
 | `/api/atendimentos` | DELETE | `cancelarAtendimento` | `cancelado` |
 | `/api/google/conectar` | GET | — (protocolo OAuth) | **redirect** para o consent do Google |
 | `/api/google/conectar` | DELETE | `desconectarAgenda` | `{ ok, revogado }` |

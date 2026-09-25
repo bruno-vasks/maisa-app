@@ -1,4 +1,5 @@
 // agenda-cheia.mjs — Agenda com dado simulado (intercepta /api/cadastro, /api/agenda, /api/google/status).
+// cenários: semana, mes, atendimento, passado, cancelar, marcar, marcar-serie, remarcar (1B.5: PATCH respondido no navegador)
 // uso: node agenda-cheia.mjs <cenario> <saida.png> [desktop|mobile|WxH] [--equipe] [--google=ok|nao] [--falha=<pid>] [--valor=<n>] [--full]
 import { chromium, pastaDeFotos } from "./_comum.mjs";
 const [, , cenario, saida, modo = "desktop", ...flags] = process.argv;
@@ -70,6 +71,53 @@ if (cenario === "marcar-serie") { await page.getByRole("button", { name: "Marcar
   const sels = page.locator('[role=dialog] select'); await sels.nth(0).selectOption({ index: 2 }); await sels.nth(1).selectOption({ index: 1 }); await sels.nth(2).selectOption("1"); await page.waitForTimeout(600); }
 // `--rolar`: rola 600px o que rola na tela (no celular, o <main> da casca) antes de medir (1B.4).
 if (flags.includes("--rolar")) { await page.evaluate(() => { const r = [...document.querySelectorAll("main, main *")].find((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 4); (r || document.scrollingElement).scrollBy(0, 600); window.scrollBy(0, 600); }); await page.waitForTimeout(300); }
+// `remarcar` (1B.5): o primeiro atendimento de um dia que ainda vem, de preferência às 09:00, vai
+// para as 15:00 (ou o último vago do dia, se 15:00 não estiver livre). O PATCH é respondido aqui,
+// com o MESMO eventoId e Meet, e o script conta o bloco no horário novo e no antigo.
+let remarcou = null;
+if (cenario === "remarcar") {
+  const futuros = ev2.filter((e) => e.maisa && e.data > HOJE).sort((a, b) => (a.data + a.inicio).localeCompare(b.data + b.inicio));
+  const alvo = futuros.find((e) => e.inicio === 9) ?? futuros[0];
+  const hh = (h) => `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 ? "30" : "00"}`;
+  const patches = [];
+  await page.route("**/api/atendimentos", async (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    const b = JSON.parse(r.request().postData() || "{}"); patches.push(b);
+    await new Promise((ok) => setTimeout(ok, 600));
+    r.fulfill({ json: { ok: true, status: "remarcado", situacao: "remarcado", eventoId: alvo.eventoId, meetLink: alvo.meetLink ?? null, htmlLink: alvo.htmlLink ?? null, data: b.data, inicio: b.inicio, foraDoCalendario: false } });
+  });
+  const nome = alvo.maisa.clienteNome;
+  if (vp.width > 800) {
+    await clicar("Semana");
+    await page.locator(`[role=button][aria-label^="${nome}, ${hh(alvo.inicio)}"]`).first().click();
+  } else {
+    const dias = Math.round((Date.parse(alvo.data) - Date.parse(HOJE)) / 864e5);
+    for (let i = 0; i < dias; i++) { await page.getByRole("button", { name: "Próximo dia" }).first().click(); await page.waitForTimeout(400); }
+    await page.locator("main button", { hasText: nome }).first().click();
+  }
+  await page.waitForTimeout(600);
+  const rodapeAntes = await page.locator("[role=dialog] button").allInnerTexts();
+  await page.getByRole("button", { name: "Remarcar", exact: true }).click();
+  await page.waitForTimeout(400);
+  const hora = page.locator("[role=dialog] select").nth(1);
+  const opcoes = await hora.locator("option").evaluateAll((os) => os.map((o) => o.value));
+  const novo = opcoes.includes("15") ? "15" : opcoes[opcoes.length - 1];
+  await hora.selectOption(novo); await page.waitForTimeout(300);
+  await page.screenshot({ path: saida.replace(/\.png$/, "-escolha.png") });
+  const botao = page.getByRole("button", { name: /^Remarcar para/ });
+  const rotulo = await botao.innerText();
+  await botao.click(); await page.waitForTimeout(250);
+  const durante = await page.getByRole("button", { name: /Remarcando/ }).count();
+  await page.waitForTimeout(1200);
+  const rotulosAg = await page.locator("[role=button][aria-label]").evaluateAll((es) => es.map((e) => e.getAttribute("aria-label")));
+  const textoMain = await page.locator("main").innerText();
+  const antigo = `${nome}, ${hh(alvo.inicio)}`, novoR = `${nome}, ${hh(+novo)}`;
+  remarcou = { alvo: { data: alvo.data, de: hh(alvo.inicio), para: hh(+novo), eventoId: alvo.eventoId, meetLink: alvo.meetLink ?? null }, rodapeAntes, rotulo, durante, patches,
+    blocoNoHorarioNovo: vp.width > 800 ? rotulosAg.filter((l) => l?.startsWith(novoR)).length : (textoMain.includes(hh(+novo)) && textoMain.includes(nome) ? 1 : 0),
+    blocoNoHorarioAntigo: vp.width > 800 ? rotulosAg.filter((l) => l?.startsWith(antigo)).length : null,
+    gavetaSub: await page.locator("[role=dialog]").innerText().then((s) => s.split("\n").slice(0, 3).join(" | ")).catch(() => null),
+    toast: await page.locator("[role=status], [aria-live]").allInnerTexts().then((x) => x.join(" / ").slice(0, 200)) };
+}
 const m = await page.evaluate(() => {
   let m_aviso = null;
   // O botão de marcar da casca (T2): o "＋" do celular ou o slot da topbar, e se está na tela.
@@ -99,6 +147,7 @@ const m = await page.evaluate(() => {
   return { marcarNaCasca, livres, avisoDePerigo: m_aviso, gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
 });
 m.getsAgenda = gets;
+if (remarcou) m.remarcou = remarcou;
 console.log(JSON.stringify(m, null, 1));
 await page.screenshot({ path: saida, fullPage: full });
 await browser.close();

@@ -972,10 +972,10 @@ export default function Agenda() {
       {!mobile && visao !== "mes" && (
         <div style={s("flex-shrink:0;display:flex;align-items:center;gap:8px;padding:9px 16px;border-top:1px solid var(--line);font-size:var(--t-label);color:var(--muted)")}>
           <Icon name="clock" size={15} sw={1.9} />
-          {/* Já dizia "arraste para remarcar". Parou de ser verdade quando o atendimento
-              virou o evento do Google — ver o comentário em Bloco. Uma barra que promete
-              um gesto que não existe é pior que uma barra com menos texto. */}
-          clique num vago para marcar · remarcar, por enquanto, é no Google Calendar
+          {/* Já dizia "arraste para remarcar", e depois "remarcar, por enquanto, é no Google
+              Calendar". Desde 25/09/2026 (1B.5) remarcar é na gaveta do atendimento, com ou sem
+              Google; arrastar continua não existindo, e a barra não o promete. */}
+          clique num vago para marcar · clique no atendimento para remarcar
         </div>
       )}
     </section>

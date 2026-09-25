@@ -1121,14 +1121,70 @@ export function useDetalhe(id: string | null): Detalhe | null {
       onClick: () => st.cancelarAtendimento(ag.id),
     };
 
-    /* Dois no rodapé: o verbo do dia (se for hoje) e o primeiro que existir entre conversa e
-     * link do Meet. O resto vai para "Mais ações". */
+    /* ── REMARCAR (1B.5) ──
+     * Só com a chave do atendimento (`ag`): é por ela que o servidor acha a linha. Num dia que
+     * ainda vem é o verbo principal da gaveta (o balcão não tem o que fazer com a sessão da
+     * semana que vem); hoje e no passado fica em "Mais ações", atrás do verbo do dia. */
+    const remarcarAcao: Acao | null = ag.ag
+      ? { label: "Remarcar", desabilitada: ocupadoAg, onClick: () => st.pedirRemarcacao(ag.id) }
+      : null;
+    const remarcando = st.remarcacao && st.remarcacao.id === ag.id ? st.remarcacao : null;
+    const futuro = !ehHoje && !passado;
+
+    /* Dois no rodapé: o verbo do dia (se for hoje), ou Remarcar (se ainda vem), e o primeiro que
+     * existir entre conversa e link do Meet. O resto vai para "Mais ações". */
     const segundos = [abrirConversa, enviarLink, abrirGoogle].filter((a): a is Acao => !!a);
-    const noRodape = etapa ? segundos.slice(0, 1) : segundos.slice(0, 2);
-    const acoes = etapa
-      ? rodape(etapa, noRodape[0])
-      : rodape(noRodape[0] && { ...noRodape[0], primaria: true }, noRodape[1]);
-    const mais: (Acao | AcaoDestrutiva)[] = [...segundos.filter((a) => !noRodape.includes(a)), cancelar];
+    const principal = etapa ?? (futuro ? remarcarAcao : null);
+    const noRodape = principal ? segundos.slice(0, 1) : segundos.slice(0, 2);
+    const acoes = remarcando
+      ? rodape(
+        { label: "Voltar", onClick: () => st.pedirRemarcacao(null) },
+        {
+          label: ocupadoAg ? "Remarcando…" : `Remarcar para ${remarcando.data === D.HOJE.iso ? "hoje" : D.rotuloDia(remarcando.data)}, ${D.hhmm(remarcando.inicio)}`,
+          primaria: true,
+          /* Mesmo dia e hora: não há o que mandar. */
+          desabilitada: ocupadoAg || (remarcando.data === ag.data && remarcando.inicio === ag.inicio),
+          onClick: () => st.remarcarAtendimento(ag.id),
+        },
+      )
+      : principal
+        ? rodape({ ...principal, primaria: true }, noRodape[0])
+        : rodape(noRodape[0] && { ...noRodape[0], primaria: true }, noRodape[1]);
+    const mais: (Acao | AcaoDestrutiva)[] | undefined = remarcando ? undefined : [
+      ...(remarcarAcao && principal !== remarcarAcao ? [remarcarAcao] : []),
+      ...segundos.filter((a) => !noRodape.includes(a)),
+      cancelar,
+    ];
+
+    /* O novo dia e horário: as vagas daquela pessoa, sem contar este atendimento, mais o
+     * horário atual (escolher o mesmo desliga o botão). Trocar o dia cai no primeiro vago dele. */
+    const blocoRemarcar: Bloco | null = remarcando
+      ? (() => {
+        const dias = Array.from({ length: 21 }, (_, i) => D.somarDias(D.HOJE.iso, i)).filter((d) => !D.fechado(d));
+        if (!dias.includes(remarcando.data)) dias.unshift(remarcando.data);
+        const livres = st.vagasDe(ag.profissionalId, remarcando.data, ag.duracao, ag.id);
+        const horas = livres.includes(remarcando.inicio) ? [...livres] : [...livres, remarcando.inicio].sort((a, b) => a - b);
+        return {
+          tipo: "campos", key: "remarcar", label: "Novo horário",
+          campos: [
+            {
+              id: "dia", label: "Dia", valor: remarcando.data, tipo: "select", opcoes: dias,
+              rotuloOpcao: (v: string) => (v === D.HOJE.iso ? `Hoje, ${D.rotuloDia(v)}` : D.rotuloLongo(v)),
+              onChange: (v: string) => {
+                const l = st.vagasDe(ag.profissionalId, v, ag.duracao, ag.id);
+                st.editarRemarcacao({ data: v, ...(l.length && !l.includes(remarcando.inicio) ? { inicio: l[0] } : {}) });
+              },
+            },
+            {
+              id: "hora", label: "Horário", valor: String(remarcando.inicio), tipo: "select", opcoes: horas.map(String),
+              rotuloOpcao: (v: string) => D.hhmm(Number(v)),
+              hint: livres.length === 0 ? `${D.primeiroNome(ag.profissional.nome)} não tem horário livre neste dia.` : undefined,
+              onChange: (v: string) => st.editarRemarcacao({ inicio: Number(v) }),
+            },
+          ],
+        } as Bloco;
+      })()
+      : null;
 
     const quando = ehHoje ? "hoje" : D.rotuloDia(ag.data);
     const situacao = passado
@@ -1157,6 +1213,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
       titulo: ag.cliente.nome, seed: ag.cliente.id,
       sub: `${quando}, ${D.hhmm(ag.inicio)} · ${ag.servico.nome}`,
       blocos: [
+        ...(blocoRemarcar ? [blocoRemarcar] : []),
         {
           tipo: "stats", key: "d", label: "Atendimento",
           linhas: [
