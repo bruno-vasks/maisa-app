@@ -47,6 +47,7 @@
  *      já existiam antes do clique.
  * ────────────────────────────────────────────────────────────────────────────── */
 
+import { casaBusca } from "@/ui/estado/busca";
 import React from "react";
 import { s, Icon, Filtros, EmptyState, SectionTitle, Btn, toast } from "@/ui/primitivos";
 import { TelaGrade } from "@/ui/componentes/Cartao";
@@ -73,11 +74,8 @@ const baldeDe = (c: Contato): Filtro =>
  * (que é a maioria do que vem de uma agenda de WhatsApp).
  */
 function casa(c: Contato, busca: string): boolean {
-  const q = busca.trim().toLowerCase();
-  if (!q) return true;
-  const digitos = q.replace(/\D/g, "");
-  if (digitos && c.chave.includes(digitos)) return true;
-  return (c.nome ?? "").toLowerCase().includes(q);
+  /* A regra mora em `estado/busca.ts` desde 25/09/2026 (1C.8), porque Clientes precisa da mesma. */
+  return casaBusca({ nome: c.nome, numeros: [c.chave] }, busca);
 }
 
 /* Quantos desenhar de uma vez. A agenda do Bruno tem 1.840 entradas, e 1.840 linhas com
