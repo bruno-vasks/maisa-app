@@ -89,7 +89,7 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
           <p style={s("margin:0;font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
             {estado.contatos.length === 0 ? (
               <>
-                Traga sua agenda para <strong style={s("color:var(--ink)")}>marcar seus clientes</strong> — ela só
+                Traga sua agenda para <strong style={s("color:var(--ink)")}>marcar seus clientes</strong>. Ela só
                 atende quem você marcar, e chama cada um pelo nome.
               </>
             ) : (

@@ -179,7 +179,7 @@ function DonoDoCanal() {
       <span style={s(`font-size:var(--t-label);line-height:1.5;color:${gravado ? "var(--muted)" : "var(--warn)"}`)}>
         {gravado
           ? "Ela manda um aviso com o telefone do cliente e um link para você assumir a conversa."
-          : "Em branco, quando ela não consegue resolver, ninguém é avisado — o cliente fica esperando e você não fica sabendo."}
+          : "Em branco, quando ela não consegue resolver, ninguém é avisado: o cliente fica esperando e você não fica sabendo."}
       </span>
     </div>
   );
@@ -676,7 +676,7 @@ function Antecedencia() {
       <span style={s("flex:1;min-width:0")}>
         <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title)")}>Quando mandar</span>
         <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:2px;line-height:1.45")}>
-          Sessão de terapia pede mais tempo que um corte — quem avisa em cima da hora não
+          Sessão de terapia pede mais tempo que um corte: quem avisa em cima da hora não
           consegue remarcar.
         </span>
       </span>
@@ -822,7 +822,7 @@ function Duvidas() {
         </div>
 
         <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-          A MAISA procura por sentido, não por palavra exata — quem perguntar “dá pra
+          A MAISA procura por sentido, não por palavra exata: quem perguntar “dá pra
           estacionar aí?” encontra a resposta acima.
         </span>
       </div>
@@ -879,7 +879,7 @@ function Preview({ recorte }: { recorte: RecorteId | null }) {
   return (
     /* Moldura chapada, sem gradiente (emenda 3 do maisa-design). */
     <div style={s("flex:1;min-height:0;border-radius:24px;padding:8px;background:var(--nav);display:flex")}>
-      <div style={s("flex:1;min-width:0;border-radius:18px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column")}>
+      <div style={s("flex:1;min-width:0;border-radius:18px;overflow:hidden;background:var(--nav);display:flex;flex-direction:column")}>
         <div style={s("flex-shrink:0;display:flex;align-items:center;gap:10px;padding:13px 14px;background:var(--nav)")}>
           <span style={s("width:36px;height:36px;flex-shrink:0;border-radius:50%;background:var(--nav-active);color:var(--warm);display:flex;align-items:center;justify-content:center;font-weight:var(--w-title);font-size:var(--t-body)")}>m</span>
           <span style={s("flex:1;min-width:0")}>
@@ -894,7 +894,7 @@ function Preview({ recorte }: { recorte: RecorteId | null }) {
           </span>
         </div>
 
-        <div style={s("flex:1;min-height:0;overflow-y:auto;padding:16px 13px;display:flex;flex-direction:column;gap:9px")}>
+        <div style={s("flex:1;min-height:0;overflow-y:auto;padding:16px 13px;display:flex;flex-direction:column;gap:9px;background:var(--bg)")}>
           {"aviso" in pv ? (
             <span style={s("margin:auto 8px;text-align:center;font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>{pv.aviso}</span>
           ) : falas === null ? (
@@ -1025,15 +1025,18 @@ function Navegacao({ ativo, celular }: { ativo: RecorteId | null; celular?: bool
 export default function AMaisa() {
   const st = useStore();
   const mobile = useIsMobile();
-  const ativo = recorteAtivo(st.secao, st.canal);
+  const ativo = recorteAtivo(st.secao, st.canal, st.canalErro);
 
   if (mobile) {
     const escolhido = RECORTES.find((r) => r.id === st.secao)?.id ?? null;
     return (
       <Moldura
+        /* Na lista, a linha de status inteira (é onde se liga e desliga). Dentro de um recorte, só
+           "Ajustes" para voltar, o título e o "Salvo": a linha de status tem quatro linhas a 390px,
+           e grudada no topo de cada recorte comia um quarto da tela. */
         cabecalho={
           <>
-            <FaixaAssistente />
+            {!escolhido && <FaixaAssistente />}
             {escolhido && (
               <div style={s("display:flex;align-items:center;gap:8px;min-height:44px")}>
                 <button
@@ -1044,7 +1047,8 @@ export default function AMaisa() {
                 >
                   <Icon name="chevron-left" size={18} sw={2.2} /> Ajustes
                 </button>
-                <h2 style={s("margin:0;font-size:var(--t-body);font-weight:var(--w-emph);color:var(--ink)")}>{tituloDe(escolhido)}</h2>
+                <h2 style={s("flex:1;min-width:0;margin:0;font-size:var(--t-body);font-weight:var(--w-emph);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{tituloDe(escolhido)}</h2>
+                <IndicadorDeGravacao />
               </div>
             )}
           </>

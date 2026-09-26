@@ -34,12 +34,14 @@ export const RECORTES = [
 ] as const;
 export type RecorteId = (typeof RECORTES)[number]["id"];
 
-/** O recorte na tela. `null` só enquanto o canal não foi lido e a URL não escolheu: aí não há
- *  como saber se o padrão é o WhatsApp ou o Horário, e a tela mostra esqueleto. */
-export function recorteAtivo(secao: string | null, canal: { status: string } | null): RecorteId | null {
+/** O recorte na tela. `null` só enquanto o canal está sendo lido e a URL não escolheu: aí não há
+ *  como saber se o padrão é o WhatsApp ou o Horário, e a tela mostra esqueleto. Leitura que
+ *  FALHOU vai para o WhatsApp, onde está a frase e o "Tentar de novo" (esqueleto para sempre é
+ *  o beco do Fiscal de 26/08/2026). */
+export function recorteAtivo(secao: string | null, canal: { status: string } | null, canalErro?: string | null): RecorteId | null {
   const escolhido = RECORTES.find((r) => r.id === secao);
   if (escolhido) return escolhido.id;
-  if (!canal) return null;
+  if (!canal) return canalErro ? "whatsapp" : null;
   return canal.status === "conectado" ? "horarios" : "whatsapp";
 }
 

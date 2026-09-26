@@ -20,6 +20,7 @@ describe("recorteAtivo (1C.11)", () => {
   });
   it("sem canal lido e sem escolha, não decide", () => {
     expect(recorteAtivo("auto", null)).toBeNull();
+    expect(recorteAtivo("auto", null, "Sem resposta do servidor")).toBe("whatsapp");
   });
   it("todo recorte tem endereço, e o padrão da URL é o auto", () => {
     const regra = SECOES.assistente!;
