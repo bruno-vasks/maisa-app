@@ -1,9 +1,11 @@
 "use client";
 /* MAISA — o shell do app.
  *
- * Desktop: rail navy de 76px que abre para 244px no hover (CSS, sem re-render) +
- * uma topbar navy dentro do cartão de conteúdo. O rail é absoluto sobre um
- * espaçador, então expandir sobrepõe o conteúdo em vez de empurrá-lo.
+ * Desktop (28/09/2026): o rail navy é um painel que flutua sobre o fundo do app (8px de
+ * folga, canto --r-casca), de 76px, que abre para 244px no hover (CSS, sem re-render). Ao
+ * abrir ele EMPURRA a tela em mola: o espaçador `.m-rail-vaga` cresce junto e o conteúdo se
+ * comprime (ver "(a) RAIL" no globals.css). A topbar é clara, no fundo do app, só em cima da
+ * coluna principal; a coluna lateral da tela (`Lateral.tsx`) sobe até o topo ao lado dela.
  *
  * Mobile: cabeçalho com data e título + 5 abas fixas embaixo. O rail de 9 itens
  * não caberia, então "Mais" agrupa Faturamento, Equipe, Serviços e A MAISA — e a
@@ -191,7 +193,8 @@ function Rail() {
     /* 92px = o rail de 76 + 8 de folga de cada lado: ele flutua sobre o fundo do app, com canto
        arredondado, integrado a ele (Bruno, 28/09/2026, a referência do Parallel). */
     <div
-      style={s("width:92px;flex-shrink:0;position:relative;z-index:30")}
+      className="m-rail-vaga"
+      style={s("flex-shrink:0;position:relative;z-index:30")}
       onPointerDown={() => setPorTeclado(false)}
     >
       <nav

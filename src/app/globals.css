@@ -114,6 +114,9 @@
      Continua redondo o que tem forma com significado: interruptor, avatar, ponto de status,
      barra de progresso, bolha de conversa e o celular do preview (pílula = 999px, círculo = 50%). */
   --r-casca: 12px;
+  /* A mola do rail (ver (a) RAIL): mola amortecida em `linear()`, passa ~4% e assenta. */
+  --mola: linear(0, 0.050, 0.168, 0.317, 0.471, 0.613, 0.736, 0.835, 0.911, 0.965, 1.001, 1.023, 1.035, 1.038, 1.037, 1.033, 1.027, 1.021, 1.016, 1.011, 1.007, 1.004, 1.002, 1, 0.999, 0.999, 0.999, 1);
+  --dur-mola: 560ms;
   --r-painel: 4px;
   --r-controle: 6px;
   --radius-card: var(--r-painel);
@@ -279,12 +282,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
    e a animação não engasga durante um arrasto.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* (a) RAIL — 76px colapsado, 244px no hover. Sobrepõe o conteúdo (é absolute
-   sobre um espaçador de 76px), então expandir não empurra a tela.
+/* (a) RAIL — 76px colapsado, 244px no hover.
+   ⚠️ DESDE 28/09/2026 ELE EMPURRA A TELA, EM MOLA (Bruno: "quando a sidebar expande, as coisas
+   atrás dela comprimem em estilo mola"). Antes ele abria POR CIMA do conteúdo, sobre um
+   espaçador fixo. Agora o espaçador (`.m-rail-vaga`, o rail + 8px de folga de cada lado) cresce
+   junto: o conteúdo é `flex:1` e se comprime no mesmo passo. Os dois usam a MESMA curva e o
+   mesmo percurso (+168px), senão o vão entre o rail e a tela respira durante a animação.
+   A mola é `linear()` em CSS (uma mola amortecida, zeta 0.72, amostrada em 28 pontos: passa ~4%
+   do ponto e assenta), e não JS por quadro. Sem sombra aberto: ele não cobre mais nada.
    :has(:focus-visible) e não :focus-within — clicar num item de nav dá foco ao
    botão, e com :focus-within o rail ficava preso aberto depois do clique. Assim
    ele abre no hover e na navegação por teclado, mas fecha ao sair do mouse. */
-.m-rail { width: 76px; transition: width var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out); }
+.m-rail-vaga { width: 92px; transition: width var(--dur-mola) var(--mola); }
+.m-rail-vaga:has(> .m-rail:hover), .m-rail-vaga:has(> .m-rail.is-nav) { width: 260px; }
+.m-rail { width: 76px; transition: width var(--dur-mola) var(--mola); }
 /* `:focus-visible` DENTRO de `:has` não resolve o que o comentário acima promete: clicar num item
    de nav com o mouse deixa o botão focado, e em vários navegadores esse foco conta como
    focus-visible depois que o ponteiro sai — o rail ficava preso aberto sobrepondo o TÍTULO da
@@ -292,7 +303,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
    A correção é separar as duas intenções em vez de tentar unificá-las num seletor:
    o mouse abre por `:hover`, e o teclado abre por `.is-nav` — uma classe que o shell liga só
    quando a navegação é por tecla (Tab/setas), não por clique. */
-.m-rail:hover, .m-rail.is-nav { width: 244px; box-shadow: var(--shadow-pop); }
+.m-rail:hover, .m-rail.is-nav { width: 244px; }
 /* Rótulo: saída RÁPIDA (100ms) e entrada ATRASADA (120ms). Sem isso a opacidade (200ms) terminava
    antes da largura (280ms) e as palavras apareciam cortadas pela borda do rail — "Flu", "Con",
    "Fatu" — durante toda a transição. Assimetria de propósito: o texto nunca é visível enquanto o
