@@ -32,6 +32,7 @@
  *  • blocos sobrepostos escalonam para a direita em vez de um cobrir o outro. */
 
 import React from "react";
+import { Lateral, CabecalhoDaLateral } from "@/ui/componentes/Lateral";
 import { motion, useReducedMotion } from "motion/react";
 import { s, Icon, Monogram, Btn, IconBtn, EmptyState, Estado } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
@@ -534,7 +535,7 @@ function GradeMes({ mes, onHover, aberto, onAbrirDia }: { mes: string; onHover: 
  * topo, e as linhas reordenam por `layout` em vez de sumir e reaparecer. Sem
  * isso a lista seria só um resumo; com isso ela é a segunda vista do mesmo hover. */
 
-function Trilho({ dias, destaque, rotulo, lida, falhou }: { dias: string[]; destaque: string | null; rotulo: string; lida: boolean; falhou: boolean }) {
+function Trilho({ dias, destaque, rotulo, lida, falhou, naLateral }: { dias: string[]; destaque: string | null; rotulo: string; lida: boolean; falhou: boolean; naLateral?: boolean }) {
   const st = useStore();
   const reduzido = !!useReducedMotion();
   // A dependência é a FUNÇÃO, não o `st` inteiro: `st` troca de identidade a cada aba, filtro,
@@ -555,10 +556,14 @@ function Trilho({ dias, destaque, rotulo, lida, falhou }: { dias: string[]; dest
     return { ordenados: ord, total: grupos.reduce((n, g) => n + g.itens.length, 0) };
   }, [destaque, dias, agendamentosDoDia]);
 
+  /* No desktop o trilho é a `<Lateral>` da casca (28/09/2026): coluna de altura inteira, com o
+     "Quem vem" no cabeçalho da mesma altura da topbar. No celular, no Mês, continua o cartão. */
   return (
-    <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:18px;display:flex;flex-direction:column;min-height:0;max-height:100%")}>
-      <h2 style={s("font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg)")}>Quem vem</h2>
-      <span style={s("font-size:var(--t-label);color:var(--muted);margin-top:2px")}>{rotulo}</span>
+    <div style={s(naLateral
+      ? "flex:1;padding:16px 20px 20px;display:flex;flex-direction:column;min-height:0"
+      : "background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:18px;display:flex;flex-direction:column;min-height:0;max-height:100%")}>
+      {!naLateral && <h2 style={s("font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg)")}>Quem vem</h2>}
+      <span style={s(`font-size:var(--t-label);color:var(--muted);${naLateral ? "" : "margin-top:2px"}`)}>{rotulo}</span>
 
       {/* Sem leitura, sem contagem: "0 atendimentos" antes de ler é a mesma mentira do "Dia livre". */}
       {/* Com a leitura falhada, nada: a frase e o "Tentar de novo" estão na grade ao lado, e
@@ -995,7 +1000,7 @@ export default function Agenda() {
     <div
       className="m-enter"
       style={{
-        ...s(`flex:1;min-height:0;height:100%;display:grid;grid-template-columns:${comTrilho ? "var(--rail-side)" : "minmax(0,1fr)"};gap:16px;padding:16px 20px 20px;background:var(--bg);overflow-y:auto;align-content:start`),
+        ...s(`flex:1;min-height:0;height:100%;display:grid;grid-template-columns:${comTrilho && mobile ? "var(--rail-side)" : "minmax(0,1fr)"};gap:16px;padding:16px 24px 24px;background:var(--bg);overflow-y:auto;align-content:start`),
         // No desktop a linha ocupa a altura da tela e cada cartão rola por dentro — é o que faz a
         // grade de horas ficar sob a barra fixa. No celular isso vira uma armadilha: a linha
         // travava em 614px e o cartão, que é `overflow:hidden`, cortava o atendimento das 15:30 no
@@ -1004,7 +1009,14 @@ export default function Agenda() {
       }}
     >
       {calendario}
-      {comTrilho && <Trilho dias={visiveis} destaque={destaque} rotulo={rotulo} lida={lida} falhou={falhou} />}
+      {comTrilho && (mobile
+        ? <Trilho dias={visiveis} destaque={destaque} rotulo={rotulo} lida={lida} falhou={falhou} />
+        : (
+          <Lateral rotulo="Quem vem">
+            <CabecalhoDaLateral><span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Quem vem</span></CabecalhoDaLateral>
+            <Trilho dias={visiveis} destaque={destaque} rotulo={rotulo} lida={lida} falhou={falhou} naLateral />
+          </Lateral>
+        ))}
     </div>
   );
 }

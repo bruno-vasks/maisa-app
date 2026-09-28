@@ -35,6 +35,7 @@ import { ProgressoDeEmissao } from "./ProgressoDeEmissao";
 import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { StatusDaMaisa } from "./StatusDaMaisa";
 import { DocumentoFiscal } from "../telas/DocumentoFiscal";
+import { EncaixeDaLateral } from "./Lateral";
 
 /* ───────────────────────────── mapa de telas ───────────────────────────── */
 
@@ -325,20 +326,20 @@ function MenuNovo({ gatilho, alinhar = "direita" }: { gatilho: (p: { aberto: boo
   );
 }
 
-/** O slot, na topbar (fundo navy). Primário = `--primary` cheio; secundário = contorno sobre o navy. */
+/** O slot, na topbar (clara). Primário = `--primary` cheio; secundário = contorno. */
 function AcaoDaTopbar() {
   const st = useStore();
   const a = TELA[st.tela].acao?.(st) ?? null;
   if (!a) return null;
   const cor = a.peso === "primario"
     ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)"
-    : "border:1px solid var(--nav-line);background:var(--nav-active);color:var(--nav-ink)";
+    : "border:1px solid var(--border);background:var(--surface);color:var(--ink)";
   return (
     <button
       type="button"
       onClick={a.onClick}
-      className={`${a.peso === "primario" ? "m-hov-primary" : "m-hov-bright"} m-press m-focus`}
-      style={s(`height:40px;padding:0 16px;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
+      className={`${a.peso === "primario" ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
+      style={s(`height:36px;padding:0 14px;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
     >
       <Icon name={a.icone} size={16} sw={2.3} />
       {a.rotulo}
@@ -346,7 +347,7 @@ function AcaoDaTopbar() {
   );
 }
 
-/** O "Novo" da topbar: contorno sobre o navy, para não disputar com o slot. */
+/** O "Novo" da topbar: contorno, para não disputar com o slot. */
 function NovoDaTopbar() {
   return (
     <MenuNovo
@@ -356,8 +357,8 @@ function NovoDaTopbar() {
           onClick={alternar}
           aria-haspopup="menu"
           aria-expanded={aberto}
-          className="m-hov-bright m-press m-focus"
-          style={s("height:40px;padding:0 12px 0 14px;border-radius:var(--r-controle);border:1px solid var(--nav-line);background:transparent;color:var(--nav-ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap")}
+          className="m-hov-bg m-press m-focus"
+          style={s("height:36px;padding:0 10px 0 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);color:var(--ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap")}
         >
           Novo
           <Icon name="chevron-down" size={15} sw={2.2} />
@@ -476,28 +477,30 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
   const t = TELA[st.tela];
 
   return (
-    /* 56px: sem o subtítulo, a topbar é uma linha só (título, busca, status, ação). Os 14px
-       que sobram vão para a tela. */
-    <header style={s("height:56px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 24px;background:var(--nav)")}>
-      <h1 style={s("min-width:0;margin:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--nav-ink)")}>{t.titulo}</h1>
+    /* 56px: sem o subtítulo, a topbar é uma linha só (título, busca, status, ação).
+       ⚠️ CLARA desde 28/09/2026, com a linha fina embaixo: navy, ela formava um L com o rail e
+       cruzava a janela por cima da coluna lateral. Só o rail é escuro. A altura e a linha são as
+       mesmas do `CabecalhoDaLateral`, para os dois terminarem juntos. */
+    <header style={s("height:56px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--line)")}>
+      <h1 style={s("min-width:0;margin:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)")}>{t.titulo}</h1>
 
       <button
         onClick={onBuscar}
         className="m-press m-focus"
-        style={s("flex:1;max-width:360px;min-width:0;margin-left:10px;display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:var(--r-painel);background:var(--nav-active);border:1px solid var(--nav-line);color:var(--nav-soft);cursor:pointer;text-align:left")}
+        style={s("flex:1;max-width:360px;min-width:0;margin-left:10px;display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:var(--r-controle);background:var(--bg);border:1px solid var(--border);color:var(--muted);cursor:pointer;text-align:left")}
       >
         <Icon name="search" size={17} sw={1.9} />
         <span style={s("flex:1;min-width:0;font-size:var(--t-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>Buscar cliente, conversa ou tela</span>
         {/* ⌘K é string de máquina — um dos poucos lugares onde o mono sobrevive. Peso de dado (500):
             é a tecla literal, não um título. */}
-        <span style={s("flex-shrink:0;font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:var(--r-controle);background:var(--nav);border:1px solid var(--nav-line)")}>⌘K</span>
+        <span style={s("flex-shrink:0;font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:var(--r-controle);background:var(--surface);border:1px solid var(--border)")}>⌘K</span>
       </button>
 
       <div style={s("margin-left:auto;display:flex;align-items:center;gap:14px;flex-shrink:0")}>
         {/* O status vem de `statusDaMaisa` (interruptor E canal), nunca de `assistente.ativa`
             sozinho: até 24/09/2026 aqui pulsava "no ar" com o WhatsApp desconectado. Rótulos e
             cores por fundo moram em `StatusDaMaisa.tsx`. */}
-        <StatusDaMaisa sobre="nav" />
+        <StatusDaMaisa sobre="claro" />
         <NovoDaTopbar />
         <AcaoDaTopbar />
       </div>
@@ -556,6 +559,7 @@ export default function AppShell() {
   const layout = useLayout();
   const mobile = layout === "celular";
   const [paleta, setPaleta] = useState(false);
+  const [encaixe, setEncaixe] = useState<HTMLDivElement | null>(null);
   const Ativa = TELA[st.tela].Comp;
 
   // ⌘K / Ctrl+K em qualquer lugar. Ignora quando o foco está num campo, senão
@@ -633,16 +637,22 @@ export default function AppShell() {
   return (
     <div className="m-altura-tela" style={s("display:flex;overflow:hidden;background:var(--bg)")}>
       <Rail />
-      <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-casca);overflow:hidden;background:var(--bg)")}>
-        <Topbar onBuscar={() => setPaleta(true)} />
-        {/* Acima do conteúdo e FORA do `key={st.tela}`: o aviso vale para todas as telas e
-            não deve remontar (nem piscar) a cada troca de tela. */}
-        <AvisoCadastro />
-        <AvisoAjustes />
-        <div key={st.tela} style={s("flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden")}>
-          <Ativa />
-        </div>
-      </main>
+      {/* Colunas de altura inteira (28/09/2026): a topbar fica só em cima da coluna principal, e a
+          coluna lateral da tela (`<Lateral>`) sobe até o topo ao lado dela, com cabeçalho da mesma
+          altura. Ver o porquê em `Lateral.tsx`. */}
+      <EncaixeDaLateral.Provider value={encaixe}>
+        <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-casca);overflow:hidden;background:var(--bg)")}>
+          <Topbar onBuscar={() => setPaleta(true)} />
+          {/* Acima do conteúdo e FORA do `key={st.tela}`: o aviso vale para todas as telas e
+              não deve remontar (nem piscar) a cada troca de tela. */}
+          <AvisoCadastro />
+          <AvisoAjustes />
+          <div key={st.tela} style={s("flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden")}>
+            <Ativa />
+          </div>
+        </main>
+      </EncaixeDaLateral.Provider>
+      <div ref={setEncaixe} style={s("display:flex;flex-shrink:0;min-height:0")} />
       <Gaveta />
       <Paleta aberta={paleta} fechar={() => setPaleta(false)} />
       <Toaster />

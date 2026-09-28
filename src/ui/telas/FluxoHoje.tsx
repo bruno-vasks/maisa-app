@@ -31,6 +31,7 @@
  * Celular: a página rola, na ordem Agora → fila (até 3 linhas e "Ver todas") → dia. */
 
 import React, { useEffect, useRef, useState } from "react";
+import { Lateral, CabecalhoDaLateral } from "@/ui/componentes/Lateral";
 import { s, Icon, Monogram, Btn, EmptyState, Estado, fmt } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { partesDoDia, semConfirmacao } from "@/ui/estado/leitura";
@@ -245,10 +246,10 @@ function PrecisaDeVoce() {
 
   return (
     <>
-      <div style={s("padding:20px 20px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);flex-shrink:0")}>
+      <CabecalhoDaLateral>
         <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Precisa de você</span>
         {fila.length > 0 && <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data);color:var(--warn)")}>{fila.length}</span>}
-      </div>
+      </CabecalhoDaLateral>
 
       <div style={s("flex:1;min-height:0;overflow-y:auto;position:relative;padding:14px;display:flex;flex-direction:column;gap:10px")}>
         {estado === "carregando" ? (
@@ -466,17 +467,19 @@ export default function FluxoHoje() {
 
   /* ⚠️ `minmax(0,1fr)` na linha e `min-height:0` em toda a cadeia até a região: sem eles a
    * coluna cresce até o tamanho da lista e nada rola (a região precisa de altura para rolar). */
+  /* A coluna "Precisa de você" é a `<Lateral>` da casca desde 28/09/2026: sobe até o topo, ao
+   * lado da topbar, com cabeçalho da mesma altura (ver `Lateral.tsx`). */
   return (
-    <div style={s("flex:1;min-height:0;height:100%;display:grid;grid-template-columns:minmax(0,1fr) 330px;grid-template-rows:minmax(0,1fr)")}>
+    <>
       <Moldura
         rotulo="Atendimentos de hoje"
         cabecalho={<><JornadaDeAtivacao />{agora}</>}
       >
         {lista}
       </Moldura>
-      <aside aria-label="Precisa de você" style={s("border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0")}>
+      <Lateral rotulo="Precisa de você">
         <PrecisaDeVoce />
-      </aside>
-    </div>
+      </Lateral>
+    </>
   );
 }

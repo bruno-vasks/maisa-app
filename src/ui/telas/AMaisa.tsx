@@ -12,6 +12,7 @@
  * Tudo aqui é controlado pelo store, então o preview reage enquanto você digita. */
 
 import React from "react";
+import { Lateral, CabecalhoDaLateral } from "@/ui/componentes/Lateral";
 import { s, Btn, Icon, Toggle, Estado } from "@/ui/primitivos";
 import { DeQuemEEsseNumero } from "@/ui/componentes/DeQuemEEsseNumero";
 import { LinhaDeStatus } from "@/ui/componentes/StatusDaMaisa";
@@ -1071,8 +1072,9 @@ export default function AMaisa() {
   }
 
   return (
+    <>
     <Moldura cabecalho={<FaixaAssistente />}>
-      <div style={s("flex:1;min-height:0;display:grid;grid-template-columns:14rem minmax(0,1fr) 306px;grid-template-rows:minmax(0,1fr);gap:24px")}>
+      <div style={s("flex:1;min-height:0;display:grid;grid-template-columns:14rem minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:24px")}>
         <Navegacao ativo={ativo} />
 
         {/* A única região que rola. `position:relative` para o que se posiciona dentro dela
@@ -1088,11 +1090,16 @@ export default function AMaisa() {
           )}
         </section>
 
-        <div style={s("min-height:0;display:flex;flex-direction:column;gap:10px")}>
-          <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>No WhatsApp</span>
-          <Preview recorte={ativo} />
-        </div>
       </div>
     </Moldura>
+    {/* O preview é a `<Lateral>` da casca (28/09/2026): coluna de altura inteira, com o "No
+        WhatsApp" no cabeçalho da mesma altura da topbar. */}
+    <Lateral rotulo="No WhatsApp">
+      <CabecalhoDaLateral><span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>No WhatsApp</span></CabecalhoDaLateral>
+      <div style={s("flex:1;min-height:0;display:flex;padding:20px")}>
+        <Preview recorte={ativo} />
+      </div>
+    </Lateral>
+    </>
   );
 }
