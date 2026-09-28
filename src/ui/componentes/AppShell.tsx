@@ -47,7 +47,12 @@ import { DocumentoFiscal } from "../telas/DocumentoFiscal";
 type AcaoDaTela = { rotulo: string; icone: string; onClick: () => void; peso: "primario" | "secundario" };
 type St = ReturnType<typeof useStore>;
 
-const TELA: Record<TelaId, { rotulo: string; titulo: string; icone: string; Comp: React.ComponentType; acao?: (st: St) => AcaoDaTela | null }> = {
+/* ⚠️ `tituloCelular` (28/09/2026, regressão 1 da verificação da Onda 1). No cabeçalho de 56px do
+ * celular o título divide 390px com o status curto, a lupa e o "＋": sobram 135px com "Sem
+ * WhatsApp". "Documento fiscal" (173px), "Ajustes da MAISA" (178) e "Quem a MAISA atende" (225)
+ * saíam cortados ("Quem a MA…"). O título curto é o nome da tela sem o complemento; a reticência
+ * continua como rede, não como plano. Título novo no celular: medir antes de pôr aqui. */
+const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: string; icone: string; Comp: React.ComponentType; acao?: (st: St) => AcaoDaTela | null }> = {
   /* "Encaixar cliente", secundário: o primário do dia é o "Chegou"/"Concluir" do próprio Fluxo
      (contradição C15). Abre o rascunho no próximo vago de verdade. */
   fluxo: {
@@ -73,7 +78,7 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; icone: string; Comp
   faturamento: { rotulo: "Fiscal", titulo: "Fiscal", icone: "receipt", Comp: Faturamento },
   // Fora do rail, como `contatos`: escolher entre nota fiscal e recibo é decisão de uma vez só.
   // Chega-se por "Mais" e pelo link "Documento fiscal" no próprio Faturamento.
-  fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", icone: "config", Comp: DocumentoFiscal },
+  fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", tituloCelular: "Documento", icone: "config", Comp: DocumentoFiscal },
   equipe: {
     rotulo: "Equipe", titulo: "Equipe", icone: "equipe", Comp: Equipe,
     acao: (st) => (st.cadastroCarregado ? { rotulo: "Adicionar profissional", icone: "plus", peso: "primario", onClick: () => st.pedirNovo("profissional") } : null),
@@ -83,12 +88,12 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; icone: string; Comp
     rotulo: "Serviços", titulo: "Serviços", icone: "tag", Comp: Servicos,
     acao: (st) => ({ rotulo: "Novo serviço", icone: "plus", peso: "primario", onClick: st.criarServico }),
   },
-  assistente: { rotulo: "A MAISA", titulo: "Ajustes da MAISA", icone: "bot", Comp: AMaisa },
+  assistente: { rotulo: "A MAISA", titulo: "Ajustes da MAISA", tituloCelular: "Ajustes", icone: "bot", Comp: AMaisa },
   // Fora do rail e das abas de propósito: é tarefa de configuração que se faz uma vez, e um
   // ícone permanente na barra competiria com as telas do dia a dia. Chega-se aqui pelo
   // cartão "De quem é esse número" (Ajustes da MAISA) e pelos atalhos do "Mais" — que é
   // exatamente o caminho que a pessoa já percorre quando decide mexer nisso.
-  contatos: { rotulo: "Meus contatos", titulo: "Quem a MAISA atende", icone: "clientes", Comp: Contatos },
+  contatos: { rotulo: "Meus contatos", titulo: "Quem a MAISA atende", tituloCelular: "Contatos", icone: "clientes", Comp: Contatos },
   mais: { rotulo: "Mais", titulo: "Mais", icone: "dots", Comp: Mais },
 };
 
@@ -574,7 +579,7 @@ export default function AppShell() {
             servia a nada. Cromo total (cabeçalho + abas) ≤ 130px de 844. */}
         {!cheia && (
         <header style={s("flex-shrink:0;height:56px;padding:0 12px 0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px")}>
-          <h1 style={s("min-width:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{TELA[st.tela].titulo}</h1>
+          <h1 style={s("min-width:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{TELA[st.tela].tituloCelular ?? TELA[st.tela].titulo}</h1>
           <div style={s("display:flex;align-items:center;gap:8px;flex-shrink:0")}>
             {/* O celular não tinha status nenhum: quem só usa o app pelo telefone nunca sabia se
                 a MAISA estava respondendo. Curto, porque divide 390px com título e busca. */}
