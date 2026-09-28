@@ -366,6 +366,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
    (item flex com overflow:hidden encolhe até 0 e esconde o resto sem rolar).
    ═══════════════════════════════════════════════════════════════════════════ */
 .m-moldura { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* ⚠️ A moldura entra só com opacidade, sem o `translateY(8px)` do `.m-enter` (28/09/2026,
+   regressão 4 da verificação da Onda 1). O `transform` anima fora do layout: se o navegador faz
+   layout no meio da subida, o transbordo da caixa da casca (`overflow:hidden`) fica medido com a
+   moldura 5px mais baixa e não é refeito quando a animação acaba. A sonda de corte via "819 em
+   814" nos Ajustes, uma vez em três, sem nada cortado na tela. Tela inteira que sobe 8px dentro
+   de uma caixa que corta é o caso em que a subida não vale o risco. */
+.m-moldura.m-enter { animation-name: mfade; }
 /* `topo` é a contagem: parada no desktop, e no celular rola embora (só o `cab` gruda). */
 .m-moldura-topo { flex-shrink: 0; padding: 20px 24px 0; }
 .m-moldura-topo + .m-moldura-regiao { --regiao-pt: 16px; }
