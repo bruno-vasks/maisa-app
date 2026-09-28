@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CONTATO } from "./Juridico";
+import { CONTATO, EMPRESA } from "./Juridico";
 
 /* ----------------------------------------------------------------------------
  * <LinhaLegal> — privacidade, termos e contato nas páginas PÚBLICAS DO APP.
@@ -26,8 +26,8 @@ import { CONTATO } from "./Juridico";
  *   • e `/cadastro` é onde a pessoa entrega e-mail e senha. Pedir dado pessoal sem dizer
  *     o que se faz com ele é o problema antes de ser o requisito de alguém.
  *
- * ⚠️ O CONTATO VEM DO `Juridico.tsx`, o mesmo que a política e os termos mostram. NÃO é o
- * `CONTATO_EMAIL` do `icp.ts` — endereço divergente entre a tira e a política é ruído no
+ * ⚠️ O CONTATO VEM DO `Juridico.tsx`, o mesmo que a política e os termos mostram, e é o único
+ * e-mail do site desde 28/09/2026: endereço divergente entre a tira e a política é ruído no
  * pior momento possível, e há teste cruzando os dois.
  * -------------------------------------------------------------------------- */
 
@@ -56,6 +56,8 @@ export function LinhaLegal() {
       <a href={`mailto:${CONTATO}`} className="m-focus" style={{ color: "var(--muted)" }}>
         {CONTATO}
       </a>
+      <span aria-hidden="true">·</span>
+      <span>{EMPRESA}</span>
     </nav>
   );
 }

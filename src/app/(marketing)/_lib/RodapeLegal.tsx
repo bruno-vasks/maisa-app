@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CONTATO } from "./Juridico";
+import { CONTATO, EMPRESA } from "./Juridico";
 
 /* ----------------------------------------------------------------------------
  * <RodapeLegal> — a tira de privacidade, termos e contato, em toda página de LP.
@@ -35,11 +35,11 @@ import { CONTATO } from "./Juridico";
  *
  * ── UM E-MAIL SÓ ──
  *
- * `CONTATO` vem do `Juridico.tsx`, o mesmo que a política e os termos mostram. ⚠️ NÃO é o
- * `CONTATO_EMAIL` do `icp.ts` (`contato@maisa.app`), e a diferença importa: o Google
- * cruza o canal de contato do site com o da política, e endereço divergente entre os dois
- * é ruído no pior momento possível. O do `icp.ts` só aparece no <Footer>, que ninguém
- * renderiza — ver o aviso lá.
+ * `CONTATO` vem do `Juridico.tsx`, o mesmo que a política e os termos mostram. É o único
+ * e-mail do site: o `icp.ts` tinha um `contato@maisa.app` de placeholder e a LP de terapeutas
+ * um `oi@maisa.com.br`, e os dois saíram em 28/09/2026. O Google e o provedor de pagamento
+ * cruzam o canal de contato do site com o da política, e endereço divergente entre os dois
+ * é ruído no pior momento possível.
  *
  * Cores saem dos tokens `--mk-footer-*`, que o <World> já tem em escopo pela classe do
  * mundo: a tira fica quase-preta no mundo barbeiros e navy no terapeutas, sem uma linha
@@ -87,7 +87,7 @@ export function RodapeLegal() {
           </a>
         </nav>
 
-        <p className="mk-rodape-legal-marca">© {ano} MAISA</p>
+        <p className="mk-rodape-legal-marca">© {ano} MAISA · {EMPRESA}</p>
       </div>
     </footer>
   );
