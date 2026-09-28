@@ -915,8 +915,10 @@ function Conexoes() {
       : st.google.status === "nao_configurado"
         ? {
             tom: "warn" as const,
-            titulo: "Google Calendar não configurado neste ambiente",
-            texto: `Falta definir ${st.google.faltando.join(", ")}. Enquanto isso o app funciona normalmente — só não cria eventos.`,
+            /* Sem nome de variável de ambiente: quem lê é o dono do negócio, não quem faz o deploy
+               (28/09/2026). O que falta está em `st.google.faltando` e no log do servidor. */
+            titulo: "Google Agenda indisponível no momento",
+            texto: "A conexão com o Google Agenda ainda não está liberada.",
           }
         : st.google.status !== "ok"
           ? { tom: "warn" as const, titulo: "Entre na sua conta para conectar", texto: "As agendas ficam ligadas à sua conta, então é preciso estar logado." }

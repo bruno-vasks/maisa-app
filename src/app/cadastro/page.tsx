@@ -348,7 +348,7 @@ function CadastroInner() {
               {!isSupabaseConfigured && (
                 <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
                   <Icon name="sparkle" size={16} />
-                  <span><strong>Cadastro ainda não ativado.</strong> Configure o Supabase (chaves no ambiente) para habilitar contas novas.</span>
+                  <span><strong>Cadastro indisponível neste ambiente.</strong></span>
                 </div>
               )}
 

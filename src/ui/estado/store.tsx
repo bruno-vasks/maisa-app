@@ -296,6 +296,10 @@ const MAX_RENOVACOES_CODIGO = 5;
 
 /* Motivos que a rota de conexão devolve na query string, em português de gente.
  * Cada um diz o que aconteceu E o que fazer — "erro genérico" não ajuda ninguém. */
+/** Falha de conexão com o Google que só quem faz o deploy conserta: uma frase para o dono e o código. */
+const SEM_CONEXAO_GOOGLE = (codigo: string) =>
+  `Não consegui conectar o Google. Tente de novo; se repetir, fale com o suporte (código ${codigo})`;
+
 const MOTIVO_GOOGLE: Record<string, string> = {
   nao_configurado: "O Google Calendar ainda não está configurado neste ambiente",
   nao_autenticado: "Sua sessão expirou — entre de novo para conectar",
@@ -313,21 +317,23 @@ const MOTIVO_GOOGLE: Record<string, string> = {
   sem_codigo: "O Google não devolveu a autorização",
   pkce_ausente: "A conexão foi interrompida — tente de novo",
   sem_refresh_token: "O Google não liberou acesso contínuo. Remova a MAISA em myaccount.google.com → Segurança e conecte de novo",
-  /* Os quatro abaixo eram um "falha_ao_conectar" só. Separados porque o conserto de
-     cada um é diferente — e quem conecta uma agenda não tem como abrir log de servidor. */
-  troca_recusada: "O Google recusou a troca do código. Confira o GOOGLE_CLIENT_SECRET e se o redirect URI cadastrado bate exatamente com o do app",
-  secret_invalido: "O Google não reconheceu o app (invalid_client): o GOOGLE_CLIENT_ID ou o GOOGLE_CLIENT_SECRET no Vercel não são os do client OAuth que você criou",
-  uri_nao_bate: "O redirect URI não bate. Cadastre exatamente https://…/api/google/callback no client OAuth, sem barra no fim",
+  /* Os abaixo eram um "falha_ao_conectar" só, e depois viraram instrução de deploy na tela
+     ("Confira o GOOGLE_CLIENT_SECRET…", "Gere com openssl rand…"). Quem lê é o dono do negócio,
+     que não tem Vercel nem Google Cloud para conferir (28/09/2026). Agora é uma frase para ele
+     e o CÓDIGO no fim, que é o que o suporte precisa para achar o conserto no LEIA-ME. */
+  troca_recusada: SEM_CONEXAO_GOOGLE("troca_recusada"),
+  secret_invalido: SEM_CONEXAO_GOOGLE("secret_invalido"),
+  uri_nao_bate: SEM_CONEXAO_GOOGLE("uri_nao_bate"),
   codigo_gasto: "A autorização venceu ou já tinha sido usada. Clique em Conectar de novo e conclua sem recarregar a página",
-  sem_email: "Autorizou, mas não deu para ler o e-mail da conta. Falta o escopo userinfo.email na tela de consentimento",
-  chave_invalida: "GOOGLE_TOKEN_KEY inválida: precisa dar 32 bytes ao decodificar de base64. Gere com openssl rand -base64 32 e cole o valor inteiro",
-  falha_ao_salvar: "Autorizou, mas o banco recusou a gravação. Confira se o SQL de supabase/ rodou no projeto certo",
+  sem_email: SEM_CONEXAO_GOOGLE("sem_email"),
+  chave_invalida: SEM_CONEXAO_GOOGLE("chave_invalida"),
+  falha_ao_salvar: SEM_CONEXAO_GOOGLE("falha_ao_salvar"),
   falha_ao_conectar: "Não foi possível concluir a conexão com o Google",
 };
 
 /** Status de erro das rotas de evento (respostas JSON). */
 const RESPOSTA_GOOGLE: Record<string, string> = {
-  nao_configurado: "O Google Calendar não está configurado neste ambiente",
+  nao_configurado: "A conexão com o Google Agenda ainda não está liberada",
   nao_autenticado: "Sua sessão expirou — entre de novo",
   login_necessario: "Entre na sua conta para ver e marcar na agenda.",
   sem_negocio: "Esta conta ainda não tem um negócio criado",

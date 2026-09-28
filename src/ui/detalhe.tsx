@@ -62,6 +62,8 @@ export type Bloco =
   | { tipo: "chips"; key: string; label?: string; chips: { label: string; on?: boolean }[] }
   /** Parágrafo de contexto em caixa. */
   | { tipo: "texto"; key: string; label?: string; texto: string }
+  /** Nota de rodapé: pequena e apagada, sem caixa nem rótulo (ver `Nota` na Gaveta). */
+  | { tipo: "nota"; key: string; texto: string }
   | { tipo: "toggles"; key: string; label?: string; toggles: { titulo: string; desc: string; on: boolean; alternar: () => void }[] }
   /** Trecho de conversa de WhatsApp. */
   | { tipo: "msgs"; key: string; label?: string; msgs: D.Msg[] }
@@ -376,7 +378,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
         titulo: c.nome, seed: c.id, sub: "Enviada à prefeitura",
         blocos: [
           recibo,
-          { tipo: "texto", key: "st", label: "Situação", texto: "A prefeitura está processando. O número aparece aqui sozinho em alguns minutos — você não precisa fazer nada, nem manter esta gaveta aberta." },
+          { tipo: "texto", key: "st", label: "Situação", texto: "A prefeitura está processando. O número aparece aqui em alguns minutos." },
         ],
         /* Sem os campos do tomador AQUI, de propósito: a nota está em voo, e um CPF
            trocado no meio do caminho não entra nela — o documento já foi montado. Ver o
@@ -1265,8 +1267,9 @@ export function useDetalhe(id: string | null): Detalhe | null {
          * aparelho pareceria um erro de cadastro em vez do que é: informação que ficou do
          * outro lado. */
         ...(ag.soltoDoCatalogo
-          ? [{ tipo: "texto", key: "solto", label: "Fora do catálogo deste aparelho", texto:
-              "Este atendimento foi marcado com um serviço (ou cliente) que só existe no navegador em que foi criado. O que aparece aqui é o que ficou gravado no evento do Google — nome, duração e valor da época. Ele funciona normalmente; só não está ligado ao catálogo." } as Bloco]
+          /* Era um parágrafo sobre serviço "que só existe no navegador" (não é mais: o catálogo
+             mora no banco) terminando em "Ele funciona normalmente". Nota de rodapé (28/09/2026). */
+          ? [{ tipo: "nota", key: "solto", texto: "Serviço fora do catálogo: nome, duração e valor são os que ficaram gravados neste atendimento." } as Bloco]
           : []),
         ...(semConfirmacao(ag)
           ? [{ tipo: "aviso", key: "av", texto: ehHoje
@@ -1322,7 +1325,10 @@ export function useDetalhe(id: string | null): Detalhe | null {
             return { id: p.id, nome: p.titulo, sub: p.feito ? "Feito" : p.ganho, ...(ir ? { onClick: () => { st.fechar(); ir(); } } : {}) };
           }),
         },
-        { tipo: "texto", key: "nota", texto: r.faltam === 1 ? "Falta um passo. Depois dele esta linha some do Fluxo, e não volta." : "Nada aqui trava o app: dá para usar do jeito que está." },
+        /* Era "Nada aqui trava o app: dá para usar do jeito que está." (e, com um passo faltando,
+           "Falta um passo. Depois dele esta linha some do Fluxo, e não volta."). O Bruno achou
+           que chamava atenção demais para um recado de consolo (28/09/2026): vira nota de rodapé. */
+        { tipo: "nota", key: "nota", texto: "Essas configurações são opcionais." },
       ],
       acoes: [],
     };

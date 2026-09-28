@@ -127,6 +127,13 @@ function Campos({ campos, avisoAoSair }: { campos: CampoT[]; avisoAoSair?: strin
   );
 }
 
+/* Nota de rodapé (28/09/2026): pequena, apagada, sem caixa. Para a frase que existe mas não pode
+   disputar atenção ("Essas configurações são opcionais."). O `Texto` tem caixa e corpo de
+   leitura, e a mesma frase nele chamava mais atenção que a lista acima. */
+function Nota({ texto }: { texto: string }) {
+  return <p style={s("margin:0;font-size:var(--t-label);line-height:1.5;color:var(--muted)")}>{texto}</p>;
+}
+
 function Texto({ texto }: { texto: string }) {
   return (
     <div style={s("font-size:var(--t-sm);line-height:1.6;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-painel);padding:14px 16px;display:flex;flex-direction:column;gap:10px")}>
@@ -266,6 +273,7 @@ function RenderBloco({ b }: { b: Bloco }) {
         </div>
       );
       case "texto": return <Texto texto={b.texto} />;
+      case "nota": return <Nota texto={b.texto} />;
       case "toggles": return <Toggles toggles={b.toggles} />;
       case "msgs": return <Msgs msgs={b.msgs} />;
       case "aviso": return <Aviso texto={b.texto} tone={b.tone} />;
@@ -273,7 +281,7 @@ function RenderBloco({ b }: { b: Bloco }) {
       case "lista": return <Lista itens={b.itens} />;
     }
   })();
-  const label = b.tipo === "aviso" ? undefined : b.label;
+  const label = b.tipo === "aviso" || b.tipo === "nota" ? undefined : b.label;
   return (
     <div style={s("display:flex;flex-direction:column;gap:10px")}>
       {label && <Rotulo>{label}</Rotulo>}
