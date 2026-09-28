@@ -7,7 +7,7 @@
 import { chromium, medirPagina, VIEWPORTS, posicionais } from "./_comum.mjs";
 const [pasta] = posicionais();
 const TELAS = ["fluxo", "conversas", "agenda", "clientes", "faturamento", "equipe", "servicos", "assistente", "contatos", "mais", "fiscal"];
-const ENTRADA = ["/login", "/cadastro", "/esqueci", "/comecar"];
+const ENTRADA = ["/login", "/cadastro", "/esqueci", "/nova-senha", "/comecar"]; // as 5 rotas de entrada do §7 (a /nova-senha faltava)
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 for (const modo of ["desktop", "mobile"]) {
   for (const t of [...TELAS, ...ENTRADA]) {
