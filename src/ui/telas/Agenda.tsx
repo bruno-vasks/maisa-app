@@ -769,12 +769,16 @@ function LinhaDoTempo({ data }: { data: string }) {
             </span>
             <span style={s("flex:1;min-width:0")}>
               <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.cliente.nome}</span>
-              <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>
-                {ag.servico.nome} · {D.primeiroNome(ag.profissional.nome)}
+              {/* Marca, não pílula: não clica (T7). Só em "chegando" e antes da hora (1A.5).
+                  ⚠️ Na linha do serviço, não ao lado do nome (28/09/2026, regressão 3): ali ela
+                  deixava "13:00 Ander…" do nome a 390px. Sem espaço, ela desce de linha. */}
+              <span style={s("display:flex;align-items:center;flex-wrap:wrap;gap:2px 8px;min-width:0;margin-top:2px")}>
+                <span style={s("min-width:0;font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>
+                  {ag.servico.nome} · {D.primeiroNome(ag.profissional.nome)}
+                </span>
+                {semConfirmacao(ag) && <span style={s("flex-shrink:0;display:flex")}><Estado forma="triangulo" tom="warn">sem confirmação</Estado></span>}
               </span>
             </span>
-            {/* Marca, não pílula: não clica (T7). Só em "chegando" e antes da hora (1A.5). */}
-            {semConfirmacao(ag) && <span style={s("flex-shrink:0")}><Estado forma="triangulo" tom="warn">sem confirmação</Estado></span>}
             <Monogram name={ag.profissional.nome} id={ag.profissionalId} size={30} radius={10} />
           </button>
         );

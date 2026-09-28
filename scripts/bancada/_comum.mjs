@@ -117,6 +117,12 @@ export async function medirPagina(page, modo) {
       primariosNaDobra,
       pilulasMudas,
       alvosPequenos,
+      // Texto com reticência que de fato cortou (28/09/2026, regressão 3): o nome da cliente a
+      // 390 virava "Ander…" ao lado de "sem confirmação". A lista é de quem cortou; o que é nome
+      // e o que é serviço, quem lê decide.
+      reticencias: [...main.querySelectorAll("*")]
+        .filter((el) => vis(el) && getComputedStyle(el).textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth + 1)
+        .map((el) => (el.innerText || "").trim().slice(0, 40)),
       caracteres: texto.length,
       travessoes: (texto.match(/—/g) || []).length,
       header: header ? { altura: Math.round(header.getBoundingClientRect().height), temSubtitulo: !!header.querySelector("p") } : null,

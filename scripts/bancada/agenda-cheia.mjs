@@ -24,6 +24,10 @@ const HOJE = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const somar = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 const dowSeg = (new Date(HOJE + "T12:00:00Z").getUTCDay() + 6) % 7;
 const dias = Array.from({ length: 6 }, (_, i) => somar(HOJE, i - dowSeg));
+// `passado` volta um dia: na segunda, ontem é domingo e fica fora da semana de segunda a sábado, e
+// o cenário morria procurando um atendimento que não existia (regressão 7, 28/09/2026). Ontem entra
+// sempre.
+if (!dias.includes(somar(HOJE, -1))) dias.unshift(somar(HOJE, -1));
 const eventos = []; let n = 0;
 const horas = [9, 9.5, 10.5, 11, 13, 14, 14.5, 15.5, 16, 17, 18];
 for (const d of dias) {
@@ -144,7 +148,8 @@ const m = await page.evaluate(() => {
   const vagos = [...document.querySelectorAll('[aria-label^="Marcar atendimento"]')].map(e => e.getAttribute("aria-label").split(" com ").pop());
   const vagosPorPessoa = vagos.reduce((m, n) => (m[n] = (m[n] || 0) + 1, m), {});
   const gaveta = dlg ? dlg.innerText.replace(/\s+/g, " ").slice(0, 900) : null;
-  return { marcarNaCasca, livres, avisoDePerigo: m_aviso, gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
+  const reticencias = [...document.querySelectorAll("main *")].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth + 1; }).map((el) => el.innerText.trim().slice(0, 40));
+  return { reticencias, marcarNaCasca, livres, avisoDePerigo: m_aviso, gaveta, viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out, horasVisiveis: regua, rodape, blocos, bloqueiosAlmoco: bloqueios, vagosPorPessoa };
 });
 m.getsAgenda = gets;
 if (remarcou) m.remarcou = remarcou;

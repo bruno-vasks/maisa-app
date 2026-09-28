@@ -132,11 +132,18 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
       >
         <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data);min-width:46px")}>{D.hhmm(ag.inicio)}</span>
         <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:1px")}>
-          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.cliente.nome}</span>
-          <span style={s("font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.servico.nome}</span>
+          {/* Nome longo quebra em até duas linhas em vez de virar "Rodrigo Albuquer…" a 390px. */}
+          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere")}>{ag.cliente.nome}</span>
+          {/* ⚠️ A marca mora na linha do serviço, não ao lado do nome (28/09/2026, regressão 3 da
+              verificação da Onda 1): a 390px, "sem confirmação" e o "Chegou" deixavam "Felipe …"
+              do nome. O nome fica com a largura inteira; sem espaço, a marca desce para a linha de
+              baixo (`flex-wrap`) e nem o serviço corta. */}
+          <span style={s("display:flex;align-items:center;flex-wrap:wrap;gap:2px 8px;min-width:0")}>
+            <span style={s("min-width:0;font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.servico.nome}</span>
+            {semConfirmacao(ag) && <span style={s("flex-shrink:0;display:flex")}><Estado forma="triangulo" tom="warn">sem confirmação</Estado></span>}
+            {ag.etapa === "feito" && <span style={s("flex-shrink:0;display:flex")}><Estado forma="disco" tom="success">feito</Estado></span>}
+          </span>
         </span>
-        {semConfirmacao(ag) && <Estado forma="triangulo" tom="warn">sem confirmação</Estado>}
-        {ag.etapa === "feito" && <Estado forma="disco" tom="success">feito</Estado>}
         {equipe && <span title={ag.profissional.nome}><Monogram name={ag.profissional.nome} id={ag.profissionalId} size={24} radius={6} /></span>}
       </button>
       {verbo && (
