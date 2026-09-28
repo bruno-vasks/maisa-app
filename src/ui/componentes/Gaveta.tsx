@@ -26,7 +26,7 @@ function Rotulo({ children }: { children: React.ReactNode }) {
 
 function Stats({ linhas }: { linhas: [string, string][] }) {
   return (
-    <div style={s("display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:4px 16px")}>
+    <div style={s("display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-painel);padding:4px 16px")}>
       {linhas.map(([l, v], i) => (
         <div
           key={l + i}
@@ -129,7 +129,7 @@ function Campos({ campos, avisoAoSair }: { campos: CampoT[]; avisoAoSair?: strin
 
 function Texto({ texto }: { texto: string }) {
   return (
-    <div style={s("font-size:var(--t-sm);line-height:1.6;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px")}>
+    <div style={s("font-size:var(--t-sm);line-height:1.6;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-painel);padding:14px 16px;display:flex;flex-direction:column;gap:10px")}>
       {/* parágrafos seguintes caem no mesmo passo da escala; o que os rebaixa é a cor, não o tamanho */}
       {texto.split("\n\n").map((p, i) => (
         <span key={i} style={i > 0 ? s("color:var(--muted)") : undefined}>{p}</span>
@@ -143,7 +143,7 @@ function Aviso({ texto, tone = "warn" }: { texto: string; tone?: "warn" | "dange
     ? "background:var(--danger-soft);border-color:var(--danger-line);color:var(--danger)"
     : "background:var(--warn-soft);border-color:var(--warn-line);color:var(--warn)";
   return (
-    <div style={s(`display:flex;gap:12px;align-items:flex-start;border:1px solid;border-radius:14px;padding:14px 16px;${c}`)}>
+    <div style={s(`display:flex;gap:12px;align-items:flex-start;border:1px solid;border-radius:var(--r-painel);padding:14px 16px;${c}`)}>
       <span style={s("flex-shrink:0;display:flex;padding-top:1px")}><Icon name="alert" size={18} sw={2} /></span>
       {/* aviso é prosa: sem font-weight (o body já é 400) — quem dá o peso é a cor semântica */}
       <span style={s("font-size:var(--t-sm);line-height:1.55")}>{texto}</span>
@@ -153,7 +153,7 @@ function Aviso({ texto, tone = "warn" }: { texto: string; tone?: "warn" | "dange
 
 function Msgs({ msgs }: { msgs: { de: "cliente" | "bot" | "voce"; txt: string }[] }) {
   return (
-    <div style={s("border-radius:16px;padding:16px;background:var(--primary-soft);border:1px solid var(--line);display:flex;flex-direction:column;gap:10px")}>
+    <div style={s("border-radius:var(--r-painel);padding:16px;background:var(--primary-soft);border:1px solid var(--line);display:flex;flex-direction:column;gap:10px")}>
       {msgs.map((m, i) => {
         const meu = m.de !== "cliente";
         return (
@@ -161,7 +161,7 @@ function Msgs({ msgs }: { msgs: { de: "cliente" | "bot" | "voce"; txt: string }[
             {m.de === "voce" && (
               <span style={s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>Você</span>
             )}
-            <div style={s(`padding:11px 14px;border-radius:16px;font-size:var(--t-sm);line-height:1.45;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-bottom-${meu ? "right" : "left"}-radius:5px`)}>
+            <div style={s(`padding:11px 14px;border-radius:var(--r-painel);font-size:var(--t-sm);line-height:1.45;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-bottom-${meu ? "right" : "left"}-radius:5px`)}>
               {m.txt}
             </div>
           </div>
@@ -175,7 +175,7 @@ function Msgs({ msgs }: { msgs: { de: "cliente" | "bot" | "voce"; txt: string }[
    como documento fiscal, não como mais um cartão do app. */
 function Recibo({ r }: { r: ReciboT }) {
   return (
-    <div style={s("border-radius:16px;overflow:hidden;border:1px solid var(--border);background:var(--surface)")}>
+    <div style={s("border-radius:var(--r-painel);overflow:hidden;border:1px solid var(--border);background:var(--surface)")}>
       <div style={s("display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:var(--bg);border-bottom:1px dashed var(--border)")}>
         <div style={s("min-width:0")}>
           <div style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{r.prestador}</div>
@@ -213,7 +213,7 @@ function Toggles({ toggles }: { toggles: { titulo: string; desc: string; on: boo
       {toggles.map((t) => (
         <div
           key={t.titulo}
-          style={s(`display:flex;align-items:center;gap:14px;padding:14px 15px;border-radius:14px;border:1px solid var(--line);background:${t.on ? "var(--primary-soft)" : "var(--bg)"};transition:background-color var(--dur-fast) var(--ease-out)`)}
+          style={s(`display:flex;align-items:center;gap:14px;padding:14px 15px;border-radius:var(--r-painel);border:1px solid var(--line);background:${t.on ? "var(--primary-soft)" : "var(--bg)"};transition:background-color var(--dur-fast) var(--ease-out)`)}
         >
           <span style={s("flex:1;min-width:0")}>
             <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title)")}>{t.titulo}</span>
@@ -234,7 +234,7 @@ function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed
           <>
             {it.seed
               ? <Monogram name={it.nome} id={it.seed} size={32} radius={10} />
-              : <span style={s("width:32px;height:32px;flex-shrink:0;border-radius:10px;background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}><Icon name="tag" size={16} /></span>}
+              : <span style={s("width:32px;height:32px;flex-shrink:0;border-radius:var(--r-controle);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}><Icon name="tag" size={16} /></span>}
             <span style={s("flex:1;min-width:0;text-align:left")}>
               <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{it.nome}</span>
               <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:1px")}>{it.sub}</span>
@@ -242,7 +242,7 @@ function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed
             {it.onClick && <Icon name="chevron-right" size={16} stroke="var(--muted)" />}
           </>
         );
-        const estilo = s("display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:12px;width:100%;border:none;background:transparent");
+        const estilo = s("display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:var(--r-painel);width:100%;border:none;background:transparent");
         return it.onClick ? (
           <button key={it.id} onClick={it.onClick} className="m-hov-bg m-press m-focus" style={{ ...estilo, cursor: "pointer" }}>
             {conteudo}
@@ -302,7 +302,7 @@ function estiloDoBotao(a: { primaria?: boolean; tone?: "danger"; desabilitada?: 
         : "border:1px solid var(--border);background:var(--surface);color:var(--ink)";
   // rótulo de botão é --t-sm nos dois tamanhos de tela (mesmo passo do Btn); o que muda no
   // mobile é a área de toque (a altura), não a letra.
-  return `height:${mobile ? "48px" : "44px"};padding:0 18px;border-radius:12px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${a.desabilitada ? "not-allowed" : "pointer"};white-space:nowrap;${cor}`;
+  return `height:${mobile ? "48px" : "44px"};padding:0 18px;border-radius:var(--r-painel);font-size:var(--t-sm);font-weight:var(--w-title);cursor:${a.desabilitada ? "not-allowed" : "pointer"};white-space:nowrap;${cor}`;
 }
 
 function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonly (Acao | AcaoDestrutiva)[]; mobile: boolean }) {
@@ -393,7 +393,7 @@ function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonl
             <div
               role="menu"
               className="m-reveal"
-              style={s("position:absolute;right:0;bottom:calc(100% + 8px);z-index:2;min-width:240px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}
+              style={s("position:absolute;right:0;bottom:calc(100% + 8px);z-index:2;min-width:240px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}
             >
               {mais.map((a) => (
                 <button
@@ -403,7 +403,7 @@ function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonl
                   onClick={() => tocar(a)}
                   disabled={a.desabilitada}
                   className={`${a.desabilitada ? "" : "m-hov-bg"} m-focus`}
-                  style={s(`min-height:44px;padding:0 12px;border:none;border-radius:8px;background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${a.desabilitada ? "not-allowed" : "pointer"};color:${a.desabilitada ? "var(--muted)" : a.tone === "danger" ? "var(--danger)" : "var(--ink)"}`)}
+                  style={s(`min-height:44px;padding:0 12px;border:none;border-radius:var(--r-controle);background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${a.desabilitada ? "not-allowed" : "pointer"};color:${a.desabilitada ? "var(--muted)" : a.tone === "danger" ? "var(--danger)" : "var(--ink)"}`)}
                 >
                   {a.label}
                 </button>
@@ -479,9 +479,9 @@ export default function Gaveta() {
   /* Teto em `dvh`, com o `vh` de reserva na mesma declaração (G9): no Safari do iPhone, 86vh é
    * a altura com a barra de endereço recolhida, e a folha passava por baixo dela. */
   const painelEstilo = mobile
-    ? s("position:fixed;left:0;right:0;bottom:0;z-index:81;max-height:86vh;max-height:86dvh;background:var(--surface);border-radius:16px 16px 0 0;box-shadow:0 -20px 50px oklch(0.20 0.03 262 / 0.22);display:flex;flex-direction:column;outline:none")
+    ? s("position:fixed;left:0;right:0;bottom:0;z-index:81;max-height:86vh;max-height:86dvh;background:var(--surface);border-radius:var(--r-painel) var(--r-painel) 0 0;box-shadow:0 -20px 50px oklch(0.20 0.03 262 / 0.22);display:flex;flex-direction:column;outline:none")
     : {
-      ...s("position:fixed;top:50%;left:50%;z-index:81;background:var(--surface);border-radius:16px;box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden;outline:none;max-height:min(760px, calc(100vh - 88px));max-height:min(760px, calc(100dvh - 88px))"),
+      ...s("position:fixed;top:50%;left:50%;z-index:81;background:var(--surface);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden;outline:none;max-height:min(760px, calc(100vh - 88px));max-height:min(760px, calc(100dvh - 88px))"),
       width: "min(680px, calc(100vw - 80px))",
     };
 
@@ -520,7 +520,7 @@ export default function Gaveta() {
             title="Fechar"
             aria-label="Fechar"
             className="m-hov-bg m-press-icon m-focus"
-            style={s(`width:${mobile ? 44 : 36}px;height:${mobile ? 44 : 36}px;flex-shrink:0;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center`)}
+            style={s(`width:${mobile ? 44 : 36}px;height:${mobile ? 44 : 36}px;flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center`)}
           >
             <Icon name="x" size={mobile ? 19 : 17} sw={2.2} />
           </button>

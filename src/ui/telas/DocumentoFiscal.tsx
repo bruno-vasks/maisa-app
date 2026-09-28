@@ -193,11 +193,11 @@ export function DocumentoFiscal() {
                 disabled={!clicavel}
                 className={clicavel ? "m-focus m-card-hov" : ""}
                 aria-pressed={on}
-                style={s(`text-align:left;font-family:inherit;display:flex;gap:12px;align-items:flex-start;padding:16px;border-radius:12px;border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"};cursor:${clicavel ? "pointer" : "default"}`)}
+                style={s(`text-align:left;font-family:inherit;display:flex;gap:12px;align-items:flex-start;padding:16px;border-radius:var(--r-painel);border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"};cursor:${clicavel ? "pointer" : "default"}`)}
               >
                 <span
                   aria-hidden
-                  style={s(`width:32px;height:32px;flex:none;border-radius:10px;display:grid;place-items:center;background:${on ? "var(--primary)" : "var(--surface-2)"};color:${on ? "#fff" : "var(--muted)"}`)}
+                  style={s(`width:32px;height:32px;flex:none;border-radius:var(--r-controle);display:grid;place-items:center;background:${on ? "var(--primary)" : "var(--surface-2)"};color:${on ? "#fff" : "var(--muted)"}`)}
                 >
                   <Icon name={o.icone} size={17} />
                 </span>
@@ -240,7 +240,7 @@ export function DocumentoFiscal() {
             genérico de antes ("a configuração atual sai") acompanhava um clique que, na tela de
             quem não tinha escolhido nada, apagava CPF, profissão, registro e ambiente. */}
         {confirmar && feita === "recibo" && (
-          <div style={s("display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:12px;border:1px solid var(--warn-line);background:var(--warn-soft)")}>
+          <div style={s("display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--r-painel);border:1px solid var(--warn-line);background:var(--warn-soft)")}>
             <strong style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
               Desligar os recibos e ir para nota fiscal?
             </strong>

@@ -372,7 +372,7 @@ export function BotaoGoogle({
       )}
 
       {caminho === null && (
-        <div aria-hidden style={s("height:48px;border:1px solid var(--border);border-radius:12px;background:var(--bg)")} />
+        <div aria-hidden style={s("height:48px;border:1px solid var(--border);border-radius:var(--r-painel);background:var(--bg)")} />
       )}
 
       {caminho === "redirect" && (
@@ -380,7 +380,7 @@ export function BotaoGoogle({
           onClick={entrarPorRedirect}
           disabled={travado}
           className="m-hov-bg m-press m-focus"
-          style={s(`display:flex;align-items:center;justify-content:center;gap:11px;height:48px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-weight:var(--w-title);font-size:var(--t-sm);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}
+          style={s(`display:flex;align-items:center;justify-content:center;gap:11px;height:48px;border:1px solid var(--border);border-radius:var(--r-painel);background:var(--surface);color:var(--ink);font-weight:var(--w-title);font-size:var(--t-sm);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}
         >
           <GoogleG /> Continuar com Google
         </button>
@@ -390,7 +390,7 @@ export function BotaoGoogle({
           caminho do Google, e a resposta ("use o botão abaixo") só faz sentido colada
           nele. Misturar com o erro do formulário faria uma mensagem apagar a outra. */}
       {erro && (
-        <div style={s("font-size:var(--t-label);color:var(--warn);background:var(--warm-soft);padding:9px 11px;border-radius:10px;line-height:1.45")}>
+        <div style={s("font-size:var(--t-label);color:var(--warn);background:var(--warm-soft);padding:9px 11px;border-radius:var(--r-controle);line-height:1.45")}>
           {erro}
         </div>
       )}

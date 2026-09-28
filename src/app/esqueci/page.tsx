@@ -32,7 +32,7 @@ import { createClient } from "@/adaptadores/saida/supabase/client";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
 
 const inputCss =
-  "width:100%;border:1px solid var(--border);border-radius:12px;padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
+  "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
 export default function Esqueci() {
   const [email, setEmail] = useState("");
@@ -79,7 +79,7 @@ export default function Esqueci() {
 
       <div className="m-enter" style={{ width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 22 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:18px")}>
+          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel)")}>
             <span style={s("font-size:var(--t-data);font-weight:var(--w-title);color:var(--warm);line-height:1")}>maisa</span>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -90,7 +90,7 @@ export default function Esqueci() {
           </div>
         </div>
 
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
+        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
           {enviado ? (
             /* Sucesso é TELA, não aviso — mesma escolha do cadastro. E diz para conferir o
                spam: é onde esse e-mail costuma cair, e sem a frase a pessoa conclui que não
@@ -125,7 +125,7 @@ export default function Esqueci() {
               </label>
 
               {erro && (
-                <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:10px")}>
+                <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle)")}>
                   {erro}
                 </div>
               )}
@@ -133,7 +133,7 @@ export default function Esqueci() {
               <button
                 type="submit" disabled={!isSupabaseConfigured || carregando}
                 className="m-hov-primary m-press m-focus"
-                style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${carregando ? "not-allowed" : "pointer"};opacity:${carregando ? ".6" : "1"}`)}
+                style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${carregando ? "not-allowed" : "pointer"};opacity:${carregando ? ".6" : "1"}`)}
               >
                 {carregando ? "Enviando…" : "Mandar link de recuperação"}
               </button>

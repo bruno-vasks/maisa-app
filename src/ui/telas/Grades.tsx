@@ -220,7 +220,7 @@ export function Clientes() {
               placeholder={mobile ? "Nome, telefone ou CPF" : "Buscar por nome, telefone ou CPF"}
               aria-label="Buscar cliente por nome, telefone ou CPF"
               className="m-focus"
-              style={s(`flex:1 1 200px;min-width:0;max-width:${mobile ? "none" : "22rem"};height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none`)}
+              style={s(`flex:1 1 200px;min-width:0;max-width:${mobile ? "none" : "22rem"};height:44px;padding:0 14px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none`)}
             />
             {!mobile && abas}
             <select
@@ -228,7 +228,7 @@ export function Clientes() {
               onChange={(e) => setOrdem(e.target.value as OrdemCli)}
               aria-label="Ordem da lista"
               className="m-focus"
-              style={s(`flex:0 0 auto;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);outline:none;cursor:pointer;${mobile ? "max-width:128px" : ""}`)}
+              style={s(`flex:0 0 auto;height:44px;padding:0 12px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);outline:none;cursor:pointer;${mobile ? "max-width:128px" : ""}`)}
             >
               {(Object.keys(ORDENS_CLI) as OrdemCli[]).map((k) => <option key={k} value={k}>{ORDENS_CLI[k]}</option>)}
             </select>
@@ -257,7 +257,7 @@ export function Clientes() {
             />
       ) : (
         <>
-          <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;flex-shrink:0")}>
+          <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);flex-shrink:0")}>
             {visiveis.map((c, i) => (
               <LinhaCliente key={c.id} c={c} ativo={st.cliAtivo(c.id)} ultima={i === visiveis.length - 1} mobile={mobile} aoAbrir={() => st.abrir(c.id)} />
             ))}
@@ -925,11 +925,11 @@ function Conexoes() {
   return (
     <section>
       <SectionTitle title="Conexões" sub={sub} />
-      <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden")}>
+      <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);overflow:hidden")}>
         {/* Faixa de topo: o que a integração FAZ, em uma frase. Sem isto, "Google
             Calendar — conectado" não diz o que muda no dia a dia de quem usa. */}
         <div style={s("display:flex;align-items:center;gap:13px;padding:15px 17px;border-bottom:1px solid var(--line)")}>
-          <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:12px;background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
+          <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
             <Icon name="calendar-check" size={19} sw={1.9} />
           </span>
           <span style={s("flex:1;min-width:0;line-height:1.35")}>
@@ -1003,8 +1003,8 @@ function LinhaDoPlano() {
   if (st.assinatura.status === "carregando") {
     return (
       <span aria-busy="true" aria-label="Lendo sua assinatura" style={s("flex:1;min-width:160px;display:flex;flex-direction:column;gap:6px")}>
-        <span style={s("width:140px;height:14px;border-radius:6px;background:var(--line)")} />
-        <span style={s("width:200px;height:10px;border-radius:6px;background:var(--line)")} />
+        <span style={s("width:140px;height:14px;border-radius:var(--r-controle);background:var(--line)")} />
+        <span style={s("width:200px;height:10px;border-radius:var(--r-controle);background:var(--line)")} />
       </span>
     );
   }
@@ -1046,7 +1046,7 @@ export function Mais() {
       {mobile && (
         <section>
           <SectionTitle title="Atalhos" sub="As telas que não cabem na barra de baixo" />
-          <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden")}>
+          <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);overflow:hidden")}>
             {atalhos.map((a, i) => (
               <button
                 key={a.id}
@@ -1054,7 +1054,7 @@ export function Mais() {
                 className="m-hov-bg m-focus"
                 style={s(`display:flex;align-items:center;gap:13px;padding:14px 16px;border:none;background:transparent;cursor:pointer;text-align:left;font-family:inherit;color:inherit;${i < atalhos.length - 1 ? "border-bottom:1px solid var(--line)" : ""}`)}
               >
-                <span style={s("width:36px;height:36px;flex-shrink:0;border-radius:11px;background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
+                <span style={s("width:36px;height:36px;flex-shrink:0;border-radius:var(--r-controle);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
                   <Icon name={a.icone} size={18} sw={1.9} />
                 </span>
                 <span style={s("flex:1;min-width:0;line-height:1.3")}>
@@ -1075,9 +1075,9 @@ export function Mais() {
         <button
           onClick={() => st.abrir("plano")}
           className="m-hov-bg m-focus"
-          style={s("width:100%;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);cursor:pointer;text-align:left;font-family:inherit;color:inherit;flex-wrap:wrap")}
+          style={s("width:100%;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border);cursor:pointer;text-align:left;font-family:inherit;color:inherit;flex-wrap:wrap")}
         >
-          <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:12px;background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
+          <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
             <Icon name="card" size={19} sw={1.9} />
           </span>
           {/* ⚠️ A MESMA FONTE DA GAVETA (`resumoDaAssinatura`, 25/09/2026, T5 e 08 P0-4). A linha
@@ -1091,8 +1091,8 @@ export function Mais() {
       <Conexoes />
 
       {/* Contato do suporte — rodapé, não cartão: não é algo que se "abre". */}
-      <div style={s("display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:16px;background:var(--surface);border:1px solid var(--line);flex-wrap:wrap")}>
-        <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:12px;background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
+      <div style={s("display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--line);flex-wrap:wrap")}>
+        <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
           <Icon name="chat" size={19} />
         </span>
         <span style={s("flex:1;min-width:180px")}>
@@ -1104,7 +1104,7 @@ export function Mais() {
           target="_blank"
           rel="noopener noreferrer"
           className="m-hov-bright m-press m-focus"
-          style={s("height:42px;padding:0 18px;border-radius:12px;background:var(--whatsapp);color:var(--on-primary);font-size:var(--t-sm);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:8px;text-decoration:none")}
+          style={s("height:42px;padding:0 18px;border-radius:var(--r-painel);background:var(--whatsapp);color:var(--on-primary);font-size:var(--t-sm);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:8px;text-decoration:none")}
         >
           <Icon name="whatsapp" size={17} sw={1.9} />
           Falar com o suporte

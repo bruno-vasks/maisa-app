@@ -33,10 +33,10 @@ export default function UserMenu() {
   const inicial = email[0]?.toUpperCase() || "?";
 
   return (
-    <div style={s("margin-top:10px;display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--nav-active)")}>
+    <div style={s("margin-top:10px;display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--r-painel);background:var(--nav-active)")}>
       {/* --nav-soft e não --nav-accent: aquele era o terceiro azul do app (matiz 250, uso único,
           fora do gamut sRGB) e foi removido do sistema. */}
-      <div style={s("width:34px;height:34px;flex-shrink:0;border-radius:10px;background:var(--nav-soft);color:var(--nav);display:flex;align-items:center;justify-content:center;font-weight:var(--w-title);font-size:var(--t-sm)")}>{inicial}</div>
+      <div style={s("width:34px;height:34px;flex-shrink:0;border-radius:var(--r-controle);background:var(--nav-soft);color:var(--nav);display:flex;align-items:center;justify-content:center;font-weight:var(--w-title);font-size:var(--t-sm)")}>{inicial}</div>
       <div style={s("min-width:0;flex:1;line-height:1.25")}>
         {/* --nav-soft, não --nav-muted: sobre --nav-active o muted dá 3,63:1 e REPROVA AA em 11px
             (é texto corpo, não tem isenção de "texto grande"). O comentário do token no
@@ -44,7 +44,7 @@ export default function UserMenu() {
         <div style={s("font-size:var(--t-micro);color:var(--nav-soft);font-weight:var(--w-data)")}>Conectado</div>
         <div style={{ ...s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--nav-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis") }} title={email}>{email}</div>
       </div>
-      <button onClick={sair} disabled={saindo} aria-label="Sair" title="Sair" className="m-press m-focus" style={s("width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--nav-line);border-radius:10px;background:transparent;color:var(--nav-muted);cursor:pointer")}>
+      <button onClick={sair} disabled={saindo} aria-label="Sair" title="Sair" className="m-press m-focus" style={s("width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--nav-line);border-radius:var(--r-controle);background:transparent;color:var(--nav-muted);cursor:pointer")}>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
       </button>
     </div>

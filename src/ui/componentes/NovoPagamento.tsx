@@ -27,7 +27,7 @@ import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
 import { mensagemDaFalha } from "@/ui/falhas";
 
 const CAMPO =
-  "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--ink);width:100%";
+  "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--bg);color:var(--ink);width:100%";
 
 /** Hoje em São Paulo. O fuso do navegador do dono não decide a data de um documento fiscal. */
 export const hojeSP = () =>
@@ -188,7 +188,7 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
   }
 
   return (
-    <div style={s("display:grid;gap:9px;padding:14px;border-radius:13px;border:1px dashed var(--border)")}>
+    <div style={s("display:grid;gap:9px;padding:14px;border-radius:var(--r-painel);border:1px dashed var(--border)")}>
       <span style={s("font-size:var(--t-label);color:var(--muted)")}>
         Sessão marcada por fora, pacote pago adiantado, paciente que voltou. Entra na mesma fila.
       </span>
@@ -245,7 +245,7 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
           onClick={() => void lancar()}
           disabled={ocupado || falta !== ""}
           className="m-press m-focus"
-          style={s(`display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:11px;border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado || falta ? "default" : "pointer"};opacity:${ocupado || falta ? 0.5 : 1}`)}
+          style={s(`display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:var(--r-controle);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado || falta ? "default" : "pointer"};opacity:${ocupado || falta ? 0.5 : 1}`)}
         >
           <Icon name="check" size={14} sw={2.4} stroke="var(--on-primary)" />
           {ocupado ? "Lançando…" : "Lançar"}

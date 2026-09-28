@@ -129,7 +129,7 @@ export function OpcoesDoNumero({ modo, aoEscolher, desligado }: {
             disabled={desligado}
             aria-pressed={ativo}
             className="m-hov-bg m-press m-focus"
-            style={s(`display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;font-family:inherit;padding:11px 12px;border-radius:12px;cursor:${desligado ? "wait" : "pointer"};border:1.5px solid ${ativo ? "var(--primary)" : "var(--border)"};background:${ativo ? "var(--primary-soft)" : "var(--surface)"}`)}
+            style={s(`display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;font-family:inherit;padding:11px 12px;border-radius:var(--r-painel);cursor:${desligado ? "wait" : "pointer"};border:1.5px solid ${ativo ? "var(--primary)" : "var(--border)"};background:${ativo ? "var(--primary-soft)" : "var(--surface)"}`)}
           >
             {/* Círculo com ✓ e não só a borda colorida: cor sozinha é o sinal mais frágil que
                 existe, e esta escolha decide silêncio. */}

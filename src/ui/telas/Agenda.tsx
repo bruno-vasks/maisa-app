@@ -188,7 +188,7 @@ function Bloco({ ag, recuo, mostrarProf }: { ag: AgendamentoVivo; recuo: number;
         // borda COMPLETA na cor do tom, não faixa lateral: `border-left:3px` como acento colorido
         // é ban explícito, e o elemento acumulava dois (side-stripe + ghost-card). O estado agora
         // vem do tint de fundo + a aresta inteira.
-        ...s(`position:absolute;border-radius:12px;padding:8px 11px;overflow:hidden;cursor:pointer;background:${tom.bg};border:1px solid ${tom.ac};box-shadow:var(--shadow-card)`),
+        ...s(`position:absolute;border-radius:var(--r-painel);padding:8px 11px;overflow:hidden;cursor:pointer;background:${tom.bg};border:1px solid ${tom.ac};box-shadow:var(--shadow-card)`),
         top: (ag.inicio - AGENDA_INICIO) * LINHA + 3,
         height: Math.max((ag.duracao / 60) * LINHA - 6, 42),
         left: 6 + recuo * 12,
@@ -229,7 +229,7 @@ function BlocoBloqueio({ b, recuo }: { b: Bloqueio; recuo: number }) {
       aria-label={`${b.titulo}, ${D.hhmm(b.inicio)}, compromisso da sua agenda do Google`}
       className="m-focus"
       style={{
-        ...s("position:absolute;border-radius:12px;padding:8px 11px;overflow:hidden;cursor:pointer;border:1px dashed var(--border);color:var(--muted)"),
+        ...s("position:absolute;border-radius:var(--r-painel);padding:8px 11px;overflow:hidden;cursor:pointer;border:1px dashed var(--border);color:var(--muted)"),
         // Hachura diagonal em vez de cor cheia. A paleta do app já gasta cinza cheio em
         // "fora do expediente" e em "pausado"; a listra é a única marca que diz "de outra
         // fonte" sem inventar uma sétima cor de estado.
@@ -406,7 +406,7 @@ function CelulaMes({
   // quadrados anônimos e dava para achar que o mês tinha buraco.
   if (!noMes) {
     return (
-      <div aria-hidden style={s("height:100%;border-radius:12px;background:var(--surface-2);opacity:.4;padding:8px")}>
+      <div aria-hidden style={s("height:100%;border-radius:var(--r-painel);background:var(--surface-2);opacity:.4;padding:8px")}>
         <span className="n" style={s("font-size:var(--t-label);color:var(--muted)")}>{dia}</span>
       </div>
     );
@@ -418,7 +418,7 @@ function CelulaMes({
 
   if (domingo) {
     return (
-      <div style={s("height:100%;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);padding:8px;display:flex;flex-direction:column;gap:4px;opacity:.6")}>
+      <div style={s("height:100%;border-radius:var(--r-painel);border:1px solid var(--line);background:var(--surface-2);padding:8px;display:flex;flex-direction:column;gap:4px;opacity:.6")}>
         <span className="n" style={s("font-size:var(--t-label);font-weight:var(--w-data);color:var(--muted)")}>{dia}</span>
         <span style={s("font-size:var(--t-micro);color:var(--muted);margin-top:auto")}>fechado</span>
       </div>
@@ -440,7 +440,7 @@ function CelulaMes({
       // aqui seria o "ghost-card" que o próprio arquivo bane.
       className="m-focus m-lift"
       style={{
-        ...s("position:relative;height:100%;border-radius:12px;padding:8px;text-align:left;cursor:pointer;overflow:hidden;display:block;width:100%"),
+        ...s("position:relative;height:100%;border-radius:var(--r-painel);padding:8px;text-align:left;cursor:pointer;overflow:hidden;display:block;width:100%"),
         border: `1px solid ${hoje ? "var(--primary)" : "var(--border)"}`,
         background: hoje ? "var(--primary-soft)" : "var(--surface)",
         opacity: passado ? 0.72 : 1,
@@ -598,7 +598,7 @@ function Trilho({ dias, destaque, rotulo, lida, falhou }: { dias: string[]; dest
                   // anunciava as iniciais. Escrito, o item diz quem, quando e com quem.
                   aria-label={`${ag.cliente.nome}, ${D.rotuloDia(g.dia)} às ${D.hhmm(ag.inicio)}, ${ag.servico.nome}, ${D.primeiroNome(ag.profissional.nome)}`}
                   className="m-hov-bg m-press m-focus"
-                  style={s("display:flex;align-items:center;gap:10px;text-align:left;padding:7px 8px;border:none;border-radius:12px;background:transparent;cursor:pointer;width:100%")}
+                  style={s("display:flex;align-items:center;gap:10px;text-align:left;padding:7px 8px;border:none;border-radius:var(--r-painel);background:transparent;cursor:pointer;width:100%")}
                 >
                   <Monogram name={ag.cliente.nome} id={ag.cliente.id} size={30} radius={10} />
                   <span style={s("flex:1;min-width:0")}>
@@ -635,12 +635,12 @@ function Seletor({ visoes, visao, onTrocar, reduzido }: { visoes: [Visao, string
     // O indicador DESLIZA por baixo dos rótulos (é o toggle do InteractiveCalendar). Por isso os
     // segmentos têm largura fixa: sem ela o deslocamento dependeria da métrica da fonte, e o
     // indicador pararia meio pixel fora do rótulo em qualquer fallback de família.
-    <div role="tablist" aria-label="Visão do calendário" style={s("position:relative;display:flex;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:3px;flex-shrink:0")}>
+    <div role="tablist" aria-label="Visão do calendário" style={s("position:relative;display:flex;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-controle);padding:3px;flex-shrink:0")}>
       <motion.span
         aria-hidden
         animate={{ x: Math.max(i, 0) * SEG_W }}
         transition={{ duration: reduzido ? 0 : 0.28, ease: [0.16, 1, 0.3, 1] }}
-        style={{ ...s("position:absolute;top:3px;left:3px;background:var(--primary)"), width: SEG_W, height: "calc(100% - 6px)", borderRadius: 7 }}
+        style={{ ...s("position:absolute;top:3px;left:3px;background:var(--primary)"), width: SEG_W, height: "calc(100% - 6px)", borderRadius: "var(--r-controle)" }}
       />
       {visoes.map(([v, label]) => (
         <button
@@ -723,7 +723,7 @@ function LinhaDoTempo({ data }: { data: string }) {
               onClick={() => st.novoAgendamento({ profissionalId: l.pid, inicio: l.inicio, data })}
               aria-label={`Marcar atendimento em ${D.rotuloDia(data)} às ${D.hhmm(l.inicio)}${quem}`}
               className="m-hov-bg m-press m-focus"
-              style={s("display:flex;align-items:center;gap:12px;text-align:left;min-height:48px;padding:10px 14px;border-radius:12px;background:transparent;border:1px dashed var(--border-field);cursor:pointer;color:var(--primary-dark)")}
+              style={s("display:flex;align-items:center;gap:12px;text-align:left;min-height:48px;padding:10px 14px;border-radius:var(--r-painel);background:transparent;border:1px dashed var(--border-field);cursor:pointer;color:var(--primary-dark)")}
             >
               <span className="n" style={s("flex-shrink:0;width:44px;text-align:center;font-size:var(--t-sm);font-weight:var(--w-data)")}>{D.hhmm(l.inicio)}</span>
               <span style={s("flex:1;min-width:0;font-size:var(--t-sm);font-weight:var(--w-title)")}>
@@ -740,7 +740,7 @@ function LinhaDoTempo({ data }: { data: string }) {
               key={b.id}
               onClick={() => st.abrir(b.id)}
               className="m-press m-focus"
-              style={s("display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:16px;background:var(--surface-2);border:1px dashed var(--border);color:var(--muted);cursor:pointer")}
+              style={s("display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:var(--r-painel);background:var(--surface-2);border:1px dashed var(--border);color:var(--muted);cursor:pointer")}
             >
               <span style={s("flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;width:44px")}>
                 <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data)")}>{D.hhmm(b.inicio)}</span>
@@ -761,7 +761,7 @@ function LinhaDoTempo({ data }: { data: string }) {
             key={ag.id}
             onClick={() => st.abrir(ag.id)}
             className="m-press m-focus"
-            style={s(`display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:16px;background:${tom.bg};border:1px solid ${tom.ac};cursor:pointer;box-shadow:var(--shadow-card)`)}
+            style={s(`display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:var(--r-painel);background:${tom.bg};border:1px solid ${tom.ac};cursor:pointer;box-shadow:var(--shadow-card)`)}
           >
             <span style={s("flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;width:44px")}>
               <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data)")}>{D.hhmm(ag.inicio)}</span>
@@ -819,7 +819,7 @@ function AvisoAgenda() {
       <Icon name={tom === "warn" ? "alert" : "calendar"} size={15} sw={1.9} />
       <span style={s("flex:1;min-width:0")}>{texto}</span>
       {acao && (
-        <Btn variant="secondary" size="sm" onClick={acao.onClick} style={{ height: 28, padding: "0 11px", borderRadius: 8 }}>
+        <Btn variant="secondary" size="sm" onClick={acao.onClick} style={{ height: 28, padding: "0 11px", borderRadius: "var(--r-controle)" }}>
           {acao.label}
         </Btn>
       )}
@@ -937,7 +937,7 @@ export default function Agenda() {
       <div style={s("flex-shrink:0;display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap")}>
         <div style={s("display:flex;align-items:center;gap:4px")}>
           <IconBtn icon="chevron-left" size="sm" onClick={() => navegar(-1)} title={PASSO_ROTULO[visao][0]} />
-          <Btn variant="secondary" size="sm" onClick={() => abrirDia(D.HOJE.iso)} style={{ height: 30, padding: "0 12px", borderRadius: 8 }}>Hoje</Btn>
+          <Btn variant="secondary" size="sm" onClick={() => abrirDia(D.HOJE.iso)} style={{ height: 30, padding: "0 12px", borderRadius: "var(--r-controle)" }}>Hoje</Btn>
           <IconBtn icon="chevron-right" size="sm" onClick={() => navegar(1)} title={PASSO_ROTULO[visao][1]} />
         </div>
 

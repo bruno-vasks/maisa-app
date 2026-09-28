@@ -174,7 +174,7 @@ export function Hero({
             aria-describedby={acao.motivo ? idMotivo : undefined}
             /* --primary, não o ouro (25/09/2026, T2 e contradição C4): âmbar é pendência, não ação. */
             className={acao.desabilitada ? "m-focus" : "m-hov-primary m-press m-focus"}
-            style={s(`height:48px;padding:0 22px;border:none;border-radius:12px;font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--primary);color:var(--on-primary);cursor:pointer"}`)}
+            style={s(`height:48px;padding:0 22px;border:none;border-radius:var(--r-painel);font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--primary);color:var(--on-primary);cursor:pointer"}`)}
           >
             {acao.icon && <Icon name={acao.icon} size={18} sw={2.1} />}
             {acao.label}
@@ -182,7 +182,7 @@ export function Hero({
         </span>
       )}
       {!acao && pronto && (
-        <span style={s("margin-left:auto;display:inline-flex;align-items:center;gap:9px;height:48px;padding:0 20px;border-radius:14px;background:var(--success-soft);color:var(--success);font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap")}>
+        <span style={s("margin-left:auto;display:inline-flex;align-items:center;gap:9px;height:48px;padding:0 20px;border-radius:var(--r-painel);background:var(--success-soft);color:var(--success);font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap")}>
           <Icon name="check" size={18} sw={2.3} />
           {pronto}
         </span>

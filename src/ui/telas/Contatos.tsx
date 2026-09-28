@@ -315,7 +315,7 @@ export default function Contatos() {
             marca duzentos contatos achando que está mudando alguma coisa e não muda nada —
             e depois conclui que o produto ignorou o trabalho dele. */}
         {modo === "negocio" && (
-          <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin-bottom:14px;border-radius:12px;background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.5")}>
+          <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin-bottom:14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.5")}>
             <Icon name="sparkle" size={16} />
             <span>
               Este número está como <b>só do negócio</b>, então a MAISA responde todo mundo e
@@ -349,7 +349,7 @@ export default function Contatos() {
                 placeholder="Buscar por nome ou telefone"
                 aria-label="Buscar contato"
                 className="m-focus"
-                style={s("width:100%;max-width:380px;height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none")}
+                style={s("width:100%;max-width:380px;height:44px;padding:0 14px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none")}
               />
               {/* O número em cada aba não é enfeite: com 1.840 contatos, "falta decidir 1.837"
                   é a informação que diz se vale a pena varrer ou se é melhor só buscar. */}
@@ -365,7 +365,7 @@ export default function Contatos() {
                 "isto age no que você está vendo", que é literalmente o que ele faz. Em cima
                 dos filtros leria como "isto age em tudo". */}
             {filtrados.length > 0 && (
-              <div style={s("display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:11px 13px;margin-bottom:14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border)")}>
+              <div style={s("display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:11px 13px;margin-bottom:14px;border-radius:var(--r-painel);background:var(--surface-2);border:1px solid var(--border)")}>
                 <span style={s("font-size:var(--t-label);color:var(--muted);font-weight:var(--w-title)")}>
                   {/* Diz o TAMANHO e o RECORTE. "Marcar todos" sem número é o botão que o
                       dono clica achando que são 12 quando são 1.840. */}
@@ -417,7 +417,7 @@ export default function Contatos() {
               />
             ) : (
               <>
-                <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden")}>
+                <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);overflow:hidden")}>
                   {visiveis.map((c, i) => (
                     <Linha
                       key={c.chave}

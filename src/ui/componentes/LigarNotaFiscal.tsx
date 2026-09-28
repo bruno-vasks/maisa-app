@@ -87,7 +87,7 @@ function paraBase64(f: File): Promise<string> {
 
 /* A moldura do cartão. Vive fora do componente porque o ESQUELETO usa a mesma — se as duas
  * divergirem, a troca de um pelo outro volta a empurrar a tela. */
-const CAIXA = "background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow-card)";
+const CAIXA = "background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px 20px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow-card)";
 
 /** Barra cinza no lugar de uma linha de texto. `h` é a altura da linha que ela substitui. */
 function Barra({ w, h = 13 }: { w: string; h?: number }) {
@@ -110,7 +110,7 @@ function Barra({ w, h = 13 }: { w: string; h?: number }) {
  * de texto, os dois botões de 64px). Mudar padding lá e não mudar aqui traz o pulo de volta.
  * ────────────────────────────────────────────────────────────────────────────── */
 function EsqueletoFiscal() {
-  const fantasma = "display:flex;flex-direction:column;gap:8px;flex:1;min-width:200px;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--bg)";
+  const fantasma = "display:flex;flex-direction:column;gap:8px;flex:1;min-width:200px;padding:14px 16px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg)";
   return (
     <section aria-label="Nota fiscal" aria-busy="true" style={s(`flex-shrink:0;${CAIXA}`)}>
       <div style={s("display:flex;align-items:center;gap:11px")}>
@@ -290,7 +290,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               <button
                 onClick={() => setModo("cnpj")}
                 className="m-press m-focus"
-                style={s("display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;flex:1;min-width:200px;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-family:inherit")}
+                style={s("display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;flex:1;min-width:200px;padding:14px 16px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-family:inherit")}
               >
                 <strong style={s("font-size:var(--t-sm);color:var(--ink)")}>Tenho CNPJ</strong>
                 <span style={s("font-size:var(--t-label);color:var(--muted)")}>Nota fiscal de serviço. Precisa de certificado digital.</span>
@@ -299,7 +299,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
             <button
               onClick={() => setModo("cpf")}
               className="m-press m-focus"
-              style={s("display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;flex:1;min-width:200px;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-family:inherit")}
+              style={s("display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;flex:1;min-width:200px;padding:14px 16px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-family:inherit")}
             >
               <strong style={s("font-size:var(--t-sm);color:var(--ink)")}>Atendo como pessoa física</strong>
               <span style={s("font-size:var(--t-label);color:var(--muted)")}>Recibo do Receita Saúde. Sem certificado, sem CNPJ.</span>
@@ -325,7 +325,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               inputMode="numeric"
               placeholder="000.000.000-00"
               className="n m-focus"
-              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
+              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
           </label>
 
@@ -335,7 +335,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               value={ocupacao}
               onChange={(e) => setOcupacao(e.target.value)}
               className="n m-focus"
-              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
+              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             >
               {PROFISSOES.map(([id, rotulo]) => <option key={id} value={id}>{rotulo}</option>)}
             </select>
@@ -360,7 +360,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               onChange={(e) => setRegistro(e.target.value.slice(0, 15))}
               placeholder="CRP 06/123456"
               className="n m-focus"
-              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
+              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
             {!registro.trim() && (
               <span style={s("display:flex;gap:7px;align-items:flex-start;font-size:var(--t-label);color:var(--warn);line-height:1.5")}>
@@ -380,7 +380,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               onClick={() => chamar("POST", { cpf, ocupacao, registro })}
               disabled={ocupado || cpf.replace(/\D/g, "").length !== 11}
               className="m-press m-focus"
-              style={s(`display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado || cpf.replace(/\D/g, "").length !== 11 ? 0.55 : 1}`)}
+              style={s(`display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado || cpf.replace(/\D/g, "").length !== 11 ? 0.55 : 1}`)}
             >
               <Icon name="check" size={15} sw={2.4} stroke="var(--on-primary)" />
               {ocupado ? "Salvando…" : "Ligar os recibos"}
@@ -414,12 +414,12 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               inputMode="numeric"
               placeholder="00.000.000/0000-00"
               className="n m-focus"
-              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
+              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
           </label>
 
           {previa && (
-            <div style={s("display:flex;flex-direction:column;gap:5px;padding:12px 14px;border-radius:12px;background:var(--primary-soft)")}>
+            <div style={s("display:flex;flex-direction:column;gap:5px;padding:12px 14px;border-radius:var(--r-painel);background:var(--primary-soft)")}>
               <strong style={s("font-size:var(--t-sm);color:var(--ink)")}>{previa.razaoSocial ?? "—"}</strong>
               <span style={s("font-size:var(--t-label);color:var(--muted)")}>
                 {[previa.municipio, previa.uf].filter(Boolean).join(" · ")}
@@ -439,7 +439,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
             onClick={() => chamar("POST", { cnpj })}
             disabled={ocupado || cnpj.replace(/\D/g, "").length !== 14}
             className="m-press m-focus"
-            style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado || cnpj.replace(/\D/g, "").length !== 14 ? 0.55 : 1}`)}
+            style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado || cnpj.replace(/\D/g, "").length !== 14 ? 0.55 : 1}`)}
           >
             <Icon name="check" size={15} sw={2.4} stroke="var(--on-primary)" />
             {ocupado ? "Cadastrando…" : "É esse, pode cadastrar"}
@@ -469,7 +469,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
             <input
               value={senha} onChange={(e) => setSenha(e.target.value)}
               type="password" placeholder="Senha do certificado" className="m-focus"
-              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
+              style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
             <button
               onClick={async () => {
@@ -482,7 +482,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               }}
               disabled={ocupado}
               className="m-press m-focus"
-              style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado ? 0.55 : 1}`)}
+              style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado ? 0.55 : 1}`)}
             >
               <Icon name="check" size={15} sw={2.4} stroke="var(--on-primary)" />
               {ocupado ? "Instalando…" : "Instalar certificado"}
@@ -515,7 +515,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               onClick={() => chamar("PATCH")}
               disabled={ocupado}
               className="m-press m-focus"
-              style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"}`)}
+              style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);color:var(--ink);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"}`)}
             >
               <Icon name="sparkle" size={15} sw={2.2} stroke="var(--primary-dark)" />
               {ocupado ? "Liberando…" : "Emitir valendo a partir de agora"}

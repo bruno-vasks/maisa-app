@@ -53,7 +53,7 @@ import { ehVertical, NOME_NEGOCIO_MIN, type Vertical } from "@/nucleo/dominio/ne
 import { soDigitos, TELEFONE_MIN_DIGITOS } from "@/nucleo/dominio/clientes";
 
 const inputCss =
-  "width:100%;border:1px solid var(--border);border-radius:12px;padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
+  "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
 /** Os parâmetros de campanha que viajam do anúncio para o `metadata` da assinatura.
  *
@@ -205,13 +205,13 @@ function AssinarInner({ plano }: { plano: Plano }) {
 
       <div className="m-enter" style={{ width: "100%", maxWidth: 430, display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 13 }}>
-          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:18px;box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
+          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel);box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
             <span style={{ ...s("font-size:var(--t-data);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line), 0 3px 5px rgba(0,0,0,.22)" }}>maisa</span>
           </div>
         </div>
 
         {/* O que está sendo comprado, sem vender de novo: quem chegou aqui já escolheu. */}
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px")}>
+        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px")}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <span style={s("font-size:var(--t-lg);font-weight:var(--w-title);color:var(--ink)")}>{plano.nome}</span>
             <span style={s("font-family:var(--font-mono);font-size:var(--t-body);font-weight:var(--w-data);color:var(--ink);white-space:nowrap")}>
@@ -229,7 +229,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
         </div>
 
         {estado.fase === "confirme" ? (
-          <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px")}>
+          <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px;display:flex;flex-direction:column;gap:10px")}>
             <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>Confirme seu e-mail</h1>
             <p style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
               Mandamos um link para <strong>{estado.email}</strong>. Clique nele e você cai direto
@@ -237,9 +237,9 @@ function AssinarInner({ plano }: { plano: Plano }) {
             </p>
           </div>
         ) : estado.fase === "entre_e_pague" ? (
-          <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px")}>
+          <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px;display:flex;flex-direction:column;gap:12px")}>
             <p style={s("font-size:var(--t-sm);color:var(--ink);line-height:1.5")}>{erro}</p>
-            <Link href="/login?next=%2Fcomecar" className="m-hov-primary m-press m-focus" style={s("display:flex;align-items:center;justify-content:center;height:46px;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);text-decoration:none")}>
+            <Link href="/login?next=%2Fcomecar" className="m-hov-primary m-press m-focus" style={s("display:flex;align-items:center;justify-content:center;height:46px;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);text-decoration:none")}>
               Entrar no app
             </Link>
           </div>
@@ -265,7 +265,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
               <p role="alert" style={s("font-size:var(--t-label);color:var(--danger);line-height:1.45")}>{erro}</p>
             )}
 
-            <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:50px;border:none;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
+            <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:50px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
               {travado ? "Abrindo o pagamento…" : "Ir para o pagamento"}
               {!travado && <Icon name="chevron-right" size={18} sw={2} />}
             </button>

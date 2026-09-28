@@ -39,7 +39,7 @@ import { s, Icon } from "@/ui/primitivos";
 
 /** O mesmo desenho dos outros campos das telas de auth, com espaço à direita para o olho. */
 const CAMPO_BASE =
-  "width:100%;border:1px solid var(--border);border-radius:12px;padding:13px 46px 13px 14px;" +
+  "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 46px 13px 14px;" +
   "font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
 export function CampoSenha({
@@ -105,7 +105,7 @@ export function CampoSenha({
           className="m-focus"
           style={s(
             "position:absolute;right:6px;display:inline-flex;align-items:center;justify-content:center;" +
-            "width:34px;height:34px;border:none;border-radius:9px;background:transparent;" +
+            "width:34px;height:34px;border:none;border-radius:var(--r-controle);background:transparent;" +
             `cursor:${desabilitado ? "not-allowed" : "pointer"};color:var(--muted);` +
             `opacity:${desabilitado ? ".45" : "1"}`,
           )}

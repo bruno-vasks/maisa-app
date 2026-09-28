@@ -101,7 +101,19 @@
      sobre --bg azulado. Matiz das sombras foi de 60 (marrom) para 262, senão sujava a rampa nova. */
   --shadow-card: 0 1px 2px oklch(0.22 0.03 262 / 0.06), 0 2px 6px oklch(0.22 0.03 262 / 0.07);
   --shadow-pop: 0 16px 40px oklch(0.20 0.03 262 / 0.22);
-  --radius-card: 16px;
+  /* Raio por PAPEL, não por gosto (Bruno, 28/09/2026: "as bordas seguem bem arredondadas").
+     O app redondo ocupava espaço e deixava o botão grande; a referência é o painel do aluno da
+     Rede Inspira, chapado e reto. Três papéis, e o guarda G19 (`guardas/raio.test.ts`) reprova
+     raio literal em px nas telas:
+       --r-casca    0   rail, topbar e o cartão principal: a moldura não é um objeto, é a tela
+       --r-painel   4px cartão, painel, tabela, gaveta, modal
+       --r-controle 6px botão, campo, select, botão-ícone
+     Continua redondo o que tem forma com significado: interruptor, avatar, ponto de status,
+     barra de progresso, bolha de conversa e o celular do preview (pílula = 999px, círculo = 50%). */
+  --r-casca: 0px;
+  --r-painel: 4px;
+  --r-controle: 6px;
+  --radius-card: var(--r-painel);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --font-sans: var(--font-plex-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;

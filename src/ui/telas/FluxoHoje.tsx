@@ -66,7 +66,7 @@ function LinhaDaFaixa({ ag, rotulo, primaria, mobile }: { ag: AgendamentoVivo; r
         onClick={() => st.abrir(ag.id)}
         aria-label={`${ag.cliente.nome}, ${D.hhmm(ag.inicio)}, ${ag.servico.nome}`}
         className="m-hov-bg m-press m-focus"
-        style={s("flex:1 1 220px;min-width:0;display:flex;align-items:center;gap:14px;border:none;background:transparent;border-radius:8px;padding:4px 6px;margin:-4px -6px;text-align:left;cursor:pointer;color:var(--ink)")}
+        style={s("flex:1 1 220px;min-width:0;display:flex;align-items:center;gap:14px;border:none;background:transparent;border-radius:var(--r-controle);padding:4px 6px;margin:-4px -6px;text-align:left;cursor:pointer;color:var(--ink)")}
       >
         <span className="n" style={s("font-size:var(--t-title);font-weight:var(--w-emph);line-height:1;min-width:64px")}>{D.hhmm(ag.inicio)}</span>
         <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:3px")}>
@@ -84,7 +84,7 @@ function LinhaDaFaixa({ ag, rotulo, primaria, mobile }: { ag: AgendamentoVivo; r
           type="button"
           onClick={() => st.avancarEtapa(ag.id)}
           className={`${primaria ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
-          style={s(`height:${alvo}px;padding:0 20px;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${mobile ? "flex:1 1 100%;" : "flex-shrink:0;min-width:120px;"}${primaria ? "border:none;background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--ink)"}`)}
+          style={s(`height:${alvo}px;padding:0 20px;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${mobile ? "flex:1 1 100%;" : "flex-shrink:0;min-width:120px;"}${primaria ? "border:none;background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--ink)"}`)}
         >
           {verbo}
         </button>
@@ -102,7 +102,7 @@ function FaixaAgora({ atendendo, proximo, mobile }: { atendendo: AgendamentoVivo
   return (
     <section
       aria-label="Agora"
-      style={s(`flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:${mobile ? "12px 14px 14px" : "14px 18px 16px"};display:flex;flex-direction:column;gap:14px`)}
+      style={s(`flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:${mobile ? "12px 14px 14px" : "14px 18px 16px"};display:flex;flex-direction:column;gap:14px`)}
     >
       <span style={s("font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>Agora</span>
       {linhas.length ? (
@@ -128,7 +128,7 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
         onClick={() => st.abrir(ag.id)}
         aria-label={`${ag.cliente.nome}, ${D.hhmm(ag.inicio)}, ${ag.servico.nome}`}
         className="m-hov-bg m-press m-focus"
-        style={s("flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:14px;border:none;background:transparent;border-radius:8px;padding:0 8px;text-align:left;cursor:pointer;color:var(--ink)")}
+        style={s("flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:14px;border:none;background:transparent;border-radius:var(--r-controle);padding:0 8px;text-align:left;cursor:pointer;color:var(--ink)")}
       >
         <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data);min-width:46px")}>{D.hhmm(ag.inicio)}</span>
         <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:1px")}>
@@ -151,7 +151,7 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
           type="button"
           onClick={() => st.avancarEtapa(ag.id)}
           className="m-hov-bg m-press m-focus"
-          style={s("flex-shrink:0;height:44px;min-width:88px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
+          style={s("flex-shrink:0;height:44px;min-width:88px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
         >
           {verbo}
         </button>
@@ -187,7 +187,7 @@ function ListaDoDia({ passaram, depois, feitos, ancora, proximosPrimeiro }: {
   const valores = feitos.map((a) => a.valor);
   const total = valores.length && valores.every((v) => v != null) ? valores.reduce<number>((t, v) => t + (v ?? 0), 0) : null;
   const blocoPassaram = passaram.length ? (
-    <section aria-label="Passaram sem chegada" style={s("background:var(--warn-soft);border-radius:12px;padding:4px 8px")}>
+    <section aria-label="Passaram sem chegada" style={s("background:var(--warn-soft);border-radius:var(--r-painel);padding:4px 8px")}>
       <TituloDoGrupo n={passaram.length} tom="warn">Passaram sem chegada</TituloDoGrupo>
       {passaram.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
     </section>
@@ -211,7 +211,7 @@ function ListaDoDia({ passaram, depois, feitos, ancora, proximosPrimeiro }: {
             onClick={() => setVerFeitos((v) => !v)}
             aria-expanded={verFeitos}
             className="m-hov-bg m-press m-focus"
-            style={s("width:100%;min-height:48px;display:flex;align-items:center;gap:10px;border:none;background:transparent;border-radius:8px;padding:0 8px;cursor:pointer;color:var(--ink);text-align:left")}
+            style={s("width:100%;min-height:48px;display:flex;align-items:center;gap:10px;border:none;background:transparent;border-radius:var(--r-controle);padding:0 8px;cursor:pointer;color:var(--ink);text-align:left")}
           >
             <span style={s("flex:1;font-size:var(--t-sm);font-weight:var(--w-title)")}>
               <span className="n">{feitos.length}</span> {feitos.length === 1 ? "feito" : "feitos"} hoje{total != null && <span className="n" style={s("color:var(--muted);font-weight:var(--w-data)")}> · {fmt(total)}</span>}
@@ -280,12 +280,12 @@ function PrecisaDeVoce() {
         ) : fila.map((f) => (
           <div
             key={f.id}
-            style={s("border:1px solid var(--border);border-radius:12px;background:var(--bg);display:flex;flex-direction:column")}
+            style={s("border:1px solid var(--border);border-radius:var(--r-painel);background:var(--bg);display:flex;flex-direction:column")}
           >
             <button
               onClick={() => st.abrir(f.alvo)}
               className="m-press m-focus m-lift"
-              style={s("text-align:left;border:none;background:transparent;padding:14px 14px 10px;display:flex;flex-direction:column;gap:8px;cursor:pointer;border-radius:12px")}
+              style={s("text-align:left;border:none;background:transparent;padding:14px 14px 10px;display:flex;flex-direction:column;gap:8px;cursor:pointer;border-radius:var(--r-painel)")}
             >
               <span style={s("display:flex;align-items:center;gap:10px;width:100%")}>
                 <span style={s("flex:1;min-width:0;font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{f.titulo}</span>
@@ -297,7 +297,7 @@ function PrecisaDeVoce() {
               <button
                 onClick={() => st.resolverFila(f.alvo)}
                 className="m-hov-bg m-press m-focus"
-                style={s("border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;font-size:var(--t-label);font-weight:var(--w-title);padding:6px 12px;cursor:pointer")}
+                style={s("border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:var(--r-controle);font-size:var(--t-label);font-weight:var(--w-title);padding:6px 12px;cursor:pointer")}
               >
                 Já resolvi
               </button>
@@ -327,7 +327,7 @@ function FilaResumida() {
             type="button"
             onClick={() => st.abrir("fila")}
             className="m-hov-bg m-press m-focus"
-            style={s("margin-left:auto;height:44px;padding:0 10px;border:none;background:transparent;border-radius:8px;color:var(--primary-dark);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer")}
+            style={s("margin-left:auto;height:44px;padding:0 10px;border:none;background:transparent;border-radius:var(--r-controle);color:var(--primary-dark);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer")}
           >
             Ver todas
           </button>
@@ -339,7 +339,7 @@ function FilaResumida() {
             type="button"
             onClick={() => st.abrir(f.alvo)}
             className="m-hov-bg m-press m-focus"
-            style={s("flex:1;min-width:0;min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:3px;border:none;background:transparent;border-radius:8px;padding:0 4px;text-align:left;cursor:pointer;color:var(--ink)")}
+            style={s("flex:1;min-width:0;min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:3px;border:none;background:transparent;border-radius:var(--r-controle);padding:0 4px;text-align:left;cursor:pointer;color:var(--ink)")}
           >
             <span style={s("display:flex;align-items:center;gap:8px;min-width:0")}>
               <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0")}>{f.titulo}</span>
@@ -351,7 +351,7 @@ function FilaResumida() {
             type="button"
             onClick={() => st.resolverFila(f.alvo)}
             className="m-hov-bg m-press m-focus"
-            style={s("flex-shrink:0;height:44px;padding:0 12px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
+            style={s("flex-shrink:0;height:44px;padding:0 12px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:var(--r-controle);font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer;white-space:nowrap")}
           >
             Já resolvi
           </button>

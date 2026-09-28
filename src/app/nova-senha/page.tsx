@@ -101,7 +101,7 @@ export default function NovaSenha() {
           </p>
         </div>
 
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
+        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
           {pronto ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center", textAlign: "center" }}>
               <div style={s("display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:999px;background:var(--success-soft)")}>
@@ -119,7 +119,7 @@ export default function NovaSenha() {
               </p>
               <a
                 href="/esqueci" className="m-hov-primary m-press m-focus"
-                style={s("display:flex;align-items:center;justify-content:center;height:48px;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);text-decoration:none")}
+                style={s("display:flex;align-items:center;justify-content:center;height:48px;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);text-decoration:none")}
               >
                 Pedir outro link
               </a>
@@ -136,7 +136,7 @@ export default function NovaSenha() {
               />
 
               {erro && (
-                <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:10px")}>
+                <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle)")}>
                   {erro}
                 </div>
               )}
@@ -144,7 +144,7 @@ export default function NovaSenha() {
               <button
                 type="submit" disabled={carregando}
                 className="m-hov-primary m-press m-focus"
-                style={s(`display:flex;align-items:center;justify-content:center;height:48px;border:none;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${carregando ? "not-allowed" : "pointer"};opacity:${carregando ? ".6" : "1"}`)}
+                style={s(`display:flex;align-items:center;justify-content:center;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${carregando ? "not-allowed" : "pointer"};opacity:${carregando ? ".6" : "1"}`)}
               >
                 {carregando ? "Salvando…" : "Salvar e entrar"}
               </button>

@@ -281,7 +281,7 @@ function Emitente({ config }: { config: ConfigFiscal }) {
       </button>
     </div>
     {bloqueio ? (
-      <div role="status" style={s("display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;border:1px solid var(--warn-line);background:var(--warn-soft)")}>
+      <div role="status" style={s("display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:var(--r-painel);border:1px solid var(--warn-line);background:var(--warn-soft)")}>
         <Icon name="alert" size={16} style={s("flex-shrink:0;color:var(--warn)")} />
         <span style={s("flex:1;min-width:200px;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{bloqueio.frase}</span>
         {bloqueio.quem === "voce" && (
@@ -583,7 +583,7 @@ export function EmitirRecibos() {
       </div>
 
       {previaItem && (
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:7px")}>
+        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:14px;display:flex;flex-direction:column;gap:7px")}>
           <div style={s("display:flex;align-items:center;justify-content:space-between;gap:8px")}>
             <span style={s("font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>
               Prévia · {Math.min(previa + 1, aEmitir.length)} de {aEmitir.length}
@@ -594,7 +594,7 @@ export function EmitirRecibos() {
                   onClick={() => setPrevia((i) => (i - 1 + aEmitir.length) % aEmitir.length)}
                   className="m-focus m-hov-bg"
                   aria-label="Recibo anterior"
-                  style={s("width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted)")}
+                  style={s("width:26px;height:26px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted)")}
                 >
                   <Icon name="chevron-left" size={14} />
                 </button>
@@ -602,7 +602,7 @@ export function EmitirRecibos() {
                   onClick={() => setPrevia((i) => (i + 1) % aEmitir.length)}
                   className="m-focus m-hov-bg"
                   aria-label="Próximo recibo"
-                  style={s("width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted)")}
+                  style={s("width:26px;height:26px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted)")}
                 >
                   <Icon name="chevron-right" size={14} />
                 </button>
@@ -647,7 +647,7 @@ export function EmitirRecibos() {
         disabled={travado}
 
         className={travado ? "" : "m-hov-bright m-press m-focus"}
-        style={s(`width:100%;height:${mobile ? 54 : 60}px;flex:none;border-radius:14px;border:none;background:var(--primary);color:#fff;font-family:inherit;font-size:var(--t-body);font-weight:var(--w-title);letter-spacing:var(--ls-lg);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".42" : "1"};box-shadow:var(--shadow-card)`)}
+        style={s(`width:100%;height:${mobile ? 54 : 60}px;flex:none;border-radius:var(--r-painel);border:none;background:var(--primary);color:#fff;font-family:inherit;font-size:var(--t-body);font-weight:var(--w-title);letter-spacing:var(--ls-lg);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".42" : "1"};box-shadow:var(--shadow-card)`)}
       >
         {emitindoAgora
           ? "Emitindo…"
@@ -681,12 +681,12 @@ export function EmitirRecibos() {
       {/* ⚠️ VAZIO ESTICADO SE CENTRALIZA. Com a lista ocupando a altura toda e uma linha só dentro,
           o "Mês em dia" colado no topo deixaria um buraco embaixo — dentro do cartão, que é pior
           que fora dele. Centralizado, a folga vira moldura. */}
-      <div style={s(`border:1px solid var(--border);border-radius:12px;overflow:hidden;${mobile ? "" : `flex:1;min-height:0;overflow-y:auto;${grupos.length === 0 && semCpf.length === 0 ? "display:grid;place-items:center" : ""}`}`)}>
+      <div style={s(`border:1px solid var(--border);border-radius:var(--r-painel);overflow:hidden;${mobile ? "" : `flex:1;min-height:0;overflow-y:auto;${grupos.length === 0 && semCpf.length === 0 ? "display:grid;place-items:center" : ""}`}`)}>
         {/* Mês fechado: a lista fica no lugar e diz que está vazia. Ver o ⚠️ acima — a tela é a
             mesma com 0 e com 1000. */}
         {grupos.length === 0 && (
           <div style={s(`display:flex;align-items:center;gap:11px;padding:22px 16px;${mobile ? "" : "max-width:44ch"}`)}>
-            <span aria-hidden style={s("width:28px;height:28px;flex:none;border-radius:9px;display:grid;place-items:center;background:var(--success-soft);color:var(--success)")}>
+            <span aria-hidden style={s("width:28px;height:28px;flex:none;border-radius:var(--r-controle);display:grid;place-items:center;background:var(--success-soft);color:var(--success)")}>
               <Icon name="check" size={15} sw={2.4} />
             </span>
             <span style={s("min-width:0")}>
@@ -717,7 +717,7 @@ export function EmitirRecibos() {
             >
               <span
                 aria-hidden
-                style={s(`width:20px;height:20px;flex:none;border-radius:6px;display:grid;place-items:center;border:1.5px solid ${on ? "var(--primary)" : "var(--border-field)"};background:${on ? "var(--primary)" : "var(--surface)"};color:#fff`)}
+                style={s(`width:20px;height:20px;flex:none;border-radius:var(--r-controle);display:grid;place-items:center;border:1.5px solid ${on ? "var(--primary)" : "var(--border-field)"};background:${on ? "var(--primary)" : "var(--surface)"};color:#fff`)}
               >
                 {on && <Icon name="check" size={13} />}
               </span>
@@ -728,7 +728,7 @@ export function EmitirRecibos() {
                 {/* A etiqueta é o que transforma "a lista mudou" em "o MEU lançamento entrou". Sem
                     ela, um destaque de fundo numa lista longa é só uma linha de cor diferente. */}
                 {agora && (
-                  <span style={s("flex:none;font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:1px 6px")}>
+                  <span style={s("flex:none;font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--primary);border:1px solid var(--primary);border-radius:var(--r-controle);padding:1px 6px")}>
                     novo
                   </span>
                 )}
@@ -752,7 +752,7 @@ export function EmitirRecibos() {
             </div>
             {semCpf.map((g) => (
               <div key={g.nome} style={s(`display:flex;align-items:center;gap:14px;padding:${mobile ? "8px" : "6px"} 16px;min-height:${mobile ? 56 : 48}px;box-sizing:border-box`)}>
-                <span aria-hidden style={s("width:20px;height:20px;flex:none;border-radius:6px;border:1.5px dashed var(--border-field);background:var(--surface)")} />
+                <span aria-hidden style={s("width:20px;height:20px;flex:none;border-radius:var(--r-controle);border:1.5px dashed var(--border-field);background:var(--surface)")} />
                 <span style={s("flex:1;min-width:0;display:flex;flex-direction:column")}>
                   <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{g.nome}</span>
                   <span className="n" style={s("font-size:var(--t-label);color:var(--muted)")}>
@@ -840,7 +840,7 @@ export function EmitirRecibos() {
           a!.semTelefone > 0 ? `${a!.semTelefone} sem telefone no cadastro` : "",
         ].filter(Boolean);
         return (
-          <div style={s("display:flex;align-items:flex-start;gap:10px;padding:12px 15px;border-radius:12px;border:1px solid var(--warn-line);background:var(--warn-soft)")}>
+          <div style={s("display:flex;align-items:flex-start;gap:10px;padding:12px 15px;border-radius:var(--r-painel);border:1px solid var(--warn-line);background:var(--warn-soft)")}>
             <span aria-hidden style={s("flex:none;color:var(--warn);display:flex;padding-top:1px")}><Icon name="alert" size={16} /></span>
             <span style={s("font-size:var(--t-label);color:var(--ink);line-height:var(--lh-prose)")}>
               <strong style={s("font-weight:var(--w-title)")}>
@@ -891,7 +891,7 @@ export function EmitirRecibos() {
               `teste` (a view filtra), e ele saiu do seletor. Sobra o desconhecido — e desconhecido
               que some calado num formulário de documento fiscal é o pior desfecho possível. */}
           {sumiram.length > 0 && (
-            <div style={s("display:flex;align-items:flex-start;gap:10px;padding:12px 15px;border-radius:12px;border:1px solid var(--warn-line);background:var(--warn-soft)")}>
+            <div style={s("display:flex;align-items:flex-start;gap:10px;padding:12px 15px;border-radius:var(--r-painel);border:1px solid var(--warn-line);background:var(--warn-soft)")}>
               <span aria-hidden style={s("flex:none;color:var(--warn);display:flex;padding-top:1px")}><Icon name="alert" size={16} /></span>
               <span style={s("font-size:var(--t-label);color:var(--ink);line-height:var(--lh-prose)")}>
                 <strong style={s("font-weight:var(--w-title)")}>

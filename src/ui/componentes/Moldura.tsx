@@ -108,7 +108,7 @@ export function PeDeAcao({ resumo, acao, estado }: { resumo?: React.ReactNode; a
             disabled={acao.desabilitada}
             aria-describedby={acao.motivo ? idMotivo : undefined}
             className={acao.desabilitada ? "m-focus" : "m-hov-primary m-press m-focus"}
-            style={s(`height:48px;padding:0 22px;border:none;border-radius:8px;font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--primary);color:var(--on-primary);cursor:pointer"}`)}
+            style={s(`height:48px;padding:0 22px;border:none;border-radius:var(--r-controle);font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--primary);color:var(--on-primary);cursor:pointer"}`)}
           >
             {acao.label}
           </button>

@@ -138,7 +138,7 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
            sem disputar a propriedade com a animação. A altura mora na classe `.m-paleta`
            (globals.css), onde `dvh` tem o `vh` de reserva. */
         className="m-reveal m-paleta"
-        style={s("position:fixed;left:0;right:0;margin-inline:auto;z-index:91;width:min(560px, calc(100% - 32px));background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden")}
+        style={s("position:fixed;left:0;right:0;margin-inline:auto;z-index:91;width:min(560px, calc(100% - 32px));background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden")}
       >
         <div style={s("display:flex;align-items:center;gap:11px;padding:0 16px;height:56px;border-bottom:1px solid var(--line);flex-shrink:0")}>
           <Icon name="search" size={18} sw={1.9} stroke="var(--muted)" />
@@ -156,7 +156,7 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
             className="m-hov-bg m-press-icon m-focus"
             /* mono FICA aqui: "esc" é a tecla literal, string de máquina — o único papel que
                sobrou para o monoespaçado depois da troca de fonte. */
-            style={s("flex-shrink:0;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--muted);font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:4px 8px;cursor:pointer")}
+            style={s("flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);color:var(--muted);font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:4px 8px;cursor:pointer")}
           >
             esc
           </button>
@@ -183,11 +183,11 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
                   data-ativo={ativo ? "1" : "0"}
                   onMouseEnter={() => setCursor(n)}
                   onClick={i.executar}
-                  style={s(`width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border:none;border-radius:12px;cursor:pointer;text-align:left;background:${ativo ? "var(--primary-soft)" : "transparent"};transition:background-color 100ms linear`)}
+                  style={s(`width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border:none;border-radius:var(--r-painel);cursor:pointer;text-align:left;background:${ativo ? "var(--primary-soft)" : "transparent"};transition:background-color 100ms linear`)}
                 >
                   {i.seed
                     ? <Monogram name={i.titulo} id={i.seed} size={32} radius={10} />
-                    : <span style={s(`width:32px;height:32px;flex-shrink:0;border-radius:10px;display:flex;align-items:center;justify-content:center;background:${ativo ? "var(--surface)" : "var(--bg)"};color:var(--primary-dark)`)}><Icon name={i.icone ?? "arrow-right"} size={16} /></span>}
+                    : <span style={s(`width:32px;height:32px;flex-shrink:0;border-radius:var(--r-controle);display:flex;align-items:center;justify-content:center;background:${ativo ? "var(--surface)" : "var(--bg)"};color:var(--primary-dark)`)}><Icon name={i.icone ?? "arrow-right"} size={16} /></span>}
                   <span style={s("flex:1;min-width:0")}>
                     <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{i.titulo}</span>
                     <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{i.sub}</span>

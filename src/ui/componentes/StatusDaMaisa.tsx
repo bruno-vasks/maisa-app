@@ -84,7 +84,7 @@ function Conferindo({ sobre, largura = 96 }: { sobre: "nav" | "claro"; largura?:
     <span
       aria-busy="true"
       aria-label="Conferindo o status da MAISA"
-      style={s(`display:inline-block;width:${largura}px;height:12px;border-radius:6px;background:${sobre === "nav" ? "var(--nav-active)" : "var(--line)"}`)}
+      style={s(`display:inline-block;width:${largura}px;height:12px;border-radius:var(--r-controle);background:${sobre === "nav" ? "var(--nav-active)" : "var(--line)"}`)}
     />
   );
 }
@@ -151,7 +151,7 @@ export function StatusDaMaisa({ sobre, curto }: { sobre: "nav" | "claro"; curto?
       {aberto && (
         <span
           role="menu"
-          style={s("position:absolute;top:calc(100% + 4px);right:0;z-index:60;min-width:240px;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-pop);color:var(--ink)")}
+          style={s("position:absolute;top:calc(100% + 4px);right:0;z-index:60;min-width:240px;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-pop);color:var(--ink)")}
         >
           <span style={s("font-size:var(--t-sm);line-height:var(--lh-ui);white-space:normal")}>{FRASE[status]}</span>
           <button
@@ -159,7 +159,7 @@ export function StatusDaMaisa({ sobre, curto }: { sobre: "nav" | "claro"; curto?
             role="menuitem"
             onClick={() => { setAberto(false); acao.fazer(); }}
             className="m-hov-primary m-press m-focus"
-            style={s("height:44px;border:none;border-radius:8px;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer")}
+            style={s("height:44px;border:none;border-radius:var(--r-controle);background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer")}
           >
             {acao.rotulo}
           </button>
@@ -178,7 +178,7 @@ export function LinhaDeStatus({ gravacao }: { gravacao?: React.ReactNode }) {
 
   if (status === "conferindo") {
     return (
-      <div style={s("flex-shrink:0;display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--border)")}>
+      <div style={s("flex-shrink:0;display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 16px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border)")}>
         <span aria-busy="true" style={s("flex:1;min-width:0;display:flex")}><Conferindo sobre="claro" largura={180} /></span>
         {gravacao}
       </div>
@@ -187,7 +187,7 @@ export function LinhaDeStatus({ gravacao }: { gravacao?: React.ReactNode }) {
 
   const semCanal = status === "sem_whatsapp";
   return (
-    <div style={s("flex-shrink:0;display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 8px 6px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--border)")}>
+    <div style={s("flex-shrink:0;display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 8px 6px 16px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border)")}>
       <Marca forma={FORMA[status]} cor={COR.claro[status]} />
       <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:2px")}>
         {/* O sinal de gravação mora na linha do rótulo, e não ao lado do interruptor: a 390px

@@ -150,15 +150,21 @@ que é clara, a pendência usa `--warn`, porque o ouro sobre fundo claro dá 1,6
 - **Limite:** nenhum `<button>` com `background: var(--warm)` em `src/ui` nem nas rotas de
   entrada.
 
-### 3. Sem gradiente, sem emoji, e dois raios
+### 3. Sem gradiente, sem emoji, e cantos retos
 - **Sem gradiente** (`linear-gradient`, `radial-gradient`, `conic-gradient`) em tela do painel,
   nas cinco rotas de entrada (`/login`, `/cadastro`, `/esqueci`, `/nova-senha`, `/comecar`) e
   no **preview do WhatsApp** dos Ajustes. Fundo chapado.
 - **Sem emoji** na tela e no preview. O preview mostra o que a MAISA manda, e ela não manda
   emoji (ver CONTENT FUNDAMENTALS).
-- **Raio 8 em controle** (botão, campo, select, botão-ícone) e **12 em cartão**, como em
-  *Cantos*. O código de hoje ainda tem 10, 14, 16 e 20: é dívida que converge na Onda 3 do
-  backlog (item 3.7). Código novo já nasce em 8 e 12.
+- **Cantos retos, por papel** (Bruno, 28/09/2026: *"as bordas seguem bem arredondadas"*; o
+  app redondo ocupava espaço e deixava o botão grande). Isto **substitui** o 8/12 de *Cantos*
+  no painel e nas rotas de entrada, com a referência no painel do aluno da Rede Inspira:
+  `--r-casca` **0** (rail, topbar, cartão principal), `--r-painel` **4px** (cartão, painel,
+  tabela, gaveta, modal) e `--r-controle` **6px** (botão, campo, select, botão-ícone), em
+  `globals.css`. Limite: continua redondo só o que desenha um objeto redondo (interruptor,
+  avatar, ponto de status, barra de progresso, bolha de conversa, o celular do preview), e
+  filtro/segmentado em pílula, que é controle (emenda 1). Nas LPs vale o resto deste arquivo.
+  O guarda G19 (`src/ui/guardas/raio.test.ts`) reprova raio de 5 a 49px escrito à mão.
 
 ### 4. A paleta do app é navy e azul (divergência declarada)
 O painel e as rotas de entrada **não** usam o creme + verde-mata + neutros marrons deste

@@ -162,7 +162,7 @@ const TENTATIVAS_PAREAMENTO = 40;
 const MAX_RENOVACOES_CODIGO = 5;
 
 const CAMPO =
-  "width:100%;height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none";
+  "width:100%;height:46px;padding:0 14px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none";
 
 /* ───────────────────────────── peças ───────────────────────────── */
 
@@ -256,7 +256,7 @@ function Aviso({ recado }: { recado: Recado }) {
       role={erro ? "alert" : "status"}
       style={s(
         "display:flex;gap:9px;align-items:flex-start;font-size:var(--t-sm);font-weight:var(--w-title);" +
-        "padding:11px 13px;border-radius:10px;line-height:1.45;" +
+        "padding:11px 13px;border-radius:var(--r-controle);line-height:1.45;" +
         (erro
           ? "color:var(--danger);background:var(--danger-soft)"
           : "color:var(--warn);background:var(--warn-soft)"),
@@ -288,7 +288,7 @@ function Botao({
       onClick={ocupado ? undefined : onClick}
       disabled={ocupado}
       className={`${primaria ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
-      style={s(`display:inline-flex;align-items:center;justify-content:center;gap:9px;height:48px;padding:0 22px;border-radius:12px;font-family:inherit;font-weight:var(--w-title);font-size:var(--t-body);cursor:${ocupado ? "not-allowed" : "pointer"};opacity:${ocupado ? ".55" : "1"};${
+      style={s(`display:inline-flex;align-items:center;justify-content:center;gap:9px;height:48px;padding:0 22px;border-radius:var(--r-painel);font-family:inherit;font-weight:var(--w-title);font-size:var(--t-body);cursor:${ocupado ? "not-allowed" : "pointer"};opacity:${ocupado ? ".55" : "1"};${
         primaria
           ? "border:none;background:var(--primary);color:var(--on-primary)"
           : "border:1px solid var(--border);background:var(--surface);color:var(--muted)"
@@ -347,7 +347,7 @@ function Escolha({
   return (
     <button
       onClick={onClick} className="m-press m-focus"
-      style={s(`display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;cursor:pointer;text-align:left;font-family:inherit;border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"}`)}
+      style={s(`display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--r-painel);cursor:pointer;text-align:left;font-family:inherit;border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"}`)}
     >
       <Icon name={icone} size={22} sw={1.9} stroke={on ? "var(--primary-dark)" : "var(--muted)"} />
       <span style={{ flex: 1, minWidth: 0 }}>
@@ -471,12 +471,12 @@ const CATEGORIAS: CategoriaServico[] = ["Recorrente", "Pacote", "Extra"];
 
 function LinhaServico({ sv, aoMudar }: { sv: Servico; aoMudar: (p: Partial<Servico>) => void }) {
   return (
-    <div style={s(`display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:14px;border:1px solid var(--border);background:var(--surface);opacity:${sv.ativo ? "1" : ".6"}`)}>
+    <div style={s(`display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);opacity:${sv.ativo ? "1" : ".6"}`)}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <input
           value={sv.nome} onChange={(e) => aoMudar({ nome: e.target.value })}
           className="m-focus"
-          style={s("flex:1;min-width:0;height:38px;padding:0 11px;border-radius:10px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);outline:none")}
+          style={s("flex:1;min-width:0;height:38px;padding:0 11px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);outline:none")}
         />
         <Toggle on={sv.ativo} onChange={(v) => aoMudar({ ativo: v })} rotulo={`${sv.nome} ativo`} />
       </div>
@@ -489,7 +489,7 @@ function LinhaServico({ sv, aoMudar }: { sv: Servico; aoMudar: (p: Partial<Servi
             type="text" inputMode="decimal" value={String(sv.preco)}
             onChange={(e) => aoMudar({ preco: e.target.value as unknown as number })}
             className="m-focus n"
-            style={s("width:100%;height:38px;padding:0 11px;border-radius:10px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
+            style={s("width:100%;height:38px;padding:0 11px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
           />
         </label>
         <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -498,7 +498,7 @@ function LinhaServico({ sv, aoMudar }: { sv: Servico; aoMudar: (p: Partial<Servi
             type="text" inputMode="numeric" value={String(sv.duracao)}
             onChange={(e) => aoMudar({ duracao: e.target.value as unknown as number })}
             className="m-focus n"
-            style={s("width:100%;height:38px;padding:0 11px;border-radius:10px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
+            style={s("width:100%;height:38px;padding:0 11px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
           />
         </label>
         <label style={{ flex: 1.2, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -506,7 +506,7 @@ function LinhaServico({ sv, aoMudar }: { sv: Servico; aoMudar: (p: Partial<Servi
           <select
             value={sv.categoria} onChange={(e) => aoMudar({ categoria: e.target.value as CategoriaServico })}
             className="m-focus"
-            style={s("width:100%;height:38px;padding:0 8px;border-radius:10px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
+            style={s("width:100%;height:38px;padding:0 8px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
           >
             {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -711,7 +711,7 @@ function PerguntaDoNumero({ aoSeguir }: { aoSeguir: () => void }) {
       <OpcoesDoNumero modo={escolhido} aoEscolher={(m) => void escolher(m)} desligado={ocupado !== null} />
       <Aviso recado={recado} />
       {gravado && escolhido === "pessoal" && (
-        <div style={s("display:flex;flex-direction:column;gap:9px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--surface)")}>
+        <div style={s("display:flex;flex-direction:column;gap:9px;padding:12px 14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface)")}>
           <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
             Traga sua agenda para marcar seus clientes. Sem ela, a MAISA só responde número novo que
             chega pedindo horário.
@@ -992,7 +992,7 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
           {/* eslint-disable-next-line @next/next/no-img-element -- data-URI vinda da Evolution */}
           <img
             src={qrcode} alt="QR code para conectar o WhatsApp"
-            style={s("width:232px;height:232px;border-radius:14px;border:1px solid var(--border);background:var(--surface);padding:8px")}
+            style={s("width:232px;height:232px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);padding:8px")}
           />
           <ol style={s("margin:0;padding-left:18px;font-size:var(--t-sm);color:var(--muted);line-height:1.7")}>
             <li>Abra o WhatsApp no celular com esse número</li>
@@ -1154,7 +1154,7 @@ function Falta({
           type="button"
           onClick={pular}
           className="m-hov-bg m-press m-focus"
-          style={s("min-height:44px;padding:0 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
+          style={s("min-height:44px;padding:0 18px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
         >
           Pular este passo
         </button>
@@ -1347,7 +1347,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
         {numero && <> A resposta dela também chega no seu WhatsApp, em <strong style={s("color:var(--ink)")}>+{numero}</strong>.</>}
       </p>
 
-      <div style={s("display:flex;flex-direction:column;gap:10px;min-height:180px;max-height:300px;overflow-y:auto;padding:14px;border-radius:14px;border:1px solid var(--border);background:var(--surface-2)")}>
+      <div style={s("display:flex;flex-direction:column;gap:10px;min-height:180px;max-height:300px;overflow-y:auto;padding:14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface-2)")}>
         {falas.length === 0 && (
           <p style={s("margin:auto;max-width:30ch;text-align:center;font-size:var(--t-sm);color:var(--muted);line-height:1.55")}>
             Toque numa das frases abaixo: é o que um cliente seu escreveria.
@@ -1355,7 +1355,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
         )}
         {falas.map((f, i) => <BolhaSim key={i} fala={f} />)}
         {ocupada && (
-          <span style={s("align-self:flex-start;font-size:var(--t-sm);color:var(--muted);padding:9px 13px;border-radius:16px;border:1px solid var(--primary-soft);background:var(--surface)")}>
+          <span style={s("align-self:flex-start;font-size:var(--t-sm);color:var(--muted);padding:9px 13px;border-radius:var(--r-painel);border:1px solid var(--primary-soft);background:var(--surface)")}>
             digitando…
           </span>
         )}
@@ -1366,7 +1366,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
           de JSON é para quem depura o agente; para o dono, o que importa é que ela OLHOU a
           agenda antes de falar e que o horário existe de verdade. */}
       {(consultou || marcou) && (
-        <div style={s("display:flex;flex-direction:column;gap:7px;padding:12px 14px;border-radius:12px;background:var(--success-soft)")}>
+        <div style={s("display:flex;flex-direction:column;gap:7px;padding:12px 14px;border-radius:var(--r-painel);background:var(--success-soft)")}>
           {consultou && (
             <span style={s("display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--success)")}>
               <Icon name="check" size={15} sw={2.4} stroke="var(--success)" />
@@ -1422,7 +1422,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
           type="submit"
           disabled={ocupada || !texto.trim()}
           className="m-hov-primary m-press m-focus"
-          style={s(`display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;flex-shrink:0;border-radius:12px;border:none;background:var(--primary);${ocupada || !texto.trim() ? "opacity:.42;cursor:not-allowed" : "cursor:pointer"}`)}
+          style={s(`display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;flex-shrink:0;border-radius:var(--r-painel);border:none;background:var(--primary);${ocupada || !texto.trim() ? "opacity:.42;cursor:not-allowed" : "cursor:pointer"}`)}
         >
           <Icon name="send" size={18} sw={2} stroke="var(--on-primary)" />
         </button>
@@ -1530,7 +1530,7 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
     );
   }
 
-  const opcao = "display:flex;align-items:center;gap:13px;width:100%;min-height:64px;padding:16px 15px;border-radius:12px;border:1px solid var(--border);background:var(--surface);font-family:inherit;text-align:left;cursor:pointer;text-decoration:none;color:inherit";
+  const opcao = "display:flex;align-items:center;gap:13px;width:100%;min-height:64px;padding:16px 15px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);font-family:inherit;text-align:left;cursor:pointer;text-decoration:none;color:inherit";
   const caminhos: { rotulo: string; sub: string; href?: string }[] = [
     { rotulo: "Atendo como pessoa física", sub: "Recibo do Receita Saúde, no seu CPF. Sem certificado.", href: IR_AO_FISCAL("recibo") },
     { rotulo: "Tenho CNPJ", sub: "Nota fiscal de serviço. Pede o certificado digital A1.", href: IR_AO_FISCAL("nota") },
@@ -1576,7 +1576,7 @@ function BolhaSim({ fala }: { fala: Fala }) {
      * calibrado justamente para dar AA sobre o `-soft` da mesma cor — está escrito no
      * comentário da paleta semântica. */
     return (
-      <span style={s("align-self:center;max-width:44ch;text-align:center;font-size:var(--t-label);line-height:1.5;color:var(--warn);background:var(--warn-soft);padding:8px 13px;border-radius:11px")}>
+      <span style={s("align-self:center;max-width:44ch;text-align:center;font-size:var(--t-label);line-height:1.5;color:var(--warn);background:var(--warn-soft);padding:8px 13px;border-radius:var(--r-controle)")}>
         {fala.txt}
       </span>
     );
@@ -1797,7 +1797,7 @@ export default function Comecar() {
       <div className="m-enter" style={s("width:100%;max-width:520px;display:flex;flex-direction:column;gap:14px;min-height:0")}>
         <div style={s("flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:12px")}>
           <div style={s("width:100%;display:flex;align-items:center;gap:16px")}>
-            <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;background:var(--nav);border:1px solid var(--nav-line);border-radius:14px;flex-shrink:0")}>
+            <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel);flex-shrink:0")}>
               <span style={{ ...s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line)" }}>maisa</span>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}><Trilha atual={etapa} etapas={etapas} /></div>
@@ -1809,7 +1809,7 @@ export default function Comecar() {
         </div>
 
         {/* A única região que rola. `flex:0 1 auto`: a etapa curta não estica o cartão até o pé. */}
-        <div style={s("flex:0 1 auto;min-height:0;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:22px 20px")}>
+        <div style={s("flex:0 1 auto;min-height:0;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-card);padding:22px 20px")}>
           <PeDoWizard.Provider value={pe}>
             {etapa === "negocio" && (
               <EtapaNegocio aoCriar={(uso) => { setValem(passosQueValem(uso)); avancar("catalogo"); }} />

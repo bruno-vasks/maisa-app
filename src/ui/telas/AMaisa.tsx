@@ -33,7 +33,7 @@ function Rotulo({ children }: { children: React.ReactNode }) {
   return <span style={s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--muted)")}>{children}</span>;
 }
 
-const CAMPO = "width:100%;height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none";
+const CAMPO = "width:100%;height:46px;padding:0 14px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none";
 
 function LinhaToggle({ titulo, desc, on, alternar }: { titulo: string; desc: string; on: boolean; alternar: () => void }) {
   return (
@@ -194,7 +194,7 @@ function FaixaCanal() {
   if (st.canal === null) {
     return st.canalErro
       ? (
-        <div style={s("flex-shrink:0;border-radius:12px;background:var(--surface);border:1px solid var(--border)")}>
+        <div style={s("flex-shrink:0;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border)")}>
           <FalhaDeLeitura compacta frase="Não consegui ler o seu WhatsApp." detalhe={st.canalErro} tentar={st.recarregarCanal} />
         </div>
       )
@@ -272,7 +272,7 @@ function FaixaCanalLida() {
     /* `m-canal` é um contêiner (`container-type:inline-size`, `globals.css`): em caixa estreita as
        ações descem para uma linha própria, abaixo do número (1C.13). Por @container e não por
        `useIsMobile`, porque quem decide é a largura do bloco, não a do aparelho. */
-    <div className="m-canal" style={s(`flex-shrink:0;display:flex;flex-direction:column;gap:12px;padding:13px 16px;border-radius:12px;background:${fundo};border:1px solid ${forte}`)}>
+    <div className="m-canal" style={s(`flex-shrink:0;display:flex;flex-direction:column;gap:12px;padding:13px 16px;border-radius:var(--r-painel);background:${fundo};border:1px solid ${forte}`)}>
       <div className="m-canal-linha">
         <span style={s(`width:9px;height:9px;flex-shrink:0;border-radius:50%;background:${forte}`)} />
         <span style={s("flex:1;min-width:0")}>
@@ -482,12 +482,12 @@ function FaixaCanalLida() {
       )}
 
       {!mostrandoCodigo && st.qrcode && (
-        <div style={s("display:flex;align-items:center;gap:16px;padding:12px;border-radius:12px;background:var(--surface)")}>
+        <div style={s("display:flex;align-items:center;gap:16px;padding:12px;border-radius:var(--r-painel);background:var(--surface)")}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={st.qrcode}
             alt="QR code para conectar o WhatsApp"
-            style={s("width:148px;height:148px;flex-shrink:0;border-radius:8px;background:#fff;image-rendering:pixelated")}
+            style={s("width:148px;height:148px;flex-shrink:0;border-radius:var(--r-controle);background:#fff;image-rendering:pixelated")}
           />
           <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.6")}>
             Leia com o celular do <b>número do negócio</b>.<br />
@@ -577,7 +577,7 @@ function Personalidade() {
 
 function Horarios() {
   const st = useStore();
-  const CAMPO_HORA = "width:104px;height:38px;text-align:center;border-radius:11px;border:1px solid var(--border-field);background:var(--surface);font-variant-numeric:tabular-nums;font-size:var(--t-sm);font-weight:var(--w-data);color:var(--ink);outline:none";
+  const CAMPO_HORA = "width:104px;height:38px;text-align:center;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-variant-numeric:tabular-nums;font-size:var(--t-sm);font-weight:var(--w-data);color:var(--ink);outline:none";
 
   return (
     <div style={s("display:flex;flex-direction:column")}>
@@ -685,7 +685,7 @@ function Antecedencia() {
         onChange={(e) => st.setAssistente({ lembreteHoras: Number(e.target.value) })}
         aria-label="Quantas horas antes o lembrete sai"
         className="m-focus"
-        style={s("height:38px;padding:0 8px;border-radius:10px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none;cursor:pointer")}
+        style={s("height:38px;padding:0 8px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none;cursor:pointer")}
       >
         {!naLista && <option value={atual}>{D.rotuloDaAntecedencia(atual)}</option>}
         {D.OPCOES_ANTECEDENCIA.map((o) => (
@@ -721,7 +721,7 @@ function Duvidas() {
   return (
     <div style={s("display:flex;flex-direction:column;gap:16px")}>
       {st.faqsErro && (
-        <div style={s("padding:10px 12px;border-radius:10px;background:var(--danger-soft);color:var(--danger);font-size:var(--t-label);line-height:1.5")}>
+        <div style={s("padding:10px 12px;border-radius:var(--r-controle);background:var(--danger-soft);color:var(--danger);font-size:var(--t-label);line-height:1.5")}>
           {st.faqsErro}
         </div>
       )}
@@ -739,7 +739,7 @@ function Duvidas() {
         {st.faqs.map((f) => (
           <div
             key={f.id}
-            style={s("display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border:1px solid var(--border);border-radius:12px;background:var(--surface)")}
+            style={s("display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border:1px solid var(--border);border-radius:var(--r-painel);background:var(--surface)")}
           >
             <div style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:3px")}>
               <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{f.pergunta}</span>
@@ -793,7 +793,7 @@ function Duvidas() {
             onChange={(e) => setRascunho((r) => ({ ...r, resposta: e.target.value }))}
             placeholder="Temos convênio com o estacionamento da esquina."
             className="m-focus"
-            style={s("width:100%;padding:11px 13px;border-radius:12px;border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);line-height:1.55;color:var(--ink);outline:none;resize:vertical;min-height:64px")}
+            style={s("width:100%;padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);line-height:1.55;color:var(--ink);outline:none;resize:vertical;min-height:64px")}
           />
         </label>
 
@@ -922,7 +922,7 @@ function Preview({ recorte }: { recorte: RecorteId | null }) {
         </div>
 
         <div style={s("flex-shrink:0;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border-top:1px solid var(--line)")}>
-          <span style={s("flex:1;background:var(--bg);border-radius:10px;padding:8px 14px;font-size:var(--t-label);color:var(--muted)")}>Mensagem</span>
+          <span style={s("flex:1;background:var(--bg);border-radius:var(--r-controle);padding:8px 14px;font-size:var(--t-label);color:var(--muted)")}>Mensagem</span>
           <span aria-hidden style={s("width:34px;height:34px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--primary);color:var(--on-primary)")}>
             <Icon name="send" size={15} sw={2} />
           </span>
@@ -979,7 +979,7 @@ function pendenciaDe(id: RecorteId, st: ReturnType<typeof useStore>): string | n
 function Navegacao({ ativo, celular }: { ativo: RecorteId | null; celular?: boolean }) {
   const st = useStore();
   return (
-    <nav aria-label="Seções dos ajustes" style={s(`display:flex;flex-direction:column;${celular ? "background:var(--surface);border:1px solid var(--border);border-radius:12px" : "gap:2px"}`)}>
+    <nav aria-label="Seções dos ajustes" style={s(`display:flex;flex-direction:column;${celular ? "background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel)" : "gap:2px"}`)}>
       {RECORTES.map((r, i) => {
         const on = !celular && r.id === ativo;
         const pend = pendenciaDe(r.id, st);
@@ -1077,7 +1077,7 @@ export default function AMaisa() {
 
         {/* A única região que rola. `position:relative` para o que se posiciona dentro dela
             (esqueleto, avisos) não escapar para a moldura. */}
-        <section aria-label={ativo ? tituloDe(ativo) : "Ajustes"} style={s("min-height:0;overflow-y:auto;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px 22px")}>
+        <section aria-label={ativo ? tituloDe(ativo) : "Ajustes"} style={s("min-height:0;overflow-y:auto;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px 22px 22px")}>
           {ativo ? (
             <>
               <h2 style={s("margin:0 0 14px;font-size:var(--t-title);font-weight:var(--w-emph);letter-spacing:var(--ls-title);color:var(--ink)")}>{tituloDe(ativo)}</h2>

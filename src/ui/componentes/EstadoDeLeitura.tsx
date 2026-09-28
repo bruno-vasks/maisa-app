@@ -31,7 +31,7 @@ export function Esqueleto({ linhas = 3, altura = 56, gap = 10, rotulo = "Carrega
   return (
     <div aria-busy="true" aria-label={rotulo} style={s(`display:flex;flex-direction:column;gap:${gap}px`)}>
       {visivel && Array.from({ length: linhas }, (_, i) => (
-        <span key={i} style={s(`display:block;height:${altura}px;border-radius:12px;background:var(--line)`)} />
+        <span key={i} style={s(`display:block;height:${altura}px;border-radius:var(--r-painel);background:var(--line)`)} />
       ))}
     </div>
   );

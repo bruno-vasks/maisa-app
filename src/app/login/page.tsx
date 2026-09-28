@@ -58,7 +58,7 @@ function LoginInner() {
     router.refresh();
   };
 
-  const inputCss = "width:100%;border:1px solid var(--border);border-radius:12px;padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
+  const inputCss = "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", overflow: "hidden" }}>
@@ -68,7 +68,7 @@ function LoginInner() {
       <div className="m-enter" style={{ width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 22 }}>
         {/* wordmark dourado sobre navy (contraste) */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:18px;box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
+          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel);box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
             <span style={{ ...s("font-size:var(--t-data);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line), 0 3px 5px rgba(0,0,0,.22)" }}>maisa</span>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -78,7 +78,7 @@ function LoginInner() {
         </div>
 
         {/* card */}
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
+        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
           {/* ⚠️ ESTA TELA É ONDE CAI QUEM ACABOU DE CONFIRMAR A CONTA e teve a sessão
               entregue no fragmento da URL — o middleware o mandou para cá porque não
               achou cookie, e o `#access_token=` sobreviveu ao redirecionamento sem que
@@ -87,7 +87,7 @@ function LoginInner() {
           <RecuperarSessaoDaUrl />
 
           {!isSupabaseConfigured && (
-            <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
+            <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
               <Icon name="sparkle" size={16} />
               <span><strong>Login ainda não ativado.</strong> Configure o Supabase (chaves no ambiente) para habilitar o acesso. O app segue aberto até lá.</span>
             </div>
@@ -106,7 +106,7 @@ function LoginInner() {
               desabilitado={!isSupabaseConfigured || carregando}
             />
 
-            {erro && <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:10px")}>{erro}</div>}
+            {erro && <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle)")}>{erro}</div>}
 
             {/* ⚠️ O LINK VEM ANTES DO BOTÃO DE ENTRAR, e não no rodapé. Quem precisa dele
                 já tentou a senha e falhou — é o próximo passo natural do olho, não uma
@@ -119,7 +119,7 @@ function LoginInner() {
               Esqueci a senha
             </Link>
 
-            <button type="submit" disabled={!isSupabaseConfigured || carregando} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${!isSupabaseConfigured || carregando ? "not-allowed" : "pointer"};opacity:${!isSupabaseConfigured || carregando ? ".6" : "1"}`)}>
+            <button type="submit" disabled={!isSupabaseConfigured || carregando} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${!isSupabaseConfigured || carregando ? "not-allowed" : "pointer"};opacity:${!isSupabaseConfigured || carregando ? ".6" : "1"}`)}>
               {carregando ? <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} /> : null /* sem ícone: pedia `lock`, que nunca existiu no registro e saía como sparkle (G5) */}
               Entrar
             </button>

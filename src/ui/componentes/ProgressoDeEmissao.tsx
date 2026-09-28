@@ -45,12 +45,12 @@ export function ProgressoDeEmissao() {
       aria-live="polite"
       /* `fixed` e não `sticky`: ele acompanha o dono por qualquer tela. No celular sobe acima da
          barra de abas, que também é fixa — senão o cartão cobre a navegação. */
-      style={{ ...s(`position:fixed;right:${mobile ? 12 : 20}px;bottom:${mobile ? 78 : 20}px;z-index:60;width:${mobile ? "calc(100% - 24px)" : "330px"};background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-pop);padding:15px 16px;display:flex;flex-direction:column;gap:11px`), animation: "mrise .22s var(--ease-out)" }}
+      style={{ ...s(`position:fixed;right:${mobile ? 12 : 20}px;bottom:${mobile ? 78 : 20}px;z-index:60;width:${mobile ? "calc(100% - 24px)" : "330px"};background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:15px 16px;display:flex;flex-direction:column;gap:11px`), animation: "mrise .22s var(--ease-out)" }}
     >
       <div style={s("display:flex;align-items:center;gap:10px")}>
         <span
           aria-hidden
-          style={s(`width:28px;height:28px;flex:none;border-radius:9px;display:grid;place-items:center;background:${tudoCerto ? "var(--success-soft)" : andando ? "var(--primary-soft)" : "var(--warn-soft)"};color:${tudoCerto ? "var(--success)" : andando ? "var(--primary)" : "var(--warn)"}`)}
+          style={s(`width:28px;height:28px;flex:none;border-radius:var(--r-controle);display:grid;place-items:center;background:${tudoCerto ? "var(--success-soft)" : andando ? "var(--primary-soft)" : "var(--warn-soft)"};color:${tudoCerto ? "var(--success)" : andando ? "var(--primary)" : "var(--warn)"}`)}
         >
           {andando
             ? (
@@ -109,7 +109,7 @@ export function ProgressoDeEmissao() {
         <button
           onClick={st.fecharEmissao}
           className="m-focus m-hov-bg"
-          style={s("align-self:flex-start;border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:7px 13px;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
+          style={s("align-self:flex-start;border:1px solid var(--border);background:var(--surface);border-radius:var(--r-controle);padding:7px 13px;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
         >
           Fechar
         </button>

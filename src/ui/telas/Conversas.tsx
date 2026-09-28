@@ -72,7 +72,7 @@ function Lista({ onEscolher, falhaAqui = false }: { onEscolher: (id: string) => 
   return (
     <>
       <div style={s("padding:16px 14px 12px;display:flex;flex-direction:column;gap:12px;flex-shrink:0")}>
-        <div style={s("display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--bg)")} role="tablist" aria-label="Filtrar conversas">
+        <div style={s("display:flex;gap:4px;padding:3px;border-radius:var(--r-painel);background:var(--bg)")} role="tablist" aria-label="Filtrar conversas">
           {ABAS.map(([id, label]) => {
             const on = st.abaConv === id;
             return (
@@ -82,7 +82,7 @@ function Lista({ onEscolher, falhaAqui = false }: { onEscolher: (id: string) => 
                 aria-selected={on}
                 onClick={() => st.setAbaConv(id)}
                 className="m-press m-focus"
-                style={s(`flex:1;border:none;cursor:pointer;height:34px;border-radius:9px;font-size:var(--t-label);font-weight:var(--w-title);background:${on ? "var(--surface)" : "transparent"};color:${on ? "var(--primary)" : "var(--muted)"};box-shadow:${on ? "0 1px 3px oklch(0.30 0.03 262 / 0.10)" : "none"};transition:var(--tr-ui)`)}
+                style={s(`flex:1;border:none;cursor:pointer;height:34px;border-radius:var(--r-controle);font-size:var(--t-label);font-weight:var(--w-title);background:${on ? "var(--surface)" : "transparent"};color:${on ? "var(--primary)" : "var(--muted)"};box-shadow:${on ? "0 1px 3px oklch(0.30 0.03 262 / 0.10)" : "none"};transition:var(--tr-ui)`)}
               >
                 {label}
               </button>
@@ -124,7 +124,7 @@ function Lista({ onEscolher, falhaAqui = false }: { onEscolher: (id: string) => 
               onClick={() => onEscolher(c.id)}
               aria-current={sel}
               className="m-hov-bg m-press m-focus"
-              style={s(`text-align:left;border:none;cursor:pointer;width:100%;padding:13px 12px;border-radius:16px;display:flex;gap:12px;align-items:center;background:${sel ? "var(--primary-soft)" : "transparent"};transition:var(--tr-ui)`)}
+              style={s(`text-align:left;border:none;cursor:pointer;width:100%;padding:13px 12px;border-radius:var(--r-painel);display:flex;gap:12px;align-items:center;background:${sel ? "var(--primary-soft)" : "transparent"};transition:var(--tr-ui)`)}
             >
               <Monogram name={c.nome} id={c.id} size={44} radius={14} />
               <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:3px")}>
@@ -184,12 +184,12 @@ function MenuDaConversa({ cv }: { cv: D.Conversa }) {
         aria-haspopup="menu"
         aria-expanded={aberto}
         className="m-hov-bg m-press-icon m-focus"
-        style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
+        style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
       >
         <Icon name="dots" size={20} sw={2.2} />
       </button>
       {aberto && (
-        <div role="menu" className="m-reveal" style={s("position:absolute;right:0;top:calc(100% + 8px);z-index:20;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}>
+        <div role="menu" className="m-reveal" style={s("position:absolute;right:0;top:calc(100% + 8px);z-index:20;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}>
           {itens.map((it) => (
             <button
               key={it.rotulo}
@@ -197,7 +197,7 @@ function MenuDaConversa({ cv }: { cv: D.Conversa }) {
               role="menuitem"
               onClick={() => { setAberto(false); it.fazer(); }}
               className="m-hov-bg m-focus"
-              style={s("min-height:44px;padding:0 12px;border:none;border-radius:8px;background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
+              style={s("min-height:44px;padding:0 12px;border:none;border-radius:var(--r-controle);background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer")}
             >
               {it.rotulo}
             </button>
@@ -269,7 +269,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
           avatar de 36, nome em até duas linhas e o ⋯; a posse desce para cima do composer. */}
       <div style={s(`flex-shrink:0;padding:${mobile ? "10px 12px" : "14px 18px"};display:flex;align-items:center;gap:${mobile ? 10 : 12}px;border-bottom:1px solid var(--line);background:var(--surface)`)}>
         {onVoltar && (
-          <button onClick={onVoltar} aria-label="Voltar" className="m-hov-bg m-press-icon m-focus" style={s("width:44px;height:44px;flex-shrink:0;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}>
+          <button onClick={onVoltar} aria-label="Voltar" className="m-hov-bg m-press-icon m-focus" style={s("width:44px;height:44px;flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}>
             <Icon name="chevron-left" size={18} sw={2.2} />
           </button>
         )}
@@ -289,7 +289,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
           <button
             onClick={() => (minha ? st.devolver(cv.id) : st.assumir(cv.id))}
             className={`${daMaisa ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
-            style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--muted)"}`)}
+            style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--muted)"}`)}
           >
             {daMaisa ? "Assumir" : minha ? "Devolver à MAISA" : "Reabrir"}
           </button>
@@ -340,7 +340,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
               {/* A fala é o conteúdo da tela: --t-body (16px). Antes estava em 14,5px, MENOR que o
                   nome do contato e igual ao campo de digitação — o texto mais importante da região
                   era o mais miúdo. O raio de 20px fica: é forma de bolha, não de cartão. */}
-              {/* Os quatro cantos são declarados um por um, e não `border-radius:20px` seguido de um
+              {/* Os quatro cantos são declarados um por um, e não `border-radius:var(--r-painel)` seguido de um
                   `border-bottom-…-radius:7px`. Aquela forma misturava shorthand com longhand da MESMA
                   propriedade, e o React reclama disso em todo rerender ("don't mix shorthand and
                   non-shorthand"): na ordem em que ele aplica, o shorthand pode voltar depois e zerar
@@ -388,7 +388,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
             <button
               onClick={() => (minha ? st.devolver(cv.id) : st.assumir(cv.id))}
               className={`${daMaisa ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
-              style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--ink)"}`)}
+              style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--ink)"}`)}
             >
               {daMaisa ? "Assumir" : minha ? "Devolver à MAISA" : "Reabrir"}
             </button>
@@ -418,14 +418,14 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
                   className="m-focus"
                   /* --border-field, não --border: esta borda é o único meio de identificar o campo
                      (WCAG 1.4.11 pede 3:1 e --border dava 1.3:1). */
-                  style={s(`flex:1;min-width:0;height:46px;padding:0 16px;border-radius:14px;background:${travado ? "var(--bg)" : "var(--surface)"};border:1px solid var(--border-field);font-size:var(--t-sm);color:var(--ink);outline:none;cursor:${travado ? "not-allowed" : "text"}`)}
+                  style={s(`flex:1;min-width:0;height:46px;padding:0 16px;border-radius:var(--r-painel);background:${travado ? "var(--bg)" : "var(--surface)"};border:1px solid var(--border-field);font-size:var(--t-sm);color:var(--ink);outline:none;cursor:${travado ? "not-allowed" : "text"}`)}
                 />
                 <button
                   onClick={enviar}
                   disabled={travado || !texto.trim()}
                   aria-label="Enviar"
                   className="m-hov-primary m-press m-focus"
-                  style={s(`width:46px;height:46px;flex-shrink:0;border:none;border-radius:14px;background:var(--primary);color:var(--on-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:${travado || !texto.trim() ? "0.4" : "1"}`)}
+                  style={s(`width:46px;height:46px;flex-shrink:0;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:${travado || !texto.trim() ? "0.4" : "1"}`)}
                 >
                   <Icon name="send" size={19} sw={2} />
                 </button>

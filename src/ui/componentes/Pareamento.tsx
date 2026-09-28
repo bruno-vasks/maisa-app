@@ -121,7 +121,7 @@ export function NumeroDoPareamento(
 
   return (
     <div style={s(
-      "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:11px;" +
+      "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-controle);" +
       "background:var(--surface-2);line-height:1.45",
     )}>
       <Icon name="phone" size={15} sw={2} stroke="var(--muted)" />
@@ -165,7 +165,7 @@ export function ConferirNumero(
 
   return (
     <div style={s(
-      "display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:12px;" +
+      "display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--r-painel);" +
       "background:var(--warn-soft);border:1px solid var(--warn-line)",
     )}>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -193,7 +193,7 @@ export function ConferirNumero(
           onClick={aoCorrigir}
           className="m-hov-bg m-press m-focus"
           style={s(
-            "flex:1;height:42px;border:1px solid var(--border);border-radius:11px;background:var(--surface);" +
+            "flex:1;height:42px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);" +
             "color:var(--ink);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer",
           )}
         >
@@ -204,7 +204,7 @@ export function ConferirNumero(
           disabled={ocupado || !bonito}
           className="m-hov-primary m-press m-focus"
           style={s(
-            "flex:1.4;height:42px;border:none;border-radius:11px;background:var(--primary);" +
+            "flex:1.4;height:42px;border:none;border-radius:var(--r-controle);background:var(--primary);" +
             "color:var(--on-primary);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);" +
             `cursor:${ocupado || !bonito ? "not-allowed" : "pointer"};opacity:${ocupado || !bonito ? ".6" : "1"}`,
           )}
@@ -285,7 +285,7 @@ export function CodigoPareamento(
   }, [codigo]);
 
   return (
-    <div style={s("display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:12px;background:var(--surface)")}>
+    <div style={s("display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--r-painel);background:var(--surface)")}>
       <div style={s("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
         <span
           aria-label={`Código de pareamento ${codigo}`}
@@ -301,7 +301,7 @@ export function CodigoPareamento(
           onClick={() => void copiar()}
           className="m-hov-bg m-press m-focus"
           style={s(
-            "display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 13px;border-radius:10px;" +
+            "display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 13px;border-radius:var(--r-controle);" +
             "border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:var(--t-label);" +
             `font-weight:var(--w-title);cursor:pointer;color:${copiou ? "var(--success)" : "var(--muted)"}`,
           )}

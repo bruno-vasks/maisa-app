@@ -143,7 +143,7 @@ function ItemRail({ id, badge }: { id: TelaId; badge?: number }) {
       title={t.rotulo}
       aria-current={on ? "page" : undefined}
       className="m-nav-item m-press m-focus"
-      style={s(`width:100%;height:46px;flex-shrink:0;border:none;border-radius:14px;cursor:pointer;display:flex;align-items:center;gap:12px;padding:0 15px;position:relative;background:${on ? "var(--nav-active)" : "transparent"}`)}
+      style={s(`width:100%;height:46px;flex-shrink:0;border:none;border-radius:var(--r-painel);cursor:pointer;display:flex;align-items:center;gap:12px;padding:0 15px;position:relative;background:${on ? "var(--nav-active)" : "transparent"}`)}
     >
       {/* barra de tela ativa — some junto com o hover, não pisca.
           Era dourada. Não pode ser: no rail o ouro já significa "isto pede você" (ponto e badge de
@@ -201,13 +201,13 @@ function Rail() {
         /* sombra: era matiz 250 (o terceiro azul, já removido do sistema) num blur de 30px.
            --shadow-card é a mesma sombra do cartão de conteúdo ao lado — o rail e o main passam a
            flutuar na mesma altura, que é o que eles são. */
-        style={s("position:absolute;top:0;bottom:0;left:0;background:var(--nav);border-radius:22px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:hidden")}
+        style={s("position:absolute;top:0;bottom:0;left:0;background:var(--nav);border-radius:var(--r-casca);box-shadow:var(--shadow-card);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:hidden")}
       >
         <div style={s("display:flex;align-items:center;gap:12px;padding-left:3px;margin-bottom:14px;flex-shrink:0")}>
           {/* o "m" é a marca em forma de selo, mas não é o wordmark: --w-emph é reservado a três
               lugares no app e aqui ele cabe no título (600). Fica na Plex Sans de propósito — a
               Jakarta só existe para o logotipo escrito. */}
-          <span style={s("width:40px;height:40px;flex-shrink:0;border-radius:13px;background:var(--nav-active);display:flex;align-items:center;justify-content:center;color:var(--warm);font-weight:var(--w-title);font-size:var(--t-title);line-height:1")}>m</span>
+          <span style={s("width:40px;height:40px;flex-shrink:0;border-radius:var(--r-painel);background:var(--nav-active);display:flex;align-items:center;justify-content:center;color:var(--warm);font-weight:var(--w-title);font-size:var(--t-title);line-height:1")}>m</span>
           {/* wordmark: único --w-emph deste arquivo, e o único ponto do app onde a Jakarta entra */}
           <span className="m-rail-label" style={s("font-family:var(--font-jakarta), system-ui, sans-serif;font-size:var(--t-lg);font-weight:var(--w-emph);letter-spacing:var(--ls-lg);color:var(--warm)")}>maisa</span>
         </div>
@@ -230,11 +230,11 @@ function Rail() {
                   "Plano Profissional"). O plano é o da assinatura, a mesma fonte da gaveta. */}
               {st.cadastroCarregado
                 ? <span style={s("display:block;font-family:var(--font-nav);font-size:var(--t-sm);font-weight:var(--w-nav-on);color:var(--nav-ink)")}>{st.cadastro.negocio.nome}</span>
-                : <span aria-hidden style={s("display:block;width:110px;height:12px;margin:3px 0;border-radius:6px;background:var(--nav-active)")} />}
+                : <span aria-hidden style={s("display:block;width:110px;height:12px;margin:3px 0;border-radius:var(--r-controle);background:var(--nav-active)")} />}
               {st.assinatura.status === "ok" && st.assinatura.assinatura
                 ? <span style={s("display:block;font-family:var(--font-nav);font-size:var(--t-label);font-weight:var(--w-nav);color:var(--nav-soft)")}>Plano {st.assinatura.assinatura.plano}</span>
                 : st.assinatura.status === "carregando"
-                  ? <span aria-hidden style={s("display:block;width:80px;height:10px;margin:4px 0;border-radius:6px;background:var(--nav-active)")} />
+                  ? <span aria-hidden style={s("display:block;width:80px;height:10px;margin:4px 0;border-radius:var(--r-controle);background:var(--nav-active)")} />
                   : null}
             </span>
           </div>
@@ -303,7 +303,7 @@ function MenuNovo({ gatilho, alinhar = "direita" }: { gatilho: (p: { aberto: boo
           role="menu"
           aria-label="Novo"
           className="m-reveal"
-          style={s(`position:absolute;top:calc(100% + 8px);${alinhar === "direita" ? "right:0" : "left:0"};z-index:60;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column`)}
+          style={s(`position:absolute;top:calc(100% + 8px);${alinhar === "direita" ? "right:0" : "left:0"};z-index:60;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column`)}
         >
           {itensDoNovo(st).map((it) => (
             <button
@@ -312,7 +312,7 @@ function MenuNovo({ gatilho, alinhar = "direita" }: { gatilho: (p: { aberto: boo
               role="menuitem"
               onClick={() => { setAberto(false); it.onClick(); }}
               className="m-hov-bg m-focus"
-              style={s("min-height:44px;padding:0 12px;border:none;border-radius:8px;background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:10px")}
+              style={s("min-height:44px;padding:0 12px;border:none;border-radius:var(--r-controle);background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:10px")}
             >
               <Icon name="plus" size={16} sw={2.2} stroke="var(--primary)" />
               {it.rotulo}
@@ -337,7 +337,7 @@ function AcaoDaTopbar() {
       type="button"
       onClick={a.onClick}
       className={`${a.peso === "primario" ? "m-hov-primary" : "m-hov-bright"} m-press m-focus`}
-      style={s(`height:40px;padding:0 16px;border-radius:8px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
+      style={s(`height:40px;padding:0 16px;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
     >
       <Icon name={a.icone} size={16} sw={2.3} />
       {a.rotulo}
@@ -356,7 +356,7 @@ function NovoDaTopbar() {
           aria-haspopup="menu"
           aria-expanded={aberto}
           className="m-hov-bright m-press m-focus"
-          style={s("height:40px;padding:0 12px 0 14px;border-radius:8px;border:1px solid var(--nav-line);background:transparent;color:var(--nav-ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap")}
+          style={s("height:40px;padding:0 12px 0 14px;border-radius:var(--r-controle);border:1px solid var(--nav-line);background:transparent;color:var(--nav-ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap")}
         >
           Novo
           <Icon name="chevron-down" size={15} sw={2.2} />
@@ -373,7 +373,7 @@ function MaisDoCelular() {
   /* Cheio só quando é o primário da tela; o "Encaixar" do Fluxo e o menu "Novo" são contorno,
      para a dobra ter um primário só (e a tela o dela, quando tiver). */
   const cheio = a?.peso === "primario";
-  const estilo = s(`width:44px;height:44px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;${cheio ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--primary)"}`);
+  const estilo = s(`width:44px;height:44px;border-radius:var(--r-controle);cursor:pointer;display:flex;align-items:center;justify-content:center;${cheio ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--primary)"}`);
   if (a) {
     return (
       <button type="button" onClick={a.onClick} aria-label={a.rotulo} title={a.rotulo} className={`${cheio ? "m-hov-primary" : "m-hov-bg"} m-press-icon m-focus`} style={estilo}>
@@ -462,7 +462,7 @@ function AvisoAjustes({ celular }: { celular?: boolean }) {
         type="button"
         onClick={st.ajustesPrecisaEntrar ? ENTRAR.fazer : st.recarregarAjustes}
         className="m-press m-focus"
-        style={s("flex-shrink:0;min-height:44px;padding:0 12px;border:1px solid var(--danger);border-radius:8px;background:var(--surface);color:var(--danger);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer")}
+        style={s("flex-shrink:0;min-height:44px;padding:0 12px;border:1px solid var(--danger);border-radius:var(--r-controle);background:var(--surface);color:var(--danger);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer")}
       >
         {st.ajustesPrecisaEntrar ? ENTRAR.rotulo : "Tentar de novo"}
       </button>
@@ -483,13 +483,13 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
       <button
         onClick={onBuscar}
         className="m-press m-focus"
-        style={s("flex:1;max-width:360px;min-width:0;margin-left:10px;display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:12px;background:var(--nav-active);border:1px solid var(--nav-line);color:var(--nav-soft);cursor:pointer;text-align:left")}
+        style={s("flex:1;max-width:360px;min-width:0;margin-left:10px;display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:var(--r-painel);background:var(--nav-active);border:1px solid var(--nav-line);color:var(--nav-soft);cursor:pointer;text-align:left")}
       >
         <Icon name="search" size={17} sw={1.9} />
         <span style={s("flex:1;min-width:0;font-size:var(--t-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>Buscar cliente, conversa ou tela</span>
         {/* ⌘K é string de máquina — um dos poucos lugares onde o mono sobrevive. Peso de dado (500):
             é a tecla literal, não um título. */}
-        <span style={s("flex-shrink:0;font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:6px;background:var(--nav);border:1px solid var(--nav-line)")}>⌘K</span>
+        <span style={s("flex-shrink:0;font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:var(--r-controle);background:var(--nav);border:1px solid var(--nav-line)")}>⌘K</span>
       </button>
 
       <div style={s("margin-left:auto;display:flex;align-items:center;gap:14px;flex-shrink:0")}>
@@ -530,7 +530,7 @@ function TabBar() {
             onClick={() => st.irPara(aba.id)}
             aria-current={on ? "page" : undefined}
             className="m-press m-focus"
-            style={s(`border:none;background:${on ? "var(--primary-soft)" : "transparent"};border-radius:14px;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;position:relative`)}
+            style={s(`border:none;background:${on ? "var(--primary-soft)" : "transparent"};border-radius:var(--r-painel);padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;position:relative`)}
           >
             <Icon name={TELA[aba.id].icone} size={21} sw={1.9} stroke={cor} />
             {/* mesma voz do rail: a tab bar É a navegação no mobile, então a fonte da sidebar vale
@@ -599,7 +599,7 @@ export default function AppShell() {
               onClick={() => setPaleta(true)}
               aria-label="Buscar"
               className="m-hov-bg m-press-icon m-focus"
-              style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
+              style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
             >
               <Icon name="search" size={18} sw={1.9} />
             </button>
@@ -632,7 +632,7 @@ export default function AppShell() {
   return (
     <div className="m-altura-tela" style={s("display:flex;gap:14px;padding:14px;overflow:hidden;background:transparent")}>
       <Rail />
-      <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:22px;overflow:hidden;background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow-card)")}>
+      <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-casca);overflow:hidden;background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow-card)")}>
         <Topbar onBuscar={() => setPaleta(true)} />
         {/* Acima do conteúdo e FORA do `key={st.tela}`: o aviso vale para todas as telas e
             não deve remontar (nem piscar) a cada troca de tela. */}

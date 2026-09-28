@@ -183,7 +183,7 @@ export function Btn({ variant = "primary", icon, children, onClick, style, full,
       aria-label={rotulo}
       aria-describedby={disabled && motivo ? idMotivo : undefined}
       className={`${hov} m-focus`.trim()}
-      style={{ ...s(`display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-weight:var(--w-title);font-size:var(--t-sm);white-space:nowrap;padding:${pad};${full ? "width:100%;" : ""}${cor}`), ...(style || {}) }}
+      style={{ ...s(`display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--r-controle);font-weight:var(--w-title);font-size:var(--t-sm);white-space:nowrap;padding:${pad};${full ? "width:100%;" : ""}${cor}`), ...(style || {}) }}
     >
       {icon && <Icon name={icon} size={16} sw={2} />}
       {children}
@@ -225,7 +225,7 @@ const TONES: Record<Tone, [string, string]> = {
 export function Badge({ tone = "neutral", children, dot }: { tone?: Tone; children: React.ReactNode; dot?: boolean }) {
   const [bg, fg] = TONES[tone];
   return (
-    <span style={s(`display:inline-flex;align-items:center;gap:6px;font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-micro);padding:3px 10px;border-radius:20px;background:${bg};color:${fg}`)}>
+    <span style={s(`display:inline-flex;align-items:center;gap:6px;font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-micro);padding:3px 10px;border-radius:var(--r-painel);background:${bg};color:${fg}`)}>
       {dot && <span style={s(`width:6px;height:6px;border-radius:50%;background:${fg}`)} />}
       {children}
     </span>
@@ -274,7 +274,7 @@ export function Filtros({ opcoes, ativo, onChange }: { opcoes: string[]; ativo: 
 // escopo da WCAG 1.4.11 e precisa de 3:1 real. Com --border dava 1.3:1 — o campo era invisível.
 // --t-body (16px) e não --t-sm: abaixo de 16px o Safari do iOS dá zoom ao focar o campo, e o
 // usuário perde o enquadramento da tela no meio do preenchimento.
-const INPUT ="width:100%;border:1px solid var(--border-field);border-radius:10px;padding:10px 13px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none";
+const INPUT ="width:100%;border:1px solid var(--border-field);border-radius:var(--r-controle);padding:10px 13px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none";
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   const { style, className, ...rest } = props;
   return <input {...rest} className={["m-focus", className].filter(Boolean).join(" ")} style={{ ...s(INPUT), ...(style || {}) }} />;
@@ -350,7 +350,7 @@ export function StatTile({ label, value, sub, icon, tone = "primary" }: { label:
     <Card pad={18} style={s("display:flex;flex-direction:column;gap:12px")}>
       <div style={s("display:flex;align-items:center;justify-content:space-between;gap:8px")}>
         <span style={s("font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-label);color:var(--muted)")}>{label}</span>
-        {icon && <span style={s(`width:34px;height:34px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${bg};color:${fg}`)}><Icon name={icon} size={18} /></span>}
+        {icon && <span style={s(`width:34px;height:34px;border-radius:var(--r-controle);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${bg};color:${fg}`)}><Icon name={icon} size={18} /></span>}
       </div>
       {/* numeral herói: um dos três lugares em que 700 sobrevive. Sem mono — os dígitos da Plex
           Sans já são tabulares, e mono num numeral de display lia como terminal, não como dinheiro. */}
@@ -506,9 +506,9 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
        cantos, e era ele que cortava: filho flex com `overflow:hidden` tem altura mínima 0, então a
        tabela encolhia até caber na tela e 8 dos 16 clientes do fechamento do CNPJ não existiam,
        sem barra de rolagem. Agora quem arredonda é cada fatia (cabeçalho em cima, corpo embaixo). */
-    <div className={rolarPorDentro ? "m-tabela-rola" : undefined} style={s("background:var(--surface);border:1px solid var(--border);border-radius:16px")}>
+    <div className={rolarPorDentro ? "m-tabela-rola" : undefined} style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel)")}>
       {/* cabeçalho */}
-      <div role="row" style={s(`flex-shrink:0;display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surface-2);border-radius:15px 15px 0 0`)}>
+      <div role="row" style={s(`flex-shrink:0;display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surface-2);border-radius:var(--r-painel) var(--r-painel) 0 0`)}>
         {cols.map((c) => {
           const ativa = ord?.chave === c.chave;
           const conteudo = (
@@ -540,7 +540,7 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
 
       {/* linhas. Quem arredonda o hover da última é a própria linha (raio embaixo), não um
           recorte no corpo: recorte aqui voltaria a ser o que corta (guarda G15). */}
-      <div className="m-tabela-corpo" style={s("border-radius:0 0 15px 15px")}>
+      <div className="m-tabela-corpo" style={s("border-radius:0 0 var(--r-painel) var(--r-painel)")}>
       {dados.map((l, i) => {
         const conteudo = cols.map((c) => (
           <span
@@ -554,7 +554,7 @@ export function Tabela<T>({ colunas, linhas, chaveDe, onLinha, rotuloLinha, estr
         // Bordas SÓ em propriedades não-shorthand: misturar `border:none` com `border-bottom` no
         // mesmo elemento faz o React reclamar e pode dar bug de estilo ao reordenar (ele remove
         // uma e depois a outra). Aqui cada lado é declarado por si.
-        const linhaBase = `display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;text-align:left;width:100%;background:transparent;border-top-width:0;border-left-width:0;border-right-width:0;border-style:solid;border-color:var(--line);border-bottom-width:${i < dados.length - 1 ? "1px" : "0"};${i === dados.length - 1 ? "border-radius:0 0 15px 15px;" : ""}`;
+        const linhaBase = `display:grid;grid-template-columns:${grid};gap:16px;padding:0 18px;text-align:left;width:100%;background:transparent;border-top-width:0;border-left-width:0;border-right-width:0;border-style:solid;border-color:var(--line);border-bottom-width:${i < dados.length - 1 ? "1px" : "0"};${i === dados.length - 1 ? "border-radius:0 0 var(--r-painel) var(--r-painel);" : ""}`;
         return onLinha ? (
           <button
             key={chaveDe(l)}
@@ -628,7 +628,7 @@ export function Toaster() {
       {items.map((i) => (
         // pointer-events:auto só no toast COM ação — o container é inerte de propósito, mas um
         // "Desfazer" que não dá para clicar seria pior que não ter.
-        <div key={i.id} className="m-pop" style={s(`display:flex;align-items:center;gap:9px;background:var(--ink);color:var(--surface);font-size:var(--t-sm);font-weight:var(--w-data);padding:11px 18px;border-radius:12px;box-shadow:var(--shadow-pop)${i.acao ? ";pointer-events:auto" : ""}`)}>
+        <div key={i.id} className="m-pop" style={s(`display:flex;align-items:center;gap:9px;background:var(--ink);color:var(--surface);font-size:var(--t-sm);font-weight:var(--w-data);padding:11px 18px;border-radius:var(--r-painel);box-shadow:var(--shadow-pop)${i.acao ? ";pointer-events:auto" : ""}`)}>
           <Icon name="check" size={16} sw={2.4} stroke="var(--surface)" />
           {i.msg}
           {i.acao && (
@@ -697,14 +697,14 @@ export function ConfirmDialog({
       <div
         onClick={(e) => e.stopPropagation()}
         /* sem borda: com --shadow-pop a borda de 1px formaria o par ghost-card banido */
-        style={{ ...s("position:relative;width:420px;max-width:92vw;background:var(--surface);border-radius:16px;box-shadow:var(--shadow-pop);padding:24px"), animation: "mrise .25s var(--ease-out)" }}
+        style={{ ...s("position:relative;width:420px;max-width:92vw;background:var(--surface);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:24px"), animation: "mrise .25s var(--ease-out)" }}
       >
         <button
           onClick={onCancel}
           title={cancelText}
           aria-label={cancelText}
           className="m-hov-bg m-press-icon m-focus"
-          style={s("position:absolute;top:14px;right:14px;width:30px;height:30px;border:none;border-radius:8px;background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted)")}
+          style={s("position:absolute;top:14px;right:14px;width:30px;height:30px;border:none;border-radius:var(--r-controle);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted)")}
         >
           <Icon name="x" size={16} sw={2.2} />
         </button>
@@ -714,14 +714,14 @@ export function ConfirmDialog({
           <button
             onClick={onCancel}
             className="m-hov-bg m-press m-focus"
-            style={s("border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:10px;font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;padding:10px 17px")}
+            style={s("border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:var(--r-controle);font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;padding:10px 17px")}
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
             className={`${confirmHov} m-press m-focus`}
-            style={s(`border:none;border-radius:10px;font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;padding:10px 17px;${confirmVar}`)}
+            style={s(`border:none;border-radius:var(--r-controle);font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;padding:10px 17px;${confirmVar}`)}
           >
             {confirmText}
           </button>

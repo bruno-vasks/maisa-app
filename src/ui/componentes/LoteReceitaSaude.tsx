@@ -118,7 +118,7 @@ function ItemChecklist({ item }: { item: ItemDoChecklist }) {
               target="_blank"
               rel="noopener noreferrer"
               className="m-press m-focus"
-              style={s("display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:var(--t-label);font-weight:var(--w-title);text-decoration:none")}
+              style={s("display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:var(--t-label);font-weight:var(--w-title);text-decoration:none")}
             >
               <Icon name="link" size={13} sw={2.2} />
               {item.link.rotulo}
@@ -255,7 +255,7 @@ export function entramNoArquivo(p: RecibosPendentes | null): number | null {
   return p ? Math.max(p.pagamentos.length - p.semCpf, 0) : null;
 }
 
-const CAMPO = "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--ink);width:100%";
+const CAMPO = "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--bg);color:var(--ink);width:100%";
 
 /**
  * ⚠️ `apenasDados` RENDERIZA SÓ O BLOCO "SEUS DADOS" — CPF, profissão e registro, com o formulário
@@ -299,7 +299,7 @@ export function NoSiteDaReceita({ config, foco }: { config: ConfigFiscalDaTela; 
           key={i.id}
           id={ancora[i.id]}
           tabIndex={ancora[i.id] ? -1 : undefined}
-          style={s(`scroll-margin-top:16px;border-radius:12px;${ancora[i.id] && foco && ancora[i.id] === `secao-${foco}` ? "outline:2px solid var(--primary);outline-offset:-2px" : ""}`)}
+          style={s(`scroll-margin-top:16px;border-radius:var(--r-painel);${ancora[i.id] && foco && ancora[i.id] === `secao-${foco}` ? "outline:2px solid var(--primary);outline-offset:-2px" : ""}`)}
         >
           <ItemChecklist item={i} />
         </div>
@@ -584,7 +584,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
           que a própria tela cobrava. Agora o conserto está onde a cobrança é feita, e a cobrança
           é a primeira coisa que se lê. */}
       {config && (
-        <div style={s(`display:grid;gap:10px;padding:13px 15px;border-radius:13px;border:1px solid ${bloqueia ? "var(--warn)" : "var(--border)"};background:${bloqueia ? "var(--warn-soft)" : "var(--bg)"}`)}>
+        <div style={s(`display:grid;gap:10px;padding:13px 15px;border-radius:var(--r-painel);border:1px solid ${bloqueia ? "var(--warn)" : "var(--border)"};background:${bloqueia ? "var(--warn-soft)" : "var(--bg)"}`)}>
           {!editando ? (
             <div style={s("display:flex;gap:11px;align-items:center;flex-wrap:wrap")}>
               <span style={s(`flex-shrink:0;display:flex;color:${bloqueia ? "var(--warn)" : faltaMeusDados > 0 ? "var(--muted)" : "var(--success)"}`)}>
@@ -721,7 +721,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
           ⚠️ Abre sozinho quando há pendência aqui dentro — autorização vencida é a única coisa
           desta tela que PARA a emissão, e acordeão fechado é o pior lugar para essa notícia. */}
       {noEcac.length > 0 && (
-        <div style={s("display:grid;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden")}>
+        <div style={s("display:grid;gap:0;border:1px solid var(--border);border-radius:var(--r-painel);overflow:hidden")}>
           <button
             type="button"
             onClick={() => setChecklistAberto(!ecacAberto)}
@@ -784,7 +784,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
 
               <div style={s("display:grid;gap:4px")}>
                 {pagamentosVisiveis.map((p: PagamentoPendente) => (
-                  <div key={p.id} style={s(`display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:10px;background:${p.cpf ? "var(--surface-2, var(--bg))" : "var(--warn-soft)"}`)}>
+                  <div key={p.id} style={s(`display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:var(--r-controle);background:${p.cpf ? "var(--surface-2, var(--bg))" : "var(--warn-soft)"}`)}>
                     <span style={s("font-size:var(--t-label);color:var(--muted);min-width:38px")}>{diaMes(p.data)}</span>
                     <span style={s("font-size:var(--t-sm);color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
                       {p.nome}
@@ -906,7 +906,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
             target="_blank"
             rel="noopener noreferrer"
             className="m-press m-focus"
-            style={s("display:flex;align-items:center;gap:8px;align-self:flex-start;padding:10px 16px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:var(--t-sm);font-weight:var(--w-title);text-decoration:none")}
+            style={s("display:flex;align-items:center;gap:8px;align-self:flex-start;padding:10px 16px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:var(--t-sm);font-weight:var(--w-title);text-decoration:none")}
           >
             <Icon name="link" size={15} sw={2.2} />
             Abrir meu Carnê-Leão
@@ -927,7 +927,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
               alguém clicou em "Importei" sem esperar isso não tem desfazer — mensagem entregue
               não se apaga. Então a caixa aparece marcada (é o que quase todo mundo quer) e
               visível ao lado do botão (para quem não quer, desmarcar custa um clique). */}
-          <label style={s("display:flex;gap:10px;align-items:flex-start;cursor:pointer;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--bg)")}>
+          <label style={s("display:flex;gap:10px;align-items:flex-start;cursor:pointer;padding:12px 14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg)")}>
             <input
               type="checkbox"
               checked={avisar}
@@ -960,7 +960,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
           que as mensagens saíram — e porque `semTelefone` é acionável: são pacientes com recibo
           emitido e sem aviso, que se resolve pondo o telefone no cadastro. */}
       {placar && (
-        <div style={s("display:grid;gap:6px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--bg)")}>
+        <div style={s("display:grid;gap:6px;padding:12px 14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg)")}>
           <div style={s("display:flex;gap:8px;align-items:center;font-size:var(--t-sm);font-weight:var(--w-title)")}>
             <Icon name="check" size={16} sw={2.4} />
             <span>{placar.avisados} paciente(s) avisados no WhatsApp</span>

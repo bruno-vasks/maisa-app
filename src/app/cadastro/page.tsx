@@ -48,7 +48,7 @@ import { BotaoGoogle } from "@/ui/componentes/BotaoGoogle";
 const SENHA_MIN = 8;
 
 const inputCss =
-  "width:100%;border:1px solid var(--border);border-radius:12px;padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
+  "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
 function CadastroInner() {
   const params = useSearchParams();
@@ -269,7 +269,7 @@ function CadastroInner() {
 
       <div className="m-enter" style={{ width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 22 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:18px;box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
+          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel);box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
             <span style={{ ...s("font-size:var(--t-data);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line), 0 3px 5px rgba(0,0,0,.22)" }}>maisa</span>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -282,7 +282,7 @@ function CadastroInner() {
           </div>
         </div>
 
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
+        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
           {/* ── estado de sucesso: SUBSTITUI o formulário ──
               Não é toast e não é faixa acima dos campos. A pessoa vai SAIR do app agora,
               abrir outro aplicativo e voltar — e o que ela precisa levar na cabeça é
@@ -317,7 +317,7 @@ function CadastroInner() {
               </div>
 
               {erro && (
-                <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--warn);background:var(--warn-soft);padding:10px 12px;border-radius:10px;line-height:1.45")}>
+                <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--warn);background:var(--warn-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>
                   {erro}
                 </div>
               )}
@@ -329,7 +329,7 @@ function CadastroInner() {
                 onClick={() => void conferirSePodeEntrar(true)}
                 disabled={entrando}
                 className="m-hov-primary m-press m-focus"
-                style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:46px;border:none;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-sm);cursor:${entrando ? "not-allowed" : "pointer"};opacity:${entrando ? ".6" : "1"};font-family:inherit`)}
+                style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:46px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-sm);cursor:${entrando ? "not-allowed" : "pointer"};opacity:${entrando ? ".6" : "1"};font-family:inherit`)}
               >
                 {entrando && <span style={{ ...s("width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} />}
                 Já confirmei — entrar
@@ -338,7 +338,7 @@ function CadastroInner() {
               <button
                 onClick={() => { setEnviadoPara(null); setSenha(""); setConfirma(""); setErro(null); }}
                 className="m-hov-bg m-press m-focus"
-                style={s("height:44px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;font-family:inherit")}
+                style={s("height:44px;border:1px solid var(--border);border-radius:var(--r-painel);background:var(--surface);color:var(--ink);font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;font-family:inherit")}
               >
                 Digitei o e-mail errado
               </button>
@@ -346,14 +346,14 @@ function CadastroInner() {
           ) : (
             <>
               {!isSupabaseConfigured && (
-                <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
+                <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
                   <Icon name="sparkle" size={16} />
                   <span><strong>Cadastro ainda não ativado.</strong> Configure o Supabase (chaves no ambiente) para habilitar contas novas.</span>
                 </div>
               )}
 
               {veioDoPagamento && (
-                <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--success-soft);color:var(--success);font-size:var(--t-label);line-height:1.45")}>
+                <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--success-soft);color:var(--success);font-size:var(--t-label);line-height:1.45")}>
                   <Icon name="check" size={16} sw={2.2} />
                   <span><strong>Pagamento recebido.</strong> Crie sua conta com o mesmo e-mail da compra para a gente ligar as duas.</span>
                 </div>
@@ -378,9 +378,9 @@ function CadastroInner() {
                   placeholder="Digite a senha de novo"
                 />
 
-                {erro && <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:10px;line-height:1.45")}>{erro}</div>}
+                {erro && <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>{erro}</div>}
 
-                <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
+                <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
                   {carregando ? <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} /> : <Icon name="sparkle" size={17} sw={2} stroke="var(--on-primary)" />}
                   Criar conta grátis
                 </button>

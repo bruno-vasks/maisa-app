@@ -51,7 +51,7 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
     return (
       <section
         aria-label="De quem é esse número"
-        style={s(`background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:${compacto ? "14px 15px" : "16px 18px"};display:flex;flex-direction:column;gap:12px`)}
+        style={s(`background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:${compacto ? "14px 15px" : "16px 18px"};display:flex;flex-direction:column;gap:12px`)}
       >
         <h3 style={s("margin:0;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
           De quem é esse número?
@@ -71,7 +71,7 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
   return (
     <section
       aria-label="De quem é esse número"
-      style={s(`background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:${compacto ? "14px 15px" : "16px 18px"};display:flex;flex-direction:column;gap:12px`)}
+      style={s(`background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:${compacto ? "14px 15px" : "16px 18px"};display:flex;flex-direction:column;gap:12px`)}
     >
       <div>
         <h3 style={s("margin:0;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
