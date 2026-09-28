@@ -157,7 +157,7 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
  *  agora, e sem isso as linhas âmbar apareciam sem dizer o que são. */
 function TituloDoGrupo({ children, n, tom }: { children: React.ReactNode; n: number; tom?: "warn" }) {
   return (
-    <div style={s(`position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:0 8px;min-height:36px;background:${tom === "warn" ? "var(--warn-soft)" : "var(--bg)"}`)}>
+    <div data-titulo-grupo="" className="m-grudado" style={s(`display:flex;align-items:center;gap:8px;padding:0 8px;min-height:36px;background:${tom === "warn" ? "var(--warn-soft)" : "var(--bg)"}`)}>
       {tom === "warn" && <Icon name="alert" size={15} sw={2.2} style={s("color:var(--warn)")} />}
       <span style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${tom === "warn" ? "var(--warn)" : "var(--ink)"}`)}>{children}</span>
       <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data);color:var(--muted)")}>{n}</span>
@@ -405,8 +405,29 @@ export default function FluxoHoje() {
     const alinhar = () => {
       const el = ancora.current;
       if (dela || !el) return;
-      const fim = el.getBoundingClientRect().bottom - regiao.getBoundingClientRect().top + regiao.scrollTop;
-      const alvo = Math.max(0, Math.round(fim - regiao.clientHeight + 24));
+      const topo = regiao.getBoundingClientRect().top - regiao.scrollTop;
+      const noConteudo = (b: DOMRect) => ({ top: b.top - topo, bottom: b.bottom - topo });
+      const fim = noConteudo(el.getBoundingClientRect()).bottom;
+      let alvo = Math.max(0, Math.round(fim - regiao.clientHeight + 24));
+      /* Linha cortada pelo título grudado (regressão 2, 28/09/2026): a abertura parava com
+       * "Rodrigo Albuquerque Neto" pela metade embaixo de "Passaram sem chegada". Na rolagem alvo,
+       * o título de um grupo que começa acima do topo gruda de `alvo` a `alvo + altura`; a linha
+       * que atravessa essa borda passa inteira para baixo dele, ou aparece inteira. Conta feita nas posições do fluxo
+       * (o sticky não as move), antes de rolar: uma escrita só, e o `aoRolar` não se confunde. */
+      for (const h of regiao.querySelectorAll<HTMLElement>("[data-titulo-grupo]")) {
+        const grupo = noConteudo(h.parentElement!.getBoundingClientRect());
+        const altura = h.getBoundingClientRect().height;
+        if (!(grupo.top < alvo && grupo.bottom > alvo + altura)) continue;
+        const borda = alvo + altura;
+        const cortada = [...h.parentElement!.children].slice(1)
+          .map((l) => noConteudo(l.getBoundingClientRect()))
+          .find((b) => b.top < borda - 1 && b.bottom > borda + 1);
+        if (!cortada) continue;
+        /* Para baixo quando cabe; no fim da lista (a rolagem já está no máximo, o caso das 16h
+         * com o dia cheio) sobe até a linha aparecer inteira logo abaixo do título. */
+        const max = regiao.scrollHeight - regiao.clientHeight;
+        alvo = cortada.bottom - altura <= max ? Math.ceil(cortada.bottom - altura) : Math.max(0, Math.floor(cortada.top - altura));
+      }
       if (Math.abs(regiao.scrollTop - alvo) < 2) return;
       minha = true;
       regiao.scrollTop = alvo;

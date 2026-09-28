@@ -368,11 +368,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 .m-moldura { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* `topo` é a contagem: parada no desktop, e no celular rola embora (só o `cab` gruda). */
 .m-moldura-topo { flex-shrink: 0; padding: 20px 24px 0; }
-.m-moldura-topo + .m-moldura-regiao { padding-top: 16px; }
+.m-moldura-topo + .m-moldura-regiao { --regiao-pt: 16px; }
 .m-moldura-cab { flex-shrink: 0; padding: 20px 24px 14px; display: flex; flex-direction: column; gap: 14px; background: var(--bg); }
 .m-moldura-topo + .m-moldura-cab { padding-top: 14px; }
-.m-moldura-regiao { flex: 1; min-height: 0; overflow-y: auto; position: relative; padding: 4px 24px 24px; display: flex; flex-direction: column; gap: 18px; }
-.m-moldura-regiao:first-child { padding-top: 22px; }
+.m-moldura-regiao { --regiao-pt: 4px; flex: 1; min-height: 0; overflow-y: auto; position: relative; padding: var(--regiao-pt) 24px 24px; display: flex; flex-direction: column; gap: 18px; }
+.m-moldura-regiao:first-child { --regiao-pt: 22px; }
+/* Título que gruda no topo da região enquanto o grupo dele passa (o "Passaram sem chegada" do
+   Fluxo). ⚠️ O `sticky` respeita o padding de quem rola: com `top:0` ele parava 4px abaixo do topo
+   e a linha de cima aparecia por cima dele, no mesmo âmbar (regressão 2 da verificação da Onda 1,
+   28/09/2026). O `top` negativo desconta o padding, qualquer que seja o da região. */
+.m-grudado { position: sticky; top: calc(-1 * var(--regiao-pt, 0px)); z-index: 1; }
 .m-moldura-pe { flex-shrink: 0; padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); }
 
 /* A tabela que é a região (`<Tabela rolarPorDentro>`): tem a altura das linhas até encostar no
@@ -400,6 +405,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
   .m-moldura-topo + .m-moldura-cab { padding-top: 10px; }
   .m-moldura-regiao { flex: 1 0 auto; min-height: auto; overflow-y: visible; padding: 4px 16px 20px; gap: 14px; }
   .m-moldura-regiao:first-child { padding-top: 14px; }
+  /* No celular quem rola é a moldura (sem padding), não a região. */
+  .m-grudado { top: 0; }
   .m-moldura-pe { position: sticky; bottom: 0; z-index: 5; padding: 12px 16px; }
   .m-tabela-rola { min-height: 0; }
   .m-tabela-rola > .m-tabela-corpo { overflow-y: visible; }

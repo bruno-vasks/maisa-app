@@ -67,6 +67,21 @@ const extra = await page.evaluate(() => {
     feitosFechado: r(feitosLinha),
     passaram: document.querySelectorAll('section[aria-label="Passaram sem chegada"] button[aria-label]').length,
     botaoDentroDeBotao,
+    // Regressão 2 da verificação (28/09/2026): o título do grupo grudado tem de encostar no topo da
+    // região (nada do grupo aparecendo acima dele) e não pode cortar uma linha ao meio na abertura.
+    grudados: (() => {
+      const reg = document.querySelector("[data-regiao]");
+      if (!reg) return [];
+      const rr = reg.getBoundingClientRect();
+      return [...reg.querySelectorAll("[data-titulo-grupo]")].map((h) => {
+        const hb = h.getBoundingClientRect();
+        const sec = h.parentElement.getBoundingClientRect();
+        const grudado = hb.top - sec.top > 6; // o grupo tem 4px de padding: acima disso, o título saiu do lugar
+        const linhas = [...h.parentElement.querySelectorAll("button[aria-label]")].filter((b) => b.getBoundingClientRect().height >= 50);
+        const cortadas = grudado ? linhas.filter((b) => { const x = b.getBoundingClientRect(); return x.top < hb.bottom - 1 && x.bottom > hb.bottom + 1; }).map((b) => b.getAttribute("aria-label").split(",")[0]) : [];
+        return { t: h.innerText.replace(/\s+/g, " ").trim(), grudado, folgaAcima: Math.round(hb.top - rr.top), cortadas };
+      });
+    })(),
   };
 });
 console.log(JSON.stringify({ ...regua, ...extra }, null, 1));
