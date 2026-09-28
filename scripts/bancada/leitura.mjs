@@ -12,9 +12,9 @@
 //
 // Imprime, em cada instante da amostra (150, 600, 1200 ms e depois do atraso), quais frases
 // PROIBIDAS antes de saber estão visíveis, e o texto do cabeçalho. Fotografa o fim.
-import { chromium } from "./_comum.mjs";
+import { chromium, posicionais, bandeiras } from "./_comum.mjs";
 
-const [, , tela, pre, modo = "desktop", ...flags] = process.argv;
+const [tela, pre, modo = "desktop"] = posicionais(); const flags = bandeiras();
 const opt = (k, pad) => (flags.find((f) => f.startsWith(`--${k}=`)) ?? `=${pad}`).split("=")[1];
 const has = (f) => flags.includes(f);
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };

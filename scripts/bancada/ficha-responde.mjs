@@ -4,8 +4,8 @@
 // `/api/contatos` é simulado: no modo pessoal, a primeira cliente do cadastro está no caderno com a
 // marcação de `--marca` (`fora` = não está no caderno). O PATCH é respondido aqui e registrado.
 // Abre a ficha, lê a faixa fixa sob o cabeçalho, toca "Responder a …" se houver e lê de novo.
-import { chromium } from "./_comum.mjs";
-const [, , modo = "desktop", pasta, ...flags] = process.argv;
+import { chromium, posicionais, bandeiras } from "./_comum.mjs";
+const [modo = "desktop", pasta] = posicionais(); const flags = bandeiras();
 const opt = (k, d) => (flags.find((f) => f.startsWith(`--${k}=`)) || `--${k}=${d}`).split("=")[1];
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const modoDoNumero = opt("modo", "pessoal");

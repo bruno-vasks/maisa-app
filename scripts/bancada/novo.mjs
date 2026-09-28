@@ -8,8 +8,8 @@
 //   celular: o "＋" quando ele marca; o "＋" que abre o menu "Novo"; ou a aba Agenda e o "＋".
 // Lê o rascunho aberto (dia, hora, com quem) para conferir que nasceu num vago de verdade.
 // Nada é gravado: a gaveta é fechada com "Descartar" antes de seguir.
-import { chromium } from "./_comum.mjs";
-const [, , modo = "desktop", pasta] = process.argv;
+import { chromium, posicionais } from "./_comum.mjs";
+const [modo = "desktop", pasta] = posicionais();
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const TELAS = ["fluxo", "conversas", "agenda", "clientes", "faturamento", "fiscal", "equipe", "servicos", "assistente", "contatos", "mais"];
 const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -24,7 +24,9 @@ for (const tela of TELAS) {
     const vis = (r) => r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
     const primarios = [...document.querySelectorAll("button, a")].filter((b) => getComputedStyle(b).backgroundColor === azul && vis(b.getBoundingClientRect()))
       .map((b) => (b.innerText || b.getAttribute("aria-label") || "").trim().replace(/\s+/g, " "));
-    const mais = document.querySelector('header button[aria-label]:last-child');
+    // O "＋" do celular é o ÚLTIMO botão do cabeçalho. `button[aria-label]:last-child` casava com
+    // o status da MAISA, que é o último filho do próprio invólucro (regressão 7, 28/09/2026).
+    const mais = [...document.querySelectorAll("header button[aria-label]")].filter((b) => !/^MAISA:/.test(b.getAttribute("aria-label"))).pop();
     return { primarios, maisDoCelular: mais?.getAttribute("aria-label") ?? null };
   });
   let cliques = 0;

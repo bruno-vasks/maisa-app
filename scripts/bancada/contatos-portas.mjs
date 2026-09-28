@@ -5,8 +5,8 @@
 // importar: `/api/contatos` começa vazio; o POST (respondido aqui, nada vai à Evolution) devolve
 // `{ novos: 374, total: 374, lidos: 1840 }` e o GET seguinte traz 3 contatos. Mede se a tela
 // continua em Contatos, se a lista aparece e o que o botão dizia enquanto lia.
-import { chromium } from "./_comum.mjs";
-const [, , modo = "desktop", pasta, ...flags] = process.argv;
+import { chromium, posicionais, bandeiras } from "./_comum.mjs";
+const [modo = "desktop", pasta] = posicionais(); const flags = bandeiras();
 const opt = (k, d) => (flags.find((f) => f.startsWith(`--${k}=`)) || `--${k}=${d}`).split("=")[1];
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const modoDoNumero = opt("modo", "negocio");

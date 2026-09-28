@@ -4,8 +4,8 @@
 // ⚠️ GRAVA NO DEMO (o repositório em memória do `next dev` de :3200, sem banco), e não há como
 // apagar profissional: quem rodar deixa a pessoa na equipe do demo até o dev reiniciar. Por isso
 // ela nasce com o nome de `--nome` e termina PAUSADA (não recebe agendamento no demo).
-import { chromium } from "./_comum.mjs";
-const [, , modo = "desktop", pasta, ...flags] = process.argv;
+import { chromium, posicionais, bandeiras } from "./_comum.mjs";
+const [modo = "desktop", pasta] = posicionais(); const flags = bandeiras();
 const nome = (flags.find((f) => f.startsWith("--nome=")) || "--nome=Ana Teste").split("=")[1];
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const browser = await chromium.launch({ channel: "chrome", headless: true });

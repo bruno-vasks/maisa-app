@@ -4,9 +4,9 @@
 //           ou um caminho começando com "/" (ex.: /login, /comecar)
 //   --full  : fotografa a página inteira (mostra o quanto rola)
 //   --medir : imprime JSON com altura do viewport vs. altura rolável de cada contêiner que rola
-import { chromium, pastaDeFotos } from "./_comum.mjs";
+import { chromium, pastaDeFotos, posicionais, bandeiras } from "./_comum.mjs";
 
-const [, , tela, saida, modo = "desktop", ...flags] = process.argv;
+const [tela, saida, modo = "desktop"] = posicionais(); const flags = bandeiras();
 const full = flags.includes("--full");
 const medir = flags.includes("--medir");
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };

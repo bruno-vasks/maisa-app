@@ -7,8 +7,8 @@
 // se "Não dá para desfazer" está na tela sem rolar. `servico`: conta botões com fundo --primary e
 // toca UMA vez em "Excluir serviço" (os DELETE são contados, e respondidos aqui, nunca no demo).
 // Nada sai do navegador: cadastro, agenda, Google, conversas e o DELETE são simulados.
-import { chromium } from "./_comum.mjs";
-const [, , cenario = "atendimento", saida = "/tmp/gaveta.png", modo = "desktop"] = process.argv;
+import { chromium, posicionais } from "./_comum.mjs";
+const [cenario = "atendimento", saida = "/tmp/gaveta.png", modo = "desktop"] = posicionais();
 const vp = modo === "mobile" ? { width: 390, height: 844 } : modo === "desktop" ? { width: 1440, height: 900 } : { width: +modo.split("x")[0], height: +modo.split("x")[1] };
 const HOJE = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 

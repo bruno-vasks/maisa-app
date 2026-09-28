@@ -8,8 +8,8 @@
 // em atendimento; `--feitos=N` marca os N primeiros como feitos (o aparelho guarda a etapa, então é
 // localStorage). Imprime a régua do `medir.mjs` mais o que o critério pede: a faixa Agora, o próximo,
 // o "Chegou" dele, linhas visíveis, a jornada.
-import { chromium, medirPagina } from "./_comum.mjs";
-const [, , pre = "fluxo-agora", modo = "desktop", ...flags] = process.argv;
+import { chromium, medirPagina, posicionais, bandeiras } from "./_comum.mjs";
+const [pre = "fluxo-agora", modo = "desktop"] = posicionais(); const flags = bandeiras();
 const has = (f) => flags.includes(f);
 const val = (k, d) => { const f = flags.find((x) => x.startsWith(`--${k}=`)); return f ? f.split("=")[1] : d; };
 const vp = modo === "mobile" ? { width: 390, height: 844 } : modo === "1024" ? { width: 1024, height: 768 } : { width: 1440, height: 900 };

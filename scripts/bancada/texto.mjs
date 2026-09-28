@@ -5,9 +5,9 @@
 // Abre `?tela=<tela>` no demo (:3200), clica em cada `--clicar` na ordem (por texto visível),
 // e para cada `--procura` (expressão regular, sem barras) diz quantas vezes aparece no texto
 // visível da página inteira, rail e gaveta incluídos. Lista também os `href` de `wa.me`.
-import { chromium } from "./_comum.mjs";
+import { chromium, posicionais, bandeiras } from "./_comum.mjs";
 
-const [, , tela, saida, modo = "desktop", ...flags] = process.argv;
+const [tela, saida, modo = "desktop"] = posicionais(); const flags = bandeiras();
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const lista = (k) => flags.filter((f) => f.startsWith(`--${k}=`)).map((f) => f.slice(k.length + 3));
 const espera = Number(lista("espera")[0] ?? 1500);

@@ -4,8 +4,8 @@
 //
 // uso: node regua-t1.mjs [pasta-das-fotos]   (sem pasta, não fotografa)
 // Exceções declaradas em T1: Conversas e Fluxo podem ter 2 regiões (uma por coluna).
-import { chromium, medirPagina, VIEWPORTS } from "./_comum.mjs";
-const [, , pasta] = process.argv;
+import { chromium, medirPagina, VIEWPORTS, posicionais } from "./_comum.mjs";
+const [pasta] = posicionais();
 const TELAS = ["fluxo", "conversas", "agenda", "clientes", "faturamento", "equipe", "servicos", "assistente", "contatos", "mais", "fiscal"];
 const ENTRADA = ["/login", "/cadastro", "/esqueci", "/comecar"];
 const browser = await chromium.launch({ channel: "chrome", headless: true });

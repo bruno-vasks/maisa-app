@@ -1,7 +1,7 @@
 // fluxo.mjs — fotografa o Fluxo com dia cheio (15 atendimentos) interceptando /api/agenda e /api/conversas.
 // uso: node fluxo.mjs <saida-prefixo> [desktop|mobile] [--formado] [--vazio] [--gaveta] [--full] [--erroagenda] [--lento]
-import { chromium, pastaDeFotos } from "./_comum.mjs";
-const [, , pre, modo = "desktop", ...flags] = process.argv;
+import { chromium, pastaDeFotos, posicionais, bandeiras } from "./_comum.mjs";
+const [pre, modo = "desktop"] = posicionais(); const flags = bandeiras();
 const has = (f) => flags.includes(f);
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const hoje = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);

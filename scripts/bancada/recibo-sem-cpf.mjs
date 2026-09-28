@@ -7,8 +7,8 @@
 // como o servidor: grava, devolve a ficha, e a próxima leitura de `/api/recibos` já traz o CPF.
 // Mede: linhas do grupo, o "Pôr CPF" de cada uma, a gaveta que abre, e depois de pôr o CPF (sem
 // recarregar) quantas sobram no grupo e se a pessoa virou linha marcável.
-import { chromium } from "./_comum.mjs";
-const [, , pre = "recibo-sem-cpf", modo = "desktop"] = process.argv;
+import { chromium, posicionais } from "./_comum.mjs";
+const [pre = "recibo-sem-cpf", modo = "desktop"] = posicionais();
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const NOMES = ["Ana Beatriz Moura", "Bruno Carvalho", "Carla Guth", "Daniela Ribeiro", "Eduardo Lima", "Fernanda Souza", "Gabriel Rocha", "Helena Martins", "Igor Pereira", "Juliana Alves", "Kátia Nogueira", "Lucas Fernandes", "Mariana Costa", "Nicolas Barros", "Olívia Teixeira", "Paulo Henrique Dias", "Queila Santos", "Rafael Antunes", "Sofia Mendes", "Tiago Araújo", "Úrsula Campos", "Vinícius Prado", "Wagner Reis", "Yasmin Freitas"];
 const CPFS_OK = ["52998224725", "11144477735", "12345678909", "98765432100"];

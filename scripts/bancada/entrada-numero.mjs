@@ -8,9 +8,9 @@
 // `calada`: etapa 4 com o laboratório devolvendo `bolhas: []` e um `motivo`; manda uma mensagem
 //   e mostra o que a tela escreveu.
 // Tudo por `page.route`: nada sai do navegador.
-import { chromium } from "./_comum.mjs";
+import { chromium, posicionais } from "./_comum.mjs";
 
-const [, , pre, modo = "desktop", caso = "pergunta"] = process.argv;
+const [pre, modo = "desktop", caso = "pergunta"] = posicionais();
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: vp, deviceScaleFactor: 1, isMobile: modo === "mobile", hasTouch: modo === "mobile" });

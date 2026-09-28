@@ -7,8 +7,8 @@
 // que o critério pede: linhas no DOM, y da primeira linha, altura de uma linha, e o que cada busca
 // do critério acha ("981234567", "Silva", "312.456", "sílva"). `--toque` abre o contexto com
 // `hasTouch` e sem hover, para conferir que nada depende de passar o mouse.
-import { chromium, medirPagina } from "./_comum.mjs";
-const [, , pre = "clientes-lista", modo = "desktop", ...flags] = process.argv;
+import { chromium, medirPagina, posicionais, bandeiras } from "./_comum.mjs";
+const [pre = "clientes-lista", modo = "desktop"] = posicionais(); const flags = bandeiras();
 const val = (k, d) => { const f = flags.find((x) => x.startsWith(`--${k}=`)); return f ? f.split("=").slice(1).join("=") : d; };
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const NOMES = ["Ana","Bruno","Carla","Diego","Elisa","Fábio","Gabriela","Heitor","Isabela","João","Karina","Lucas","Marina","Nicolas","Olívia","Paulo","Quésia","Rafael","Sofia","Tiago"];

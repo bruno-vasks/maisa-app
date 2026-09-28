@@ -1,6 +1,6 @@
-import { chromium, pastaDeFotos } from "./_comum.mjs";
+import { chromium, pastaDeFotos, posicionais } from "./_comum.mjs";
 const F = pastaDeFotos("ajustes");
-const [, , modo = "desktop", cenario = "real"] = process.argv;
+const [modo = "desktop", cenario = "real"] = posicionais();
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: vp, deviceScaleFactor: 1 });

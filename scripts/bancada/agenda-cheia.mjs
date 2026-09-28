@@ -1,8 +1,8 @@
 // agenda-cheia.mjs — Agenda com dado simulado (intercepta /api/cadastro, /api/agenda, /api/google/status).
 // cenários: semana, mes, atendimento, passado, cancelar, marcar, marcar-serie, remarcar (1B.5: PATCH respondido no navegador)
 // uso: node agenda-cheia.mjs <cenario> <saida.png> [desktop|mobile|WxH] [--equipe] [--google=ok|nao] [--falha=<pid>] [--valor=<n>] [--full]
-import { chromium, pastaDeFotos } from "./_comum.mjs";
-const [, , cenario, saida, modo = "desktop", ...flags] = process.argv;
+import { chromium, pastaDeFotos, posicionais, bandeiras } from "./_comum.mjs";
+const [cenario, saida, modo = "desktop"] = posicionais(); const flags = bandeiras();
 const equipe = flags.includes("--equipe");
 const full = flags.includes("--full");
 const g = (flags.find(f => f.startsWith("--google=")) || "--google=cfg").split("=")[1];
@@ -24,10 +24,10 @@ const HOJE = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const somar = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 const dowSeg = (new Date(HOJE + "T12:00:00Z").getUTCDay() + 6) % 7;
 const dias = Array.from({ length: 6 }, (_, i) => somar(HOJE, i - dowSeg));
-// `passado` volta um dia: na segunda, ontem é domingo e fica fora da semana de segunda a sábado, e
-// o cenário morria procurando um atendimento que não existia (regressão 7, 28/09/2026). Ontem entra
-// sempre.
-if (!dias.includes(somar(HOJE, -1))) dias.unshift(somar(HOJE, -1));
+// `passado` volta um dia pelo "Dia anterior", que pula a folga: na segunda ele cai no sábado da
+// semana passada, fora da semana de segunda a sábado, e o cenário morria procurando um atendimento
+// que não existia (regressão 7, 28/09/2026). Os três dias antes de hoje entram sempre.
+for (const k of [1, 2, 3]) if (!dias.includes(somar(HOJE, -k))) dias.unshift(somar(HOJE, -k));
 const eventos = []; let n = 0;
 const horas = [9, 9.5, 10.5, 11, 13, 14, 14.5, 15.5, 16, 17, 18];
 for (const d of dias) {

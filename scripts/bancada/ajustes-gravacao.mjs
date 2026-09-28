@@ -10,9 +10,9 @@
 //
 // ⚠️ Sem `--falha` o PATCH vai de verdade para o demo (:3200, memória do servidor, sem banco),
 // e o script desfaz a mudança no fim.
-import { chromium } from "./_comum.mjs";
+import { chromium, posicionais, bandeiras } from "./_comum.mjs";
 
-const [, , pre, modo = "desktop", ...flags] = process.argv;
+const [pre, modo = "desktop"] = posicionais(); const flags = bandeiras();
 const falha = flags.includes("--falha");
 const lento = Number((flags.find((f) => f.startsWith("--lento=")) ?? "=300").split("=")[1]);
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };

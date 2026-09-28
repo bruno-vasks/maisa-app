@@ -10,8 +10,8 @@
 // Imprime a régua do `medir.mjs` mais: a linha de status, o recorte (altura visível), os 7 dias
 // dentro do recorte, "De quem é" no DOM, as falas do preview e, no celular, os retângulos do
 // título, do número e dos botões da faixa do WhatsApp (sobreposição).
-import { chromium, medirPagina } from "./_comum.mjs";
-const [, , pre = "ajustes-moldura", modo = "desktop", cenario = "cheio", ...flags] = process.argv;
+import { chromium, medirPagina, posicionais, bandeiras } from "./_comum.mjs";
+const [pre = "ajustes-moldura", modo = "desktop", cenario = "cheio"] = posicionais(); const flags = bandeiras();
 const val = (k, d) => { const f = flags.find((x) => x.startsWith(`--${k}=`)); return f ? f.split("=")[1] : d; };
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 const conectado = cenario !== "desconectado";

@@ -3,9 +3,9 @@
 // uso: node fiscal.mjs <cenario> <saida-sem-ext> [desktop|mobile]
 // `COMPETENCIA=2026-08-01,2026-09-01` reparte essas competências entre as linhas de /api/faturamento
 // (sem ela, a competência vem vazia e a tela usa o mês de hoje).
-import { chromium, pastaDeFotos, medirPagina } from "./_comum.mjs";
+import { chromium, pastaDeFotos, medirPagina, posicionais } from "./_comum.mjs";
 
-const [, , cenario, saida, modo = "desktop"] = process.argv;
+const [cenario, saida, modo = "desktop"] = posicionais();
 const vp = modo === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 
 const NOMES = ["Ana Beatriz Moura", "Bruno Carvalho", "Carla Guth", "Daniela Ribeiro", "Eduardo Lima", "Fernanda Souza", "Gabriel Rocha", "Helena Martins", "Igor Pereira", "Juliana Alves", "Kátia Nogueira", "Lucas Fernandes", "Mariana Costa", "Nicolas Barros", "Olívia Teixeira", "Paulo Henrique Dias", "Queila Santos", "Rafael Antunes", "Sofia Mendes", "Tiago Araújo", "Úrsula Campos", "Vinícius Prado", "Wagner Reis", "Yasmin Freitas"];

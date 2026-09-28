@@ -44,6 +44,17 @@ export function pastaDeFotos(sub) {
   return dir;
 }
 
+/**
+ * Os argumentos do script, separados: o que começa com `--` é flag, o resto é posicional, na ordem
+ * em que veio e em qualquer lugar da linha. ⚠️ Era `const [, , pasta, modo] = process.argv`, e uma
+ * flag antes do posicional virava o posicional: `ajustes-moldura.mjs --canal=conectado …` gravou
+ * fotos numa pasta chamada "--canal=conectado" na raiz, e o script rodou o padrão sem avisar
+ * (regressão 7 da verificação da Onda 1, 28/09/2026). `medir.mjs` fica de fora: `--foto` e `--lote`
+ * levam o valor separado por espaço.
+ */
+export const posicionais = () => process.argv.slice(2).filter((a) => !a.startsWith("--"));
+export const bandeiras = () => process.argv.slice(2).filter((a) => a.startsWith("--"));
+
 export const VIEWPORTS = { desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } };
 
 /** A régua de `medir.mjs` (G18), para qualquer script que já abriu a página com os cenários

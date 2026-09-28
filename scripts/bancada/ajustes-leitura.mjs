@@ -7,9 +7,9 @@
 // conta os campos editáveis (input, textarea, select e botões de tom/dia/toggle habilitados)
 // DENTRO das seções, se algum deles mostra um valor do placeholder ("MAISA", "Seu Negócio",
 // "08:00", "20:00") e se "Conectar WhatsApp" está na tela.
-import { chromium } from "./_comum.mjs";
+import { chromium, posicionais, bandeiras } from "./_comum.mjs";
 
-const [, , pre, modo = "desktop", ...flags] = process.argv;
+const [pre, modo = "desktop"] = posicionais(); const flags = bandeiras();
 const opt = (k, pad) => (flags.find((f) => f.startsWith(`--${k}=`)) ?? `=${pad}`).split("=")[1];
 const atraso = Number(opt("atraso", "2000"));
 const erro = flags.includes("--erro");
