@@ -693,6 +693,9 @@ export type StoreValue = {
   conversaDe: (id: string) => D.Conversa | null;
   /** Frase quando a lista não carregou. A tela mostra isso em vez de "nenhuma conversa". */
   conversasErro: string | null;
+  /** O erro é de sessão (`nao_autenticado`/`login_necessario`): tentar de novo não resolve, entrar
+   *  resolve. A tela troca o "Tentar de novo" por "Entrar" (T4, mesmo par de Contatos). */
+  conversasPrecisaEntrar: boolean;
   /** Já voltou do servidor? `false` cobre "carregando" e "falhou" — a tela distingue pelo erro. */
   conversasCarregadas: boolean;
   recarregarConversas: () => void;
@@ -1587,6 +1590,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const [conversas, setConversas] = useState<D.Conversa[]>([]);
   const [conversasErro, setConversasErro] = useState<string | null>(null);
+  const [conversasPrecisaEntrar, setConversasPrecisaEntrar] = useState(false);
   const [conversasCarregadas, setConversasCarregadas] = useState(false);
   /** Threads já buscadas, por id de conversa. Cache: voltar para uma conversa não repinta vazio. */
   const [threads, setThreads] = useState<Record<string, D.Msg[]>>({});
@@ -1602,13 +1606,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const r = await fetch("/api/conversas").then((x) => x.json());
       if (!r?.ok) {
         setConversasErro(MOTIVO_CONVERSAS[r?.status] ?? MOTIVO_CONVERSAS.erro);
+        setConversasPrecisaEntrar(r?.status === "nao_autenticado" || r?.status === "login_necessario");
         return;
       }
       setConversas(r.conversas ?? []);
       setConversasErro(null);
+      setConversasPrecisaEntrar(false);
       setConversasCarregadas(true);
     } catch {
       setConversasErro(MOTIVO_CONVERSAS.erro);
+      setConversasPrecisaEntrar(false);
     } finally {
       lendoConversas.current = false;
     }
@@ -4565,7 +4572,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,
     fila, resolverFila,
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
-    conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
+    conversas, conversaDe, conversasErro, conversasPrecisaEntrar, conversasCarregadas, recarregarConversas,
     convSel, selecionarConversa, abaConv, setAbaConv, threadDe, threadCarregando,
     enviar, enviando, assumir, devolver, abrirNoWhatsApp, caderno, recarregarCaderno, responderA,
     cadastro, cadastroErro, cadastroCarregado,
@@ -4598,7 +4605,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     remarcacao, pedirRemarcacao, editarRemarcacao, remarcarAtendimento,
     fila, resolverFila,
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
-    conversas, conversaDe, conversasErro, conversasCarregadas, recarregarConversas,
+    conversas, conversaDe, conversasErro, conversasPrecisaEntrar, conversasCarregadas, recarregarConversas,
     convSel, selecionarConversa, abaConv, threadDe, threadCarregando,
     enviar, enviando, assumir, devolver, abrirNoWhatsApp, caderno, recarregarCaderno, responderA,
     cadastro, cadastroErro, cadastroCarregado,

@@ -15,6 +15,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { s, Btn, Icon, Monogram } from "@/ui/primitivos";
 import { TITULO_PARADA, useAcaoDoStatus } from "@/ui/componentes/StatusDaMaisa";
 import { useIsMobile } from "@/ui/useIsMobile";
+import { FalhaDeLeitura, ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AbaConversa } from "@/ui/estado/store";
 
@@ -42,7 +43,23 @@ const SITUACAO: Record<D.EstadoConversa, string> = {
 
 /* ───────────────────────────── lista ───────────────────────────── */
 
-function Lista({ onEscolher }: { onEscolher: (id: string) => void }) {
+/** A leitura da lista falhou: a frase e "Tentar de novo" (ou "Entrar", se a sessão acabou). */
+function FalhaDasConversas() {
+  const st = useStore();
+  if (!st.conversasErro) return null;
+  return (
+    <FalhaDeLeitura
+      frase={st.conversasErro}
+      tentar={() => void st.recarregarConversas()}
+      acao={st.conversasPrecisaEntrar ? ENTRAR : undefined}
+    />
+  );
+}
+
+/** `falhaAqui`: no celular a lista é a tela inteira, então a falha da leitura mora nela. No desktop
+ *  ela mora na coluna da conversa, e a lista fica calada: a mesma frase nas duas colunas era o
+ *  defeito de T4 medido em 28/09/2026. */
+function Lista({ onEscolher, falhaAqui = false }: { onEscolher: (id: string) => void; falhaAqui?: boolean }) {
   const st = useStore();
   const acao = useAcaoDoStatus();
 
@@ -86,11 +103,11 @@ function Lista({ onEscolher }: { onEscolher: (id: string) => void }) {
             <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>Conecte para as conversas chegarem aqui.</span>
             <Btn variant="secondary" onClick={acao.fazer}>{acao.rotulo}</Btn>
           </div>
+        ) : visiveis.length === 0 && st.conversasErro ? (
+          falhaAqui ? <FalhaDasConversas /> : null
         ) : visiveis.length === 0 && (
           <div style={s("padding:36px 14px;text-align:center;font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>
-            {st.conversasErro
-              ? st.conversasErro
-              : !st.conversasCarregadas
+            {!st.conversasCarregadas
                 ? "Carregando as conversas…"
                 : st.conversas.length === 0
                   ? "Nenhuma conversa ainda. Quando alguém escrever no WhatsApp do negócio, ela aparece aqui."
@@ -217,12 +234,13 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
      havia sempre `CONVERSAS[0]`; com dado real, um negócio no primeiro dia tem zero conversas.
      O `?? CONVERSAS[0]` de antes viraria um crash aqui. */
   if (!cv) {
+    if (st.conversasErro) return <div style={s("flex:1;display:flex;align-items:center;justify-content:center")}><FalhaDasConversas /></div>;
     return (
       <div style={s("flex:1;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center")}>
         <div style={s("max-width:38ch;font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>
-          {st.conversasErro ?? (st.conversasCarregadas
+          {st.conversasCarregadas
             ? "Nenhuma conversa por aqui ainda. A primeira mensagem que chegar no WhatsApp do negócio abre esta tela."
-            : "Carregando as conversas…")}
+            : "Carregando as conversas…"}
         </div>
       </div>
     );
@@ -442,7 +460,7 @@ export default function Conversas() {
       <div className="m-enter" style={s("flex:1;display:flex;flex-direction:column;min-height:0;background:var(--surface)")}>
         {abertaNoMobile
           ? <Thread onVoltar={() => setAbertaNoMobile(false)} />
-          : <Lista onEscolher={(id) => { st.selecionarConversa(id); setAbertaNoMobile(true); }} />}
+          : <Lista falhaAqui onEscolher={(id) => { st.selecionarConversa(id); setAbertaNoMobile(true); }} />}
       </div>
     );
   }
