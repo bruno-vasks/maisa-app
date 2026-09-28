@@ -58,6 +58,12 @@ política de privacidade — é o que o revisor do Google abre e confere. Há te
 da página e o do invólucro direto dela procurando os dois links; entrar em `NAO_SAO_LP` não
 escapa dele.
 
+⚠️ **Um contato só** (28/09/2026). O e-mail público é o `CONTATO` de `_lib/Juridico.tsx` e o
+WhatsApp é o `WHATSAPP_NUMERO` de `_lib/icp.ts`, os dois do Bruno. A análise do site do provedor
+de pagamento confere o contato e cruza com o dos termos; havia três e-mails no ar. O
+`juridico.test.ts` reprova qualquer `mailto:` ou `wa.me/` diferente nas páginas públicas,
+inclusive no HTML estático da LP de terapeutas, e link de rede social que aponta para âncora.
+
 `/autorizar` é pública de propósito: quem lê está no site da Receita, mandado por WhatsApp, e
 pode nem ter conta na MAISA. Os passos vêm de `passosDaProcuracao()`, o mesmo do painel — uma
 fonte, dois lugares.

@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import { ICPS, CONTATO_EMAIL, type ICP } from "./icp";
+import { ICPS, type ICP } from "./icp";
+import { CONTATO } from "./Juridico";
 import { Wordmark } from "./Wordmark";
 import { Button } from "./primitives";
 
@@ -85,8 +86,8 @@ export function Footer({ icp }: { icp: ICP }) {
             </div>
             <p style={{ marginTop: "0.95rem", fontFamily: "var(--mk-font-body)", fontSize: "0.9rem", lineHeight: 1.6, color: "var(--mk-footer-muted)" }}>
               Prefere e-mail?{" "}
-              <a href={`mailto:${CONTATO_EMAIL}`} className="mk-footlink mk-focus" style={{ color: "var(--mk-footer-ink)", fontWeight: 600 }}>
-                {CONTATO_EMAIL}
+              <a href={`mailto:${CONTATO}`} className="mk-footlink mk-focus" style={{ color: "var(--mk-footer-ink)", fontWeight: 600 }}>
+                {CONTATO}
               </a>
             </p>
           </div>

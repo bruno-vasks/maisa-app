@@ -9,21 +9,14 @@ export type Nivel = "topo" | "meio" | "base";
 
 /* Número da MAISA no WhatsApp, em E.164 sem o "+". É o mesmo número da LP
  * oficial em lp/terapeutas/index.html — se trocar aqui, troque lá também: a LP
- * é HTML estático e não importa este módulo. */
+ * é HTML estático e não importa este módulo. O `juridico.test.ts` confere os dois. */
 export const WHATSAPP_NUMERO = "5511994294906";
 
-/* E-mail de contato secundário (canal alternativo ao WhatsApp). Ponto único —
- * >>> TROCAR pelo endereço real antes de publicar <<<
- *
- * ⚠️ NÃO É ESTE QUE ESTÁ PUBLICADO, e a diferença é deliberada. O endereço que o
- * visitante vê hoje é o `CONTATO` de `_lib/Juridico.tsx` — o mesmo da política de
- * privacidade e dos termos, porque o Google cruza o canal de contato do site com o da
- * política ao verificar o app, e endereço divergente entre os dois é ruído no pior
- * momento possível. Este aqui só aparece no <Footer>, que nenhuma página renderiza.
- *
- * Quando o endereço de marca existir de verdade, o conserto é trocá-lo NO Juridico.tsx e
- * apagar esta constante — não o contrário. */
-export const CONTATO_EMAIL = "contato@maisa.app";
+/* O e-mail de contato NÃO mora aqui: é o `CONTATO` de `_lib/Juridico.tsx`, o mesmo da
+ * política e dos termos. Havia um `CONTATO_EMAIL = "contato@maisa.app"` de placeholder; saiu
+ * em 28/09/2026, quando a análise do site do provedor de pagamento pediu contato e o Bruno
+ * mandou unificar tudo nos contatos dele. Um endereço só, e o `juridico.test.ts` reprova se
+ * a LP estática divergir. */
 
 /** Monta o link wa.me com mensagem pré-preenchida (já codificada). */
 export function whatsappUrl(mensagem: string): string {

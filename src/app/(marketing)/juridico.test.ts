@@ -27,6 +27,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isPublic } from "@/adaptadores/saida/supabase/sessao";
+import { CONTATO } from "./_lib/Juridico";
+import { WHATSAPP_NUMERO } from "./_lib/icp";
 
 const MARKETING = fileURLToPath(new URL(".", import.meta.url));
 const RAIZ = join(MARKETING, "..", "..", "..");
@@ -167,6 +169,73 @@ describe("o caminho para a política existe em toda página pública", () => {
 
     expect(html).toContain('href="/privacidade"');
     expect(html).toContain('href="/termos"');
+  });
+});
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * UM CONTATO SÓ, EM TODA PÁGINA PÚBLICA (28/09/2026).
+ *
+ * A análise do site do provedor de pagamento pede "meios de contato" em
+ * `app.maisasecretary.com.br`, e o site tinha três e-mails: o da política
+ * (bruno.vaskevicius@polijunior.com.br), um `contato@maisa.app` de placeholder no `icp.ts` e
+ * um `oi@maisa.com.br` escrito à mão na LP de terapeutas, num domínio que não é nosso. O
+ * revisor cruza o contato do site com o dos termos, e um e-mail que volta sem entregar derruba
+ * a análise. O Bruno mandou unificar nos contatos dele.
+ *
+ * A LP de terapeutas é HTML estático e não importa TS, então ela redigita o e-mail e o número.
+ * Estes testes são o que impede os dois lados de divergirem de novo, como o `planos.test.ts`
+ * faz com os preços.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+
+/** Todo arquivo de texto das páginas públicas: o `(marketing)` inteiro e a LP estática. */
+function fontesPublicas(): { nome: string; texto: string }[] {
+  const achadas: { nome: string; texto: string }[] = [];
+  const varrer = (dir: string) => {
+    for (const nome of readdirSync(dir)) {
+      const p = join(dir, nome);
+      if (statSync(p).isDirectory()) varrer(p);
+      else if (/\.(tsx?|html)$/.test(nome) && !/\.test\.ts$/.test(nome)) achadas.push({ nome: relative(RAIZ, p).split(sep).join("/"), texto: ler(p) });
+    }
+  };
+  varrer(MARKETING);
+  varrer(join(RAIZ, "lp"));
+  return achadas;
+}
+
+describe("um contato só, em toda página pública", () => {
+  it("todo mailto das páginas públicas é o CONTATO da política", () => {
+    const fora = fontesPublicas().flatMap(({ nome, texto }) =>
+      [...texto.matchAll(/mailto:([^"'`?\s}]+)/g)]
+        .map((m) => m[1])
+        .filter((email) => !email.startsWith("$") && email !== CONTATO)
+        .map((email) => `${nome}: ${email}`));
+    expect(fora).toEqual([]);
+  });
+
+  it("todo wa.me das páginas públicas é o WhatsApp da MAISA", () => {
+    const fora = fontesPublicas().flatMap(({ nome, texto }) =>
+      [...texto.matchAll(/wa\.me\/(\d+)/g)]
+        .map((m) => m[1])
+        .filter((n) => n !== WHATSAPP_NUMERO)
+        .map((n) => `${nome}: ${n}`));
+    expect(fora).toEqual([]);
+  });
+
+  it("a LP estática de terapeutas mostra o e-mail e o WhatsApp de verdade", () => {
+    const html = ler(join(RAIZ, "lp", "terapeutas", "index.html"));
+    expect(html).toContain(`mailto:${CONTATO}`);
+    expect(html).toContain(`wa.me/${WHATSAPP_NUMERO}`);
+  });
+
+  /* Link de rede social que aponta para âncora da própria página é link falso, e um revisor
+   * que clica nele vê isso. Era o "instagram" do rodapé da LP de terapeutas (`href="#planos"`). */
+  it("nenhum link de rede social aponta para dentro da própria página", () => {
+    const falsos = fontesPublicas().flatMap(({ nome, texto }) =>
+      [...texto.matchAll(/<a\b[^>]*href="#[^"]*"[^>]*>\s*(instagram|facebook|tiktok|linkedin|youtube|x|twitter)\s*<\/a>/gi)]
+        .map((m) => `${nome}: ${m[1]}`));
+    expect(falsos).toEqual([]);
   });
 });
 
