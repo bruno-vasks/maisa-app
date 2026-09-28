@@ -27,12 +27,26 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { PROCURADOR_PADRAO } from "@/nucleo/dominio/checklist-recibo";
 
 /** Uma data só, usada nas duas páginas e no rodapé. Google confere se está datada. */
 export const VIGENCIA = "17 de agosto de 2026";
 
 /** Onde o titular fala com a gente. Google exige canal de contato na política. */
 export const CONTATO = "bruno.vaskevicius@polijunior.com.br";
+
+/**
+ * Quem opera a MAISA, no rodapé de toda página pública (28/09/2026). A análise do site do
+ * provedor de pagamento pede o CNPJ exibido, e o revisor confere com o da conta: é a Poli
+ * Júnior, razão social "Junior Poli Estudos".
+ *
+ * ⚠️ O NÚMERO VEM DO `PROCURADOR_PADRAO`, e não de uma cópia: é a mesma conta que emite pela
+ * MAISA e que o tutorial `/autorizar` manda autorizar. Dois lugares com o CNPJ digitado à mão
+ * divergiriam no dia em que um mudasse, e o revisor veria dois números.
+ */
+export const RAZAO_SOCIAL = "Junior Poli Estudos";
+export const CNPJ = PROCURADOR_PADRAO.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+export const EMPRESA = `${RAZAO_SOCIAL} · CNPJ ${CNPJ}`;
 
 export function PaginaJuridica(
   { titulo, resumo, children }: { titulo: string; resumo: string; children: ReactNode },
@@ -63,6 +77,7 @@ export function PaginaJuridica(
           Dúvidas ou pedidos sobre seus dados: <a href={`mailto:${CONTATO}`}>{CONTATO}</a>
         </p>
         <p>MAISA · assistente de atendimento por WhatsApp</p>
+        <p>{EMPRESA}</p>
       </footer>
     </main>
   );

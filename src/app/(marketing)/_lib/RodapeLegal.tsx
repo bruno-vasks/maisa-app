@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CONTATO } from "./Juridico";
+import { CONTATO, EMPRESA } from "./Juridico";
 
 /* ----------------------------------------------------------------------------
  * <RodapeLegal> — a tira de privacidade, termos e contato, em toda página de LP.
@@ -87,7 +87,7 @@ export function RodapeLegal() {
           </a>
         </nav>
 
-        <p className="mk-rodape-legal-marca">© {ano} MAISA</p>
+        <p className="mk-rodape-legal-marca">© {ano} MAISA · {EMPRESA}</p>
       </div>
     </footer>
   );

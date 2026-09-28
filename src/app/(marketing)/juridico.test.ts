@@ -27,7 +27,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isPublic } from "@/adaptadores/saida/supabase/sessao";
-import { CONTATO } from "./_lib/Juridico";
+import { CNPJ, CONTATO, EMPRESA } from "./_lib/Juridico";
 import { WHATSAPP_NUMERO } from "./_lib/icp";
 
 const MARKETING = fileURLToPath(new URL(".", import.meta.url));
@@ -152,7 +152,7 @@ describe("o caminho para a política existe em toda página pública", () => {
   it("o contato da tira vem do mesmo lugar que o da política", () => {
     const tira = ler(join(MARKETING, "_lib", "RodapeLegal.tsx"));
 
-    expect(tira).toContain('import { CONTATO } from "./Juridico"');
+    expect(tira).toMatch(/import\s*\{[^}]*\bCONTATO\b[^}]*\}\s*from\s*"\.\/Juridico"/);
     /* A asserção é sobre o IMPORT e não sobre a string: o cabeçalho do arquivo cita
      * `CONTATO_EMAIL` de propósito, para explicar por que ele NÃO é usado. A primeira
      * versão deste teste era um `not.toContain` e reprovou por causa do próprio
@@ -342,3 +342,47 @@ describe("toda página pública tem caminho para a política — venha de onde v
     expect(semCaminho).toEqual([]);
   });
 });
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O CNPJ NO RODAPÉ DE TODA PÁGINA PÚBLICA (28/09/2026).
+ *
+ * A mesma análise do provedor de pagamento pede o "CNPJ exibido no rodapé", e ele não estava
+ * em página nenhuma. Os três rodapés do app e a LP estática de terapeutas mostram
+ * `EMPRESA` ("Junior Poli Estudos · CNPJ …"), e o número vem do `PROCURADOR_PADRAO`.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+/** Os dois dígitos verificadores do CNPJ: número digitado errado reprova aqui, e não no revisor. */
+function cnpjValido(formatado: string): boolean {
+  const d = formatado.replace(/\D/g, "").split("").map(Number);
+  if (d.length !== 14 || new Set(d).size === 1) return false;
+  const dv = (n: number) => {
+    const pesos = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const soma = pesos.reduce((acc, p, i) => acc + p * d[i], 0);
+    const r = soma % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return dv(12) === d[12] && dv(13) === d[13];
+}
+
+describe("o CNPJ no rodapé de toda página pública", () => {
+  it("é um CNPJ de verdade, formatado", () => {
+    expect(CNPJ).toBe("62.025.689/0001-66");
+    expect(cnpjValido(CNPJ)).toBe(true);
+    expect(cnpjValido("62.025.689/0001-67")).toBe(false);
+    expect(EMPRESA).toBe(`Junior Poli Estudos · CNPJ ${CNPJ}`);
+  });
+
+  it.each([
+    ["RodapeLegal.tsx", "o rodapé das LPs (pelo <World>)"],
+    ["LinhaLegal.tsx", "a linha das páginas públicas do app: login, cadastro, esqueci, assinar"],
+    ["Juridico.tsx", "o rodapé dos termos e da privacidade"],
+  ])("%s mostra a empresa (%s)", (arquivo) => {
+    expect(ler(join(MARKETING, "_lib", arquivo))).toContain("{EMPRESA}");
+  });
+
+  it("a LP estática de terapeutas mostra o mesmo CNPJ", () => {
+    expect(ler(join(RAIZ, "lp", "terapeutas", "index.html"))).toContain(EMPRESA);
+  });
+});
+

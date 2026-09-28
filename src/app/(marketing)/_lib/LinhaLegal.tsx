@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CONTATO } from "./Juridico";
+import { CONTATO, EMPRESA } from "./Juridico";
 
 /* ----------------------------------------------------------------------------
  * <LinhaLegal> — privacidade, termos e contato nas páginas PÚBLICAS DO APP.
@@ -56,6 +56,8 @@ export function LinhaLegal() {
       <a href={`mailto:${CONTATO}`} className="m-focus" style={{ color: "var(--muted)" }}>
         {CONTATO}
       </a>
+      <span aria-hidden="true">·</span>
+      <span>{EMPRESA}</span>
     </nav>
   );
 }

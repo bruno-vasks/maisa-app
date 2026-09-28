@@ -64,6 +64,12 @@ de pagamento confere o contato e cruza com o dos termos; havia três e-mails no 
 `juridico.test.ts` reprova qualquer `mailto:` ou `wa.me/` diferente nas páginas públicas,
 inclusive no HTML estático da LP de terapeutas, e link de rede social que aponta para âncora.
 
+⚠️ **O CNPJ no rodapé** (28/09/2026), pedido pela mesma análise. `EMPRESA` ("Junior Poli
+Estudos · CNPJ 62.025.689/0001-66", em `_lib/Juridico.tsx`) aparece no `<RodapeLegal>` das LPs,
+na `<LinhaLegal>` das páginas públicas do app, no rodapé dos termos e da privacidade e, digitado,
+na LP estática de terapeutas. O número vem do `PROCURADOR_PADRAO`, a mesma conta do tutorial
+`/autorizar`; o teste confere os dígitos verificadores e que o HTML estático não divergiu.
+
 `/autorizar` é pública de propósito: quem lê está no site da Receita, mandado por WhatsApp, e
 pode nem ter conta na MAISA. Os passos vêm de `passosDaProcuracao()`, o mesmo do painel — uma
 fonte, dois lugares.
