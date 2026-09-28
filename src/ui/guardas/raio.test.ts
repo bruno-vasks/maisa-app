@@ -6,7 +6,7 @@
  * seguem bem arredondadas". O app redondo ocupava espaço, deixava o botão grande e a pessoa
  * se perdia. A referência é o painel do aluno da Rede Inspira: chapado e reto.
  *
- * O conserto foram três tokens por papel em `globals.css` (`--r-casca` 0, `--r-painel` 4px,
+ * O conserto foram três tokens por papel em `globals.css` (`--r-casca` 8px, `--r-painel` 4px,
  * `--r-controle` 6px) e 240 trocas. Este guarda impede o 12px de voltar na próxima tela:
  * `border-radius` de 5 a 49px escrito em px reprova. Fica de fora o que não é canto:
  * até 4px (detalhe fino), pílula (≥ 50px, o `999px`) e círculo (`50%`).
@@ -80,7 +80,7 @@ describe("G19 · raio de canto vem do papel", () => {
 
   it("os três papéis existem no globals.css", () => {
     const css = ler("src/app/globals.css");
-    expect(css).toMatch(/--r-casca:\s*0px/);
+    expect(css).toMatch(/--r-casca:\s*8px/);
     expect(css).toMatch(/--r-painel:\s*4px/);
     expect(css).toMatch(/--r-controle:\s*6px/);
   });

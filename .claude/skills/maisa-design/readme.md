@@ -159,7 +159,7 @@ que é clara, a pendência usa `--warn`, porque o ouro sobre fundo claro dá 1,6
 - **Cantos retos, por papel** (Bruno, 28/09/2026: *"as bordas seguem bem arredondadas"*; o
   app redondo ocupava espaço e deixava o botão grande). Isto **substitui** o 8/12 de *Cantos*
   no painel e nas rotas de entrada, com a referência no painel do aluno da Rede Inspira:
-  `--r-casca` **0** (rail, topbar, cartão principal), `--r-painel` **4px** (cartão, painel,
+  `--r-casca` **8px** (o rail e o cartão principal, que flutuam; reto ficou estranho), `--r-painel` **4px** (cartão, painel,
   tabela, gaveta, modal) e `--r-controle` **6px** (botão, campo, select, botão-ícone), em
   `globals.css`. Limite: continua redondo só o que desenha um objeto redondo (interruptor,
   avatar, ponto de status, barra de progresso, bolha de conversa, o celular do preview), e
