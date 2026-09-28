@@ -280,7 +280,7 @@ function FaixaCanalLida() {
           {sub && <span style={s("display:block;font-size:var(--t-label);color:var(--ink);margin-top:2px;line-height:var(--lh-ui)")}>{sub}</span>}
         </span>
 
-        <span className="m-canal-acoes" style={s("display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap")}>
+        <span className="m-canal-acoes m-alvos" style={s("display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap")}>
           {!conectado && !pareando && !travado && (
             <Btn
               variant="whats"
@@ -357,7 +357,7 @@ function FaixaCanalLida() {
         <span style={s("font-size:var(--t-label);color:var(--warn);line-height:1.5")}>
           {confirmando === "trocar"
             ? porCodigo
-              ? "O número atual será desconectado. Digite o número novo abaixo — o código de conexão vai para ele."
+              ? "O número atual será desconectado. Digite o número novo abaixo. O código de conexão vai para ele."
               : "O número atual será desconectado e você terá que parear o novo lendo um QR."
             : "A MAISA para de responder no WhatsApp até você conectar de novo."}
         </span>
@@ -443,8 +443,8 @@ function FaixaCanalLida() {
               QR, e "prefiro ler o QR" seria uma oferta do que ele já tem. */}
           {pareando && st.codigo
             ? mostrandoCodigo ? "Prefiro ler o QR code" : "Voltar para o código"
-            : pareando ? "Não consigo ler o QR — usar código"
-            : porCodigo ? "Prefiro ler o QR code" : "Estou no celular — usar código"}
+            : pareando ? "Não consigo ler o QR: usar código"
+            : porCodigo ? "Prefiro ler o QR code" : "Estou no celular: usar código"}
         </button>
       )}
 
@@ -731,7 +731,7 @@ function Duvidas() {
       <div style={s("display:flex;flex-direction:column;gap:8px")}>
         {st.faqs.length === 0 && (
           <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.6")}>
-            Nada cadastrado ainda. Escreva as perguntas que seus clientes mais fazem — endereço,
+            Nada cadastrado ainda. Escreva as perguntas que seus clientes mais fazem: endereço,
             estacionamento, formas de pagamento, política de atraso.
           </span>
         )}
@@ -755,7 +755,7 @@ function Duvidas() {
             </div>
             <button
               onClick={() => setRascunho({ id: f.id, pergunta: f.pergunta, resposta: f.resposta })}
-              className="m-press m-focus"
+              className="m-press m-focus m-alvo"
               aria-label={`Editar: ${f.pergunta}`}
               style={s("border:none;background:none;cursor:pointer;color:var(--muted);padding:3px")}
             >
@@ -763,7 +763,7 @@ function Duvidas() {
             </button>
             <button
               onClick={() => void st.removerFaq(f.id)}
-              className="m-press m-focus"
+              className="m-press m-focus m-alvo"
               aria-label={`Apagar: ${f.pergunta}`}
               style={s("border:none;background:none;cursor:pointer;color:var(--muted);padding:3px")}
             >

@@ -85,7 +85,7 @@ export function DeQuemEEsseNumero({ compacto }: { compacto?: boolean }) {
       <OpcoesDoNumero modo={estado.modo} aoEscolher={(m) => void trocar(m)} />
 
       {estado.modo === "pessoal" && (
-        <div style={s("display:flex;flex-direction:column;gap:9px;padding-top:11px;border-top:1px solid var(--line)")}>
+        <div className="m-alvos" style={s("display:flex;flex-direction:column;gap:9px;padding-top:11px;border-top:1px solid var(--line)")}>
           <p style={s("margin:0;font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
             {estado.contatos.length === 0 ? (
               <>

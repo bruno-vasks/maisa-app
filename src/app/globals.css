@@ -405,6 +405,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
   .m-tabela-rola > .m-tabela-corpo { overflow-y: visible; }
   /* A aba de filtro é alvo de dedo no celular: 44px, não os 36 do desktop (1C.8). */
   .m-filtro { min-height: 44px; }
+  /* Botão pequeno que vive em tela de celular: 44px de dedo (1C.13). `.m-alvo` no próprio
+     controle (o lápis e a lixeira das respostas prontas tinham 21x25); `.m-alvos` num bloco
+     faz o mesmo com os botões filhos (a faixa do WhatsApp, o "Trazer meus contatos"). */
+  .m-alvo { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .m-alvos button { min-height: 44px; }
 }
 
 /* A altura da casca (T11, 25/09/2026, guarda G9). `vh` de reserva para navegador sem `dvh`;
