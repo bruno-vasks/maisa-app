@@ -198,10 +198,11 @@ function Rail() {
         onFocus={(e) => { if (e.target instanceof HTMLElement && e.target.matches(":focus-visible")) setPorTeclado(true); }}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPorTeclado(false); }}
         onPointerMove={() => { if (porTeclado) setPorTeclado(false); }}
-        /* sombra: era matiz 250 (o terceiro azul, já removido do sistema) num blur de 30px.
-           --shadow-card é a mesma sombra do cartão de conteúdo ao lado — o rail e o main passam a
-           flutuar na mesma altura, que é o que eles são. */
-        style={s("position:absolute;top:0;bottom:0;left:0;background:var(--nav);border-radius:var(--r-casca);box-shadow:var(--shadow-card);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:hidden")}
+        /* Colado na borda e na tela (Bruno, 28/09/2026: "junte a sidebar da tela principal, não
+           deixe mais esse fundo vazio"). Até aqui o rail e o main flutuavam, cada um com sombra,
+           separados por um vão de 14px de fundo vazio. Sem sombra parado: a sombra só aparece
+           com o rail ABERTO, quando ele passa por cima da tela (ver `.m-rail` no globals.css). */
+        style={s("position:absolute;top:0;bottom:0;left:0;background:var(--nav);border-radius:var(--r-casca);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:hidden")}
       >
         <div style={s("display:flex;align-items:center;gap:12px;padding-left:3px;margin-bottom:14px;flex-shrink:0")}>
           {/* o "m" é a marca em forma de selo, mas não é o wordmark: --w-emph é reservado a três
@@ -630,9 +631,9 @@ export default function AppShell() {
   }
 
   return (
-    <div className="m-altura-tela" style={s("display:flex;gap:14px;padding:14px;overflow:hidden;background:transparent")}>
+    <div className="m-altura-tela" style={s("display:flex;overflow:hidden;background:var(--bg)")}>
       <Rail />
-      <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-casca);overflow:hidden;background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow-card)")}>
+      <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-casca);overflow:hidden;background:var(--bg)")}>
         <Topbar onBuscar={() => setPaleta(true)} />
         {/* Acima do conteúdo e FORA do `key={st.tela}`: o aviso vale para todas as telas e
             não deve remontar (nem piscar) a cada troca de tela. */}

@@ -105,14 +105,14 @@
      O app redondo ocupava espaço e deixava o botão grande; a referência é o painel do aluno da
      Rede Inspira, chapado e reto. Três papéis, e o guarda G19 (`guardas/raio.test.ts`) reprova
      raio literal em px nas telas:
-       --r-casca    8px o rail e o cartão principal. Eram 0, e reto ficou estranho: os dois FLUTUAM,
-                        separados por um vão, e canto vivo em objeto solto lê como recorte (Bruno,
-                        28/09/2026). Pouco, e acima dos 4px de dentro, para a moldura ler como moldura
+       --r-casca    0   o rail e a tela principal. Foram 8px enquanto os dois flutuavam com um vão
+                        de fundo entre eles; em 28/09/2026 o Bruno mandou juntar, e colados na borda
+                        da janela eles não são objetos soltos, são a própria tela
        --r-painel   4px cartão, painel, tabela, gaveta, modal
        --r-controle 6px botão, campo, select, botão-ícone
      Continua redondo o que tem forma com significado: interruptor, avatar, ponto de status,
      barra de progresso, bolha de conversa e o celular do preview (pílula = 999px, círculo = 50%). */
-  --r-casca: 8px;
+  --r-casca: 0px;
   --r-painel: 4px;
   --r-controle: 6px;
   --radius-card: var(--r-painel);
@@ -283,7 +283,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
    :has(:focus-visible) e não :focus-within — clicar num item de nav dá foco ao
    botão, e com :focus-within o rail ficava preso aberto depois do clique. Assim
    ele abre no hover e na navegação por teclado, mas fecha ao sair do mouse. */
-.m-rail { width: 76px; transition: width var(--dur-slow) var(--ease-out); }
+.m-rail { width: 76px; transition: width var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out); }
 /* `:focus-visible` DENTRO de `:has` não resolve o que o comentário acima promete: clicar num item
    de nav com o mouse deixa o botão focado, e em vários navegadores esse foco conta como
    focus-visible depois que o ponteiro sai — o rail ficava preso aberto sobrepondo o TÍTULO da
@@ -291,7 +291,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
    A correção é separar as duas intenções em vez de tentar unificá-las num seletor:
    o mouse abre por `:hover`, e o teclado abre por `.is-nav` — uma classe que o shell liga só
    quando a navegação é por tecla (Tab/setas), não por clique. */
-.m-rail:hover, .m-rail.is-nav { width: 244px; }
+.m-rail:hover, .m-rail.is-nav { width: 244px; box-shadow: var(--shadow-pop); }
 /* Rótulo: saída RÁPIDA (100ms) e entrada ATRASADA (120ms). Sem isso a opacidade (200ms) terminava
    antes da largura (280ms) e as palavras apareciam cortadas pela borda do rail — "Flu", "Con",
    "Fatu" — durante toda a transição. Assimetria de propósito: o texto nunca é visível enquanto o
