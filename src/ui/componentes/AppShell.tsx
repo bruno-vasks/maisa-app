@@ -32,6 +32,7 @@ import AMaisa from "../telas/AMaisa";
 import Contatos from "../telas/Contatos";
 import { Clientes, Faturamento, Equipe, Servicos, Mais } from "../telas/Grades";
 import { ProgressoDeEmissao } from "./ProgressoDeEmissao";
+import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { StatusDaMaisa } from "./StatusDaMaisa";
 import { DocumentoFiscal } from "../telas/DocumentoFiscal";
 
@@ -452,9 +453,19 @@ function AvisoAjustes({ celular }: { celular?: boolean }) {
       )}
     >
       <Icon name="alert" size={15} style={s("flex-shrink:0")} />
-      <span style={s("font-size:var(--t-label);font-weight:var(--w-title)")}>
+      <span style={s("flex:1;min-width:0;font-size:var(--t-label);font-weight:var(--w-title)")}>
         {st.ajustesErro} Os ajustes da MAISA abaixo podem não ser os que ela está usando.
       </span>
+      {/* Erro tem saída (T4, 28/09/2026): a faixa era a única frase de falha dos Ajustes no celular
+          e não oferecia nada. Sessão acabada: entrar; o resto: ler de novo. */}
+      <button
+        type="button"
+        onClick={st.ajustesPrecisaEntrar ? ENTRAR.fazer : st.recarregarAjustes}
+        className="m-press m-focus"
+        style={s("flex-shrink:0;min-height:44px;padding:0 12px;border:1px solid var(--danger);border-radius:8px;background:var(--surface);color:var(--danger);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer")}
+      >
+        {st.ajustesPrecisaEntrar ? ENTRAR.rotulo : "Tentar de novo"}
+      </button>
     </div>
   );
 }

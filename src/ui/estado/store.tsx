@@ -896,6 +896,10 @@ export type StoreValue = {
   /** Frase quando os ajustes não carregaram ou não salvaram. Não-nulo = o que está na
    *  tela pode não ser o que a MAISA está usando no WhatsApp. */
   ajustesErro: string | null;
+  /** Relê `/api/assistente`. A faixa de erro da casca oferece isto (T4: erro tem saída). */
+  recarregarAjustes: () => void;
+  /** A leitura dos ajustes voltou recusando a sessão: a saída é entrar, não tentar de novo. */
+  ajustesPrecisaEntrar: boolean;
   /** Já voltou do servidor? `false` = o que se vê é placeholder de primeira pintura. */
   ajustesCarregados: boolean;
 
@@ -2905,6 +2909,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const [ajustes, setAjustes] = useState(AJUSTES_PLACEHOLDER);
   const [ajustesErro, setAjustesErro] = useState<string | null>(null);
+  const [ajustesPrecisaEntrar, setAjustesPrecisaEntrar] = useState(false);
+  /** Sobe a cada "Tentar de novo" da faixa: é a dependência que faz o efeito de leitura rodar de novo. */
+  const [releituraAjustes, setReleituraAjustes] = useState(0);
+  const recarregarAjustes = useCallback(() => setReleituraAjustes((n) => n + 1), []);
   const [ajustesCarregados, setAjustesCarregados] = useState(false);
 
   /* ── O SINAL DE GRAVAÇÃO (1A.8) ──
@@ -2948,18 +2956,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
            * Zerar aqui deixaria a tela de ajustes em branco, sintoma que não aponta para
            * "não carregou". */
           setAjustesErro(MOTIVO_AJUSTES[r?.status] ?? MOTIVO_AJUSTES.carregar);
+          setAjustesPrecisaEntrar(r?.status === "nao_autenticado" || r?.status === "login_necessario");
           return;
         }
         setAjustes({ assistente: r.assistente, cfg: r.cfg });
         setAjustesErro(null);
+        setAjustesPrecisaEntrar(false);
         setAjustesCarregados(true);
       } catch {
-        if (vivo) setAjustesErro(MOTIVO_AJUSTES.carregar);
+        if (vivo) { setAjustesErro(MOTIVO_AJUSTES.carregar); setAjustesPrecisaEntrar(false); }
       }
     })();
 
     return () => { vivo = false; };
-  }, [hidratado]);
+  }, [hidratado, releituraAjustes]);
 
   const enviarAjustes = useCallback(async () => {
     const corpo = ajustesPendentes.current;
@@ -4589,7 +4599,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
-    assistente: ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
+    assistente: ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
@@ -4622,7 +4632,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
-    ajustes.assistente, setAssistente, ajustesErro, ajustesCarregados, setNomeDoNegocio,
+    ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
