@@ -188,8 +188,10 @@ function Rail() {
   const [porTeclado, setPorTeclado] = useState(false);
 
   return (
+    /* 92px = o rail de 76 + 8 de folga de cada lado: ele flutua sobre o fundo do app, com canto
+       arredondado, integrado a ele (Bruno, 28/09/2026, a referência do Parallel). */
     <div
-      style={s("width:76px;flex-shrink:0;position:relative;z-index:30")}
+      style={s("width:92px;flex-shrink:0;position:relative;z-index:30")}
       onPointerDown={() => setPorTeclado(false)}
     >
       <nav
@@ -199,11 +201,13 @@ function Rail() {
         onFocus={(e) => { if (e.target instanceof HTMLElement && e.target.matches(":focus-visible")) setPorTeclado(true); }}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPorTeclado(false); }}
         onPointerMove={() => { if (porTeclado) setPorTeclado(false); }}
-        /* Colado na borda e na tela (Bruno, 28/09/2026: "junte a sidebar da tela principal, não
-           deixe mais esse fundo vazio"). Até aqui o rail e o main flutuavam, cada um com sombra,
-           separados por um vão de 14px de fundo vazio. Sem sombra parado: a sombra só aparece
-           com o rail ABERTO, quando ele passa por cima da tela (ver `.m-rail` no globals.css). */
-        style={s("position:absolute;top:0;bottom:0;left:0;background:var(--nav);border-radius:var(--r-casca);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:hidden")}
+        /* O rail é um PAINEL que flutua sobre o fundo do app, com 8px de folga e canto de
+           --r-casca (Bruno, 28/09/2026). Antes foi um cartão solto ao lado de outro cartão (vão
+           de 14px e dois objetos), depois colado na borda formando um L com a topbar navy; os
+           dois desencaixavam. Agora só ele é objeto: o conteúdo mora no fundo, sem cartão.
+           Sem sombra parado; a sombra só aparece com o rail ABERTO, quando ele passa por cima
+           da tela (ver `.m-rail` no globals.css). */
+        style={s("position:absolute;top:8px;bottom:8px;left:8px;background:var(--nav);border-radius:var(--r-casca);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:hidden")}
       >
         <div style={s("display:flex;align-items:center;gap:12px;padding-left:3px;margin-bottom:14px;flex-shrink:0")}>
           {/* o "m" é a marca em forma de selo, mas não é o wordmark: --w-emph é reservado a três
@@ -481,7 +485,10 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
        ⚠️ CLARA desde 28/09/2026, com a linha fina embaixo: navy, ela formava um L com o rail e
        cruzava a janela por cima da coluna lateral. Só o rail é escuro. A altura e a linha são as
        mesmas do `CabecalhoDaLateral`, para os dois terminarem juntos. */
-    <header style={s("height:56px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--line)")}>
+    /* O fundo é o do APP, não uma faixa branca: com o rail flutuando, uma faixa de outra cor
+       encontrava o fundo em volta dele no canto de cima (28/09/2026). A linha fina embaixo é o
+       que separa, e ela bate com a do `CabecalhoDaLateral`. */
+    <header style={s("height:56px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 24px;background:var(--bg);border-bottom:1px solid var(--line)")}>
       <h1 style={s("min-width:0;margin:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)")}>{t.titulo}</h1>
 
       <button
@@ -641,7 +648,7 @@ export default function AppShell() {
           coluna lateral da tela (`<Lateral>`) sobe até o topo ao lado dela, com cabeçalho da mesma
           altura. Ver o porquê em `Lateral.tsx`. */}
       <EncaixeDaLateral.Provider value={encaixe}>
-        <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-casca);overflow:hidden;background:var(--bg)")}>
+        <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)")}>
           <Topbar onBuscar={() => setPaleta(true)} />
           {/* Acima do conteúdo e FORA do `key={st.tela}`: o aviso vale para todas as telas e
               não deve remontar (nem piscar) a cada troca de tela. */}

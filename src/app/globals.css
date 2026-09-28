@@ -105,14 +105,15 @@
      O app redondo ocupava espaço e deixava o botão grande; a referência é o painel do aluno da
      Rede Inspira, chapado e reto. Três papéis, e o guarda G19 (`guardas/raio.test.ts`) reprova
      raio literal em px nas telas:
-       --r-casca    0   o rail e a tela principal. Foram 8px enquanto os dois flutuavam com um vão
-                        de fundo entre eles; em 28/09/2026 o Bruno mandou juntar, e colados na borda
-                        da janela eles não são objetos soltos, são a própria tela
+       --r-casca   12px o painel do rail, que flutua sobre o fundo do app com 8px de folga
+                        (28/09/2026, referência do Parallel). É o único objeto da casca: o
+                        conteúdo mora no fundo, sem cartão. Um pouco mais que os 8px de antes,
+                        a pedido do Bruno, porque agora ele é painel e não borda
        --r-painel   4px cartão, painel, tabela, gaveta, modal
        --r-controle 6px botão, campo, select, botão-ícone
      Continua redondo o que tem forma com significado: interruptor, avatar, ponto de status,
      barra de progresso, bolha de conversa e o celular do preview (pílula = 999px, círculo = 50%). */
-  --r-casca: 0px;
+  --r-casca: 12px;
   --r-painel: 4px;
   --r-controle: 6px;
   --radius-card: var(--r-painel);
