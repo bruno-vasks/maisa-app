@@ -8,7 +8,7 @@
  * Nenhuma delas tem estado próprio: tudo que muda vem do store. */
 
 import React from "react";
-import { s, Icon, fmt, fmtK, Filtros, EmptyState, Tabela, CelulaNome, Badge, SectionTitle, Btn, Monogram, Input, Field, Estado } from "@/ui/primitivos";
+import { s, Icon, fmt, fmtK, Filtros, EmptyState, Tabela, CelulaNome, SectionTitle, Btn, Monogram, Input, Field, Estado, EstadoDoTom } from "@/ui/primitivos";
 import * as D from "@/adaptadores/saida/demo";
 import { useIsMobile, useEstreita } from "@/ui/useIsMobile";
 import { useStore, resumoDaAssinatura, type LinhaDeFaturamento, type TelaId } from "@/ui/estado/store";
@@ -628,7 +628,7 @@ export function Faturamento() {
               ordenar: (c: LinhaDeFaturamento) => ORDEM_ACAO[st.notaDe(c.id).status],
               celula: (c: LinhaDeFaturamento) => {
                 const t = TAG_NOTA[st.notaDe(c.id).status];
-                return <Badge tone={t.tom} dot>{t.label}</Badge>;
+                return <EstadoDoTom tom={t.tom}>{t.label}</EstadoDoTom>;
               },
             },
             ]),
@@ -736,8 +736,8 @@ export function Equipe() {
               chave: "estado", label: "Estado", largura: "120px",
               ordenar: (p) => (st.profAtivo(p.id) ? 0 : 1),
               celula: (p) => st.profAtivo(p.id)
-                ? <Badge tone="success" dot>ativo</Badge>
-                : <Badge tone="neutral" dot>pausado</Badge>,
+                ? <EstadoDoTom tom="success">ativo</EstadoDoTom>
+                : <EstadoDoTom tom="neutral">pausado</EstadoDoTom>,
             },
             /* "Quem tem agenda conectada?" era uma pergunta que só a gaveta respondia,
                uma pessoa por vez. Aqui é comparativa como o resto da tabela — e o
@@ -749,7 +749,7 @@ export function Equipe() {
                 const conexao = st.googleDe(p.id);
                 if (st.google.status !== "ok") return <span style={s("color:var(--muted)")}>—</span>;
                 return conexao
-                  ? <span title={conexao.googleEmail}><Badge tone="primary" dot>Google</Badge></span>
+                  ? <span title={conexao.googleEmail}><Estado forma="disco" tom="primary">Google</Estado></span>
                   : <span style={s("font-size:var(--t-label);color:var(--muted)")}>não conectada</span>;
               },
             },
@@ -859,8 +859,8 @@ export function Servicos() {
               chave: "estado", label: "Catálogo", largura: "130px",
               ordenar: (sv) => (st.svcAtivo(sv.id) ? 0 : 1),
               celula: (sv) => st.svcAtivo(sv.id)
-                ? <Badge tone="success" dot>no catálogo</Badge>
-                : <Badge tone="neutral" dot>pausado</Badge>,
+                ? <EstadoDoTom tom="success">no catálogo</EstadoDoTom>
+                : <EstadoDoTom tom="neutral">pausado</EstadoDoTom>,
             },
           ]}
         />
@@ -973,8 +973,8 @@ function Conexoes() {
                   </span>
                 </span>
                 {conexao
-                  ? <Badge tone="success" dot>conectada</Badge>
-                  : <Badge tone="neutral" dot>desligada</Badge>}
+                  ? <EstadoDoTom tom="success">conectada</EstadoDoTom>
+                  : <EstadoDoTom tom="neutral">desligada</EstadoDoTom>}
                 <Btn
                   size="sm"
                   variant={conexao ? "secondary" : "primary"}

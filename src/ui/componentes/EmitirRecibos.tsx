@@ -60,7 +60,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { s, Icon, fmt, Btn, Card, EmptyState, Badge, Toggle, toast } from "@/ui/primitivos";
+import { s, Icon, fmt, Btn, Card, EmptyState, Estado, Toggle, toast } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import { useIsMobile } from "@/ui/useIsMobile";
 import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -510,7 +510,7 @@ export function EmitirRecibos() {
     return (
       <Moldura>
       <Card style={s("display:flex;flex-direction:column;gap:14px;align-items:flex-start;flex-shrink:0")}>
-        <Badge tone="warn" dot>Falta configurar</Badge>
+        <Estado forma="triangulo" tom="warn">Falta configurar</Estado>
         <div>
           <h2 style={s("font-size:var(--t-title);font-weight:var(--w-emph);letter-spacing:var(--ls-title);color:var(--ink);margin:0 0 6px")}>
             Antes de emitir, complete seus dados

@@ -80,7 +80,7 @@ for (const a of acoes) {
 }
 
 // `MEDIR=1`: a régua do medir.mjs (sonda de corte, primários na dobra) sobre o cenário simulado.
-if (process.env.MEDIR) { const r = await medirPagina(page, modo); console.log("REGUA: " + JSON.stringify({ documento: r.documento, viewport: r.viewport, larguraDoc: r.larguraDoc, rolaveis: r.rolaveis, corte: r.corte, foraDaTela: r.foraDaTela, primariosNaDobra: r.primariosNaDobra })); }
+if (process.env.MEDIR) { const r = await medirPagina(page, modo); console.log("REGUA: " + JSON.stringify({ documento: r.documento, viewport: r.viewport, larguraDoc: r.larguraDoc, rolaveis: r.rolaveis, corte: r.corte, foraDaTela: r.foraDaTela, primariosNaDobra: r.primariosNaDobra, pilulasMudas: r.pilulasMudas })); }
 if (process.env.SONDA) { console.log(await page.evaluate(() => { const out=[]; for (const el of document.querySelectorAll("main *, main")) { const cs=getComputedStyle(el); if (el.scrollHeight > el.clientHeight + 4 && cs.overflowY!=="visible") out.push(el.tagName+" ."+String(el.className).slice(0,30)+" ov="+cs.overflowY+" vis="+el.clientHeight+" tot="+el.scrollHeight); } return out.slice(0,12).join("\n"); })); }
 const m = await page.evaluate(() => {
   const out = [];

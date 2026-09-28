@@ -33,7 +33,7 @@
 
 import React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { s, Icon, Monogram, Btn, IconBtn, Badge, EmptyState, Estado } from "@/ui/primitivos";
+import { s, Icon, Monogram, Btn, IconBtn, EmptyState, Estado } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { semConfirmacao } from "@/ui/estado/leitura";
 import * as D from "@/adaptadores/saida/demo";
@@ -942,7 +942,8 @@ export default function Agenda() {
         </div>
 
         <span style={s("font-size:var(--t-body);font-weight:var(--w-title);letter-spacing:var(--ls-body)")}>{rotulo}</span>
-        {!hoje && visao !== "mes" && <Badge>hoje é {D.rotuloDia(D.HOJE.iso)}</Badge>}
+        {/* Texto, não pílula: não clica (o "Hoje" ao lado é que volta). Emenda 1 do DS. */}
+        {!hoje && visao !== "mes" && <span style={s("font-size:var(--t-label);color:var(--muted)")}>hoje é {D.rotuloDia(D.HOJE.iso)}</span>}
 
         <div style={s("margin-left:auto;display:flex;align-items:center;gap:10px")}>
           {/* O "Marcar" que morava aqui foi para o slot da casca (T2, contradição C2): "Marcar

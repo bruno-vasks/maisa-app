@@ -9,17 +9,10 @@
  * dentro dele. O layout vem de display:flex/block nos spans. */
 
 import React from "react";
-import { s, Icon, Monogram } from "@/ui/primitivos";
+import { s, Icon, Monogram, EstadoDoTom } from "@/ui/primitivos";
 
 export type TomTag = "success" | "warn" | "primary" | "neutral" | "danger";
 
-const TAG: Record<TomTag, [string, string]> = {
-  success: ["var(--success-soft)", "var(--success)"],
-  warn: ["var(--warn-soft)", "var(--warn)"],
-  primary: ["var(--primary-soft)", "var(--primary-dark)"],
-  danger: ["var(--danger-soft)", "var(--danger)"],
-  neutral: ["var(--line)", "var(--muted)"],
-};
 
 /* Cor do pontinho quando o cartão não tem avatar.
    O ponto é o estado inteiro quando não há tag, então precisa dos 3:1 da WCAG 1.4.11.
@@ -82,9 +75,8 @@ export function Cartao({ titulo, sub, onClick, seed, dot, meta, tag, resumo, chi
                 Sans já têm avanço igual, e mono aqui leria como terminal, não como dinheiro. */}
             {meta && <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data)")}>{meta}</span>}
             {tag && (
-              <span style={s(`font-size:var(--t-micro);font-weight:var(--w-title);padding:3px 9px;border-radius:999px;white-space:nowrap;background:${TAG[tag.tom][0]};color:${TAG[tag.tom][1]}`)}>
-                {tag.label}
-              </span>
+              /* Estado, não pílula: a tag não clica (quem clica é o cartão). Emenda 1 do DS. */
+              <span style={s("white-space:nowrap")}><EstadoDoTom tom={tag.tom}>{tag.label}</EstadoDoTom></span>
             )}
           </span>
         )}
@@ -97,16 +89,16 @@ export function Cartao({ titulo, sub, onClick, seed, dot, meta, tag, resumo, chi
           <span style={s("display:block")}>
             <span style={s("display:block;padding-top:14px;border-top:1px solid var(--line)")}>
               {resumo && <span style={s("display:block;font-size:var(--t-sm);line-height:var(--lh-prose);color:var(--muted)")}>{resumo}</span>}
+              {/* ⚠️ Dado em linha, e o "abrir e editar" como texto, sem pílula (28/09/2026). Pílula é
+                  controle (emenda 1 do DS), e aqui quem clica é o cartão inteiro: no celular, onde o
+                  resumo fica sempre à mostra, eram 3 pílulas mudas por cartão (21 em Serviços). */}
               {!!chips?.length && (
-                <span style={s("display:flex;flex-wrap:wrap;gap:6px;margin-top:11px")}>
-                  {chips.map((c) => (
-                    // mesmo peso do <Chip> de ui.tsx (--w-data): o chip carrega dado, não prosa
-                    <span key={c} style={s("display:inline-flex;align-items:center;padding:5px 11px;border-radius:999px;font-size:var(--t-label);font-weight:var(--w-data);white-space:nowrap;background:var(--bg);color:var(--muted);border:1px solid var(--line)")}>{c}</span>
-                  ))}
+                <span style={s("display:block;margin-top:9px;font-size:var(--t-label);font-weight:var(--w-data);color:var(--muted);line-height:var(--lh-ui)")}>
+                  {chips.join(" · ")}
                 </span>
               )}
-              <span style={s("display:flex;justify-content:flex-end;margin-top:12px")}>
-                <span style={s("display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:var(--t-label);font-weight:var(--w-title);background:var(--primary-soft);color:var(--primary-dark)")}>
+              <span style={s("display:flex;justify-content:flex-end;margin-top:10px")}>
+                <span style={s("display:inline-flex;align-items:center;gap:6px;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary-dark)")}>
                   abrir e editar
                   <Icon name="arrow-right" size={13} sw={2.2} />
                 </span>

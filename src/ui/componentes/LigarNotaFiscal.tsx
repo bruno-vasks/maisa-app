@@ -28,7 +28,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import React, { useEffect, useRef, useState } from "react";
-import { s, Icon } from "@/ui/primitivos";
+import { s, Icon, Estado } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import type { CadastroDoCnpj, ConfigFiscal } from "@/nucleo/dominio/fiscal";
 
@@ -262,8 +262,11 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
         {/* ⚠️ O ambiente é a informação mais importante desta tela quando está tudo pronto:
             é a diferença entre um teste e um documento com validade fiscal. */}
         {ligado && (
-          <span className="n" style={s(`margin-left:auto;font-size:var(--t-label);padding:2px 9px;border-radius:99px;background:${config.ambiente === "producao" ? "var(--success-soft)" : "var(--warn-soft)"};color:${config.ambiente === "producao" ? "var(--success)" : "var(--warn)"}`)}>
-            {config.ambiente === "producao" ? "valendo" : "modo teste"}
+          /* Estado, não pílula (emenda 1 do DS, 28/09/2026): não clica. */
+          <span style={s("margin-left:auto")}>
+            {config.ambiente === "producao"
+              ? <Estado forma="disco" tom="success">valendo</Estado>
+              : <Estado forma="triangulo" tom="warn">modo teste</Estado>}
           </span>
         )}
       </div>

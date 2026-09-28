@@ -429,6 +429,19 @@ export function Estado({ forma, tom = "neutral", children }: { forma: FormaDeEst
   );
 }
 
+/**
+ * O estado de uma linha pelo TOM, sem pílula (28/09/2026). A emenda 1 do `maisa-design` diz que
+ * pílula é controle, e o limite medido é `pilulasMudas = 0`: "no catálogo", "ativo", "a emitir",
+ * "Falta configurar" eram pílulas que não clicam. Forma + rótulo, como o `Estado`: ok é disco,
+ * pendência e erro são triângulo, em andamento ou desligado é anel.
+ */
+const FORMA_DO_TOM: Record<Exclude<Tone, "warm">, FormaDeEstado> = {
+  success: "disco", warn: "triangulo", danger: "triangulo", primary: "anel", neutral: "anel",
+};
+export function EstadoDoTom({ tom, children }: { tom: Exclude<Tone, "warm">; children: React.ReactNode }) {
+  return <Estado forma={FORMA_DO_TOM[tom]} tom={tom}>{children}</Estado>;
+}
+
 /* ---------- Tabela: conteúdo tabular servido como tabela ----------
  * Serviços, Faturamento, Equipe e Mais eram grades de cartões idênticos — o ban "identical card
  * grids" — para conteúdo que é intrinsecamente uma tabela. O custo real não era estético: com
