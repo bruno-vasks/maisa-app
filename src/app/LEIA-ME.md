@@ -9,6 +9,7 @@ Duas coisas moram aqui, e elas quase não se falam: o **painel** (o produto) e a
 |---|---|---|
 | `/` | `page.tsx` | Monta o `StoreProvider` + `AppShell`. Protegida pelo middleware. |
 | `/login` | `login/page.tsx` | Entrada por e‑mail (Supabase Auth). |
+| `/comecar` | `comecar/Comecar.tsx` | O wizard de conta criada a negócio de pé (fora do `StoreProvider`, guarda G13). Desde 28/09/2026 é uma moldura: a página tem a altura da janela (`.m-altura-tela`), marca, trilha e título ficam parados em cima, só o cartão da etapa rola, e o primário de cada etapa aparece no pé parado por portal (`NoPe`), junto do "Pular por agora". Fundo `--bg` chapado (saiu o gradiente). |
 | `/auth/callback` | `auth/callback/route.ts` | Volta do login social / confirmação por e‑mail. Todo erro carrega um MOTIVO — "tente de novo" é conselho inútil quando a causa é o provedor estar desligado. |
 | — | `layout.tsx`, `globals.css`, `manifest.ts`, `apple-icon.tsx` | Casca, fontes, PWA. `globals.css` é a fonte dos tokens do painel (o guarda G4 reprova `var(--x)` que não esteja lá ou no `next/font` do `layout.tsx`) e, desde 24/09/2026, das classes que decidem layout pelo contêiner: `.m-campos` + `.m-campos-grade` (duas colunas quando o contêiner passa de 520px, `.m-campo-largo` ocupa a linha), `.m-curto` (28rem) e `.m-prosa` (68ch). Desde 25/09/2026, `.m-canal` (a faixa do WhatsApp nos Ajustes quebra as ações para baixo abaixo de 560px de contêiner, 1C.13) e, só no celular, `.m-alvo` (o próprio controle ganha 44x44) e `.m-alvos` (os botões filhos ganham 44px de altura). |
 

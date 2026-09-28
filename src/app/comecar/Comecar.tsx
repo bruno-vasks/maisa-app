@@ -53,7 +53,8 @@
  * lê o mundo em vez de uma flag.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { s, Icon, Toggle, toast, Toaster } from "@/ui/primitivos";
 import type { CategoriaServico, PassoDeAtivacao, Servico, UsoDoWhatsApp, Vertical } from "@/nucleo/dominio";
@@ -193,6 +194,26 @@ function Trilha({ atual, etapas }: { atual: EtapaId; etapas: typeof ETAPAS }) {
       ))}
     </div>
   );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O PÉ DO WIZARD — onde mora a ação que fecha a etapa (28/09/2026, T1 e 2.41).
+ *
+ * A etapa desenha o primário dela junto do estado que ele usa (`ocupado`, `recado`), mas ele
+ * aparece no pé da moldura, que nunca rola: o catálogo tem cinco linhas de serviço e o "Salvar
+ * e continuar" nascia em y 1487 a 1440x900, fora da dobra. `NoPe` leva os filhos por portal até
+ * o pé; sem pé montado (primeiro quadro), desenha no lugar, e nada some.
+ *
+ * Portal e não `position:sticky` dentro do cartão: o pé tem fundo e borda próprios, e o sticky
+ * dependia da altura do pai de cada etapa. Os botões do wizard são `onClick`, sem `<form>`, então
+ * o portal não quebra envio nenhum (o `<form>` da conversa da etapa 4 fica onde está).
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+const PeDoWizard = createContext<HTMLElement | null>(null);
+
+function NoPe({ children }: { children: React.ReactNode }) {
+  const alvo = useContext(PeDoWizard);
+  return alvo ? createPortal(children, alvo) : <>{children}</>;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -434,11 +455,12 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
         ))}
       </div>
 
-      <Aviso recado={recado} />
-
-      <Botao onClick={() => void criar()} ocupado={ocupado} full>
-        Criar meu negócio
-      </Botao>
+      <NoPe>
+        <Aviso recado={recado} />
+        <Botao onClick={() => void criar()} ocupado={ocupado} full>
+          Criar meu negócio
+        </Botao>
+      </NoPe>
     </div>
   );
 }
@@ -632,11 +654,12 @@ function EtapaCatalogo({ aoSeguir }: { aoSeguir: () => void }) {
         ))}
       </div>
 
-      <Aviso recado={recado} />
-
-      <Botao onClick={() => void salvar()} ocupado={ocupado} full>
-        Salvar e continuar
-      </Botao>
+      <NoPe>
+        <Aviso recado={recado} />
+        <Botao onClick={() => void salvar()} ocupado={ocupado} full>
+          Salvar e continuar
+        </Botao>
+      </NoPe>
     </div>
   );
 }
@@ -702,9 +725,11 @@ function PerguntaDoNumero({ aoSeguir }: { aoSeguir: () => void }) {
             )}
         </div>
       )}
-      {gravado
-        ? <Botao onClick={aoSeguir} full>Continuar</Botao>
-        : <p style={s("margin:0;font-size:var(--t-label);color:var(--muted)")}>Escolha uma das duas para seguir.</p>}
+      <NoPe>
+        {gravado
+          ? <Botao onClick={aoSeguir} full>Continuar</Botao>
+          : <p style={s("margin:0;font-size:var(--t-label);color:var(--muted);text-align:center")}>Escolha uma das duas para seguir.</p>}
+      </NoPe>
     </div>
   );
 }
@@ -1406,9 +1431,11 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
       {/* Vai para a etapa 5 (nota fiscal), e não direto para o painel. O rótulo muda de
           "Continuar" para o convite quando a MAISA ACABOU de marcar: é o instante de maior
           crédito do onboarding inteiro, e é nele que faz sentido apresentar o diferencial. */}
-      <Botao onClick={aoSeguir} variante={marcou ? "primary" : "ghost"} full>
-        {marcou ? "Agora o documento fiscal" : "Continuar"}
-      </Botao>
+      <NoPe>
+        <Botao onClick={aoSeguir} variante={marcou ? "primary" : "ghost"} full>
+          {marcou ? "Agora o documento fiscal" : "Continuar"}
+        </Botao>
+      </NoPe>
     </div>
   );
 }
@@ -1646,6 +1673,9 @@ function EtapaVerFuncionando({ feitos, aoVoltarParaWhatsApp, aoSeguir }: {
 export default function Comecar() {
   const router = useRouter();
   const [etapa, setEtapa] = useState<EtapaId | null>(null);
+  /** O pé da moldura, onde `NoPe` desenha o primário da etapa. Estado (e não `ref`) para a etapa
+   *  repintar no pé assim que ele montar. */
+  const [pe, setPe] = useState<HTMLDivElement | null>(null);
   const [feitos, setFeitos] = useState<PassoDeAtivacao[]>([]);
   /**
    * Os passos que valem para este negócio — é o que decide se "Conectar o WhatsApp" e "Ver
@@ -1742,7 +1772,7 @@ export default function Comecar() {
   const aoPainelDoWizard = useCallback(() => { router.push("/"); router.refresh(); }, [router]);
 
   if (etapa === null) {
-    return <div style={{ minHeight: "100vh" }} />;
+    return <div className="m-altura-tela" />;
   }
 
   const meta = ETAPAS.find((e) => e.id === etapa)!;
@@ -1756,44 +1786,59 @@ export default function Comecar() {
   const depoisDoCatalogo: EtapaId = temWhatsApp ? "whatsapp" : depoisDoWhatsApp;
 
   return (
-    <div style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 20px 48px", overflow: "hidden" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "radial-gradient(60% 55% at 25% 12%, var(--primary-soft) 0%, transparent 60%), radial-gradient(55% 55% at 88% 92%, var(--warm-soft) 0%, transparent 58%)" }} />
+    /* ⚠️ A MOLDURA DO WIZARD (28/09/2026, T1 e 2.41). O documento tem a altura da janela e só o
+       cartão da etapa rola: cabeçalho (marca, trilha, título) em cima e o pé com o primário e o
+       "Pular por agora" embaixo, os dois parados. Era `minHeight:100vh` com tudo empilhado, e o
+       catálogo empurrava o "Salvar e continuar" para y 1487 (1440x900) e 1525 (390x844). O fundo
+       em gradiente saiu junto (o DS proíbe): a entrada é `--bg` chapado. */
+    <div className="m-altura-tela" style={s("display:flex;justify-content:center;padding:16px 16px 12px;background:var(--bg);overflow:hidden")}>
       <Toaster />
 
-      <div className="m-enter" style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 22 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;background:var(--nav);border:1px solid var(--nav-line);border-radius:16px")}>
-            <span style={{ ...s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line)" }}>maisa</span>
+      <div className="m-enter" style={s("width:100%;max-width:520px;display:flex;flex-direction:column;gap:14px;min-height:0")}>
+        <div style={s("flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:12px")}>
+          <div style={s("width:100%;display:flex;align-items:center;gap:16px")}>
+            <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;background:var(--nav);border:1px solid var(--nav-line);border-radius:14px;flex-shrink:0")}>
+              <span style={{ ...s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line)" }}>maisa</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}><Trilha atual={etapa} etapas={etapas} /></div>
           </div>
-          <div style={{ width: "100%", maxWidth: 320 }}><Trilha atual={etapa} etapas={etapas} /></div>
           <div style={{ textAlign: "center" }}>
             <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink);margin:0")}>{meta.titulo}</h1>
             <p style={s("font-size:var(--t-sm);color:var(--muted);margin:4px 0 0")}>{meta.sub}</p>
           </div>
         </div>
 
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:24px 22px")}>
-          {etapa === "negocio" && (
-            <EtapaNegocio aoCriar={(uso) => { setValem(passosQueValem(uso)); avancar("catalogo"); }} />
-          )}
-          {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar(depoisDoCatalogo)} />}
-          {etapa === "whatsapp" && <EtapaWhatsApp aoSeguir={() => avancar(depoisDoWhatsApp)} />}
-          {etapa === "ver" && <EtapaVerFuncionando feitos={feitos} aoVoltarParaWhatsApp={() => avancar("whatsapp")} aoSeguir={() => avancar("fiscal")} />}
-          {etapa === "fiscal" && <EtapaNotaFiscal aoPainel={aoPainelDoWizard} />}
+        {/* A única região que rola. `flex:0 1 auto`: a etapa curta não estica o cartão até o pé. */}
+        <div style={s("flex:0 1 auto;min-height:0;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-card);padding:22px 20px")}>
+          <PeDoWizard.Provider value={pe}>
+            {etapa === "negocio" && (
+              <EtapaNegocio aoCriar={(uso) => { setValem(passosQueValem(uso)); avancar("catalogo"); }} />
+            )}
+            {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar(depoisDoCatalogo)} />}
+            {etapa === "whatsapp" && <EtapaWhatsApp aoSeguir={() => avancar(depoisDoWhatsApp)} />}
+            {etapa === "ver" && <EtapaVerFuncionando feitos={feitos} aoVoltarParaWhatsApp={() => avancar("whatsapp")} aoSeguir={() => avancar("fiscal")} />}
+            {etapa === "fiscal" && <EtapaNotaFiscal aoPainel={aoPainelDoWizard} />}
+          </PeDoWizard.Provider>
         </div>
 
-        {/* ⚠️ "Pular" NÃO aparece na etapa 1, e é a única assimetria da tela: as outras três
-            configuram, esta CRIA. Sem inquilino não há o que pular para — o painel
-            responde 409 em toda rota. */}
-        {podePular && (
-          <button
-            onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar(etapa === "catalogo" ? depoisDoCatalogo : depoisDoWhatsApp); }}
-            className="m-focus"
-            style={s("align-self:center;background:none;border:none;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--muted);cursor:pointer;padding:8px 12px")}
-          >
-            Pular por agora
-          </button>
-        )}
+        {/* O pé: o primário da etapa chega aqui por `NoPe`. Vazio (etapa sem primário próprio,
+            como o documento fiscal, cujos caminhos são a ação), ele não ocupa nada. */}
+        <div style={s("flex-shrink:0;display:flex;flex-direction:column;gap:6px")}>
+          <div ref={setPe} style={s("display:flex;flex-direction:column;gap:10px")} />
+
+          {/* ⚠️ "Pular" NÃO aparece na etapa 1, e é a única assimetria da tela: as outras três
+              configuram, esta CRIA. Sem inquilino não há o que pular para — o painel
+              responde 409 em toda rota. */}
+          {podePular && (
+            <button
+              onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar(etapa === "catalogo" ? depoisDoCatalogo : depoisDoWhatsApp); }}
+              className="m-focus"
+              style={s("align-self:center;background:none;border:none;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--muted);cursor:pointer;padding:0 12px;min-height:44px")}
+            >
+              Pular por agora
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

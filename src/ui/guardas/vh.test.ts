@@ -36,7 +36,6 @@ function varrer(): Achado[] {
 /** 24/09/2026. Paga o 1C.4 (T11): casca, gaveta e busca em `dvh` com reserva. */
 const DIVIDA: Divida = {
   "src/app/cadastro/page.tsx": [2, "24/09/2026 · fundo da entrada; o 3.4 refaz o fundo chapado"],
-  "src/app/comecar/Comecar.tsx": [2, "24/09/2026 · moldura do wizard (2.41)"],
   "src/app/esqueci/page.tsx": [1, "24/09/2026 · fundo da entrada (3.4)"],
   "src/app/login/page.tsx": [2, "24/09/2026 · fundo da entrada (3.4)"],
   "src/app/nova-senha/page.tsx": [1, "24/09/2026 · fundo da entrada (3.4)"],
