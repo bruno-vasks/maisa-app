@@ -4438,14 +4438,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
      * desenvolvimento o React o invoca duas vezes. Antes isso duplicava o atendimento no
      * localStorage; agora duplicaria um evento numa agenda real. */
     const r = rascunho;
-    if (!r || !r.clienteId || !r.servicoId) return;
+    if (!r || !r.clienteId) return;
     // Trava SÍNCRONA. `rascunhoEstado.enviando` só desabilita o botão no próximo render, e
     // entre o clique e ele cabe um segundo clique. Ver o mesmo padrão em `googleEmVoo`.
     if (criacaoEmVoo.current) return;
 
-    const sv = servicoDe(r.servicoId);
     const cl = clienteDe(r.clienteId);
-    if (!sv || !cl) return;
+    if (!cl) return;
+
+    /* ── MARCADO PELO PREÇO, SEM SERVIÇO (28/09/2026) ──
+     * O serviço nasce "Ana · R$ 150,00" antes do atendimento, porque o atendimento guarda o
+     * serviço e a agenda precisa da duração. Reusa o que já existe com o mesmo nome (ver
+     * `D.nomeDoServicoAvulso`), senão o catálogo ganharia uma linha por sessão.
+     *
+     * ⚠️ NASCE `ativo: false`, e é o que impede o estrago: a MAISA só oferece no WhatsApp
+     * serviço ativo (`persona.ts`, `oferecer-horarios.ts`). Ativo, "Ana · R$ 150,00" seria
+     * oferecido a qualquer número novo, com o preço da Ana. O atendimento não precisa dele
+     * ativo: o nome, a duração e o valor vão no próprio pedido. */
+    let achado = r.servicoId ? servicoDe(r.servicoId) : undefined;
+    const criouServico = !achado;
+    if (!achado) {
+      if (!(r.valor ?? "").trim()) return;
+      const valorDigitado = D.valorDoRascunho(r);
+      if (valorDigitado === null || valorDigitado <= 0) return;
+      const nome = D.nomeDoServicoAvulso(cl.nome, valorDigitado);
+      achado = servicos.find((s) => s.nome === nome);
+      if (!achado) {
+        criacaoEmVoo.current = true;
+        setRascunhoEstado({ enviando: true, tentou: true });
+        try {
+          const cs = await fetch("/api/servicos", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nome, categoria: "Recorrente", preco: valorDigitado, duracao: D.duracaoPadrao(servicos), ativo: false }),
+          }).then((x) => x.json());
+          if (!cs?.ok || !cs.servico) {
+            setRascunhoEstado({ enviando: false, tentou: true, erro: cs?.info ?? `Não consegui criar o serviço ${nome}. Tentar de novo é seguro.` });
+            return;
+          }
+          const novo = cs.servico as D.Servico;
+          achado = novo;
+          setCadastro((c) => ({ ...c, servicos: [...c.servicos, novo] }));
+          setRascunho((x) => (x ? { ...x, servicoId: novo.id } : x));
+        } catch {
+          setRascunhoEstado({ enviando: false, tentou: true, erro: "Sem conexão com o servidor. Tentar de novo é seguro, não cria duplicado." });
+          return;
+        } finally {
+          criacaoEmVoo.current = false;
+        }
+      }
+    }
+    const sv = achado;
     const valor = D.valorDoRascunho(r, sv);
     if (valor === null) return;
 
@@ -4523,7 +4566,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         /* A ficha APRENDE o preço na primeira vez que ele foge da tabela — é o que faz a
          * próxima sessão dessa pessoa já nascer certa. Só quando a ficha está vazia: um
          * preço já guardado foi decisão do dono, e um desconto avulso não o reescreve. */
-        const aprendeu = cl.valorSessao == null && valor !== sv.preco;
+        const aprendeu = cl.valorSessao == null && (criouServico || valor !== sv.preco);
         if (aprendeu) editarCliente(cl.id, { valorSessao: valor });
         const nota = aprendeu ? ` · ${fmt(valor)} guardado na ficha de ${cl.nome}` : "";
         const quando = r.data === D.HOJE.iso ? "hoje" : D.rotuloDia(r.data);
@@ -4567,7 +4610,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } finally {
       criacaoEmVoo.current = false;
     }
-  }, [rascunho, servicoDe, lerStatusGoogle, clienteDe, google.conexoes, editarCliente]);
+  }, [rascunho, servicoDe, servicos, lerStatusGoogle, clienteDe, google.conexoes, editarCliente]);
 
   const descartarRascunho = useCallback(() => {
     setRascunho(null);

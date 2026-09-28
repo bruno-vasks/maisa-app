@@ -744,7 +744,13 @@ export function useDetalhe(id: string | null): Detalhe | null {
     const svEscolhido = r.servicoId ? st.servicoDe(r.servicoId) : undefined;
     const valorDigitado = D.valorDoRascunho(r, svEscolhido);
     const clEscolhido = r.clienteId ? st.clienteDe(r.clienteId) : undefined;
-    const completo = !!r.clienteId && !!r.servicoId && valorDigitado !== null;
+    /* Sem serviço, o preço basta (28/09/2026): a MAISA cria "Ana · R$ 150,00" ao marcar. Ver
+     * `confirmarRascunho` no store e `D.nomeDoServicoAvulso`. Vazio não vale: sem serviço não
+     * há preço de tabela para cair, e marcar de graça por esquecimento cobraria zero. */
+    const temValor = !!(r.valor ?? "").trim() && valorDigitado !== null && valorDigitado > 0;
+    const completo = !!r.clienteId && valorDigitado !== null && (!!r.servicoId || temValor);
+    const avulso = !svEscolhido && clEscolhido && temValor ? D.nomeDoServicoAvulso(clEscolhido.nome, valorDigitado!) : null;
+    const reusado = avulso ? st.servicos.find((sv) => sv.nome === avulso) : undefined;
     const cada = r.cadaSemanas ?? 0;
     const sessoes = D.ocorrenciasDaSerie(cada, r.meses ?? 3);
     const { enviando, erro, tentou } = st.rascunhoEstado;
@@ -756,7 +762,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
      * no próximo vago de verdade (`st.proximoVago`), e quem marca precisa poder trocar. As
      * horas são as vagas daquela pessoa naquele dia (`st.vagasDe`, a conta do agente), mais a
      * escolhida. Depois da primeira tentativa, travam: ver `rascunhoEstado.tentou` no store. */
-    const duracaoR = svEscolhido?.duracao ?? 30;
+    const duracaoR = svEscolhido?.duracao ?? reusado?.duracao ?? D.duracaoPadrao(st.servicos);
     const dias = Array.from({ length: 21 }, (_, i) => D.somarDias(D.HOJE.iso, i)).filter((d) => !D.fechado(d));
     if (!dias.includes(r.data)) dias.unshift(r.data);
     const horas = st.vagasDe(r.profissionalId, r.data, duracaoR);
@@ -820,22 +826,6 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 });
               },
             },
-            {
-              id: "servico", label: "Serviço", valor: r.servicoId, tipo: "select",
-              opcoes: ["", ...disponiveis.map((sv) => sv.id)],
-              rotuloOpcao: (v) => {
-                const sv = disponiveis.find((x) => x.id === v);
-                return sv ? `${sv.nome} · ${sv.duracao} min · ${fmt(sv.preco)}` : "Escolha o serviço";
-              },
-              hint: svEscolhido ? `Ocupa a agenda até ${D.hhmm(r.inicio + svEscolhido.duracao / 60)}.` : "A duração vem do serviço.",
-              /* Trocar o serviço traz o preço dele para o campo de valor — que o dono então
-                 edita. Deixar o campo com o preço do serviço anterior cobraria errado. */
-              onChange: (v) => {
-                const sv = st.servicoDe(v);
-                const daFicha = st.clienteDe(r.clienteId)?.valorSessao;
-                st.editarRascunho({ servicoId: v, valor: daFicha != null ? String(daFicha) : sv ? String(sv.preco) : "" });
-              },
-            },
             /* O preço é DESTE atendimento (24/09/2026): na terapia ele muda de pessoa para
                pessoa, e o catálogo só guarda um. O serviço continua dando o padrão. */
             {
@@ -849,6 +839,28 @@ export function useDetalhe(id: string | null): Detalhe | null {
                     ? `O serviço custa ${fmt(svEscolhido.preco)} — este atendimento sai por ${fmt(valorDigitado)}.${clEscolhido && clEscolhido.valorSessao == null ? " Vai ficar guardado na ficha." : ""}`
                     : "Mude se o preço desta pessoa for outro.",
               onChange: (v) => st.editarRascunho({ valor: v }),
+            },
+            {
+              id: "servico", label: "Serviço", valor: r.servicoId, tipo: "select",
+              opcoes: ["", ...disponiveis.map((sv) => sv.id)],
+              rotuloOpcao: (v) => {
+                const sv = disponiveis.find((x) => x.id === v);
+                return sv ? `${sv.nome} · ${sv.duracao} min · ${fmt(sv.preco)}` : "Nenhum, marcar só pelo valor";
+              },
+              hint: svEscolhido
+                ? `Ocupa a agenda até ${D.hhmm(r.inicio + svEscolhido.duracao / 60)}.`
+                : avulso
+                  ? `${reusado ? "Usa" : "Cria"} o serviço "${avulso}", ${duracaoR} min, até ${D.hhmm(r.inicio + duracaoR / 60)}. Ele não aparece para os clientes no WhatsApp.`
+                  : "Opcional. Sem serviço, o valor acima basta.",
+              /* Trocar o serviço traz o preço dele para o campo de valor — que o dono então
+                 edita. Deixar o campo com o preço do serviço anterior cobraria errado.
+                 Voltar para "Nenhum" NÃO mexe no valor: é justamente o valor que vai marcar. */
+              onChange: (v) => {
+                if (!v) { st.editarRascunho({ servicoId: "" }); return; }
+                const sv = st.servicoDe(v);
+                const daFicha = st.clienteDe(r.clienteId)?.valorSessao;
+                st.editarRascunho({ servicoId: v, valor: daFicha != null ? String(daFicha) : sv ? String(sv.preco) : "" });
+              },
             },
           ],
         },
@@ -888,7 +900,10 @@ export function useDetalhe(id: string | null): Detalhe | null {
           : []),
         ...(completo
           ? []
-          : [{ tipo: "aviso" as const, key: "falta", tone: "warn" as const, texto: "Escolha o cliente e o serviço para marcar." }]),
+          : [{
+            tipo: "aviso" as const, key: "falta", tone: "warn" as const,
+            texto: !r.clienteId ? "Escolha o cliente para marcar." : "Ponha o valor da sessão ou escolha um serviço.",
+          }]),
         /* A falha fica NA GAVETA, não num toast. O toast some sozinho e leva embora a única
          * explicação de por que o bloco não apareceu na grade — e aqui ela vem ao lado do
          * botão que vai ser clicado de novo. */

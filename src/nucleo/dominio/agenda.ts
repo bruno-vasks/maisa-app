@@ -95,6 +95,38 @@ export function valorDoRascunho(r: RascunhoAgendamento, servico?: { preco: numbe
 }
 
 /**
+ * O serviço que nasce quando o dono marca pelo PREÇO, sem escolher serviço (Bruno, 28/09/2026:
+ * "coloque um preço sem necessariamente ter que colocar um serviço; quando isso acontece,
+ * cria-se o serviço nome da pessoa + R$ valor"). Na terapia o preço é da pessoa, não do
+ * procedimento, e obrigar a escolher "Atendimento padrão" para depois trocar o valor era
+ * pedir a mesma coisa duas vezes.
+ *
+ * ⚠️ O NOME É A CHAVE DE REUSO: a mesma pessoa pelo mesmo preço cai no serviço que já existe,
+ * em vez de empilhar "Ana · R$ 150,00" no catálogo a cada sessão. Mudar o formato aqui faz o
+ * catálogo antigo parar de casar e duplicar.
+ */
+export function nomeDoServicoAvulso(nomeCliente: string, valor: number): string {
+  const reais = valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${nomeCliente.trim()} · R$ ${reais}`;
+}
+
+/**
+ * Quanto tempo ocupa na agenda o atendimento marcado sem serviço: a duração que o negócio mais
+ * usa nos serviços ativos (o empate fica com a menor), ou 50 minutos, a sessão de terapia, se
+ * não houver nenhum. Sem isso a agenda não sabe onde o bloco termina.
+ */
+export function duracaoPadrao(servicos: { duracao: number; ativo?: boolean }[]): number {
+  const conta = new Map<number, number>();
+  for (const s of servicos) {
+    if (s.ativo === false || !duracaoValida(s.duracao)) continue;
+    conta.set(s.duracao, (conta.get(s.duracao) ?? 0) + 1);
+  }
+  let melhor = 50, vezes = 0;
+  for (const [d, n] of conta) if (n > vezes || (n === vezes && d < melhor)) { melhor = d; vezes = n; }
+  return melhor;
+}
+
+/**
  * O número que a pessoa digitou num campo de preço, duração ou valor: `null` se o que está lá
  * não for número (ou estiver vazio, ou for negativo, ou passar de 100 mil).
  *
