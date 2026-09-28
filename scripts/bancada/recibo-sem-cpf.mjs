@@ -58,6 +58,11 @@ await botao.click();
 await page.waitForTimeout(700);
 const dlg = page.getByRole("dialog");
 console.log("gaveta aberta:", await dlg.count(), "texto:", (await dlg.first().innerText()).replace(/\s+/g, " ").slice(0, 300));
+// A dica do CPF vazio e a ação da faixa (regressão 6, 28/09/2026): no recibo, nada de prefeitura;
+// com a sessão acabada, "Entrar" e não "Tentar de novo".
+const textoFicha = (await dlg.first().innerText()).replace(/\s+/g, " ");
+console.log("prefeitura:", /prefeitura/i.test(textoFicha), "dica do recibo:", /recibo do Receita Saúde não sai/.test(textoFicha), "faixa:", JSON.stringify(await dlg.first().locator("button", { hasText: /^(Entrar|Tentar de novo)$/ }).allInnerTexts()));
+await page.screenshot({ path: `${pre}-${modo}-ficha-antes.png` });
 const campo = dlg.getByLabel(/^CPF/);
 await campo.fill("529.982.247-25");
 await campo.blur();

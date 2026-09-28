@@ -20,6 +20,8 @@ import { resumoDaAssinatura, useStore } from "@/ui/estado/store";
 import { rotuloDeISO, horaDeISO } from "@/nucleo/dominio/tempo";
 import { semConfirmacao } from "@/ui/estado/leitura";
 import { resumoDaJornada } from "@/ui/componentes/JornadaDeAtivacao";
+import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
+import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
 
@@ -162,8 +164,16 @@ export function useDetalhe(id: string | null): Detalhe | null {
    */
   const dicaDeCpf = (cpf: string, completo: string): string => {
     const d = D.soDigitos(cpf);
-    if (d.length === 0) return "A prefeitura recusa a nota sem CPF, e sem ele este cliente fica fora do lote.";
-    if (d.length < 11) return `Faltam ${11 - d.length} dígitos — só salvo quando o CPF estiver completo.`;
+    /* A frase do documento que ESTE negócio emite (28/09/2026, regressão 6): a da prefeitura
+     * aparecia também para quem emite recibo do Receita Saúde, que não passa por prefeitura. */
+    if (d.length === 0) {
+      return st.fiscal.caminho === "recibo_saude"
+        ? "Sem CPF o recibo do Receita Saúde não sai, e este cliente fica fora do arquivo."
+        : st.fiscal.status === "ok" && escolhaFeita(st.fiscal.config ?? null) !== null
+          ? "A prefeitura recusa a nota sem CPF, e sem ele este cliente fica fora do lote."
+          : "Sem CPF este cliente fica fora da emissão do mês.";
+    }
+    if (d.length < 11) return `Faltam ${11 - d.length} dígitos. Só salvo quando o CPF estiver completo.`;
     return completo;
   };
 
@@ -513,7 +523,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
       : cad.fase === "carregando"
         ? { forma: "anel", tom: "neutral", texto: "Conferindo se a MAISA responde…" }
         : cad.fase === "erro"
-          ? { forma: "anel", tom: "neutral", texto: cad.frase, acao: { label: "Tentar de novo", onClick: st.recarregarCaderno } }
+          ? { forma: "anel", tom: "neutral", texto: cad.frase, acao: cad.entrar ? { label: ENTRAR.rotulo, onClick: ENTRAR.fazer } : { label: "Tentar de novo", onClick: st.recarregarCaderno } }
           : cad.modo === "negocio"
             ? { forma: "disco", tom: "success", texto: "A MAISA responde todo mundo neste número." }
             : cad.cliente[chave] === true

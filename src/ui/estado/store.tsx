@@ -737,7 +737,7 @@ export type StoreValue = {
    * contatos sem marcação fica calada sem ninguém saber. A regra continua no núcleo
    * (`podeResponder`); aqui só se lê o que ela lê.
    */
-  caderno: { fase: "carregando" } | { fase: "erro"; frase: string } | { fase: "ok"; modo: ModoDoNumero; cliente: Record<string, boolean | null> };
+  caderno: { fase: "carregando" } | { fase: "erro"; frase: string; entrar?: boolean } | { fase: "ok"; modo: ModoDoNumero; cliente: Record<string, boolean | null> };
   recarregarCaderno: () => void;
   /** Marca o telefone como cliente no caderno (`PATCH /api/contatos { telefone, cliente: true }`,
    *  que faz upsert). Otimista, com volta se o servidor recusar. */
@@ -1740,7 +1740,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const r = await fetch("/api/contatos", { cache: "no-store" }).then((x) => x.json());
       if (!r?.ok) {
-        setCaderno({ fase: "erro", frase: r?.status === "login_necessario" ? "Entre na sua conta para ver se a MAISA responde." : "Não consegui ler seus contatos." });
+        /* `entrar`: a sessão acabou, e "Tentar de novo" ao lado de "Entre na sua conta" repetiria a
+         * mesma recusa (regressão 6 da verificação da Onda 1, 28/09/2026). */
+        const entrar = r?.status === "login_necessario" || r?.status === "nao_autenticado";
+        setCaderno({ fase: "erro", frase: entrar ? "Entre na sua conta para ver se a MAISA responde." : "Não consegui ler seus contatos.", entrar });
         return;
       }
       const cliente: Record<string, boolean | null> = {};

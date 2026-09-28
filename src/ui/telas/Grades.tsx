@@ -42,6 +42,9 @@ const ORDEM_ACAO: Record<D.StatusNota, number> = {
 };
 
 
+/** "1 atendimento", "3 atendimentos". O Fiscal escrevia "1 atendimentos". */
+const atendimentos = (n: number) => `${n} ${n === 1 ? "atendimento" : "atendimentos"}`;
+
 /** A frase que explica o estado da nota. Uma só, para cartão e tabela não divergirem. */
 function resumoNota(n: D.Nota): string {
   if (n.status === "emitida") return `Nota ${n.numero} emitida em ${n.data}${n.simulada ? " (modo simulado)" : ""}`;
@@ -427,6 +430,12 @@ export function Faturamento() {
   /* ★ O vocabulário da tela inteira sai daqui. Ver `vocabulario` — e leia o aviso lá antes de
      "simplificar" qualquer condição abaixo para `noLote.length`. */
   const voz = vocabulario(st.fiscal);
+  /* ⚠️ A nota de cada linha (selo "a emitir", "Falta emitir a nota", a gaveta da nota) só existe
+     depois de escolher o documento (28/09/2026, regressão 5 da verificação da Onda 1). Config vazia
+     cai no caminho municipal, então `emiteNota` sozinho diz sim para quem nunca escolheu: o celular
+     mostrava "Valor do mês fechado. Falta emitir a nota." em 12 linhas, a mentira que o 1A.12 tirou
+     do hero. Sem escolha a linha é o que se sabe: quem, quanto, quantos atendimentos. */
+  const mostraNota = voz.emiteNota && voz.escolheu;
 
   /* ── ★ UM ASSUNTO POR TELA, e é isto que mudou em 26/08/2026 ──
    *
@@ -504,8 +513,9 @@ export function Faturamento() {
         <Contagem
           rotulo={st.mesDoFechamento}
           valor={fmt(total)}
-          sub={`em ${base.length} clientes`}
-          marcos={[
+          sub={`em ${base.length} ${base.length === 1 ? "cliente" : "clientes"}`}
+          /* Sem escolha não há "a emitir" (o 13 era a mesma mentira da linha, regressão 5). */
+          marcos={!mostraNota ? [] : [
             { n: emitidas.length, label: emitidas.length === 1 ? "emitida" : "emitidas", tom: "success" },
             { n: processando.length, label: "processando", tom: "primary" },
             { n: noLote.length, label: "a emitir", tom: "warn" },
@@ -532,19 +542,19 @@ export function Faturamento() {
             /* ⚠️ No caminho do recibo o cartão perde o selo e a gaveta de nota — e o clique vai
                para a FICHA do cliente. `nf-…` abre uma gaveta que se chama "Prévia da nota" e
                oferece "Emitir de novo": o documento errado, na tela de quem não o emite. */
-            if (!voz.emiteNota) {
+            if (!mostraNota) {
               return (
                 <Cartao
                   key={c.id}
                   dot={c.semCpf ? "warn" : "neutral"}
                   titulo={c.nome}
                   sub={c.semCpf
-                    ? "Falta o CPF — sem ele o recibo não sai"
-                    : `${c.atendimentos} atendimentos · ${c.servico ?? st.nomeServico(c.servicoId)}`}
+                    ? (voz.emiteNota ? "Falta o CPF" : "Falta o CPF: sem ele o recibo não sai")
+                    : `${atendimentos(c.atendimentos)} · ${c.servico ?? st.nomeServico(c.servicoId)}`}
                   meta={fmt(c.valor)}
                   onClick={() => st.abrir(c.id)}
-                  resumo={`${c.atendimentos} atendimentos em ${st.mesDoFechamento} · ${fmt(c.valor)}`}
-                  chips={[c.cpf ? `CPF ${c.cpf}` : "sem CPF", c.canal]}
+                  resumo={`${atendimentos(c.atendimentos)} em ${st.mesDoFechamento} · ${fmt(c.valor)}`}
+                  chips={[c.cpf ? `CPF ${c.cpf}` : "sem CPF", ...(c.canal && c.canal !== "—" ? [c.canal] : [])]}
                 />
               );
             }
@@ -555,12 +565,12 @@ export function Faturamento() {
                 titulo={c.nome}
                 // O erro da prefeitura sobe para o corpo do cartão: era o único estado que pede
                 // ação imediata e vivia só no `resumo`, que `hover:none` apaga no celular.
-                sub={nota.status === "erro" ? (nota.erro ?? "A emissão falhou.") : c.semCpf ? "Falta o CPF — a prefeitura recusa sem ele" : `${c.atendimentos} atendimentos · ${c.servico ?? st.nomeServico(c.servicoId)}`}
+                sub={nota.status === "erro" ? (nota.erro ?? "A emissão falhou.") : c.semCpf ? "Falta o CPF: a prefeitura recusa sem ele" : `${atendimentos(c.atendimentos)} · ${c.servico ?? st.nomeServico(c.servicoId)}`}
                 meta={fmt(c.valor)}
                 tag={tag}
                 onClick={() => st.abrir(`nf-${c.id}`)}
                 resumo={c.teste ? `Tomador de teste — a nota se cancela sozinha depois de emitir. ${resumoNota(nota)}` : resumoNota(nota)}
-                chips={[...(c.teste ? ["teste fiscal"] : []), c.cpf ? `CPF ${c.cpf}` : "sem CPF", c.canal]}
+                chips={[...(c.teste ? ["teste fiscal"] : []), c.cpf ? `CPF ${c.cpf}` : "sem CPF", ...(c.canal && c.canal !== "—" ? [c.canal] : [])]}
               />
             );
           })}
@@ -573,15 +583,15 @@ export function Faturamento() {
           linhas={base}
           chaveDe={(c) => c.id}
           estreita={estreita}
-          onLinha={(c) => st.abrir(voz.emiteNota ? `nf-${c.id}` : c.id)}
-          rotuloLinha={(c) => voz.emiteNota
+          onLinha={(c) => st.abrir(mostraNota ? `nf-${c.id}` : c.id)}
+          rotuloLinha={(c) => mostraNota
             ? `${c.nome}, ${fmt(c.valor)}, ${TAG_NOTA[st.notaDe(c.id).status].label}, abrir nota`
             : `${c.nome}, ${fmt(c.valor)}, abrir ficha`}
           colunas={[
             {
               chave: "nome", label: "Cliente", largura: "minmax(0,1.7fr)",
               ordenar: (c) => c.nome,
-              celula: (c) => <CelulaNome nome={c.nome} seed={c.id} sub={c.teste ? "tomador de teste fiscal" : c.semCpf ? (voz.emiteNota ? "sem CPF — não entra no lote" : "sem CPF — fica fora do arquivo") : (c.servico ?? st.nomeServico(c.servicoId))} />,
+              celula: (c) => <CelulaNome nome={c.nome} seed={c.id} sub={c.teste ? "tomador de teste fiscal" : c.semCpf ? (mostraNota ? "sem CPF, não entra no lote" : voz.emiteNota ? "sem CPF" : "sem CPF, fica fora do arquivo") : (c.servico ?? st.nomeServico(c.servicoId))} />,
             },
             {
               chave: "atend", label: "Atend.", num: true, largura: "90px", secundaria: true,
@@ -596,7 +606,7 @@ export function Faturamento() {
             /* ⚠️ AS DUAS COLUNAS DE NOTA SÓ EXISTEM NO CAMINHO DA NOTA. Para a pessoa física elas
                eram um "—" e um selo "a emitir" em toda linha, todo mês, para sempre — uma coluna
                inteira afirmando que há trabalho pendente de um documento que ela não emite. */
-            ...(!voz.emiteNota ? [] : [
+            ...(!mostraNota ? [] : [
             {
               chave: "nota", label: "Nota", largura: "minmax(0,1.1fr)", secundaria: true,
               celula: (c: LinhaDeFaturamento) => {
@@ -676,7 +686,7 @@ export function Equipe() {
                 onClick={() => st.abrir(p.id)}
                 /* Sem "nota" nem "comissão" (T5, 08 P1-3): nenhuma tela as escreve, e a nota do
                    demo era 4.9 para todo mundo. */
-                resumo={`${p.atendimentosMes} atendimentos no mês · folga ${p.folga}`}
+                resumo={`${atendimentos(p.atendimentosMes)} no mês · folga ${p.folga}`}
                 /* "Google" entra na frente dos serviços: no celular só cabem uns três
                    chips, e saber que a agenda está ligada muda o que dá para fazer
                    com aquele profissional — quais serviços ele faz, não. */
