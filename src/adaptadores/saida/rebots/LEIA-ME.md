@@ -206,13 +206,24 @@ entregue num túnel `cloudflared` para o dev local, linha fechada como `emitido`
 `SANDBOX14CF…`, e o PDF (100.661 bytes) arquivado no bucket privado. A emissão está montada no
 `composicao.ts`, com rota (`POST /api/recibos/emitir`) e botão (tela Fiscal).
 
-**Nada rodou em produção**, e falta o que não é código: a conta de produção (a `master_key` do
-sandbox não serve), `RECIBOS_CALLBACK_SECRET` na Vercel, deploy, e o registro do callback apontando
-para o domínio — nessa ordem.
+**A Vercel Production aponta para a Rebots de PRODUÇÃO desde 29/09/2026.**
 
-⚠️ **Medido em 29/09/2026: as `REBOTS_*` da Vercel Production ainda são as do sandbox**, criadas em
-~26/08. A `REBOTS_PROD_MASTER_KEY` está lá, mas nenhum código a lê, e não existe `REBOTS_PRODUCAO`.
-Até alguém virar isso, **o onboarding habilita as profissionais no sandbox**. Virar é trocar
-`REBOTS_BASE_URL` e `REBOTS_MASTER_KEY` pelos valores de produção. Emissor não passa de um
-ambiente para o outro, mas a rede em `criarEmitirRecibo` recadastra cada profissional no
-primeiro recibo depois da troca.
+- **O que foi trocado:** `REBOTS_BASE_URL=https://api.rebots.com.br`, e `REBOTS_MASTER_KEY` recebeu a
+  chave de produção. O `REBOTS_IDENTIFICADOR` é o mesmo nos dois ambientes.
+- **Callback de produção:** registrado no mesmo dia, via `npm run callback`, apontando para
+  `https://app.maisasecretary.com.br/api/recibos/callback`. As sondas responderam 401 e 400. Fora do
+  sandbox, o `/receipts` **exige** callback registrado.
+- **Certificado:** vinculado na conta de produção desde 24/09.
+- **Emissores:** não passam de um ambiente para o outro. A rede em `criarEmitirRecibo` recadastra
+  cada profissional no primeiro recibo.
+
+⚠️ **`REBOTS_PRODUCAO` continua ausente, e é de propósito.** Todo recibo sai com `test: true`, que
+o OpenAPI define como *"o recibo não é enviado à Receita Federal"*. Então, hoje, cadastro de
+emissor é de verdade e recibo não tem efeito fiscal. Antes de ligar a variável, falta a
+resposta do suporte sobre o código 255 (ver a tabela de ocupações acima).
+
+**Localmente, as `REBOTS_*` do `.env.local` seguem no sandbox.** Os valores de produção moram em
+`REBOTS_PROD_BASE_URL` e `REBOTS_PROD_MASTER_KEY`, com nomes diferentes de propósito: `npm run dev`
+não cadastra ninguém na conta de produção por acidente. Para rodar `npm run callback` contra a
+produção, sobrescreva `REBOTS_BASE_URL` e `REBOTS_MASTER_KEY` na linha de comando. O script só lê do
+`.env.local` o que não veio do ambiente.
