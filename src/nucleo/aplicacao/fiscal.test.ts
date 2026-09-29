@@ -15,6 +15,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CadastroDeEmissor, EmpresaDoEmissor } from "../portas/saida/cadastro-de-emissor";
+import type { EmissorDeReciboSaude } from "../portas/saida/emissor-recibo";
 import type { RemendoFiscal, RepositorioFiscal } from "../portas/saida/repositorio-fiscal";
 import type { CadastroDoCnpj, ConfigFiscal } from "../dominio/fiscal";
 import type { ContextoTenant } from "../dominio/tenant";
@@ -76,6 +77,19 @@ function emissor(over: Partial<CadastroDeEmissor> = {}) {
     faltando: () => [],
   };
   return { ...base, ...over };
+}
+
+/** O canal que emite o Receita Saúde — só `cadastrarEmissor` importa para ligar o recibo. */
+function canal(cadastrar: EmissorDeReciboSaude["cadastrarEmissor"] = async () => {}) {
+  const c: EmissorDeReciboSaude = {
+    canal: "rebots",
+    protocoloEhNossaReferencia: true,
+    cadastrarEmissor: vi.fn(cadastrar),
+    emitir: vi.fn(async () => { throw new Error("não usado"); }),
+    consultar: vi.fn(async () => null),
+    cancelar: vi.fn(async () => {}),
+  };
+  return c;
 }
 
 describe("o código nacional a partir do CNAE", () => {
@@ -293,10 +307,10 @@ describe("ler o estado", () => {
  * ────────────────────────────────────────────────────────────────────────────── */
 
 describe("ligar o Receita Saúde", () => {
-  it("grava CPF, ocupação e registro — e não fala com o provedor", async () => {
+  it("grava CPF, ocupação e registro — e não fala com o provedor da nota", async () => {
     const { r, atual } = repo();
     const cadastro = emissor();
-    const ligar = criarLigarReciboSaude({ fiscal: r, cadastro });
+    const ligar = criarLigarReciboSaude({ fiscal: r, cadastro, emissor: canal() });
 
     const estado = await ligar(t, { cpf: "123.456.789-09", ocupacao: "psicologo", registro: "CRP 06/123456" });
 
@@ -313,7 +327,7 @@ describe("ligar o Receita Saúde", () => {
   /* ★ A AUSÊNCIA QUE É O PRODUTO. */
   it("fica pronto para emitir SEM certificado digital", async () => {
     const { r } = repo();
-    const ligar = criarLigarReciboSaude({ fiscal: r, cadastro: emissor() });
+    const ligar = criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: canal() });
     const estado = await ligar(t, { cpf: "12345678909", ocupacao: "fisioterapeuta", registro: null });
     expect(estado.falta).toEqual([]);
   });
@@ -322,13 +336,13 @@ describe("ligar o Receita Saúde", () => {
    * em homologação faria a tela estampar "modo teste" sobre o arquivo que ela vai importar. */
   it("nasce em produção", async () => {
     const { r, atual } = repo();
-    await criarLigarReciboSaude({ fiscal: r, cadastro: emissor() })(t, { cpf: "12345678909", ocupacao: "psicologo" });
+    await criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: canal() })(t, { cpf: "12345678909", ocupacao: "psicologo" });
     expect(atual().ambiente).toBe("producao");
   });
 
   it("recusa CPF que não tem 11 dígitos", async () => {
     const { r } = repo();
-    await expect(criarLigarReciboSaude({ fiscal: r, cadastro: emissor() })(t, { cpf: "123", ocupacao: "psicologo" }))
+    await expect(criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: canal() })(t, { cpf: "123", ocupacao: "psicologo" }))
       .rejects.toBeInstanceOf(DadoInvalido);
   });
 
@@ -336,7 +350,7 @@ describe("ligar o Receita Saúde", () => {
    * inventado só falha na análise do arquivo, depois, com mensagem que fala do CSV. */
   it("recusa profissão fora da lista da Receita", async () => {
     const { r } = repo();
-    await expect(criarLigarReciboSaude({ fiscal: r, cadastro: emissor() })(
+    await expect(criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: canal() })(
       t, { cpf: "12345678909", ocupacao: "nutricionista" as never },
     )).rejects.toBeInstanceOf(DadoInvalido);
   });
@@ -345,16 +359,65 @@ describe("ligar o Receita Saúde", () => {
    * dono achando que "desligou a nota fiscal". */
   it("recusa trocar de caminho quando já existe empresa no emissor", async () => {
     const { r } = repo({ ...VAZIA, cnpj: "12345678000123", empresaId: 9001, optanteMei: true });
-    await expect(criarLigarReciboSaude({ fiscal: r, cadastro: emissor() })(
+    await expect(criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: canal() })(
       t, { cpf: "12345678909", ocupacao: "psicologo" },
     )).rejects.toThrow(/já está ligado com CNPJ/i);
   });
 
   it("corta o registro profissional em 15 caracteres, como o arquivo exige", async () => {
     const { r, atual } = repo();
-    await criarLigarReciboSaude({ fiscal: r, cadastro: emissor() })(
+    await criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: canal() })(
       t, { cpf: "12345678909", ocupacao: "psicologo", registro: "CRP 06/123456789012345" },
     );
     expect(atual().registroProfissional).toHaveLength(15);
+  });
+
+  /* ★ O PEDIDO DE 29/09/2026: o que ela preenche no card é o que habilita ela no canal. Antes
+   * disso, todo emissor na Rebots nascia de um `POST /issuers` feito à mão. */
+  it("habilita a profissional no canal de emissão com os mesmos dados que grava", async () => {
+    const { r } = repo();
+    const c = canal();
+    await criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: c })(
+      t, { cpf: "123.456.789-09", ocupacao: "psicologo", registro: " CRP 06/123456 " },
+    );
+    expect(c.cadastrarEmissor).toHaveBeenCalledWith(t, {
+      cpf: "12345678909", ocupacao: "psicologo", registroProfissional: "CRP 06/123456",
+    });
+  });
+
+  /* O canal recusa criar emissor sem registro. O salvamento continua valendo — é por ele que o
+   * editor de `LoteReceitaSaude` grava a autorização. */
+  it("sem registro, grava e não chama o canal", async () => {
+    const { r, atual } = repo();
+    const c = canal();
+    await criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: c })(
+      t, { cpf: "12345678909", ocupacao: "psicologo", registro: "   " },
+    );
+    expect(c.cadastrarEmissor).not.toHaveBeenCalled();
+    expect(atual().prestadorCpf).toBe("12345678909");
+  });
+
+  /* Recusa do canal é dado errado: nada gravado, e a frase dele vai para a tela. */
+  it("canal recusando o dado não grava nada", async () => {
+    const { r, remendos } = repo();
+    const c = canal(async () => { throw new DadoInvalido("CPF em formato inválido", "rebots"); });
+    await expect(criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: c })(
+      t, { cpf: "12345678909", ocupacao: "psicologo", registro: "CRP 06/123456" },
+    )).rejects.toThrow(/CPF em formato inválido/);
+    expect(remendos).toEqual([]);
+  });
+
+  /* Queda do fornecedor não trava o onboarding: a emissão habilita de novo antes de cada recibo. */
+  it("canal fora do ar não impede de gravar", async () => {
+    const { r, atual } = repo();
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    const c = canal(async () => { throw new Error("O canal de emissão está fora do ar (503)."); });
+    const estado = await criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: c })(
+      t, { cpf: "12345678909", ocupacao: "psicologo", registro: "CRP 06/123456" },
+    );
+    expect(estado.caminho).toBe("recibo_saude");
+    expect(atual().registroProfissional).toBe("CRP 06/123456");
+    expect(erro).toHaveBeenCalled();
+    erro.mockRestore();
   });
 });

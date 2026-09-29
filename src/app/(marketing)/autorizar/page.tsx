@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AVISO_ASSINADOR,
+  AVISO_CODIGO_DO_APP,
   LINK_PROCURACAO,
   LINK_PROCURACAO_SERVICO,
   PERMISSAO_CARNE_LEAO_NA_TELA,
@@ -96,6 +97,7 @@ export default function Autorizar() {
         <div className="lp-tuto-requisitos">
           <span><strong>Você vai precisar de:</strong></span>
           <span>conta gov.br nível prata ou ouro</span>
+          <span>o aplicativo gov.br no celular, já entrando na sua conta</span>
           <span>dois minutos</span>
         </div>
       </header>
@@ -154,6 +156,10 @@ export default function Autorizar() {
           {PASSOS.map((passo) => <li key={passo}>{passo}</li>)}
         </ol>
 
+        {/* Alerta e não ressalva: vale para quase todo mundo, e é no último passo. Quem chega
+            ao "Assinar" sem o app no celular desiste ali — ver `AVISO_CODIGO_DO_APP`. */}
+        <div className="lp-tuto-alerta lp-tuto-alerta-calmo">{AVISO_CODIGO_DO_APP}</div>
+
         {/* ⚠️ Ressalva, e não passo — ver `AVISO_ASSINADOR`. Conta gov.br assina sozinha; o
             Assinador Serpro só entra para quem usa certificado digital. Como passo 12, mandaria
             a maioria instalar um programa que não vai usar. */}
@@ -194,6 +200,13 @@ export default function Autorizar() {
             <strong>Sua conta gov.br é bronze.</strong> Só prata ou ouro cadastra autorização.
             Dá para subir de nível pelo aplicativo gov.br, com o app do seu banco ou validação
             facial.
+          </li>
+          <li>
+            <strong>O aplicativo gov.br diz “Biometria facial não encontrada”.</strong> Acontece
+            com quem não tem foto na CNH, no título de eleitor nem na identidade nova — e repetir
+            a foto não resolve. Reinstale o app e, no primeiro acesso, escolha{" "}
+            <strong>“Login com seu banco”</strong> em vez de CPF e senha. A Receita não vê a sua
+            senha, o seu saldo nem o seu extrato.
           </li>
           <li>
             <strong>A busca não encontra a permissão.</strong> Digite só <code>carne</code>, sem

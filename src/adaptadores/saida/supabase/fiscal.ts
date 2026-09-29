@@ -27,10 +27,15 @@ const ocupacaoValida = (v: string | null): OcupacaoSaude | null =>
 
 const TABELA = "config_fiscal";
 
+/* ⚠️ TODA CHAVE DE `Linha` TEM QUE ESTAR AQUI. O PostgREST devolve só o que o `select` pede, e
+ * coluna esquecida chega `undefined` — sem erro. As três da procuração (021/022) ficaram de fora
+ * até 29/09/2026: a autorização nunca aparecia como `aguardando_aceite` ou `vencida`, e o editor
+ * do `LoteReceitaSaude` apagava o procurador a cada salvamento. `fiscal.test.ts` prende isso. */
 const COLUNAS =
   "ambiente, prestador_cnpj, prestador_nome, codigo_municipio, optante_mei, optante_simples, "
   + "focus_empresa_id, certificado_valido_ate, codigo_tributacao_nacional, "
   + "prestador_cpf, ocupacao_saude, registro_profissional, "
+  + "procurador_documento, procuracao_valida_ate, procuracao_aceita_em, "
   + "inscricao_municipal, item_lista_servico, aliquota_iss, codigo_tributario_municipio";
 
 type Linha = {

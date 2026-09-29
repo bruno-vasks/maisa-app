@@ -30,6 +30,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { s, Icon, Estado } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
+import { mensagemDaFalha } from "@/ui/falhas";
 import type { CadastroDoCnpj, ConfigFiscal } from "@/nucleo/dominio/fiscal";
 
 type Estado = {
@@ -201,7 +202,10 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
         body: JSON.stringify(corpo ?? {}),
       });
       const d = await r.json();
-      if (!d?.ok) { setErro(d?.mensagem ?? d?.erro ?? "Não deu. Tente de novo."); return; }
+      /* `mensagemDaFalha`, não `d.mensagem`: o `falha()` do servidor devolve a frase em `info`.
+       * Lendo o campo errado, "Esse CPF não é válido" e a recusa do canal de emissão viravam
+       * todos "Não deu. Tente de novo." — até 29/09/2026. */
+      if (!d?.ok) { setErro(mensagemDaFalha(d, "Não deu. Tente de novo.")); return; }
       /* Grava no store, não num estado local: é o mesmo envelope que a leitura, e é o que faz o
        * hero e a topbar mudarem de vocabulário no mesmo instante em que o caminho muda. */
       st.aplicarFiscal(d);
@@ -369,7 +373,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
                   O registro no conselho é obrigatório para emitir. E o mesmo número precisa estar
                   cadastrado no seu Carnê-Leão, senão a Receita recusa com{" "}
                   <em>&ldquo;registro profissional não informado pelo conselho&rdquo;</em>. Depois
-                  de salvar, veja o passo a passo em <strong>Pronto para emitir?</strong>
+                  de salvar, veja o passo a passo em <strong>No site da Receita</strong>.
                 </span>
               </span>
             )}

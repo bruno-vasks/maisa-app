@@ -323,11 +323,11 @@ export type ConfigFiscal = {
   /**
    * CRP, CREFITO, CRFa… até 15 caracteres.
    *
-   * A Receita aceita vazio quando o profissional tem um registro ativo só, e por isso ele
-   * **não entra em `fiscalFaltando`** — bloquear a emissão por um campo que o órgão dispensa
-   * seria inventar regra. Mas recibo sem registro é o motivo nº 1 de recusa de reembolso pelo
-   * plano de saúde: opcional para a Receita, decisivo para o paciente. A tela pede; o
-   * domínio não impede.
+   * **Não entra em `fiscalFaltando`**, e isso vale só para o ARQUIVO: o lote do e-CAC aceita
+   * vazio quando o profissional tem um registro ativo só. Para o recibo unitário ele é
+   * obrigatório: o canal de emissão recusa habilitar quem não tem, e `criarEmitirRecibo` e
+   * `faltaParaEmitirRecibo` bloqueiam sem ele (25–29/09/2026). A frase "o domínio não impede",
+   * que morava aqui, era do tempo em que só existia o arquivo.
    */
   registroProfissional: string | null;
 

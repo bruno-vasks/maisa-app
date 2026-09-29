@@ -28,6 +28,7 @@ import type { ContextoTenant } from "../dominio/tenant";
 import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
 import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
+import { DadoInvalido } from "../dominio/erros";
 
 const t: ContextoTenant = { tenantId: "t1", usuarioId: "u1", ator: { tipo: "usuario", id: "u1" } };
 
@@ -81,6 +82,10 @@ function ambiente(p: {
   telefoneDoPaciente?: string | null;
   /** O canal de mensagens estoura — telefone que mudou de dono, WhatsApp fora do ar. */
   envioQuebra?: boolean;
+  /** `cadastrarEmissor` estoura — canal fora do ar, ou recusando a profissional. */
+  cadastroQuebra?: Error;
+  /** A configuração fiscal lida. Padrão: a Carla, completa. */
+  config?: ConfigFiscal;
 } = {}) {
   const ordem: string[] = [];
   const protocolos: { reciboId: string; protocolo: string }[] = [];
@@ -131,7 +136,10 @@ function ambiente(p: {
   const emissor: EmissorDeReciboSaude = {
     canal: "automacao",
     protocoloEhNossaReferencia: p.protocoloNosso === true,
-    async cadastrarEmissor() { ordem.push("cadastrarEmissor"); },
+    async cadastrarEmissor() {
+      ordem.push("cadastrarEmissor");
+      if (p.cadastroQuebra) throw p.cadastroQuebra;
+    },
     async emitir(_t, _e, pedido): Promise<ReciboAceito> {
       ordem.push("emitir");
       pedidoEmitido = pedido;
@@ -191,7 +199,7 @@ function ambiente(p: {
   } as unknown as RepositorioRecibos;
 
   return {
-    emitir: criarEmitirRecibo({ livro, emissor, recibos, fiscal: fiscalDe(carla), guarda }),
+    emitir: criarEmitirRecibo({ livro, emissor, recibos, fiscal: fiscalDe(p.config ?? carla), guarda }),
     reconciliar: criarReconciliarRecibos({ livro, emissor }),
     fecharDoCallback: criarFecharReciboDoCallback({ livro, guarda, aviso: { canal, negocio, assistente } }),
     /* Sem as portas do aviso: é o mesmo caso de uso de antes, e tem que continuar mudo. */
@@ -224,8 +232,32 @@ describe("emitirRecibo", () => {
     const a = ambiente();
     await a.emitir(t, { fonte: "atendimento", id: "at1" });
 
-    expect(a.ordem).toEqual(["abrir", "emitir", "registrarProtocolo"]);
+    expect(a.ordem).toEqual(["cadastrarEmissor", "abrir", "emitir", "registrarProtocolo"]);
     expect(a.ordem.indexOf("abrir")).toBeLessThan(a.ordem.indexOf("emitir"));
+  });
+
+  /* ★ A REDE DE QUEM SALVOU ANTES DE 29/09/2026: o onboarding não habilitava ninguém no canal, e
+   * a emissão é o único lugar por onde toda profissional passa. Antes de prender, porque falhar
+   * aqui não pode trancar pagamento nenhum. */
+  it("habilita a profissional no canal antes de prender o pagamento", async () => {
+    const a = ambiente();
+    await a.emitir(t, { fonte: "atendimento", id: "at1" });
+    expect(a.ordem.indexOf("cadastrarEmissor")).toBeLessThan(a.ordem.indexOf("abrir"));
+  });
+
+  it("canal recusando a habilitação não prende o pagamento", async () => {
+    const a = ambiente({ cadastroQuebra: new DadoInvalido("CPF em formato inválido", "rebots") });
+    await expect(a.emitir(t, { fonte: "atendimento", id: "at1" })).rejects.toThrow(/CPF em formato/);
+    expect(a.ordem).toEqual(["cadastrarEmissor"]);
+  });
+
+  /* O canal recusa criar emissor sem registro, em inglês. A tela já bloqueia; a regra no núcleo é
+   * para quem não passou pela tela. */
+  it("sem registro no conselho, recusa antes de falar com o canal", async () => {
+    const a = ambiente({ config: { ...carla, registroProfissional: "  " } });
+    await expect(a.emitir(t, { fonte: "atendimento", id: "at1" }))
+      .rejects.toThrow(/registro no conselho/);
+    expect(a.ordem).toEqual([]);
   });
 
   it("termina em `pendente`, com protocolo gravado", async () => {
@@ -256,7 +288,7 @@ describe("emitirRecibo", () => {
     await expect(a.emitir(t, { fonte: "atendimento", id: "at1" }))
       .rejects.toThrow(/já entrou num recibo ou num lote/i);
 
-    expect(a.ordem).toEqual(["abrir"]);
+    expect(a.ordem).toEqual(["cadastrarEmissor", "abrir"]);
   });
 
   /* ⚠️ Recusa do PEDIDO solta o pagamento — nada foi emitido. Sem isso, um CPF digitado errado
@@ -265,7 +297,7 @@ describe("emitirRecibo", () => {
     const a = ambiente({ emitirQuebra: "CPF do beneficiário não é válido." });
     await expect(a.emitir(t, { fonte: "atendimento", id: "at1" })).rejects.toThrow(/CPF/);
 
-    expect(a.ordem).toEqual(["abrir", "emitir", "descartar"]);
+    expect(a.ordem).toEqual(["cadastrarEmissor", "abrir", "emitir", "descartar"]);
     expect(a.descartados).toEqual([
       { reciboId: "rec1", erro: "CPF do beneficiário não é válido." },
     ]);

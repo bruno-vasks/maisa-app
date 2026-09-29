@@ -296,6 +296,18 @@ export const AVISO_ASSINADOR =
   "Se você assinar com certificado digital em vez da conta gov.br, o Assinador Serpro precisa "
   + "estar aberto e atualizado no computador — senão o botão \"Assinar\" não conclui.";
 
+/**
+ * O código do app gov.br, que é onde a Regina parou (09/09/2026).
+ *
+ * Medido com conta ouro: o "Assinar" pede um código de 6 dígitos que **só existe dentro do app**
+ * — não vai por SMS, e-mail nem push. "Pode pedir" e não "pede" porque ainda não se mediu se é
+ * sempre ou só com a verificação em duas etapas ligada. Quem descobre isso na hora de assinar,
+ * sem o app instalado, desiste no último passo.
+ */
+export const AVISO_CODIGO_DO_APP =
+  "Na hora de \"Assinar\", a Receita pode pedir um código de 6 dígitos. Ele só existe no "
+  + "aplicativo gov.br do seu celular — não chega por SMS nem por e-mail. Deixe o celular à mão.";
+
 export function checklistDoRecibo(c: ConfigFiscal, hoje: string): ItemDoChecklist[] {
   const ano = hoje.slice(0, 4);
   const ocupacao = c.ocupacaoSaude;

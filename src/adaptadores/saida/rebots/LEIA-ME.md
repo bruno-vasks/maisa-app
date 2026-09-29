@@ -59,6 +59,40 @@ por autorização de acesso, e **um e-CNPJ A1 serve a base toda**.
 Era a pergunta que decidia a viabilidade comercial do canal ("ela vai ter que comprar
 certificado?") e a resposta é não.
 
+## ★ Quem habilita a profissional: o onboarding, sozinho (desde 29/09/2026)
+
+Até essa data **nenhum código chamava `cadastrarEmissor`**: todo emissor nascia de um
+`POST /issuers` feito à mão. Agora ele roda em dois lugares, com a mesma chamada:
+
+| Onde | Quando | Se falhar |
+|---|---|---|
+| `criarLigarReciboSaude` | ela salva o card "Recibos do Receita Saúde" (ou o editor de dados) | 4xx: **nada é gravado**, a frase vai para a tela. 5xx/timeout: grava assim mesmo, `console.error` |
+| `criarEmitirRecibo` | antes de cada recibo, **antes de prender o pagamento** | a emissão recusa e nenhum pagamento fica trancado |
+
+A segunda é a rede: cobre quem salvou antes de 29/09 e quem salvou com a Rebots fora do ar. O custo
+é uma chamada a mais por recibo, e em troca não há backfill, coluna nova nem migração.
+
+**Medido no sandbox em 29/09/2026**, e não só lido no OpenAPI:
+
+| Pedido | Resposta |
+|---|---|
+| `enable`, `issuer_code` novo, com registro | `200 "Issuer created and enabled successfully."` |
+| `enable` de novo, mesmo `issuer_code` | `200 "Issuer updated and enabled successfully."` — **é upsert**, e atualiza ocupação e registro |
+| `enable`, `issuer_code` novo, `registration: ""` | `400 ISSUERS_ERROR_014 Missing field: registration` |
+| `enable`, `issuer_code` existente, **outro CPF** | `409 ISSUERS_ERROR_016 CPF cannot be changed…` |
+
+Consequências no nosso código:
+
+- **Sem registro no conselho, não chamamos.** A recusa viria em inglês. `criarLigarReciboSaude`
+  pula a chamada, e `criarEmitirRecibo` recusa em português antes de falar com o canal.
+- **O 409 nunca acontece aqui**, porque o `issuer_code` é o próprio CPF. O reverso é a dívida:
+  trocar o CPF cria um emissor novo e **deixa o antigo ativo**. A porta não tem `disable`, e
+  desligar os recibos também não desativa ninguém lá. Hoje isso é inofensivo, porque nada emite
+  sob o código velho. Passa a importar se a Rebots cobrar por emissor ativo, e isso ainda não
+  foi perguntado.
+- **Não existe GET de emissores.** A única prova de que alguém está habilitado é a mensagem do
+  `enable`, e o adaptador a descarta.
+
 ## ★ `receipt_id` é nosso, e isso melhora o desenho
 
 O `POST /receipts` aceita `receipt_id` **de entrada**, e o callback o devolve. Então o protocolo é
@@ -175,3 +209,10 @@ entregue num túnel `cloudflared` para o dev local, linha fechada como `emitido`
 **Nada rodou em produção**, e falta o que não é código: a conta de produção (a `master_key` do
 sandbox não serve), `RECIBOS_CALLBACK_SECRET` na Vercel, deploy, e o registro do callback apontando
 para o domínio — nessa ordem.
+
+⚠️ **Medido em 29/09/2026: as `REBOTS_*` da Vercel Production ainda são as do sandbox**, criadas em
+~26/08. A `REBOTS_PROD_MASTER_KEY` está lá, mas nenhum código a lê, e não existe `REBOTS_PRODUCAO`.
+Até alguém virar isso, **o onboarding habilita as profissionais no sandbox**. Virar é trocar
+`REBOTS_BASE_URL` e `REBOTS_MASTER_KEY` pelos valores de produção. Emissor não passa de um
+ambiente para o outro, mas a rede em `criarEmitirRecibo` recadastra cada profissional no
+primeiro recibo depois da troca.

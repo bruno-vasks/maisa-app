@@ -29,6 +29,7 @@ import type {
   LigarNotaFiscal, LigarReciboSaude,
 } from "../portas/entrada/casos-de-uso";
 import type { CadastroDeEmissor } from "../portas/saida/cadastro-de-emissor";
+import type { EmissorDeReciboSaude } from "../portas/saida/emissor-recibo";
 import type { RepositorioFiscal } from "../portas/saida/repositorio-fiscal";
 import type { CadastroDoCnpj, ConfigFiscal } from "../dominio/fiscal";
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
@@ -40,6 +41,11 @@ import { hojeISO } from "../dominio/tempo";
 export type DepsFiscal = {
   fiscal: RepositorioFiscal;
   cadastro: CadastroDeEmissor;
+};
+
+/** O caminho do recibo fala com um canal a mais: quem emite o Receita Saúde por ela. */
+export type DepsLigarReciboSaude = DepsFiscal & {
+  emissor: EmissorDeReciboSaude;
 };
 
 /**
@@ -229,10 +235,22 @@ export function criarLiberarProducaoFiscal(deps: DepsFiscal): LiberarProducaoFis
 /**
  * Liga o caminho do recibo — o onboarding fiscal de quem atende como pessoa física.
  *
- * ★ TRÊS CAMPOS E NENHUMA CHAMADA EXTERNA. Não há CNPJ para consultar na Receita (é o
- * próprio caso), não há empresa para criar no provedor e não há certificado para instalar.
- * Comparado com `criarLigarNotaFiscal`, este caso de uso não tem nenhuma das quatro etapas
- * que precisam dar certo em ordem — só valida e grava.
+ * ★ TRÊS CAMPOS E UMA CHAMADA EXTERNA, QUE NÃO CUSTA NADA DESFAZER. Não há CNPJ para consultar
+ * na Receita (é o próprio caso), não há empresa para criar no provedor e não há certificado para
+ * instalar. A única conversa com o mundo é habilitar a profissional no canal de emissão
+ * (`cadastrarEmissor`) — e ela é idempotente pela porta: na Rebots, `enable` cria quem não existe
+ * e atualiza ocupação e registro de quem existe. Salvar de novo é seguro, e é o que conserta.
+ *
+ * ── ⚠️ O CANAL ANTES DO BANCO, E SÓ A RECUSA DO DADO PARA O SALVAMENTO ──
+ *
+ * 4xx do canal (`DadoInvalido`) é dado errado: nada é gravado e a frase vai para a tela, que é
+ * onde ela pode ser consertada. Canal fora do ar NÃO segura o onboarding: grava assim mesmo, e a
+ * emissão habilita de novo antes de cada recibo (`criarEmitirRecibo`). Travar o salvamento por
+ * queda de um fornecedor faria a terapeuta achar que o CPF dela está errado.
+ *
+ * Sem registro do conselho, não habilita: o canal recusa criar emissor sem ele, e a emissão já
+ * está bloqueada por `faltaParaEmitirRecibo`. O registro segue opcional AQUI porque o editor de
+ * `LoteReceitaSaude` salva a autorização por este mesmo caso de uso.
  *
  * ⚠️ `ambiente: "producao"`, e não o `homologacao` padrão. Não existe homologação neste
  * caminho: o ensaio é o "Analisar Arquivo" do e-CAC, que acontece fora do nosso app. Deixar
@@ -241,7 +259,7 @@ export function criarLiberarProducaoFiscal(deps: DepsFiscal): LiberarProducaoFis
  * no e-CAC. É o oposto da nota fiscal, onde produção significa documento irreversível e por
  * isso tem `criarLiberarProducaoFiscal` como cancela.
  */
-export function criarLigarReciboSaude(deps: DepsFiscal): LigarReciboSaude {
+export function criarLigarReciboSaude(deps: DepsLigarReciboSaude): LigarReciboSaude {
   return async (t, p) => {
     const cpf = soDigitos(p.cpf);
     /* O CPF de quem emite é o que a Receita casa com o Carnê-Leão. Errar um dígito aqui faz
@@ -271,10 +289,20 @@ export function criarLigarReciboSaude(deps: DepsFiscal): LigarReciboSaude {
       throw new DadoInvalido("O documento de quem emite por você tem que ser um CPF ou um CNPJ.", "procurador");
     }
 
+    const registro = p.registro?.trim().slice(0, 15) || null;
+    if (registro) {
+      try {
+        await deps.emissor.cadastrarEmissor(t, { cpf, ocupacao: p.ocupacao, registroProfissional: registro });
+      } catch (e) {
+        if (e instanceof DadoInvalido) throw e;
+        console.error(`[ligarReciboSaude] canal de emissão indisponível para ${t.tenantId} — gravando mesmo assim`, e);
+      }
+    }
+
     const salvo = await deps.fiscal.salvar(t, {
       prestadorCpf: cpf,
       ocupacaoSaude: p.ocupacao,
-      registroProfissional: p.registro?.trim().slice(0, 15) || null,
+      registroProfissional: registro,
       ...(procurador !== undefined ? { procuradorDocumento: procurador } : {}),
       ...("procuracaoAte" in p ? { procuracaoValidaAte: p.procuracaoAte || null } : {}),
       ...("procuracaoAceitaEm" in p ? { procuracaoAceitaEm: p.procuracaoAceitaEm || null } : {}),

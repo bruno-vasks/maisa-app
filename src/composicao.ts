@@ -704,10 +704,14 @@ export const app = {
    * Sem `emissor` na lista de dependências, e é o ponto: não há provedor, não há certificado
    * e não há custo por linha. O caso de uso monta um CSV e prende as sessões; quem emite é
    * ela, importando no e-CAC. Ver `dominio/recibo-saude.ts`. */
-  /* Sem `cadastro` fazendo chamada nenhuma: três campos e grava. O `cadastroEmissor` entra
-   * só porque `estado()` reporta `provedorFaltando` — que neste caminho é sempre irrelevante,
-   * e é justamente o que a tela precisa saber para não esconder o formulário. */
-  ligarReciboSaude: criarLigarReciboSaude({ fiscal: fiscalRepo, cadastro: cadastroEmissor }),
+  /* Sem `cadastro` fazendo chamada nenhuma: o `cadastroEmissor` (Focus) entra só porque
+   * `estado()` reporta `provedorFaltando` — que neste caminho é sempre irrelevante, e é
+   * justamente o que a tela precisa saber para não esconder o formulário.
+   * ★ `emissorRecibo` é o MESMO da emissão: salvar o formulário habilita a profissional no canal
+   * que vai emitir por ela. Dois seletores poderiam cadastrar no sandbox e emitir na produção. */
+  ligarReciboSaude: criarLigarReciboSaude({
+    fiscal: fiscalRepo, cadastro: cadastroEmissor, emissor: emissorRecibo,
+  }),
   gerarLoteDeRecibos: criarGerarLoteDeRecibos({ recibos: recibosRepo, fiscal: fiscalRepo }),
   /* Canal, negócio e assistente porque fechar o lote pode AVISAR os pacientes no WhatsApp —
    * mesmas dependências do lembrete de 3h antes, e é o mesmo canal falando. */

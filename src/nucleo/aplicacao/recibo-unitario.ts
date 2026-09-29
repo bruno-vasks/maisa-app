@@ -88,6 +88,12 @@ export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
     }
     const falta = fiscalFaltando(config, hoje);
     if (falta.length) throw new NaoConfigurado(falta);
+    /* O arquivo do e-CAC sai sem registro; o recibo unitário não — o canal recusa habilitar quem
+     * não tem, e a frase dele chega em inglês. É a mesma regra de `faltaParaEmitirRecibo`, que a
+     * tela já aplica: aqui ela vale também para quem não passou pela tela. */
+    if (!config.registroProfissional?.trim()) {
+      throw new DadoInvalido("Falta o seu registro no conselho — sem ele o recibo não sai.", "registro");
+    }
 
     const emissor: EmissorCredenciado = {
       cpf: config.prestadorCpf!,
@@ -126,6 +132,14 @@ export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
     if (!cpfValido(cpfPagador)) {
       throw new DadoInvalido("O CPF de quem pagou não é válido.", "cpfPagador");
     }
+
+    /* ── 0.5 · habilita no canal, ANTES de prender ──
+     *
+     * O onboarding já habilita ao salvar (`criarLigarReciboSaude`), mas ele deixa passar canal
+     * fora do ar — e quem salvou antes de 29/09/2026 nunca foi habilitado. A porta promete
+     * idempotência, então repetir aqui é a rede que não depende de ninguém lembrar. Antes do
+     * `abrir` porque, se falhar, nenhum pagamento fica trancado por um recibo que nem saiu. */
+    await deps.emissor.cadastrarEmissor(t, emissor);
 
     /* ── 1 · PRENDE ANTES DE FALAR COM O MUNDO ── */
     const aberto = await deps.livro.abrir(t, {
