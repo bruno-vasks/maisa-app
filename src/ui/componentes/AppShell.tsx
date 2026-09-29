@@ -229,8 +229,17 @@ function Rail() {
         ))}
 
         <div style={s("margin-top:auto;display:flex;flex-direction:column;gap:8px;flex-shrink:0")}>
-          <div style={s("display:flex;align-items:center;gap:12px;padding-left:3px")}>
-            <Monogram name={st.cadastro.negocio.nome} id={st.cadastro.negocio.nome} size={40} radius={13} />
+          {/* ★ Um botão desde 29/09/2026: o Bruno achou o rodapé "vazio e inclicável". Abre a
+              gaveta "Seu negócio" (foto, nome, documento, plano; ver `detalhe.tsx`). */}
+          <button
+            type="button"
+            onClick={() => st.abrir("negocio")}
+            aria-label="Seu negócio"
+            title="Seu negócio"
+            className="m-rail-negocio m-focus"
+            style={s("display:flex;align-items:center;gap:12px;padding:4px 0 4px 3px;margin:-4px 0;border:none;text-align:left;cursor:pointer;color:inherit;width:100%;border-radius:var(--r-controle)")}
+          >
+            <Monogram name={st.cadastro.negocio.nome} id={st.cadastro.negocio.nome} foto={st.cadastro.negocio.foto} size={40} radius={13} />
             <span className="m-rail-label" style={s("min-width:0;line-height:1.3")}>
               {/* nome do negócio e plano: também na voz da sidebar — é a identidade de quem usa,
                   não dado de tarefa. Peso 700 porque a Alegreya não tem 600. */}
@@ -246,7 +255,7 @@ function Rail() {
                   ? <span aria-hidden style={s("display:block;width:80px;height:10px;margin:4px 0;border-radius:var(--r-controle);background:var(--nav-active)")} />
                   : null}
             </span>
-          </div>
+          </button>
           <div className="m-rail-label"><UserMenu /></div>
         </div>
       </nav>

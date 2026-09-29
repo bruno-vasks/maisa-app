@@ -61,6 +61,7 @@ export type LinhaDeFaturamento = {
 };
 import { fmt, toast } from "@/ui/primitivos";
 import { escreverEndereco, lerEndereco, secaoDoEndereco, type Endereco } from "./endereco";
+import { reduzirFoto } from "./foto";
 import type { PassoDeAtivacao } from "@/nucleo/dominio/ativacao";
 
 /* ───────────────────────────── tipos ───────────────────────────── */
@@ -888,6 +889,13 @@ export type StoreValue = {
    * sidebar pinta e o mesmo que a MAISA diz no WhatsApp.
    */
   setNomeDoNegocio: (nome: string) => void;
+
+  /** Troca a foto de perfil do negócio (a gaveta "Seu negócio", 29/09/2026). `null` remove e
+   *  volta ao avatar sorteado. O arquivo é reduzido aqui, no navegador, antes de subir; ver
+   *  `FOTO_MAX` em `dominio/negocio.ts`. `true` = gravou. */
+  trocarFotoDoNegocio: (arquivo: File | null) => Promise<boolean>;
+  /** Uma troca de foto em andamento: a gaveta desliga os botões enquanto isso. */
+  fotoOcupada: boolean;
 
   /* ── as respostas prontas ──
    * `salvarFaq` devolve se DEU CERTO, e não `void`: a tela precisa saber se limpa o
@@ -3676,6 +3684,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [faqs]);
 
+  /* ── a foto do negócio ──
+   * Sem otimismo: a foto nova só aparece depois que o banco devolve. Ela é reduzida primeiro
+   * (`reduzirFoto`), e um arquivo que o navegador não sabe abrir (HEIC num Chrome de Windows,
+   * PDF renomeado) para aí, com a frase, sem ida ao servidor. */
+  const [fotoOcupada, setFotoOcupada] = useState(false);
+  const trocarFotoDoNegocio = useCallback(async (arquivo: File | null): Promise<boolean> => {
+    setFotoOcupada(true);
+    try {
+      let foto: string | null = null;
+      if (arquivo) {
+        foto = await reduzirFoto(arquivo).catch(() => null);
+        if (!foto) { toast("Não consegui abrir essa imagem. Tente uma foto JPEG ou PNG."); return false; }
+      }
+      const r = await fetch("/api/negocio", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ foto }),
+      }).then((x) => x.json());
+      if (!r?.ok) { toast(r?.info ?? "Não foi possível salvar a foto."); return false; }
+      setCadastro((c) => ({ ...c, negocio: r.negocio ?? c.negocio }));
+      toast(arquivo ? "Foto atualizada." : "Foto removida.");
+      return true;
+    } catch {
+      toast("Sem conexão com o servidor. A foto ficou como estava.");
+      return false;
+    } finally {
+      setFotoOcupada(false);
+    }
+  }, []);
+
   const setNomeDoNegocio = useCallback((nome: string) => {
     setCadastro((c) => {
       /* A foto para a volta atrás é tirada UMA vez por rajada, dentro do updater, onde o
@@ -4648,7 +4686,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
-    assistente: ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio,
+    assistente: ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
@@ -4681,7 +4719,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
-    ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio,
+    ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,

@@ -22,6 +22,8 @@ import { semConfirmacao } from "@/ui/estado/leitura";
 import { resumoDaJornada } from "@/ui/componentes/JornadaDeAtivacao";
 import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
+import { cpfMascarado } from "@/nucleo/dominio/clientes";
+import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
 
@@ -72,7 +74,10 @@ export type Bloco =
   /** Prévia da NFS-e, no formato de recibo. */
   | { tipo: "recibo"; key: string; label?: string; recibo: Recibo }
   /** Lista de pessoas/itens navegáveis. */
-  | { tipo: "lista"; key: string; label?: string; itens: ItemLista[] };
+  | { tipo: "lista"; key: string; label?: string; itens: ItemLista[] }
+  /** A foto de perfil com "Trocar" e "Remover" (a gaveta "Seu negócio"). `remover: null` = não
+   *  há foto, e o botão não aparece. */
+  | { tipo: "foto"; key: string; nome: string; seed: string; foto: string | null; ocupada: boolean; trocar: (arquivo: File) => void; remover: (() => void) | null };
 
 export type Recibo = {
   prestador: string;
@@ -149,6 +154,13 @@ export function rodape(a?: Acao | null | false, b?: Acao | null | false): Rodape
   if (x) return [x];
   if (y) return [y];
   return [];
+}
+
+/** "12345678000190" → "12.345.678/0001-90"; vazio se não tiver 14 dígitos. */
+function cnpjFormatado(v?: string | null): string {
+  const d = D.soDigitos(v ?? "");
+  if (d.length !== 14) return "";
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
 /* ───────────────────────────── hook ───────────────────────────── */
@@ -1308,6 +1320,62 @@ export function useDetalhe(id: string | null): Detalhe | null {
    * A lógica toda — quais linhas, qual aviso, quais botões — está em `resumoDaAssinatura`,
    * no store, porque é pura e precisa de teste: é ela que decide se um botão de COBRAR
    * aparece. */
+  /* ── Seu negócio (29/09/2026) ──
+   * O rodapé do rail mostrava o avatar, o nome e o plano, e não clicava: o Bruno achou "vazio e
+   * inclicável". Agora ele abre isto. Cada linha mora onde já morava, e a gaveta só junta:
+   *   · a foto é nova (`negocios.foto`, ver `FOTO_MAX` em `dominio/negocio.ts`);
+   *   · o nome é o mesmo `setNomeDoNegocio` dos Ajustes da MAISA;
+   *   · o documento é da configuração fiscal, e se EDITA na tela do Documento fiscal. Não há
+   *     campo de CPF/CNPJ aqui de propósito: trocar o documento muda o caminho de emissão, e o
+   *     DELETE que isso dispara já apagou dados em produção (ver o LEIA-ME da `DocumentoFiscal`);
+   *   · o plano abre a gaveta "Meu plano", que é a que fala com a cobrança. */
+  if (id === "negocio") {
+    const neg = st.cadastro.negocio;
+    const cfg = st.fiscal.status === "ok" ? st.fiscal.config : null;
+    const cpf = cpfMascarado(cfg?.prestadorCpf);
+    const cnpj = cnpjFormatado(cfg?.cnpj);
+    const linhasDoDoc: [string, string][] = [
+      ...(cnpj ? [["CNPJ", cnpj] as [string, string]] : []),
+      ...(cnpj && cfg?.razaoSocial ? [["Razão social", cfg.razaoSocial] as [string, string]] : []),
+      ...(cpf ? [["CPF", cpf] as [string, string]] : []),
+    ];
+    const irAoDocumento = () => { st.fechar(); st.irPara("fiscal"); };
+    const plano = st.assinatura.status === "ok" && st.assinatura.assinatura ? `Plano ${st.assinatura.assinatura.plano}` : "Meu plano";
+
+    return {
+      titulo: "Seu negócio",
+      sub: "Como seus clientes veem você",
+      blocos: [
+        {
+          tipo: "foto", key: "foto", nome: neg.nome, seed: neg.nome, foto: neg.foto ?? null, ocupada: st.fotoOcupada,
+          trocar: (arquivo) => { void st.trocarFotoDoNegocio(arquivo); },
+          remover: neg.foto ? () => { void st.trocarFotoDoNegocio(null); } : null,
+        },
+        {
+          tipo: "campos", key: "nome", avisoAoSair: "Nome do negócio atualizado.",
+          campos: [{
+            id: "nome", label: "Nome do negócio", valor: neg.nome, gravaAoSair: true,
+            hint: "É como a MAISA apresenta você no WhatsApp e nos lembretes.",
+            onChange: (v) => {
+              if (v.trim().length < NOME_NEGOCIO_MIN) return false;
+              st.setNomeDoNegocio(v);
+            },
+          }],
+        },
+        ...(st.fiscal.status === "carregando"
+          ? [{ tipo: "stats" as const, key: "doc", label: "Documento", linhas: [["CPF ou CNPJ", "Lendo…"]] as [string, string][] }]
+          : linhasDoDoc.length
+            ? [
+              { tipo: "stats" as const, key: "doc", label: "Documento", linhas: linhasDoDoc },
+              { tipo: "lista" as const, key: "doc-ir", itens: [{ id: "doc", nome: "Alterar documento", sub: "Na tela do Documento fiscal", icone: "documento", onClick: irAoDocumento }] },
+            ]
+            : [{ tipo: "lista" as const, key: "doc-ir", label: "Documento", itens: [{ id: "doc", nome: "Informar CPF ou CNPJ", sub: "Para emitir nota fiscal ou recibo", icone: "documento", onClick: irAoDocumento }] }]),
+        { tipo: "lista", key: "plano", label: "Assinatura", itens: [{ id: "plano", nome: plano, sub: "Cobrança e faturas", icone: "card", onClick: () => st.abrir("plano") }] },
+      ],
+      acoes: [],
+    };
+  }
+
   /* ── a jornada inteira (1C.7, C11) ──
    * A linha do Fluxo diz quantos faltam e o próximo; a lista dos passos mora aqui, e não num
    * recorte do Fluxo nem empilhada sobre o dia. Passo feito não clica (ver o cabeçalho da

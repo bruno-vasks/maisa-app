@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * PATCH /api/negocio  { nome }  →  { negocio }
+ * PATCH /api/negocio  { nome?, foto? }  →  { negocio }
  *
  * Trocar o nome do negócio depois de criado. Mora na MESMA rota do POST porque é o mesmo
  * recurso — criar e editar o negócio — e a casa prefere rota por recurso a rota por
@@ -96,12 +96,12 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: false, status: "payload_invalido", info: "Corpo não é JSON." }, { status: 400 });
   }
 
-  const { nome } = (corpo ?? {}) as { nome?: unknown };
+  const { nome, foto } = (corpo ?? {}) as { nome?: unknown; foto?: unknown };
 
-  /* O patch sem `nome` não é erro do usuário nem sucesso — é chamada perdida, e responder
-   * 200 para ela esconderia um defeito de tela que só apareceria como "não salva". Mesma
-   * decisão do `AjustarAssistente`, escrita lá com mais palavras. */
-  if (nome === undefined) {
+  /* O patch sem `nome` nem `foto` não é erro do usuário nem sucesso — é chamada perdida, e
+   * responder 200 para ela esconderia um defeito de tela que só apareceria como "não salva".
+   * Mesma decisão do `AjustarAssistente`, escrita lá com mais palavras. */
+  if (nome === undefined && foto === undefined) {
     return NextResponse.json(
       { ok: false, status: "payload_invalido", info: "Nada para mudar." },
       { status: 400 },
@@ -109,7 +109,10 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const negocio = await app.ajustarNegocio(porteiro.tenant, { nome: String(nome) });
+    const negocio = await app.ajustarNegocio(porteiro.tenant, {
+      ...(nome === undefined ? {} : { nome: String(nome) }),
+      ...(foto === undefined ? {} : { foto: foto === null ? null : String(foto) }),
+    });
     return NextResponse.json({ ok: true, status: "ok", negocio });
   } catch (e) {
     return falha("negocio", e);

@@ -9,7 +9,7 @@
  * sabe DESENHAR blocos; não sabe o que é cliente, nota ou conversa. */
 
 import React, { useEffect, useRef } from "react";
-import { s, Icon, Monogram, Toggle, Chip, Field, Input, Select, Estado, toast } from "@/ui/primitivos";
+import { s, Btn, Icon, Monogram, Toggle, Chip, Field, Input, Select, Estado, toast } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { useStore } from "@/ui/estado/store";
 import { useDetalhe, type Acao, type AcaoDestrutiva, type Bloco, type Recibo as ReciboT, type Campo as CampoT } from "@/ui/detalhe";
@@ -270,6 +270,37 @@ function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed
   );
 }
 
+/* A foto de perfil (29/09/2026, a gaveta "Seu negócio"). O `<input type=file>` fica escondido e
+ * o botão o aciona: o seletor nativo do navegador é o que abre a câmera no celular. */
+function Foto({ b }: { b: Extract<Bloco, { tipo: "foto" }> }) {
+  const input = React.useRef<HTMLInputElement>(null);
+  return (
+    <div style={s("display:flex;align-items:center;gap:16px")}>
+      <Monogram name={b.nome} id={b.seed} foto={b.foto} size={64} />
+      <div style={s("display:flex;flex-direction:column;gap:8px;min-width:0")}>
+        <div style={s("display:flex;gap:8px;flex-wrap:wrap")}>
+          <Btn variant="secondary" size="sm" icon="edit" disabled={b.ocupada} onClick={() => input.current?.click()}>
+            {b.ocupada ? "Enviando…" : b.foto ? "Trocar foto" : "Pôr uma foto"}
+          </Btn>
+          {b.remover && <Btn variant="ghost" size="sm" disabled={b.ocupada} onClick={b.remover}>Remover</Btn>}
+        </div>
+        <span style={s("font-size:var(--t-label);color:var(--muted)")}>JPEG ou PNG. Ela aparece no seu painel.</span>
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) b.trocar(f);
+        }}
+      />
+    </div>
+  );
+}
+
 function RenderBloco({ b }: { b: Bloco }) {
   const corpo = (() => {
     switch (b.tipo) {
@@ -287,9 +318,10 @@ function RenderBloco({ b }: { b: Bloco }) {
       case "aviso": return <Aviso texto={b.texto} tone={b.tone} />;
       case "recibo": return <Recibo r={b.recibo} />;
       case "lista": return <Lista itens={b.itens} />;
+      case "foto": return <Foto b={b} />;
     }
   })();
-  const label = b.tipo === "aviso" || b.tipo === "nota" ? undefined : b.label;
+  const label = b.tipo === "aviso" || b.tipo === "nota" || b.tipo === "foto" ? undefined : b.label;
   return (
     <div style={s("display:flex;flex-direction:column;gap:10px")}>
       {label && <Rotulo>{label}</Rotulo>}

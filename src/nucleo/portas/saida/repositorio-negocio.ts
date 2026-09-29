@@ -160,6 +160,13 @@ export interface RepositorioNegocio {
    */
   renomear(t: ContextoTenant, nome: string): Promise<Negocio>;
 
+  /**
+   * Trocar a foto de perfil do negócio (29/09/2026). `null` apaga, e a tela volta ao avatar
+   * sorteado. Mesmo contrato do `renomear`: devolve o `Negocio` relido, e escrita barrada pela
+   * RLS (zero linhas) é `NaoEncontrado`, nunca sucesso calado. Ver `FOTO_MAX` em `dominio/negocio.ts`.
+   */
+  trocarFoto(t: ContextoTenant, foto: string | null): Promise<Negocio>;
+
   /* ─────────────────────── ESCREVER O CATÁLOGO ───────────────────────
    * Entraram em 15/08/2026, e a razão é do mesmo tipo do `renomear` acima: existia tela,
    * existia tabela, e não existia caminho entre as duas.

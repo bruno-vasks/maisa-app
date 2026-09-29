@@ -244,7 +244,8 @@ export type LerCadastro = (t: ContextoTenant) => Promise<CadastroDoNegocio>;
  */
 export type AjustarNegocio = (
   t: ContextoTenant,
-  p: { nome: string },
+  /** Ausente = não mexe. `foto: null` apaga a foto (29/09/2026). */
+  p: { nome?: string; foto?: string | null },
 ) => Promise<Negocio>;
 
 /* ───────────────────────────── o catálogo, agora com escrita ─────────────────────────────

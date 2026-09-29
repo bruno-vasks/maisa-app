@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   criarAjustarCliente, criarCadastrarCliente, criarAjustarNegocio, criarAjustarProfissional, criarAjustarServico,
 } from "./cadastro";
-import { NOME_NEGOCIO_MAX } from "../dominio/negocio";
+import { FOTO_MAX, NOME_NEGOCIO_MAX } from "../dominio/negocio";
 import { DURACAO_MAX, DURACAO_MIN, NOME_SERVICO_MAX, PRECO_MAX } from "../dominio/catalogo";
 import { NOME_CLIENTE_MAX } from "../dominio/clientes";
 import { DadoInvalido } from "../dominio/erros";
@@ -38,9 +38,42 @@ const NEGOCIO: Negocio = {
 function repo(sobre: Partial<RepositorioNegocio> = {}) {
   return {
     renomear: vi.fn(async (_t: ContextoTenant, nome: string) => ({ ...NEGOCIO, nome })),
+    trocarFoto: vi.fn(async (_t: ContextoTenant, foto: string | null) => ({ ...NEGOCIO, foto })),
     ...sobre,
-  } as unknown as RepositorioNegocio & { renomear: ReturnType<typeof vi.fn> };
+  } as unknown as RepositorioNegocio & { renomear: ReturnType<typeof vi.fn>; trocarFoto: ReturnType<typeof vi.fn> };
 }
+
+describe("a foto do negócio", () => {
+  const FOTO = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+
+  it("grava só a foto, sem mexer no nome", async () => {
+    const r = repo();
+    const negocio = await criarAjustarNegocio({ negocio: r })(T, { foto: FOTO });
+    expect(r.trocarFoto).toHaveBeenCalledWith(T, FOTO);
+    expect(r.renomear).not.toHaveBeenCalled();
+    expect(negocio.foto).toBe(FOTO);
+  });
+
+  it("null remove a foto", async () => {
+    const r = repo();
+    await criarAjustarNegocio({ negocio: r })(T, { foto: null });
+    expect(r.trocarFoto).toHaveBeenCalledWith(T, null);
+  });
+
+  it("recusa o que não é imagem em base64, e o que passa do teto", async () => {
+    const r = repo();
+    const ajustar = criarAjustarNegocio({ negocio: r });
+    await expect(ajustar(T, { foto: "https://exemplo.com/foto.jpg" })).rejects.toThrow(DadoInvalido);
+    await expect(ajustar(T, { foto: "data:image/svg+xml;base64,PHN2Zz4=" })).rejects.toThrow(DadoInvalido);
+    await expect(ajustar(T, { foto: "data:image/jpeg;base64," + "A".repeat(FOTO_MAX) })).rejects.toThrow(DadoInvalido);
+    expect(r.trocarFoto).not.toHaveBeenCalled();
+  });
+
+  it("chamada sem nome nem foto é recusada, não aceita calada", async () => {
+    const r = repo();
+    await expect(criarAjustarNegocio({ negocio: r })(T, {})).rejects.toThrow(DadoInvalido);
+  });
+});
 
 describe("renomear o negócio", () => {
   it("grava o nome e devolve o negócio inteiro", async () => {

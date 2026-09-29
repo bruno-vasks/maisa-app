@@ -269,6 +269,20 @@ function paraCliente(l: LinhaCliente): Cliente {
  * coluna à view, ela vem no payload — e as rotas devolvem isto ao navegador. Listar é o
  * que garante que "o que a tela recebe" seja uma decisão, não um efeito colateral. */
 
+/**
+ * A foto mora na TABELA `negocios`, fora da view `v_negocio`: recriar a view para acrescentar
+ * uma coluna mexeria na leitura de plano e cobrança, que não tem nada com isso.
+ *
+ * ⚠️ `*` E TOLERANTE À COLUNA AUSENTE, pelo mesmo motivo do `COLS_CLIENTE`: a `foto` só existe
+ * depois da `031_foto_do_negocio.sql`. Pedir a coluna pelo nome num banco sem ela derrubaria a
+ * leitura do cadastro inteiro, e com ela o painel. Com `*`, antes da migração o campo só não vem.
+ */
+async function fotoDoNegocio(supabase: ReturnType<typeof clienteDoContexto>, tenantId: string): Promise<string | null> {
+  const { data, error } = await supabase.from("negocios").select("*").eq("id", tenantId).maybeSingle<{ foto?: string | null }>();
+  if (error || !data) return null;
+  return typeof data.foto === "string" && data.foto ? data.foto : null;
+}
+
 const COLS_NEGOCIO = "tenant_id, nome, plano, preco_plano, proxima_cobranca, cartao_marca, cartao_final4, conversas_limite";
 const COLS_PROFISSIONAL =
   "id, nome, papel, avaliacao, comissao, desde, ativo, horario, folga, expediente_folga, expediente_de, expediente_ate, servico_ids, atendimentos_mes";
@@ -356,7 +370,25 @@ export const repositorioSupabase: RepositorioNegocio = {
      * sentido sem inquilino. Lançar `NaoEncontrado` aqui é o certo — devolver um
      * `Negocio` vazio faria a tela abrir com "—" em tudo e ninguém saberia por quê. */
     if (!data) throw new NaoEncontrado("Negócio");
-    return paraNegocio(data);
+    return { ...paraNegocio(data), foto: await fotoDoNegocio(supabase, t.tenantId) };
+  },
+
+  /* ── A FOTO (29/09/2026) ────────────────────────────────────────────────────
+   * Mesma disciplina do `renomear` logo abaixo: escreve na tabela, pede as linhas de volta e
+   * relê o negócio inteiro. Ver `FOTO_MAX` em `dominio/negocio.ts`. */
+  async trocarFoto(t: ContextoTenant, foto: string | null): Promise<Negocio> {
+    const supabase = clienteDoContexto(t);
+    const { data, error } = await supabase
+      .from("negocios")
+      .update({ foto })
+      .eq("id", t.tenantId)
+      .select("id");
+
+    exigirSemErro("a foto do negócio", error);
+    if (!data || data.length === 0) {
+      throw new NaoEncontrado("Negócio para trocar a foto (só dono ou gestor pode)");
+    }
+    return this.negocio(t);
   },
 
   /* ── RENOMEAR ───────────────────────────────────────────────────────────────

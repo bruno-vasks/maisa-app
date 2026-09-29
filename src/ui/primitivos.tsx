@@ -348,7 +348,12 @@ export function Toggle({ on, onChange, rotulo, disabled, descritoPor }: { on: bo
    assinatura para não mexer em 14 chamadas, e é ignorado de propósito.
    <span>, não <div>: aparece dentro de <button> (cartões da grade, linhas da gaveta), e <div> ali
    é HTML inválido. O SVG é nosso e estático, por isso o `dangerouslySetInnerHTML` é seguro. */
-export function Monogram({ name, id, size = 44 }: { name: string; id?: string; size?: number; radius?: number }) {
+export function Monogram({ name, id, size = 44, foto }: { name: string; id?: string; size?: number; radius?: number; foto?: string | null }) {
+  /* Com foto (hoje só o negócio tem, 29/09/2026), a foto; sem ela, o avatar sorteado. */
+  if (foto) {
+    // eslint-disable-next-line @next/next/no-img-element -- data: URL já reduzida; o otimizador do Next não tem o que fazer com ela
+    return <img src={foto} alt={name} title={name} width={size} height={size} style={s(`width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;display:block;object-fit:cover`)} />;
+  }
   const qual = avatarDe(id || name);
   return (
     <span

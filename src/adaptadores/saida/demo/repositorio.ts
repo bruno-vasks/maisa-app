@@ -31,6 +31,7 @@ import { CLIENTES } from "./clientes";
  * sozinha. Guardar o nome AQUI mantém a mutação dentro deste adaptador, que é o único
  * que tem estado. Reinicia no processo, como todo o resto do demo. */
 let nomeDemo = NEGOCIO.nome;
+let fotoDemo: string | null = null;
 
 /* Contador de ids do que se cria no modo demonstração.
  *
@@ -43,7 +44,7 @@ let sequencia = 0;
 
 export const repositorioDemo: RepositorioNegocio = {
   async negocio() {
-    return { ...NEGOCIO, nome: nomeDemo };
+    return { ...NEGOCIO, nome: nomeDemo, foto: fotoDemo };
   },
 
   /* Sem checagem de permissão: no demo existe um negócio e um usuário, e todo mundo é
@@ -52,7 +53,12 @@ export const repositorioDemo: RepositorioNegocio = {
    * arquitetura deste repo não quer. */
   async renomear(_t, nome) {
     nomeDemo = nome;
-    return { ...NEGOCIO, nome: nomeDemo };
+    return { ...NEGOCIO, nome: nomeDemo, foto: fotoDemo };
+  },
+
+  async trocarFoto(_t, foto) {
+    fotoDemo = foto;
+    return { ...NEGOCIO, nome: nomeDemo, foto: fotoDemo };
   },
 
   async profissional(_t, id) {

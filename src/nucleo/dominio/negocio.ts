@@ -81,7 +81,32 @@ export type Negocio = {
   proximaCobranca: string;
   cartao: string;
   conversasPlano: string;
+  /** A foto de perfil do negócio, como `data:` URL já reduzida no navegador. `null` ou ausente =
+   *  sem foto, e a tela desenha o avatar sorteado (`ui/avatares.ts`). Ver `FOTO_MAX`. */
+  foto?: string | null;
 };
+
+/* ───────────────────────────── a foto de perfil ─────────────────────────────
+ * Pedida pelo Bruno em 29/09/2026 para a gaveta "Seu negócio": o rodapé do rail mostrava um
+ * avatar sorteado e nada mais, sem clique.
+ *
+ * ── POR QUE `data:` URL NUMA COLUNA, E NÃO UM BUCKET ──
+ * A foto é uma só por negócio e só o painel a mostra (a MAISA não manda foto no WhatsApp). O
+ * navegador reduz para 256px e JPEG antes de enviar, o que dá 15 a 40 KB: cabe numa coluna de
+ * texto e chega junto com o cadastro, sem política de storage, URL assinada nem limpeza de
+ * arquivo órfão. Se um dia a foto for para fora do painel, aí vale um bucket.
+ *
+ * ⚠️ O TETO É DE CARACTERES DO TEXTO, e espelha o `check` de `031_foto_do_negocio.sql`. 200 mil
+ * cabem com folga os 256px; uma foto de celular crua (3 a 5 MB) não cabe, e é de propósito: ela
+ * viria em toda leitura do cadastro. */
+export const FOTO_MAX = 200_000;
+
+const PREFIXO_DA_FOTO = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/;
+
+/** A foto é imagem, em base64, e cabe no teto. Não confere o conteúdo: quem desenha é um `<img>`. */
+export function fotoAceitavel(foto: string): boolean {
+  return foto.length <= FOTO_MAX && PREFIXO_DA_FOTO.test(foto);
+}
 
 /** Dados fiscais do prestador — cabeçalho do recibo de NFS-e. */
 export type Prestador = {

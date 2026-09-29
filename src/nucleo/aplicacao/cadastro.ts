@@ -37,7 +37,7 @@ import {
   emailPlausivel,
   soDigitos,
 } from "../dominio/clientes";
-import { NOME_NEGOCIO_MAX, NOME_NEGOCIO_MIN, normalizarNomeDoNegocio } from "../dominio/negocio";
+import { NOME_NEGOCIO_MAX, NOME_NEGOCIO_MIN, fotoAceitavel, normalizarNomeDoNegocio } from "../dominio/negocio";
 import {
   DURACAO_MAX,
   DURACAO_MIN,
@@ -69,7 +69,7 @@ export function criarLerCadastro(deps: { negocio: RepositorioNegocio }): LerCada
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * AJUSTAR O NEGÓCIO — hoje, só o nome.
+ * AJUSTAR O NEGÓCIO — o nome e, desde 29/09/2026, a foto.
  *
  * ⚠️ Este campo entra no PROMPT do agente a cada mensagem e no texto do lembrete. É por
  * isso que ele valida aqui em vez de deixar o banco reclamar: o `check` de
@@ -85,7 +85,17 @@ export function criarLerCadastro(deps: { negocio: RepositorioNegocio }): LerCada
  * ────────────────────────────────────────────────────────────────────────────── */
 export function criarAjustarNegocio(deps: { negocio: RepositorioNegocio }): AjustarNegocio {
   return async (t, p): Promise<Negocio> => {
-    const nome = normalizarNomeDoNegocio(p?.nome ?? "");
+    /* A foto (29/09/2026) anda sozinha: a gaveta "Seu negócio" troca a foto sem mandar o nome,
+     * e o campo de nome sem mandar a foto. Os dois juntos gravam os dois. */
+    if (p?.foto !== undefined) {
+      if (p.foto !== null && !fotoAceitavel(p.foto)) {
+        throw new DadoInvalido("A foto precisa ser uma imagem JPEG, PNG ou WebP de até 150 KB.", "foto");
+      }
+      if (p.nome === undefined) return deps.negocio.trocarFoto(t, p.foto);
+    }
+    if (p?.nome === undefined) throw new DadoInvalido("Nada para mudar.", "nome");
+
+    const nome = normalizarNomeDoNegocio(p.nome);
 
     if (!nome) {
       throw new DadoInvalido("O negócio precisa de um nome — ele aparece no WhatsApp do cliente.", "nome");
@@ -97,6 +107,7 @@ export function criarAjustarNegocio(deps: { negocio: RepositorioNegocio }): Ajus
       throw new DadoInvalido(`O nome passa de ${NOME_NEGOCIO_MAX} caracteres.`, "nome");
     }
 
+    if (p.foto !== undefined) await deps.negocio.trocarFoto(t, p.foto);
     return deps.negocio.renomear(t, nome);
   };
 }

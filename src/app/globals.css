@@ -308,6 +308,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
    antes da largura (280ms) e as palavras apareciam cortadas pela borda do rail — "Flu", "Con",
    "Fatu" — durante toda a transição. Assimetria de propósito: o texto nunca é visível enquanto o
    rail está estreito. */
+/* O rodapé do rail é o botão "Seu negócio" (29/09/2026): o mesmo fundo de hover dos itens. */
+.m-rail-negocio { background: transparent; transition: background var(--dur-base) ease; }
+.m-rail-negocio:hover { background: var(--nav-active); }
 .m-rail-label { opacity: 0; white-space: nowrap; transition: opacity 100ms ease; }
 .m-rail:hover .m-rail-label, .m-rail.is-nav .m-rail-label { opacity: 1; transition: opacity var(--dur-base) ease 120ms; }
 
