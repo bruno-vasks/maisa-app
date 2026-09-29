@@ -233,15 +233,23 @@ function Toggles({ toggles }: { toggles: { titulo: string; desc: string; on: boo
   );
 }
 
-function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed?: string; onClick?: () => void }[] }) {
+function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed?: string; icone?: string; feito?: boolean; onClick?: () => void }[] }) {
   return (
     <div style={s("display:flex;flex-direction:column;gap:2px")}>
       {itens.map((it) => {
         const conteudo = (
           <>
+            {/* Sem pessoa, o item diz o próprio ícone, ou fica sem. Até 28/09/2026 caía numa
+                etiqueta dentro de um quadrado, a MESMA em todo item: na jornada, os cinco passos
+                tinham a mesma etiqueta, que não significava nada ("ícone em quadrado" é o padrão
+                de cara de IA da auditoria). `feito` desenha o visto verde, sem caixa. */}
             {it.seed
-              ? <Monogram name={it.nome} id={it.seed} size={32} radius={10} />
-              : <span style={s("width:32px;height:32px;flex-shrink:0;border-radius:var(--r-controle);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}><Icon name="tag" size={16} /></span>}
+              ? <Monogram name={it.nome} id={it.seed} size={32} />
+              : it.feito
+                ? <span style={s("width:20px;flex-shrink:0;display:flex;justify-content:center;color:var(--success)")}><Icon name="check" size={18} /></span>
+                : it.icone
+                  ? <span style={s("width:20px;flex-shrink:0;display:flex;justify-content:center;color:var(--muted)")}><Icon name={it.icone} size={18} /></span>
+                  : <span aria-hidden style={s("width:20px;flex-shrink:0;display:flex;justify-content:center")}><span style={s("width:12px;height:12px;border-radius:50%;border:1.5px solid var(--border-field)")} /></span>}
             <span style={s("flex:1;min-width:0;text-align:left")}>
               <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{it.nome}</span>
               <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:1px")}>{it.sub}</span>

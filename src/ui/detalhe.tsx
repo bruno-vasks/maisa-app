@@ -25,7 +25,8 @@ import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
 
-export type ItemLista = { id: string; nome: string; sub: string; seed?: string; onClick?: () => void };
+/** Sem `seed`, o item diz o próprio `icone` (ou fica sem); `feito` desenha o visto verde. */
+export type ItemLista = { id: string; nome: string; sub: string; seed?: string; icone?: string; feito?: boolean; onClick?: () => void };
 
 /** Campo editável da Gaveta. Sem botão "Salvar": grava a cada mudança, como os ajustes da MAISA
  *  já fazem. Um save que só pisca um check é exatamente o botão morto que este app evita. */
@@ -1322,7 +1323,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
           tipo: "lista", key: "passos",
           itens: r.passos.map((p) => {
             const ir = p.feito ? null : p.ir;
-            return { id: p.id, nome: p.titulo, sub: p.feito ? "Feito" : p.ganho, ...(ir ? { onClick: () => { st.fechar(); ir(); } } : {}) };
+            return { id: p.id, nome: p.titulo, sub: p.feito ? "Feito" : p.ganho, feito: p.feito, ...(ir ? { onClick: () => { st.fechar(); ir(); } } : {}) };
           }),
         },
         /* Era "Nada aqui trava o app: dá para usar do jeito que está." (e, com um passo faltando,

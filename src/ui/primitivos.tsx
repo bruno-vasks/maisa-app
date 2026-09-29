@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { AVATARES, avatarDe } from "@/ui/avatares";
 
 /* ---------- helper de estilo: string CSS → React.CSSProperties ---------- */
 export function s(css: string): React.CSSProperties {
@@ -341,23 +342,22 @@ export function Toggle({ on, onChange, rotulo, disabled, descritoPor }: { on: bo
   );
 }
 
-export function Monogram({ name, id, size = 44, radius = 13 }: { name: string; id?: string; size?: number; radius?: number }) {
-  const fill = avatar(id || name);
-  // Fill sólido. A "trama de tapete" que existia aqui eram dois repeating-linear-gradient
-  // diagonais — listrado decorativo, defeito nomeado — e ainda por cima invisível a 44px.
-  // <span>, não <div>: o monograma aparece dentro de <button> (cartões da grade,
-  // linhas da gaveta) e <div> ali é HTML inválido. display:flex mantém o desenho.
+/* O avatar da pessoa (28/09/2026): um dos 15 desenhos de `ui/avatares.ts`, sempre o mesmo para o
+   mesmo id, no lugar das iniciais sobre cor pastel ("SN", "RA"), que o Bruno achou sem graça.
+   Redondo em todo lugar: o desenho foi feito para o recorte em círculo. `radius` fica na
+   assinatura para não mexer em 14 chamadas, e é ignorado de propósito.
+   <span>, não <div>: aparece dentro de <button> (cartões da grade, linhas da gaveta), e <div> ali
+   é HTML inválido. O SVG é nosso e estático, por isso o `dangerouslySetInnerHTML` é seguro. */
+export function Monogram({ name, id, size = 44 }: { name: string; id?: string; size?: number; radius?: number }) {
+  const qual = avatarDe(id || name);
   return (
     <span
-      style={s(
-        `width:${size}px;height:${size}px;border-radius:${radius}px;flex-shrink:0;` +
-        `display:flex;align-items:center;justify-content:center;` +
-        `color:var(--ink);font-weight:var(--w-title);font-size:${Math.round(size * 0.34)}px;` +
-        `letter-spacing:0.01em;background:${fill}`
-      )}
-    >
-      {initials(name)}
-    </span>
+      role="img"
+      aria-label={name}
+      title={name}
+      style={s(`width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;display:block;overflow:hidden`)}
+      dangerouslySetInnerHTML={{ __html: AVATARES[qual] }}
+    />
   );
 }
 
