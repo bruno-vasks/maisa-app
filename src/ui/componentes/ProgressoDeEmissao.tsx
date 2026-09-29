@@ -60,7 +60,7 @@ export function ProgressoDeEmissao() {
                 <Icon name="refresh" size={15} />
               </span>
             )
-            : <Icon name={tudoCerto ? "check" : "alert"} size={15} sw={2.4} />}
+            : <Icon name={tudoCerto ? "check" : "alert"} size={15} />}
         </span>
 
         <span style={s("min-width:0;flex:1")}>
@@ -89,7 +89,7 @@ export function ProgressoDeEmissao() {
       {/* O último que saiu, com o check — a confirmação de que a fila anda de gente em gente. */}
       {andando && e.ultimo && (
         <span style={s("display:flex;align-items:center;gap:7px;font-size:var(--t-label);color:var(--success)")}>
-          <Icon name="check" size={13} sw={2.6} />
+          <Icon name="check" size={13} />
           <span style={s("white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{e.ultimo}</span>
         </span>
       )}

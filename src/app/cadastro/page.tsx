@@ -292,7 +292,7 @@ function CadastroInner() {
           {enviadoPara ? (
             <>
               <div style={s("display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:999px;background:var(--success-soft);align-self:center")}>
-                <Icon name="check" size={24} sw={2.2} stroke="var(--success)" />
+                <Icon name="check" size={24} stroke="var(--success)" />
               </div>
               <p style={s("font-size:var(--t-body);color:var(--ink);line-height:1.5;text-align:center")}>
                 Enviamos um link de confirmação para<br />
@@ -347,14 +347,14 @@ function CadastroInner() {
             <>
               {!isSupabaseConfigured && (
                 <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
-                  <Icon name="sparkle" size={16} />
+                  <Icon name="alert" size={16} style={s("flex-shrink:0")} />
                   <span><strong>Cadastro indisponível neste ambiente.</strong></span>
                 </div>
               )}
 
               {veioDoPagamento && (
                 <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--success-soft);color:var(--success);font-size:var(--t-label);line-height:1.45")}>
-                  <Icon name="check" size={16} sw={2.2} />
+                  <Icon name="check" size={16} />
                   <span><strong>Pagamento recebido.</strong> Crie sua conta com o mesmo e-mail da compra para a gente ligar as duas.</span>
                 </div>
               )}
@@ -381,7 +381,7 @@ function CadastroInner() {
                 {erro && <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>{erro}</div>}
 
                 <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
-                  {carregando ? <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} /> : <Icon name="sparkle" size={17} sw={2} stroke="var(--on-primary)" />}
+                  {carregando && <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} />}
                   Criar conta grátis
                 </button>
               </form>

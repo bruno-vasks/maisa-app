@@ -687,7 +687,7 @@ export function EmitirRecibos() {
         {grupos.length === 0 && (
           <div style={s(`display:flex;align-items:center;gap:11px;padding:22px 16px;${mobile ? "" : "max-width:44ch"}`)}>
             <span aria-hidden style={s("width:28px;height:28px;flex:none;border-radius:var(--r-controle);display:grid;place-items:center;background:var(--success-soft);color:var(--success)")}>
-              <Icon name="check" size={15} sw={2.4} />
+              <Icon name="check" size={15} />
             </span>
             <span style={s("min-width:0")}>
               <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>

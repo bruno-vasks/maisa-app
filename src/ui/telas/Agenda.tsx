@@ -243,7 +243,7 @@ function BlocoBloqueio({ b, recuo }: { b: Bloqueio; recuo: number }) {
       }}
     >
       <div style={s("display:flex;align-items:center;gap:5px;font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25")}>
-        <Icon name="pin" size={12} sw={2} />
+        <Icon name="pin" size={12} />
         <span style={s("overflow:hidden;text-overflow:ellipsis")}>{b.titulo}</span>
       </div>
       {alto && (
@@ -729,7 +729,7 @@ function LinhaDoTempo({ data }: { data: string }) {
               <span style={s("flex:1;min-width:0;font-size:var(--t-sm);font-weight:var(--w-title)")}>
                 livre{l.fim - l.inicio > PASSO ? `, até ${D.hhmm(l.fim)}` : ""}{quem}
               </span>
-              <Icon name="plus" size={18} sw={2.2} />
+              <Icon name="plus" size={18} />
             </button>
           );
         }
@@ -750,7 +750,7 @@ function LinhaDoTempo({ data }: { data: string }) {
                 <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{b.titulo}</span>
                 <span style={s("display:block;font-size:var(--t-label);margin-top:2px")}>sua agenda do Google</span>
               </span>
-              <Icon name="pin" size={16} sw={2} />
+              <Icon name="pin" size={16} />
             </button>
           );
         }
@@ -816,7 +816,7 @@ function AvisoAgenda() {
 
   const faixa = (tom: "warn" | "muted", texto: string, acao?: { label: string; onClick: () => void }) => (
     <div style={s(`flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);background:${tom === "warn" ? "var(--warn-soft)" : "var(--surface-2)"};font-size:var(--t-label);color:${tom === "warn" ? "var(--warn)" : "var(--muted)"}`)}>
-      <Icon name={tom === "warn" ? "alert" : "calendar"} size={15} sw={1.9} />
+      <Icon name={tom === "warn" ? "alert" : "calendar"} size={15} />
       <span style={s("flex:1;min-width:0")}>{texto}</span>
       {acao && (
         <Btn variant="secondary" size="sm" onClick={acao.onClick} style={{ height: 28, padding: "0 11px", borderRadius: "var(--r-controle)" }}>
@@ -978,7 +978,7 @@ export default function Agenda() {
 
       {!mobile && visao !== "mes" && (
         <div style={s("flex-shrink:0;display:flex;align-items:center;gap:8px;padding:9px 16px;border-top:1px solid var(--line);font-size:var(--t-label);color:var(--muted)")}>
-          <Icon name="clock" size={15} sw={1.9} />
+          <Icon name="clock" size={15} />
           {/* Já dizia "arraste para remarcar", e depois "remarcar, por enquanto, é no Google
               Calendar". Desde 25/09/2026 (1B.5) remarcar é na gaveta do atendimento, com ou sem
               Google; arrastar continua não existindo, e a barra não o promete. */}

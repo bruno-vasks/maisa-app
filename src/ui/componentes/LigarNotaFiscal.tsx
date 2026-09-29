@@ -246,7 +246,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
     <section aria-label="Nota fiscal" style={s(`flex-shrink:0;${CAIXA}`)}>
       <div style={s("display:flex;align-items:center;gap:11px")}>
         <span aria-hidden style={s(`display:flex;align-items:center;justify-content:center;width:30px;height:30px;flex-shrink:0;border-radius:99px;background:${pronto ? "var(--success-soft)" : "var(--primary-soft)"}`)}>
-          <Icon name={pronto ? "check" : "receipt"} size={16} sw={pronto ? 2.6 : 2} stroke={pronto ? "var(--success)" : "var(--primary-dark)"} />
+          <Icon name={pronto ? "check" : "receipt"} size={16} stroke={pronto ? "var(--success)" : "var(--primary-dark)"} />
         </span>
         <h2 style={s("margin:0;font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>
           {pronto && ligado
@@ -382,7 +382,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               className="m-press m-focus"
               style={s(`display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado || cpf.replace(/\D/g, "").length !== 11 ? 0.55 : 1}`)}
             >
-              <Icon name="check" size={15} sw={2.4} stroke="var(--on-primary)" />
+              <Icon name="check" size={15} stroke="var(--on-primary)" />
               {ocupado ? "Salvando…" : "Ligar os recibos"}
             </button>
             {!soRecibo && (
@@ -441,7 +441,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
             className="m-press m-focus"
             style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado || cnpj.replace(/\D/g, "").length !== 14 ? 0.55 : 1}`)}
           >
-            <Icon name="check" size={15} sw={2.4} stroke="var(--on-primary)" />
+            <Icon name="check" size={15} stroke="var(--on-primary)" />
             {ocupado ? "Cadastrando…" : "É esse, pode cadastrar"}
           </button>
         </>
@@ -484,7 +484,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               className="m-press m-focus"
               style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"};opacity:${ocupado ? 0.55 : 1}`)}
             >
-              <Icon name="check" size={15} sw={2.4} stroke="var(--on-primary)" />
+              <Icon name="check" size={15} stroke="var(--on-primary)" />
               {ocupado ? "Instalando…" : "Instalar certificado"}
             </button>
           </div>
@@ -517,7 +517,6 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               className="m-press m-focus"
               style={s(`align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);color:var(--ink);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado ? "default" : "pointer"}`)}
             >
-              <Icon name="sparkle" size={15} sw={2.2} stroke="var(--primary-dark)" />
               {ocupado ? "Liberando…" : "Emitir valendo a partir de agora"}
             </button>
           )}

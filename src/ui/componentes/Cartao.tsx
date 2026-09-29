@@ -100,7 +100,7 @@ export function Cartao({ titulo, sub, onClick, seed, dot, meta, tag, resumo, chi
               <span style={s("display:flex;justify-content:flex-end;margin-top:10px")}>
                 <span style={s("display:inline-flex;align-items:center;gap:6px;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary-dark)")}>
                   abrir e editar
-                  <Icon name="arrow-right" size={13} sw={2.2} />
+                  <Icon name="arrow-right" size={13} />
                 </span>
               </span>
             </span>
@@ -176,14 +176,14 @@ export function Hero({
             className={acao.desabilitada ? "m-focus" : "m-hov-primary m-press m-focus"}
             style={s(`height:48px;padding:0 22px;border:none;border-radius:var(--r-painel);font-size:var(--t-body);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:10px;white-space:nowrap;${acao.desabilitada ? "background:var(--line);color:var(--muted);cursor:not-allowed" : "background:var(--primary);color:var(--on-primary);cursor:pointer"}`)}
           >
-            {acao.icon && <Icon name={acao.icon} size={18} sw={2.1} />}
+            {acao.icon && <Icon name={acao.icon} size={18} />}
             {acao.label}
           </button>
         </span>
       )}
       {!acao && pronto && (
         <span style={s("margin-left:auto;display:inline-flex;align-items:center;gap:9px;height:48px;padding:0 20px;border-radius:var(--r-painel);background:var(--success-soft);color:var(--success);font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap")}>
-          <Icon name="check" size={18} sw={2.3} />
+          <Icon name="check" size={18} />
           {pronto}
         </span>
       )}

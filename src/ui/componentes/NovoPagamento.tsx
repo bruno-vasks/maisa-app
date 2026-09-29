@@ -179,7 +179,7 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
             que a pessoa vai procurar na lista logo acima. */}
         {ultimo && (
           <span style={s("display:flex;align-items:center;gap:6px;font-size:var(--t-label);color:var(--success)")}>
-            <Icon name="check" size={14} sw={2.4} stroke="var(--success)" />
+            <Icon name="check" size={14} stroke="var(--success)" />
             {ultimo} entrou na lista.
           </span>
         )}
@@ -247,7 +247,7 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
           className="m-press m-focus"
           style={s(`display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:var(--r-controle);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado || falta ? "default" : "pointer"};opacity:${ocupado || falta ? 0.5 : 1}`)}
         >
-          <Icon name="check" size={14} sw={2.4} stroke="var(--on-primary)" />
+          <Icon name="check" size={14} stroke="var(--on-primary)" />
           {ocupado ? "Lançando…" : "Lançar"}
         </button>
         <button

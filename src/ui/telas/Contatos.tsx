@@ -316,7 +316,7 @@ export default function Contatos() {
             e depois conclui que o produto ignorou o trabalho dele. */}
         {modo === "negocio" && (
           <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin-bottom:14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.5")}>
-            <Icon name="sparkle" size={16} />
+            <Icon name="alert" size={16} style={s("flex-shrink:0")} />
             <span>
               Este número está como <b>só do negócio</b>, então a MAISA responde todo mundo e
               nada aqui muda o que ela faz hoje. Para ela calar com quem não é cliente, mude
@@ -514,7 +514,7 @@ function Escolha(
     >
       {/* O ✓ carrega o estado junto com a cor: cor sozinha é o sinal mais frágil que existe,
           e aqui ela decide se a MAISA fala ou cala com uma pessoa. */}
-      {ativo && <Icon name="check" size={12} sw={3} stroke="currentColor" />}
+      {ativo && <Icon name="check" size={12} stroke="currentColor" />}
       {rotulo}
     </button>
   );

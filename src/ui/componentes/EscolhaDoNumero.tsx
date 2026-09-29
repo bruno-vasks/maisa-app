@@ -137,7 +137,7 @@ export function OpcoesDoNumero({ modo, aoEscolher, desligado }: {
               aria-hidden
               style={s(`display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0;margin-top:1px;border-radius:99px;border:1.5px solid ${ativo ? "var(--primary)" : "var(--border-field)"};background:${ativo ? "var(--primary)" : "transparent"}`)}
             >
-              {ativo && <Icon name="check" size={12} sw={3} stroke="var(--on-primary)" />}
+              {ativo && <Icon name="check" size={12} stroke="var(--on-primary)" />}
             </span>
             <span style={s("display:flex;flex-direction:column;gap:2px;min-width:0")}>
               <span style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${ativo ? "var(--primary-dark)" : "var(--ink)"}`)}>

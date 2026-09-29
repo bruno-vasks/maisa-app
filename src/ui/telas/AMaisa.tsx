@@ -925,7 +925,7 @@ function Preview({ recorte }: { recorte: RecorteId | null }) {
         <div style={s("flex-shrink:0;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border-top:1px solid var(--line)")}>
           <span style={s("flex:1;background:var(--bg);border-radius:var(--r-controle);padding:8px 14px;font-size:var(--t-label);color:var(--muted)")}>Mensagem</span>
           <span aria-hidden style={s("width:34px;height:34px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--primary);color:var(--on-primary)")}>
-            <Icon name="send" size={15} sw={2} />
+            <Icon name="send" size={15} />
           </span>
         </div>
       </div>
@@ -997,7 +997,7 @@ function Navegacao({ ativo, celular }: { ativo: RecorteId | null; celular?: bool
               <span>{r.titulo}</span>
               {pend && <Estado forma="triangulo" tom="warn">{pend}</Estado>}
             </span>
-            {celular && <Icon name="chevron-right" size={18} sw={2} style={s("color:var(--muted);flex-shrink:0")} />}
+            {celular && <Icon name="chevron-right" size={18} style={s("color:var(--muted);flex-shrink:0")} />}
           </button>
         );
       })}
@@ -1046,7 +1046,7 @@ export default function AMaisa() {
                   className="m-focus m-press"
                   style={s("display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 8px 0 0;border:none;background:transparent;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--primary);cursor:pointer")}
                 >
-                  <Icon name="chevron-left" size={18} sw={2.2} /> Ajustes
+                  <Icon name="chevron-left" size={18} /> Ajustes
                 </button>
                 <h2 style={s("flex:1;min-width:0;margin:0;font-size:var(--t-body);font-weight:var(--w-emph);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{tituloDe(escolhido)}</h2>
                 <IndicadorDeGravacao />

@@ -41,7 +41,7 @@ const TELAS_BUSCA: [TelaId, string, string, string][] = [
   /* As duas telas fora do rail (05 P0-3, 1B.9): no desktop, sem elas aqui, só se chegava pela URL
      ou por um cartão que só existe num modo. As palavras do `sub` são as que se procuram. */
   ["contatos", "Meus contatos", "Quem a MAISA atende · contatos do WhatsApp", "clientes"],
-  ["fiscal", "Documento fiscal", "Nota fiscal ou recibo · dados de quem emite", "config"],
+  ["fiscal", "Documento fiscal", "Nota fiscal ou recibo · dados de quem emite", "documento"],
   ["mais", "Mais", "Plano, conexões e suporte", "dots"],
 ];
 
@@ -141,7 +141,7 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
         style={s("position:fixed;left:0;right:0;margin-inline:auto;z-index:91;width:min(560px, calc(100% - 32px));background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden")}
       >
         <div style={s("display:flex;align-items:center;gap:11px;padding:0 16px;height:56px;border-bottom:1px solid var(--line);flex-shrink:0")}>
-          <Icon name="search" size={18} sw={1.9} stroke="var(--muted)" />
+          <Icon name="search" size={18} stroke="var(--muted)" />
           <input
             ref={campo}
             value={busca}
@@ -192,7 +192,7 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
                     <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{i.titulo}</span>
                     <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{i.sub}</span>
                   </span>
-                  {ativo && <Icon name="arrow-right" size={16} sw={2} stroke="var(--primary)" />}
+                  {ativo && <Icon name="arrow-right" size={16} stroke="var(--primary)" />}
                 </button>
               </React.Fragment>
             );

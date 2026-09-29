@@ -186,7 +186,7 @@ function MenuDaConversa({ cv }: { cv: D.Conversa }) {
         className="m-hov-bg m-press-icon m-focus"
         style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
       >
-        <Icon name="dots" size={20} sw={2.2} />
+        <Icon name="dots" size={20} />
       </button>
       {aberto && (
         <div role="menu" className="m-reveal" style={s("position:absolute;right:0;top:calc(100% + 8px);z-index:20;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}>
@@ -270,7 +270,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
       <div style={s(`flex-shrink:0;padding:${mobile ? "10px 12px" : "14px 18px"};display:flex;align-items:center;gap:${mobile ? 10 : 12}px;border-bottom:1px solid var(--line);background:var(--surface)`)}>
         {onVoltar && (
           <button onClick={onVoltar} aria-label="Voltar" className="m-hov-bg m-press-icon m-focus" style={s("width:44px;height:44px;flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}>
-            <Icon name="chevron-left" size={18} sw={2.2} />
+            <Icon name="chevron-left" size={18} />
           </button>
         )}
         <Monogram name={cv.nome} id={cv.id} size={mobile ? 36 : 44} radius={mobile ? 10 : 14} />
@@ -352,7 +352,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
                      dentro da bolha, alinhado à primeira linha — "quem falou" é a tese do produto,
                      mas cabe num sinal de 15px, não num rótulo. */
                   <span role="img" aria-label="Enviada pela MAISA" style={s("display:flex;flex-shrink:0;margin-top:5px")}>
-                    <Icon name="bot" size={15} sw={1.9} stroke="var(--primary)" />
+                    <Icon name="bot" size={15} stroke="var(--primary)" />
                   </span>
                 )}
                 <span>{m.txt}</span>
@@ -427,7 +427,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
                   className="m-hov-primary m-press m-focus"
                   style={s(`width:46px;height:46px;flex-shrink:0;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:${travado || !texto.trim() ? "0.4" : "1"}`)}
                 >
-                  <Icon name="send" size={19} sw={2} />
+                  <Icon name="send" size={19} />
                 </button>
               </>
             );

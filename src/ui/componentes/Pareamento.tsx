@@ -124,7 +124,7 @@ export function NumeroDoPareamento(
       "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-controle);" +
       "background:var(--surface-2);line-height:1.45",
     )}>
-      <Icon name="phone" size={15} sw={2} stroke="var(--muted)" />
+      <Icon name="phone" size={15} stroke="var(--muted)" />
       <span style={s("font-size:var(--t-label);color:var(--muted)")}>
         Código enviado para{" "}
         <b style={s("color:var(--ink);font-variant-numeric:tabular-nums")}>{bonito}</b>
@@ -169,7 +169,7 @@ export function ConferirNumero(
       "background:var(--warn-soft);border:1px solid var(--warn-line)",
     )}>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <Icon name="alert" size={17} sw={2} stroke="var(--warn)" style={{ flexShrink: 0, marginTop: 2 }} />
+        <Icon name="alert" size={17} stroke="var(--warn)" style={{ flexShrink: 0, marginTop: 2 }} />
         <div>
           <p style={s("font-size:var(--t-label);color:var(--warn);font-weight:var(--w-title);margin:0")}>
             Confira antes de enviar
@@ -306,7 +306,7 @@ export function CodigoPareamento(
             `font-weight:var(--w-title);cursor:pointer;color:${copiou ? "var(--success)" : "var(--muted)"}`,
           )}
         >
-          <Icon name={copiou ? "check" : "copy"} size={15} sw={2.2} stroke="currentColor" />
+          <Icon name={copiou ? "check" : "copy"} size={15} stroke="currentColor" />
           {copiou ? "Copiado" : "Copiar"}
         </button>
       </div>

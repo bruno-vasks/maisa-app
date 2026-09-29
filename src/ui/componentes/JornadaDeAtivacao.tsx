@@ -126,7 +126,7 @@ export function JornadaDeAtivacao() {
           <span style={s("font-weight:var(--w-title)")}>{r.faltam === 1 ? "Falta 1 passo" : `Faltam ${r.faltam} passos`}</span>
           <span style={s("color:var(--muted)")}> para a MAISA atender sozinha.{seguinte ? ` Próximo: ${seguinte.titulo}.` : ""}</span>
         </span>
-        <Icon name="chevron-right" size={16} sw={2} style={s("flex-shrink:0;color:var(--muted)")} />
+        <Icon name="chevron-right" size={16} style={s("flex-shrink:0;color:var(--muted)")} />
       </button>
       {seguinte?.ir && <Btn variant="secondary" size="sm" onClick={seguinte.ir} style={{ height: 44 }}>Continuar</Btn>}
     </section>
@@ -147,7 +147,7 @@ export function resumoDaJornada(st: StoreValue): { total: number; prontos: numbe
 export function passosDaJornada(st: StoreValue): PassoDaJornada[] {
   return [
     {
-      id: "negocio_criado", titulo: "Negócio criado", icone: "sparkle",
+      id: "negocio_criado", titulo: "Negócio criado", icone: "negocio",
       ganho: "Sua conta está de pé",
       ir: null,
     },

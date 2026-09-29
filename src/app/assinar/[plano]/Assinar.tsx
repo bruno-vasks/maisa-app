@@ -267,7 +267,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
 
             <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:50px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
               {travado ? "Abrindo o pagamento…" : "Ir para o pagamento"}
-              {!travado && <Icon name="chevron-right" size={18} sw={2} />}
+              {!travado && <Icon name="chevron-right" size={18} />}
             </button>
 
             {/* ⚠️ SECUNDÁRIO, E NUNCA PRIMÁRIO. A gente quer parecer acessível — e é — mas

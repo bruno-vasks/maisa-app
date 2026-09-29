@@ -97,7 +97,7 @@ const ETAPAS: { id: EtapaId; titulo: string; sub: string }[] = [
 const VERTICAIS: { id: Vertical; rotulo: string; desc: string; icone: string }[] = [
   { id: "barbeiros", rotulo: "Barbearia ou salão", desc: "Corte, barba, pacotes", icone: "scissors" },
   { id: "terapeutas", rotulo: "Consultório ou clínica", desc: "Sessões, retornos, pacotes", icone: "stethoscope" },
-  { id: "generico", rotulo: "Outro tipo", desc: "Começa com um catálogo neutro", icone: "sparkle" },
+  { id: "generico", rotulo: "Outro tipo", desc: "Começa com um catálogo neutro", icone: "negocio" },
 ];
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ function Trilha({ atual, etapas }: { atual: EtapaId; etapas: typeof ETAPAS }) {
                   : "background:var(--line);color:var(--muted)"
             }`)}
           >
-            {j < i ? <Icon name="check" size={14} sw={2.6} stroke="var(--surface)" /> : j + 1}
+            {j < i ? <Icon name="check" size={14} stroke="var(--surface)" /> : j + 1}
           </span>
           {j < etapas.length - 1 && (
             <span style={s(`flex:1;height:2px;border-radius:2px;background:${j < i ? "var(--success)" : "var(--line)"}`)} />
@@ -263,7 +263,7 @@ function Aviso({ recado }: { recado: Recado }) {
       )}
     >
       <Icon
-        name={erro ? "alert" : "clock"} size={16} sw={2}
+        name={erro ? "alert" : "clock"} size={16}
         stroke={erro ? "var(--danger)" : "var(--warn)"}
         style={{ flexShrink: 0, marginTop: 1 }}
       />
@@ -349,12 +349,12 @@ function Escolha({
       onClick={onClick} className="m-press m-focus"
       style={s(`display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--r-painel);cursor:pointer;text-align:left;font-family:inherit;border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"}`)}
     >
-      <Icon name={icone} size={22} sw={1.9} stroke={on ? "var(--primary-dark)" : "var(--muted)"} />
+      <Icon name={icone} size={22} stroke={on ? "var(--primary-dark)" : "var(--muted)"} />
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{rotulo}</span>
         <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:2px;line-height:1.4")}>{desc}</span>
       </span>
-      {on && <Icon name="check" size={18} sw={2.4} stroke="var(--primary-dark)" />}
+      {on && <Icon name="check" size={18} stroke="var(--primary-dark)" />}
     </button>
   );
 }
@@ -934,7 +934,7 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", textAlign: "center" }}>
         <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:999px;background:var(--success-soft)")}>
-          <Icon name="check" size={28} sw={2.4} stroke="var(--success)" />
+          <Icon name="check" size={28} stroke="var(--success)" />
         </div>
         <div>
           <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>WhatsApp conectado</p>
@@ -1036,14 +1036,14 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
               onClick={() => { if (podePedirCodigo) setConferindo(true); }}
               ocupado={status === "gerando"} full
             >
-              <Icon name="whatsapp" size={19} sw={2} stroke="var(--on-primary)" />
+              <Icon name="whatsapp" size={19} stroke="var(--on-primary)" />
               Receber código
             </Botao>
           )}
         </div>
       ) : (
         <Botao onClick={() => void conectar()} ocupado={status === "gerando"} full>
-          <Icon name="whatsapp" size={19} sw={2} stroke="var(--on-primary)" />
+          <Icon name="whatsapp" size={19} stroke="var(--on-primary)" />
           Gerar QR code
         </Botao>
       )}
@@ -1142,7 +1142,7 @@ function Falta({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center", textAlign: "center" }}>
       <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:999px;background:var(--warm-soft)")}>
-        <Icon name={icone} size={27} sw={2} stroke="var(--warm-ink)" />
+        <Icon name={icone} size={27} stroke="var(--warm-ink)" />
       </div>
       <div>
         <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>{titulo}</p>
@@ -1369,13 +1369,13 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
         <div style={s("display:flex;flex-direction:column;gap:7px;padding:12px 14px;border-radius:var(--r-painel);background:var(--success-soft)")}>
           {consultou && (
             <span style={s("display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--success)")}>
-              <Icon name="check" size={15} sw={2.4} stroke="var(--success)" />
+              <Icon name="check" size={15} stroke="var(--success)" />
               Ela consultou sua agenda antes de responder — não chutou horário.
             </span>
           )}
           {marcou && (
             <span style={s("display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--success)")}>
-              <Icon name="calendar-check" size={15} sw={2.4} stroke="var(--success)" />
+              <Icon name="calendar-check" size={15} stroke="var(--success)" />
               {/* ⚠️ A FRASE MUDA COM O AMBIENTE, e essa é a única razão de `agendaReal`
                   existir. Sem Google configurado no deploy, o horário foi para a agenda de
                   memória — ele some no próximo reinício e não está no celular de ninguém.
@@ -1424,7 +1424,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
           className="m-hov-primary m-press m-focus"
           style={s(`display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;flex-shrink:0;border-radius:var(--r-painel);border:none;background:var(--primary);${ocupada || !texto.trim() ? "opacity:.42;cursor:not-allowed" : "cursor:pointer"}`)}
         >
-          <Icon name="send" size={18} sw={2} stroke="var(--on-primary)" />
+          <Icon name="send" size={18} stroke="var(--on-primary)" />
         </button>
       </form>
 
@@ -1515,7 +1515,7 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center", textAlign: "center" }}>
         <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:999px;background:var(--success-soft)")}>
-          <Icon name="check" size={27} sw={2.6} stroke="var(--success)" />
+          <Icon name="check" size={27} stroke="var(--success)" />
         </div>
         <div>
           <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>

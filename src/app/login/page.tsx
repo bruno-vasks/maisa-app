@@ -88,7 +88,7 @@ function LoginInner() {
 
           {!isSupabaseConfigured && (
             <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
-              <Icon name="sparkle" size={16} />
+              <Icon name="alert" size={16} style={s("flex-shrink:0")} />
               <span><strong>Login indisponível neste ambiente.</strong></span>
             </div>
           )}

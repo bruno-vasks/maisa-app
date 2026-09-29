@@ -151,7 +151,7 @@ function Aviso({ texto, tone = "warn" }: { texto: string; tone?: "warn" | "dange
     : "background:var(--warn-soft);border-color:var(--warn-line);color:var(--warn)";
   return (
     <div style={s(`display:flex;gap:12px;align-items:flex-start;border:1px solid;border-radius:var(--r-painel);padding:14px 16px;${c}`)}>
-      <span style={s("flex-shrink:0;display:flex;padding-top:1px")}><Icon name="alert" size={18} sw={2} /></span>
+      <span style={s("flex-shrink:0;display:flex;padding-top:1px")}><Icon name="alert" size={18} /></span>
       {/* aviso é prosa: sem font-weight (o body já é 400) — quem dá o peso é a cor semântica */}
       <span style={s("font-size:var(--t-sm);line-height:1.55")}>{texto}</span>
     </div>
@@ -337,7 +337,7 @@ function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonl
       <>
         {/* O aviso fica fora da região que rola, colado ao rodapé: é a última coisa lida antes do toque. */}
         <div role="alert" style={s(`flex-shrink:0;display:flex;gap:10px;align-items:flex-start;padding:${mobile ? "12px 16px" : "14px 24px"};border-top:1px solid var(--danger);background:var(--danger-soft);color:var(--danger)`)}>
-          <span style={s("flex-shrink:0;display:flex;padding-top:1px")}><Icon name="alert" size={18} sw={2} /></span>
+          <span style={s("flex-shrink:0;display:flex;padding-top:1px")}><Icon name="alert" size={18} /></span>
           <span style={s("font-size:var(--t-sm);line-height:1.5")}>{pedida.confirmar.aviso}</span>
         </div>
         <div style={pad}>
@@ -395,7 +395,7 @@ function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonl
             className="m-hov-bg m-press m-focus"
             style={s(`${acoes.length ? "" : "width:100%;"}display:inline-flex;align-items:center;justify-content:center;gap:6px;${estiloDoBotao({}, mobile)}${mobile && acoes.length ? ";width:48px;padding:0" : ""}`)}
           >
-            {mobile && acoes.length ? <Icon name="dots" size={20} sw={2.2} /> : <>Mais ações<Icon name="chevron-down" size={16} sw={2} /></>}
+            {mobile && acoes.length ? <Icon name="dots" size={20} /> : <>Mais ações<Icon name="chevron-down" size={16} /></>}
           </button>
           {menu && (
             <div
@@ -530,7 +530,7 @@ export default function Gaveta() {
             className="m-hov-bg m-press-icon m-focus"
             style={s(`width:${mobile ? 44 : 36}px;height:${mobile ? 44 : 36}px;flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center`)}
           >
-            <Icon name="x" size={mobile ? 19 : 17} sw={2.2} />
+            <Icon name="x" size={mobile ? 19 : 17} />
           </button>
         </div>
 

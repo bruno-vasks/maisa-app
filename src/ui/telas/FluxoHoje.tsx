@@ -166,7 +166,7 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
 function TituloDoGrupo({ children, n, tom }: { children: React.ReactNode; n: number; tom?: "warn" }) {
   return (
     <div data-titulo-grupo="" className="m-grudado" style={s(`display:flex;align-items:center;gap:8px;padding:0 8px;min-height:36px;background:${tom === "warn" ? "var(--warn-soft)" : "var(--bg)"}`)}>
-      {tom === "warn" && <Icon name="alert" size={15} sw={2.2} style={s("color:var(--warn)")} />}
+      {tom === "warn" && <Icon name="alert" size={15} style={s("color:var(--warn)")} />}
       <span style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${tom === "warn" ? "var(--warn)" : "var(--ink)"}`)}>{children}</span>
       <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-data);color:var(--muted)")}>{n}</span>
     </div>
@@ -217,7 +217,7 @@ function ListaDoDia({ passaram, depois, feitos, ancora, proximosPrimeiro }: {
             <span style={s("flex:1;font-size:var(--t-sm);font-weight:var(--w-title)")}>
               <span className="n">{feitos.length}</span> {feitos.length === 1 ? "feito" : "feitos"} hoje{total != null && <span className="n" style={s("color:var(--muted);font-weight:var(--w-data)")}> · {fmt(total)}</span>}
             </span>
-            <Icon name="chevron-down" size={16} sw={2} style={s(`transform:rotate(${verFeitos ? 180 : 0}deg)`)} />
+            <Icon name="chevron-down" size={16} style={s(`transform:rotate(${verFeitos ? 180 : 0}deg)`)} />
           </button>
           {verFeitos && feitos.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
         </section>

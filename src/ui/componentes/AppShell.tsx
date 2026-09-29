@@ -82,7 +82,7 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: str
   faturamento: { rotulo: "Fiscal", titulo: "Fiscal", icone: "receipt", Comp: Faturamento },
   // Fora do rail, como `contatos`: escolher entre nota fiscal e recibo é decisão de uma vez só.
   // Chega-se por "Mais" e pelo link "Documento fiscal" no próprio Faturamento.
-  fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", tituloCelular: "Documento", icone: "config", Comp: DocumentoFiscal },
+  fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", tituloCelular: "Documento", icone: "documento", Comp: DocumentoFiscal },
   equipe: {
     rotulo: "Equipe", titulo: "Equipe", icone: "equipe", Comp: Equipe,
     acao: (st) => (st.cadastroCarregado ? { rotulo: "Adicionar profissional", icone: "plus", peso: "primario", onClick: () => st.pedirNovo("profissional") } : null),
@@ -154,7 +154,7 @@ function ItemRail({ id, badge }: { id: TelaId; badge?: number }) {
           passa a --nav-soft, que sobre --nav dá 8.8:1 e não briga com o ouro. */}
       <span style={s(`position:absolute;left:-12px;top:13px;width:3px;height:20px;border-radius:2px;background:${on ? "var(--nav-soft)" : "transparent"}`)} />
       <span style={s("flex-shrink:0;display:flex;position:relative")}>
-        <Icon name={t.icone} size={21} sw={1.9} stroke={on ? "var(--nav-ink)" : "var(--nav-muted)"} />
+        <Icon name={t.icone} size={21} cheio={on} stroke={on ? "var(--nav-ink)" : "var(--nav-muted)"} />
         {/* ponto de pendência: ouro FICA aqui — sobre --nav dá 7.3:1, e pendência é chamado à ação
             (o mesmo recado do botão dourado da topbar), não estado decorativo. --warn daria 2.4:1
             neste fundo, invisível num ponto de 8px. */}
@@ -323,7 +323,7 @@ function MenuNovo({ gatilho, alinhar = "direita" }: { gatilho: (p: { aberto: boo
               className="m-hov-bg m-focus"
               style={s("min-height:44px;padding:0 12px;border:none;border-radius:var(--r-controle);background:transparent;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:10px")}
             >
-              <Icon name="plus" size={16} sw={2.2} stroke="var(--primary)" />
+              <Icon name="plus" size={16} stroke="var(--primary)" />
               {it.rotulo}
             </button>
           ))}
@@ -348,7 +348,7 @@ function AcaoDaTopbar() {
       className={`${a.peso === "primario" ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
       style={s(`height:36px;padding:0 14px;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
     >
-      <Icon name={a.icone} size={16} sw={2.3} />
+      <Icon name={a.icone} size={16} />
       {a.rotulo}
     </button>
   );
@@ -368,7 +368,7 @@ function NovoDaTopbar() {
           style={s("height:36px;padding:0 10px 0 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);color:var(--ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap")}
         >
           Novo
-          <Icon name="chevron-down" size={15} sw={2.2} />
+          <Icon name="chevron-down" size={15} />
         </button>
       )}
     />
@@ -386,7 +386,7 @@ function MaisDoCelular() {
   if (a) {
     return (
       <button type="button" onClick={a.onClick} aria-label={a.rotulo} title={a.rotulo} className={`${cheio ? "m-hov-primary" : "m-hov-bg"} m-press-icon m-focus`} style={estilo}>
-        <Icon name="plus" size={20} sw={2.3} />
+        <Icon name="plus" size={20} />
       </button>
     );
   }
@@ -394,7 +394,7 @@ function MaisDoCelular() {
     <MenuNovo
       gatilho={({ aberto, alternar }) => (
         <button type="button" onClick={alternar} aria-label="Novo" aria-haspopup="menu" aria-expanded={aberto} className="m-hov-bg m-press-icon m-focus" style={estilo}>
-          <Icon name="plus" size={20} sw={2.3} />
+          <Icon name="plus" size={20} />
         </button>
       )}
     />
@@ -499,7 +499,7 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
         className="m-press m-focus"
         style={s("flex:1;max-width:360px;min-width:0;margin-left:10px;display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:var(--r-controle);background:var(--bg);border:1px solid var(--border);color:var(--muted);cursor:pointer;text-align:left")}
       >
-        <Icon name="search" size={17} sw={1.9} />
+        <Icon name="search" size={17} />
         <span style={s("flex:1;min-width:0;font-size:var(--t-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>Buscar cliente, conversa ou tela</span>
         {/* ⌘K é string de máquina — um dos poucos lugares onde o mono sobrevive. Peso de dado (500):
             é a tecla literal, não um título. */}
@@ -546,7 +546,7 @@ function TabBar() {
             className="m-press m-focus"
             style={s(`border:none;background:${on ? "var(--primary-soft)" : "transparent"};border-radius:var(--r-painel);padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;position:relative`)}
           >
-            <Icon name={TELA[aba.id].icone} size={21} sw={1.9} stroke={cor} />
+            <Icon name={TELA[aba.id].icone} size={21} cheio={on} stroke={cor} />
             {/* mesma voz do rail: a tab bar É a navegação no mobile, então a fonte da sidebar vale
                 aqui também. Peso marca a aba ativa, como no rail. */}
             <span style={s(`font-family:var(--font-nav);font-size:var(--t-label);font-weight:${on ? "var(--w-nav-on)" : "var(--w-nav)"};color:${cor}`)}>{aba.rotulo}</span>
@@ -616,7 +616,7 @@ export default function AppShell() {
               className="m-hov-bg m-press-icon m-focus"
               style={s("width:44px;height:44px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
             >
-              <Icon name="search" size={18} sw={1.9} />
+              <Icon name="search" size={18} />
             </button>
             <MaisDoCelular />
             {/* O selo "m" saiu em 24/09/2026: não clicava, e os 46px dele eram o que faltava para o

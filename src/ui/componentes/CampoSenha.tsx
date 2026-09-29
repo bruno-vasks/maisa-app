@@ -110,7 +110,7 @@ export function CampoSenha({
             `opacity:${desabilitado ? ".45" : "1"}`,
           )}
         >
-          <Icon name={visivel ? "eye-off" : "eye"} size={19} sw={1.9} stroke="currentColor" />
+          <Icon name={visivel ? "eye-off" : "eye"} size={19} stroke="currentColor" />
         </button>
       </div>
 

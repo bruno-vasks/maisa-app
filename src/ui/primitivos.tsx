@@ -47,82 +47,99 @@ export function avatar(seed: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-/* ---------- iconografia autoral (inline SVG, traço, currentColor) ---------- */
+/* ---------- iconografia autoral (inline SVG, currentColor) ----------
+   Regra e medidas em `docs/icones.md` (a espec; emenda só com medição que a justifique).
+   Grade 24 com área viva 20×20, traço único de 1.5 no 24px, rx 1.5 em todo retângulo, retas a
+   0/45/90°, coordenadas em múltiplos de 0.25. Nada de estrelinha, robô ou "cara de IA".
+   Os 10 da navegação têm par CHEIO (mesma caixa de tinta, detalhes vazados): o item ATIVO do
+   rail e da barra de abas desenha o cheio, o inativo a linha, como no iOS e no Instagram. Ícone
+   de botão, aviso ou ação não tem cheio.
+   Os nomes são contrato com as telas e com o guarda G5. Três deles ficaram com nome antigo e
+   desenho novo: `bot` é o fone de atendimento (a MAISA é a secretária que atende, não um robô),
+   `documento` é a folha de canto dobrado (era `config`, e não havia tela de ajustes atrás dele),
+   `negocio` é a fachada de loja (era `sparkle`, que saiu do app). */
 const ICONS: Record<string, React.ReactNode> = {
-  // navegação
-  config: (<><circle cx="12" cy="12" r="3.1" /><path d="M12 3.4v2.3M12 18.3v2.3M20.6 12h-2.3M5.7 12H3.4M18 6l-1.6 1.6M7.6 16.4 6 18M18 18l-1.6-1.6M7.6 7.6 6 6" /></>),
-  equipe: (<><circle cx="9" cy="8.2" r="3.2" /><path d="M3.2 19.4c0-3.2 2.6-5 5.8-5s5.8 1.8 5.8 5" /><path d="M16.4 5.7a3 3 0 0 1 .1 5.4" /><path d="M17.6 14.7c2 .5 3.4 2.1 3.4 4.5" /></>),
-  scissors: (<><circle cx="6" cy="6.2" r="2.6" /><circle cx="6" cy="17.8" r="2.6" /><path d="M8.3 7.9 20 18M20 6 8.3 16.1M11 12l2.2-1.9" /></>),
-  faq: (<><path d="M4 5.4A1.8 1.8 0 0 1 5.8 3.6H11a1.5 1.5 0 0 1 1 .5 1.5 1.5 0 0 1 1-.5h5.2A1.8 1.8 0 0 1 20 5.4V18a1.4 1.4 0 0 1-1.4 1.4H13a1.5 1.5 0 0 0-1 .5 1.5 1.5 0 0 0-1-.5H5.4A1.4 1.4 0 0 1 4 18Z" /><path d="M12 4.1v15.3" /></>),
-  marketing: (<><path d="M3.5 10.4v3.2a1 1 0 0 0 1 1H7l9 4V5.4l-9 4H4.5a1 1 0 0 0-1 1Z" /><path d="m8 15.5 1.3 4.5" /><path d="M18.5 9.5a3.3 3.3 0 0 1 0 5" /></>),
-  card: (<><rect x="3" y="5.5" width="18" height="13" rx="3" /><path d="M3 9.6h18" /><path d="M6.5 14.5h4.5" /></>),
-  receipt: (<><path d="M5 20.5V5.2A1.7 1.7 0 0 1 6.7 3.5h10.6A1.7 1.7 0 0 1 19 5.2V20.5l-2.33-1.6-2.34 1.6-2.33-1.6-2.34 1.6-2.33-1.6-2.33 1.6Z" /><path d="M8.5 8.4h7M8.5 11.8h4.5" /></>),
-  dashboard: (<><rect x="3" y="4.4" width="18" height="15.2" rx="3.3" /><path d="M3 9.4h18" /><path d="M6.6 15.8l2.3-2.6 2 1.6 2.4-3.2 2 2.5 1.5-1.1" /></>),
-  chat: (<><path d="M5.5 4.5h13A2.5 2.5 0 0 1 21 7v6.5A2.5 2.5 0 0 1 18.5 16H12l-4.5 3.5V16H5.5A2.5 2.5 0 0 1 3 13.5V7A2.5 2.5 0 0 1 5.5 4.5Z" /><path d="M8 9h8M8 12h5" /></>),
-  calendar: (<><rect x="3" y="5" width="18" height="16" rx="3.2" /><path d="M3 9.5h18" /><path d="M8 3v3.4M16 3v3.4" /><circle cx="12" cy="14.8" r="1.7" /></>),
-  // comuns
-  plus: (<path d="M12 5v14M5 12h14" />),
-  search: (<><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>),
-  check: (<path d="m20 6-11 11-5-5" />),
-  x: (<path d="M18 6 6 18M6 6l12 12" />),
-  "chevron-left": (<path d="m15 18-6-6 6-6" />),
-  "chevron-right": (<path d="m9 18 6-6-6-6" />),
-  "chevron-down": (<path d="m6 9 6 6 6-6" />),
-  edit: (<><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1Z" /><path d="M14.4 6.6l3 3" /></>),
-  trash: (<><path d="M4 6.5h16M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5" /><path d="M18 6.5l-.9 12.2A1.6 1.6 0 0 1 15.5 20h-7a1.6 1.6 0 0 1-1.6-1.3L6 6.5" /><path d="M10 10.5v5M14 10.5v5" /></>),
-  clock: (<><circle cx="12" cy="12" r="8" /><path d="M12 7.5v5l3 2" /></>),
-  whatsapp: (<><path d="M4 19.8 5.1 16A7.9 7.9 0 1 1 8.2 19l-4.2.8Z" /><path d="M9.4 8.8c.2-.5.5-.5.75-.48.24.02.38.03.55.42.13.32.46 1.14.5 1.22.04.09.07.2.01.32-.06.12-.1.19-.19.29l-.28.33c-.1.1-.19.2-.09.38.1.19.48.82 1.05 1.33.74.66 1.37.87 1.56.97.19.1.31.08.42-.05.12-.14.48-.57.6-.77.13-.19.25-.16.42-.1.17.07 1.1.53 1.3.62" /></>),
-  sparkle: (<><path d="M12 3.5l1.6 4.9 4.9 1.6-4.9 1.6L12 16.5l-1.6-4.9L5.5 10l4.9-1.6Z" /><path d="M18.6 15.4l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6Z" /></>),
-  bell: (<><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5Z" /><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" /></>),
-  filter: (<path d="M4 6h16M7 12h10M10 18h4" />),
-  dots: (<><circle cx="6" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="18" cy="12" r="1.3" /></>),
-  "arrow-right": (<path d="M5 12h14M13 6l6 6-6 6" />),
-  "arrow-up-right": (<path d="M7 17 17 7M8 7h9v9" />),
-  phone: (<path d="M6.5 4.5h3l1.2 4-2 1.3a12 12 0 0 0 5.5 5.5l1.3-2 4 1.2v3a1.5 1.5 0 0 1-1.6 1.5A15.5 15.5 0 0 1 5 6.1 1.5 1.5 0 0 1 6.5 4.5Z" />),
-  star: (<path d="M12 3.8l2.5 5 5.5.8-4 3.9.95 5.5L12 16.9 7.1 19l.95-5.5-4-3.9 5.5-.8Z" />),
-  bot: (<><rect x="4.5" y="8" width="15" height="10.5" rx="3.2" /><path d="M12 5v3" /><circle cx="12" cy="4.1" r="1.1" /><path d="M3.2 12.5v3M20.8 12.5v3" /><circle cx="9.4" cy="13" r="1.05" /><circle cx="14.6" cy="13" r="1.05" /><path d="M9.6 16h4.8" /></>),
-  user: (<><circle cx="12" cy="8" r="3.4" /><path d="M5 19.5c0-3.4 3-5.5 7-5.5s7 2.1 7 5.5" /></>),
-  send: (<><path d="M20 4 9.5 14.5" /><path d="M20 4 13.5 20l-4-7.5-7.5-4Z" /></>),
-  "trending-up": (<><path d="M4 15.5 10 9l3.5 3.5L20 6" /><path d="M15.5 6H20v4.5" /></>),
-  "trending-down": (<><path d="M4 8.5 10 15l3.5-3.5L20 18" /><path d="M15.5 18H20v-4.5" /></>),
-  "arrow-up": (<path d="M12 19V5M6 11l6-6 6 6" />),
-  "arrow-down": (<path d="M12 5v14M6 13l6 6 6-6" />),
-  tag: (<><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82Z" /><circle cx="8" cy="8" r="1.5" /></>),
-  "calendar-check": (<><rect x="3" y="5" width="18" height="16" rx="3.2" /><path d="M3 9.5h18M8 3v3M16 3v3" /><path d="m9.5 15 2 2 3.5-3.5" /></>),
-  copy: (<><rect x="8.5" y="8.5" width="11" height="11" rx="2.5" /><path d="M15.5 8.5V6A1.5 1.5 0 0 0 14 4.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5" /></>),
-  image: (<><rect x="3.5" y="4.5" width="17" height="15" rx="3" /><circle cx="9" cy="10" r="1.7" /><path d="m4 17 5-4.5 4 3 3-2.5 4 3.5" /></>),
-  link: (<><path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1" /><path d="M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" /></>),
-  pin: (<><path d="M12 21s6.5-5.4 6.5-10.5A6.5 6.5 0 0 0 5.5 10.5C5.5 15.6 12 21 12 21Z" /><circle cx="12" cy="10.5" r="2.3" /></>),
-  gift: (<><rect x="4" y="9" width="16" height="11" rx="2" /><path d="M3 9h18M12 9v11M12 9S9.5 4 7.5 5.5 9.5 9 12 9ZM12 9s2.5-5 4.5-3.5S14.5 9 12 9Z" /></>),
-  refresh: (<><path d="M20 11a8 8 0 0 0-14-4.5L4 8" /><path d="M4 4v4h4" /><path d="M4 13a8 8 0 0 0 14 4.5L20 16" /><path d="M20 20v-4h-4" /></>),
-  download: (<><path d="M12 4v11M8 11l4 4 4-4" /><path d="M5 19h14" /></>),
-  play: (<path d="M7 5l12 7-12 7Z" />),
-  moon: (<path d="M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5Z" />),
-  target: (<><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r=".6" /></>),
-  // nav da repaginada
-  flow: (<><rect x="3" y="4.5" width="5.5" height="15" rx="2" /><rect x="10.5" y="4.5" width="5.5" height="9" rx="2" /><rect x="18" y="4.5" width="3" height="12" rx="1.5" /></>),
-  clientes: (<><rect x="3.2" y="4.5" width="17.6" height="15" rx="3" /><circle cx="9" cy="10.4" r="2.1" /><path d="M5.8 16.2c0-1.8 1.5-2.8 3.2-2.8s3.2 1 3.2 2.8" /><path d="M15 9.8h3.4M15 12.6h3.4" /></>),
-  alert: (<><path d="M12 8.4v4.4" /><circle cx="12" cy="16.4" r="1" /><path d="M10.3 4.2 3.4 17.4a1.8 1.8 0 0 0 1.6 2.6h14a1.8 1.8 0 0 0 1.6-2.6L13.7 4.2a1.9 1.9 0 0 0-3.4 0Z" /></>),
-  undo: (<><path d="M4 9h11a5 5 0 0 1 0 10h-3" /><path d="m8 5-4 4 4 4" /></>),
-  logout: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>),
-  // profissões (ícone de "serviços" por área)
-  heart: (<path d="M12 20.3s-6.8-4.1-6.8-9.1A3.7 3.7 0 0 1 12 8.3a3.7 3.7 0 0 1 6.8 2.9c0 5-6.8 9.1-6.8 9.1Z" />),
-  tooth: (<path d="M8 3.5c-2 0-3.3 1.5-3.3 3.7 0 1.3.4 2.3.8 3.8.5 2 .5 6 1.9 6 1.2 0 1.1-3.4 2.3-3.4s1.1 3.4 2.3 3.4c1.4 0 1.4-4 1.9-6 .4-1.5.8-2.5.8-3.8C16.3 5 15 3.5 13 3.5c-1 0-1.5.6-2.5.6S9 3.5 8 3.5Z" />),
-  stethoscope: (<><path d="M6 3.5v4.3a3.8 3.8 0 0 0 7.6 0V3.5" /><path d="M9.8 15.4a5 5 0 0 0 5 5 3.9 3.9 0 0 0 3.9-3.9v-1.7" /><circle cx="18.7" cy="12.7" r="2" /></>),
-  /* O olho do campo de senha (`ui/componentes/CampoSenha.tsx`). O par existe porque um
-     ícone só, mudando de cor, não diz se a senha está visível AGORA ou se o clique vai
-     revelá-la — e é a única informação que esse botão precisa passar. */
-  eye: (<><path d="M2.5 12S6 5.6 12 5.6 21.5 12 21.5 12 18 18.4 12 18.4 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="3" /></>),
-  "eye-off": (<><path d="M10.7 6.2A7.9 7.9 0 0 1 12 6.1c6 0 9.5 5.9 9.5 5.9a17.6 17.6 0 0 1-2.5 3.3" /><path d="M6.7 7.7A16.8 16.8 0 0 0 2.5 12S6 17.9 12 17.9a8.7 8.7 0 0 0 3.4-.7" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /><path d="M3.5 3.5l17 17" /></>),
+  // navegação (os 10 com variante cheia)
+  flow: (<><circle cx="5.5" cy="12" r="2.5"/><path d="M3 5.5H21M11 12H21M3 18.5H21"/></>),
+  chat: (<><path d="M4.5 4H19.5A1.5 1.5 0 0 1 21 5.5V15A1.5 1.5 0 0 1 19.5 16.5H11L7.5 20V16.5H4.5A1.5 1.5 0 0 1 3 15V5.5A1.5 1.5 0 0 1 4.5 4Z"/><path d="M7.5 8.5H16.5M7.5 12H13.5"/></>),
+  calendar: (<><rect x="4" y="5" width="16" height="15.5" rx="1.5"/><path d="M4 9.5H20"/><path d="M8 3V6.5M16 3V6.5"/><circle cx="16" cy="15.5" r="0.75"/></>),
+  clientes: (<><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M8 3V21"/><circle cx="13.5" cy="9" r="1.75"/><path d="M11 16.5A2.5 2.5 0 0 1 16 16.5"/></>),
+  receipt: (<><path d="M5 21V4.5A1.5 1.5 0 0 1 6.5 3H17.5A1.5 1.5 0 0 1 19 4.5V21L17.25 19.25L15.5 21L13.75 19.25L12 21L10.25 19.25L8.5 21L6.75 19.25L5 21Z"/><path d="M8 8.5H16M8 12H12"/></>),
+  documento: (<><path d="M6.5 3H15L19 7V19.5A1.5 1.5 0 0 1 17.5 21H6.5A1.5 1.5 0 0 1 5 19.5V4.5A1.5 1.5 0 0 1 6.5 3Z"/><path d="M15 3V7H19"/><path d="M8 12H16M8 15.5H12"/></>),
+  equipe: (<><circle cx="8.5" cy="10" r="2.5"/><path d="M3.5 20.5A5 5 0 0 1 13.5 20.5"/><circle cx="15.5" cy="5.5" r="2.5"/><path d="M14 11.25A5 5 0 0 1 20.5 16"/></>),
+  tag: (<><path d="M3 3H11L20.5 12.5A1.5 1.5 0 0 1 20.5 14.5L14.5 20.5A1.5 1.5 0 0 1 12.5 20.5L3 11Z"/><circle cx="8" cy="8" r="1.5"/></>),
+  bot: (<><path d="M5 11A7 7 0 0 1 19 11"/><rect x="3" y="11" width="4" height="6" rx="1.5"/><rect x="17" y="11" width="4" height="6" rx="1.5"/><path d="M19 17A3 3 0 0 1 16 20H13"/><circle cx="13" cy="20" r="0.25"/></>),
+  dots: (<><circle cx="6" cy="12" r="0.75"/><circle cx="12" cy="12" r="0.75"/><circle cx="18" cy="12" r="0.75"/></>),
+  // botões, avisos e ações (só linha)
+  alert: (<><path d="M12 3.75L21 19.25H3Z"/><path d="M12 10V12.5"/><circle cx="12" cy="15.75" r="0.25"/></>),
+  "arrow-right": (<path d="M4.5 12H19.5M13.5 6L19.5 12L13.5 18"/>),
+  bell: (<><path d="M5 16H19L17.5 14.5V10.5A5.5 5.5 0 0 0 6.5 10.5V14.5Z"/><path d="M12 3V5"/><path d="M10 19A2.5 2.5 0 0 0 14 19"/></>),
+  "calendar-check": (<><rect x="4" y="5" width="16" height="15.5" rx="1.5"/><path d="M4 9.5H20"/><path d="M8 3V6.5M16 3V6.5"/><path d="M8.25 15L10.75 17.5L15.75 12.5"/></>),
+  card: (<><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 9.5H21"/><path d="M6.5 15.5H11"/></>),
+  check: (<path d="M5 12.5L9.5 17L19 7.5"/>),
+  "chevron-down": (<path d="M6 9 L12 15 L18 9"/>),
+  "chevron-left": (<path d="M15 6 L9 12 L15 18"/>),
+  "chevron-right": (<path d="M9 6 L15 12 L9 18"/>),
+  clock: (<><circle cx="12" cy="12" r="9"/><path d="M12 6V12H16"/></>),
+  copy: (<><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M4 16V5.5A1.5 1.5 0 0 1 5.5 4H16"/></>),
+  download: (<><path d="M12 4 V15"/><path d="M8 11 L12 15 L16 11"/><path d="M4 15.5 V17.5 A1.5 1.5 0 0 0 5.5 19 H18.5 A1.5 1.5 0 0 0 20 17.5 V15.5"/></>),
+  edit: (<><path d="M3.5 20.5V18L17.75 3.75A2 2 0 0 1 20.25 6.25L6 20.5Z"/><path d="M15.5 6L18 8.5"/></>),
+  eye: (<><path d="M2.75 12A10 10 0 0 1 21.25 12A10 10 0 0 1 2.75 12Z"/><circle cx="12" cy="12" r="3"/></>),
+  "eye-off": (<><path d="M13.75 18A10 10 0 0 1 2.75 12A10 10 0 0 1 4.75 9"/><path d="M10.25 6A10 10 0 0 1 21.25 12A10 10 0 0 1 19.25 15"/><path d="M4 4L20 20"/></>),
+  faq: (<><path d="M4.5 4H19.5A1.5 1.5 0 0 1 21 5.5V15A1.5 1.5 0 0 1 19.5 16.5H11L7.5 20V16.5H4.5A1.5 1.5 0 0 1 3 15V5.5A1.5 1.5 0 0 1 4.5 4Z"/><path d="M10 8.5A2 2 0 1 1 12 10.5"/><circle cx="12" cy="13.75" r="0.25"/></>),
+  filter: (<path d="M3 8.5H21M6 12H18M9 15.5H15"/>),
+  link: (<><path d="M10.75 13.25A3.5 3.5 0 0 1 10.75 8.25L15 4A3.5 3.5 0 0 1 20 9L17.25 11.75"/><path d="M13.25 10.75A3.5 3.5 0 0 1 13.25 15.75L9 20A3.5 3.5 0 0 1 4 15L6.75 12.25"/></>),
+  negocio: (<><rect x="4" y="4.5" width="16" height="4.5" rx="1.5"/><path d="M9.25 4.5V9M14.75 4.5V9"/><path d="M5.5 9V18A1.5 1.5 0 0 0 7 19.5H17A1.5 1.5 0 0 0 18.5 18V9"/><path d="M10 19.5V15.5A1.5 1.5 0 0 1 11.5 14H12.5A1.5 1.5 0 0 1 14 15.5V19.5"/></>),
+  phone: (<><rect x="7" y="3" width="10" height="18" rx="1.5"/><path d="M10 18H14"/></>),
+  pin: (<><path d="M8.5 8.5V4.5A1.5 1.5 0 0 1 10 3H14A1.5 1.5 0 0 1 15.5 4.5V8.5L19 12H5Z"/><path d="M12 12V21"/></>),
+  plus: (<path d="M12 5 V19 M5 12 H19"/>),
+  refresh: (<><path d="M12 19.25A7.25 7.25 0 0 1 6.75 7"/><path d="M2.75 7H6.75V11"/><path d="M12 4.75A7.25 7.25 0 0 1 17.25 17"/><path d="M21.25 17H17.25V13"/></>),
+  scissors: (<><circle cx="6" cy="7.5" r="3"/><circle cx="6" cy="16.5" r="3"/><path d="M8.5 9L20.75 16"/><path d="M8.5 15L10.75 13.75M16.75 10.25L20.75 8"/></>),
+  search: (<><circle cx="11" cy="11" r="7"/><path d="M16 16L20.5 20.5"/></>),
+  send: (<><path d="M21 3L3 8L11.5 12.5L16 21Z"/><path d="M21 3L11.5 12.5"/></>),
+  stethoscope: (<><path d="M4 3V8A3.5 3.5 0 0 0 11 8V3"/><path d="M7.5 11.5V15.5A5 5 0 0 0 17.5 15.5V14"/><circle cx="17.5" cy="11" r="3"/></>),
+  target: (<><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="0.75"/></>),
+  trash: (<><path d="M5 6H19"/><path d="M9.5 6V4.5A1.5 1.5 0 0 1 11 3H13A1.5 1.5 0 0 1 14.5 4.5V6"/><path d="M6.5 6V19.5A1.5 1.5 0 0 0 8 21H16A1.5 1.5 0 0 0 17.5 19.5V6"/><path d="M10 10V17M14 10V17"/></>),
+  undo: (<><path d="M8 5L4 9L8 13"/><path d="M4 9H15A5 5 0 0 1 15 19H8"/></>),
+  user: (<><circle cx="12" cy="7" r="3.5"/><path d="M5 20.5A7 7 0 0 1 19 20.5"/></>),
+  whatsapp: (<><path d="M4.5 16A8.5 8.5 0 1 1 8 19.5H4.5Z"/><path d="M12 9H9A6 6 0 0 0 15 15V12"/></>),
+  x: (<path d="M6.5 6.5L17.5 17.5M17.5 6.5L6.5 17.5"/>),
 };
+
+const CHEIOS: Record<string, React.ReactNode> = {
+  flow: (<><circle cx="5.5" cy="12" r="3.25"/><rect x="2.25" y="4.75" width="19.5" height="1.5" rx="0.75"/><rect x="10.25" y="11.25" width="11.5" height="1.5" rx="0.75"/><rect x="2.25" y="17.75" width="19.5" height="1.5" rx="0.75"/></>),
+  chat: (<path fillRule="evenodd" d="M4.5 3.25H19.5A2.25 2.25 0 0 1 21.75 5.5V15A2.25 2.25 0 0 1 19.5 17.25H11.25L8 20.5A0.75 0.75 0 0 1 6.75 20V17.25H4.5A2.25 2.25 0 0 1 2.25 15V5.5A2.25 2.25 0 0 1 4.5 3.25ZM7.5 7.75H16.5A0.75 0.75 0 0 1 16.5 9.25H7.5A0.75 0.75 0 0 1 7.5 7.75ZM7.5 11.25H13.5A0.75 0.75 0 0 1 13.5 12.75H7.5A0.75 0.75 0 0 1 7.5 11.25Z"/>),
+  calendar: (<><path fillRule="evenodd" d="M5.5 4.25H18.5A2.25 2.25 0 0 1 20.75 6.5V19A2.25 2.25 0 0 1 18.5 21.25H5.5A2.25 2.25 0 0 1 3.25 19V6.5A2.25 2.25 0 0 1 5.5 4.25ZM4.75 10.25H19.25V8.75H4.75ZM16 14A1.5 1.5 0 1 0 16 17A1.5 1.5 0 1 0 16 14Z"/><rect x="7.25" y="2.25" width="1.5" height="4" rx="0.75"/><rect x="15.25" y="2.25" width="1.5" height="4" rx="0.75"/></>),
+  clientes: (<path fillRule="evenodd" d="M6.5 2.25H17.5A2.25 2.25 0 0 1 19.75 4.5V19.5A2.25 2.25 0 0 1 17.5 21.75H6.5A2.25 2.25 0 0 1 4.25 19.5V4.5A2.25 2.25 0 0 1 6.5 2.25ZM7.25 3.75V20.25H8.75V3.75ZM13.5 6.5A2.5 2.5 0 1 0 13.5 11.5A2.5 2.5 0 1 0 13.5 6.5ZM10.25 16.5A3.25 3.25 0 0 1 16.75 16.5A0.75 0.75 0 0 1 15.25 16.5A1.75 1.75 0 0 0 11.75 16.5A0.75 0.75 0 0 1 10.25 16.5Z"/>),
+  receipt: (<path fillRule="evenodd" d="M6.5 2.25H17.5A2.25 2.25 0 0 1 19.75 4.5V21A0.75 0.75 0 0 1 18.5 21.5L17.25 20.25L16 21.5A0.75 0.75 0 0 1 15 21.5L13.75 20.25L12.5 21.5A0.75 0.75 0 0 1 11.5 21.5L10.25 20.25L9 21.5A0.75 0.75 0 0 1 8 21.5L6.75 20.25L5.5 21.5A0.75 0.75 0 0 1 4.25 21V4.5A2.25 2.25 0 0 1 6.5 2.25ZM8 7.75H16A0.75 0.75 0 0 1 16 9.25H8A0.75 0.75 0 0 1 8 7.75ZM8 11.25H12A0.75 0.75 0 0 1 12 12.75H8A0.75 0.75 0 0 1 8 11.25Z"/>),
+  documento: (<path fillRule="evenodd" d="M6.5 2.25H14.25V7A0.75 0.75 0 0 0 15 7.75H19.75V19.5A2.25 2.25 0 0 1 17.5 21.75H6.5A2.25 2.25 0 0 1 4.25 19.5V4.5A2.25 2.25 0 0 1 6.5 2.25ZM15.75 2.75L19.25 6.25H15.75ZM8 11.25H16A0.75 0.75 0 0 1 16 12.75H8A0.75 0.75 0 0 1 8 11.25ZM8 14.75H12A0.75 0.75 0 0 1 12 16.25H8A0.75 0.75 0 0 1 8 14.75Z"/>),
+  equipe: (<><circle cx="8.5" cy="10" r="3.25"/><path d="M2.75 20.5A5.75 5.75 0 0 1 14.25 20.5A0.75 0.75 0 0 1 13.5 21.25H3.5A0.75 0.75 0 0 1 2.75 20.5Z"/><circle cx="15.5" cy="5.5" r="3.25"/><path d="M21.25 16A5.75 5.75 0 0 0 13.75 10.5A0.75 0.75 0 0 0 13.25 11A4.75 4.75 0 0 1 11.5 13.75A7.25 7.25 0 0 1 14.75 16.75H20.5A0.75 0.75 0 0 0 21.25 16Z"/></>),
+  tag: (<path fillRule="evenodd" d="M3 2.25H11A0.75 0.75 0 0 1 11.5 2.5L21 12A2.25 2.25 0 0 1 21 15L15 21A2.25 2.25 0 0 1 12 21L2.5 11.5A0.75 0.75 0 0 1 2.25 11V3A0.75 0.75 0 0 1 3 2.25ZM8 5.75A2.25 2.25 0 1 0 8 10.25A2.25 2.25 0 1 0 8 5.75Z"/>),
+  bot: (<><path d="M4.25 11A7.75 7.75 0 0 1 19.75 11H18.25A6.25 6.25 0 0 0 5.75 11Z"/><rect x="2.25" y="10.25" width="5.5" height="7.5" rx="2.25"/><rect x="16.25" y="10.25" width="5.5" height="7.5" rx="2.25"/><path d="M19.75 17A3.75 3.75 0 0 1 16 20.75H13V19.25H16A2.25 2.25 0 0 0 18.25 17Z"/><circle cx="13" cy="20" r="1"/></>),
+  dots: (<><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></>),
+};
+
+/* O traço acompanha o tamanho para que a linha renderizada fique entre 1.3 e 1.5px (espec 1.3):
+   ≥20px → 1.5 · 17–19px → 1.75 · ≤16px → 2. Os vãos de 1.5 foram medidos para aguentar o 2.
+   `sw` explícito só para exceção medida. */
+const traco = (size: number) => (size >= 20 ? 1.5 : size >= 17 ? 1.75 : 2);
 
 /* ⚠️ NOME FORA DO REGISTRO DESENHA NADA, e não um sparkle. Até 24/09/2026 o fallback era
    `ICONS.sparkle`: o login pedia `name="lock"`, que nunca existiu, e mostrava uma estrelinha
    de "IA" no botão Entrar. Um buraco é honesto; um ícone errado passa por decisão de design.
-   Nome literal é conferido pelo guarda G5 (`src/ui/guardas/icones.test.ts`). */
-export function Icon({ name, size = 20, sw = 1.8, stroke = "currentColor", style }: { name: string; size?: number; sw?: number; stroke?: string; style?: React.CSSProperties }) {
+   Nome literal é conferido pelo guarda G5 (`src/ui/guardas/icones.test.ts`).
+   `cheio` sem variante cheia cai na linha: pedir o ativo de um ícone de ação não quebra nada. */
+export function Icon({ name, size = 20, sw, cheio = false, stroke = "currentColor", style }: { name: string; size?: number; sw?: number; cheio?: boolean; stroke?: string; style?: React.CSSProperties }) {
+  const solido = cheio ? CHEIOS[name] : undefined;
+  if (solido) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill={stroke} stroke="none" style={style} aria-hidden>
+        {solido}
+      </svg>
+    );
+  }
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style} aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw ?? traco(size)} strokeLinecap="round" strokeLinejoin="round" style={style} aria-hidden>
       {ICONS[name] ?? null}
     </svg>
   );
@@ -185,7 +202,7 @@ export function Btn({ variant = "primary", icon, children, onClick, style, full,
       className={`${hov} m-focus`.trim()}
       style={{ ...s(`display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--r-controle);font-weight:var(--w-title);font-size:var(--t-sm);white-space:nowrap;padding:${pad};${full ? "width:100%;" : ""}${cor}`), ...(style || {}) }}
     >
-      {icon && <Icon name={icon} size={16} sw={2} />}
+      {icon && <Icon name={icon} size={16} />}
       {children}
     </button>
   );
@@ -208,7 +225,7 @@ export function IconBtn({ icon, onClick, tone = "neutral", title, size = "md", d
   const off = disabled ? "opacity:.42;cursor:not-allowed" : "cursor:pointer";
   return (
     <button title={title} aria-label={title} onClick={onClick} disabled={disabled} className="m-hov-bg m-press-icon m-focus" style={s(`width:${px}px;height:${px}px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:${size === "sm" ? 8 : 9}px;background:var(--surface);${off};${c}`)}>
-      <Icon name={icon} size={size === "sm" ? 15 : 16} sw={2} />
+      <Icon name={icon} size={size === "sm" ? 15 : 16} />
     </button>
   );
 }
@@ -629,7 +646,7 @@ export function Toaster() {
         // pointer-events:auto só no toast COM ação — o container é inerte de propósito, mas um
         // "Desfazer" que não dá para clicar seria pior que não ter.
         <div key={i.id} className="m-pop" style={s(`display:flex;align-items:center;gap:9px;background:var(--ink);color:var(--surface);font-size:var(--t-sm);font-weight:var(--w-data);padding:11px 18px;border-radius:var(--r-painel);box-shadow:var(--shadow-pop)${i.acao ? ";pointer-events:auto" : ""}`)}>
-          <Icon name="check" size={16} sw={2.4} stroke="var(--surface)" />
+          <Icon name="check" size={16} stroke="var(--surface)" />
           {i.msg}
           {i.acao && (
             <button
@@ -706,7 +723,7 @@ export function ConfirmDialog({
           className="m-hov-bg m-press-icon m-focus"
           style={s("position:absolute;top:14px;right:14px;width:30px;height:30px;border:none;border-radius:var(--r-controle);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted)")}
         >
-          <Icon name="x" size={16} sw={2.2} />
+          <Icon name="x" size={16} />
         </button>
         <h2 style={s("font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg);padding-right:34px")}>{title}</h2>
         {message && <p style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose);margin-top:8px")}>{message}</p>}

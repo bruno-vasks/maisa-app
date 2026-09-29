@@ -932,7 +932,7 @@ function Conexoes() {
             Calendar — conectado" não diz o que muda no dia a dia de quem usa. */}
         <div style={s("display:flex;align-items:center;gap:13px;padding:15px 17px;border-bottom:1px solid var(--line)")}>
           <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
-            <Icon name="calendar-check" size={19} sw={1.9} />
+            <Icon name="calendar-check" size={19} />
           </span>
           <span style={s("flex:1;min-width:0;line-height:1.35")}>
             <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title)")}>Google Calendar + Meet</span>
@@ -945,7 +945,7 @@ function Conexoes() {
         {impedimento ? (
           <div style={s("display:flex;align-items:flex-start;gap:11px;padding:15px 17px")}>
             <span style={s(`flex-shrink:0;margin-top:1px;color:${impedimento.tom === "warn" ? "var(--warn)" : "var(--muted)"}`)}>
-              <Icon name={impedimento.tom === "warn" ? "alert" : "clock"} size={17} sw={1.9} />
+              <Icon name={impedimento.tom === "warn" ? "alert" : "clock"} size={17} />
             </span>
             <span style={s("flex:1;min-width:0;line-height:1.4")}>
               <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title)")}>{impedimento.titulo}</span>
@@ -1030,7 +1030,7 @@ export function Mais() {
     { id: "faturamento", titulo: "Fiscal", sub: "O que falta emitir", icone: "receipt" },
     /* A configuração de qual documento sai. Fica no "Mais" porque é decisão de uma vez só — e é
      * daqui que se chega a ela no celular, onde não existe rail. */
-    { id: "fiscal", titulo: "Documento fiscal", sub: "Nota fiscal ou recibo do Receita Saúde", icone: "config" },
+    { id: "fiscal", titulo: "Documento fiscal", sub: "Nota fiscal ou recibo do Receita Saúde", icone: "documento" },
     { id: "equipe", titulo: "Equipe", sub: "Quem atende e quando", icone: "equipe" },
     { id: "servicos", titulo: "Serviços", sub: "O que você oferece e por quanto", icone: "tag" },
     // o item que faltava: a tab bar diz que "Mais" cobre `assistente` e não havia caminho nenhum
@@ -1057,13 +1057,13 @@ export function Mais() {
                 style={s(`display:flex;align-items:center;gap:13px;padding:14px 16px;border:none;background:transparent;cursor:pointer;text-align:left;font-family:inherit;color:inherit;${i < atalhos.length - 1 ? "border-bottom:1px solid var(--line)" : ""}`)}
               >
                 <span style={s("width:36px;height:36px;flex-shrink:0;border-radius:var(--r-controle);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
-                  <Icon name={a.icone} size={18} sw={1.9} />
+                  <Icon name={a.icone} size={18} />
                 </span>
                 <span style={s("flex:1;min-width:0;line-height:1.3")}>
                   <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title)")}>{a.titulo}</span>
                   <span style={s("display:block;font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{a.sub}</span>
                 </span>
-                <Icon name="chevron-right" size={17} sw={2} style={s("flex-shrink:0;color:var(--muted)")} />
+                <Icon name="chevron-right" size={17} style={s("flex-shrink:0;color:var(--muted)")} />
               </button>
             ))}
           </div>
@@ -1080,13 +1080,13 @@ export function Mais() {
           style={s("width:100%;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border);cursor:pointer;text-align:left;font-family:inherit;color:inherit;flex-wrap:wrap")}
         >
           <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
-            <Icon name="card" size={19} sw={1.9} />
+            <Icon name="card" size={19} />
           </span>
           {/* ⚠️ A MESMA FONTE DA GAVETA (`resumoDaAssinatura`, 25/09/2026, T5 e 08 P0-4). A linha
               lia `cadastro.negocio.plano`/`precoPlano` (R$ 149,90 de fixture) e desenhava "em dia"
               fixo, e a gaveta, um clique depois, dizia "em teste · nenhuma forma de pagamento". */}
           <LinhaDoPlano />
-          <Icon name="chevron-right" size={17} sw={2} style={s("flex-shrink:0;color:var(--muted)")} />
+          <Icon name="chevron-right" size={17} style={s("flex-shrink:0;color:var(--muted)")} />
         </button>
       </section>
 
@@ -1108,7 +1108,7 @@ export function Mais() {
           className="m-hov-bright m-press m-focus"
           style={s("height:42px;padding:0 18px;border-radius:var(--r-painel);background:var(--whatsapp);color:var(--on-primary);font-size:var(--t-sm);font-weight:var(--w-title);display:inline-flex;align-items:center;gap:8px;text-decoration:none")}
         >
-          <Icon name="whatsapp" size={17} sw={1.9} />
+          <Icon name="whatsapp" size={17} />
           Falar com o suporte
         </a>
       </div>

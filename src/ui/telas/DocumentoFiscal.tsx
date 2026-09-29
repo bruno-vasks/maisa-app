@@ -206,7 +206,7 @@ export function DocumentoFiscal() {
                     {o.titulo}
                     {/* ⚠️ O CHECK SÓ APARECE COM ESCOLHA GRAVADA. Marcar o que está apenas
                         selecionado na sessão faria a tela afirmar um estado que o banco não tem. */}
-                    {on && feita === o.modo && <Icon name="check" size={15} sw={2.4} style={{ color: "var(--primary)" }} />}
+                    {on && feita === o.modo && <Icon name="check" size={15} style={{ color: "var(--primary)" }} />}
                   </span>
                   <span style={s("display:block;font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);margin-top:3px")}>
                     {o.sub}

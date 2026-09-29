@@ -83,7 +83,7 @@ function ItemChecklist({ item }: { item: ItemDoChecklist }) {
   return (
     <div style={s("display:flex;gap:10px;align-items:flex-start;padding:9px 14px")}>
       <span style={s(`color:${cor};margin-top:2px;flex-shrink:0`)}>
-        <Icon name={icone} size={16} sw={2.3} />
+        <Icon name={icone} size={16} />
       </span>
       <div style={s("display:grid;gap:5px;min-width:0;flex:1")}>
         <strong style={s("font-size:var(--t-sm);color:var(--ink)")}>{item.titulo}</strong>
@@ -106,7 +106,7 @@ function ItemChecklist({ item }: { item: ItemDoChecklist }) {
             só é lida por quem chegou ao fim e o botão não concluiu. */}
         {item.aviso && (
           <span style={s("display:flex;gap:7px;margin-top:4px;font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-            <span style={s("flex-shrink:0;margin-top:2px")}><Icon name="alert" size={13} sw={2.2} /></span>
+            <span style={s("flex-shrink:0;margin-top:2px")}><Icon name="alert" size={13} /></span>
             <span>{negritar(item.aviso)}</span>
           </span>
         )}
@@ -120,7 +120,7 @@ function ItemChecklist({ item }: { item: ItemDoChecklist }) {
               className="m-press m-focus"
               style={s("display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:var(--t-label);font-weight:var(--w-title);text-decoration:none")}
             >
-              <Icon name="link" size={13} sw={2.2} />
+              <Icon name="link" size={13} />
               {item.link.rotulo}
             </a>
             {/* ⚠️ A REDE DE SEGURANÇA DO DEEP LINK. Se ela não estiver logada, o e-CAC devolve
@@ -588,7 +588,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
           {!editando ? (
             <div style={s("display:flex;gap:11px;align-items:center;flex-wrap:wrap")}>
               <span style={s(`flex-shrink:0;display:flex;color:${bloqueia ? "var(--warn)" : faltaMeusDados > 0 ? "var(--muted)" : "var(--success)"}`)}>
-                <Icon name={faltaMeusDados > 0 ? "alert" : "check"} size={17} sw={2.3} />
+                <Icon name={faltaMeusDados > 0 ? "alert" : "check"} size={17} />
               </span>
               <span style={s("flex:1;min-width:170px;display:grid;gap:3px")}>
                 <strong style={s("font-size:var(--t-sm);color:var(--ink)")}>Seus dados</strong>
@@ -728,7 +728,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
             className="m-press m-focus"
             style={s("display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border:0;background:var(--bg);color:var(--ink);cursor:pointer;text-align:left;font-size:var(--t-sm);font-weight:var(--w-title)")}
           >
-            <Icon name={faltaNoEcac > 0 ? "alert" : "link"} size={17} sw={2.3} />
+            <Icon name={faltaNoEcac > 0 ? "alert" : "link"} size={17} />
             <span style={s("flex:1")}>
               O que você faz no e-CAC
               {faltaNoEcac > 0 && (
@@ -908,7 +908,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
             className="m-press m-focus"
             style={s("display:flex;align-items:center;gap:8px;align-self:flex-start;padding:10px 16px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:var(--t-sm);font-weight:var(--w-title);text-decoration:none")}
           >
-            <Icon name="link" size={15} sw={2.2} />
+            <Icon name="link" size={15} />
             Abrir meu Carnê-Leão
           </a>
           {/* ⚠️ A FRASE PROMETIA QUE O LINK CAÍA "direto na escrituração". O login fica no meio,
@@ -962,7 +962,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
       {placar && (
         <div style={s("display:grid;gap:6px;padding:12px 14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg)")}>
           <div style={s("display:flex;gap:8px;align-items:center;font-size:var(--t-sm);font-weight:var(--w-title)")}>
-            <Icon name="check" size={16} sw={2.4} />
+            <Icon name="check" size={16} />
             <span>{placar.avisados} paciente(s) avisados no WhatsApp</span>
           </div>
           {placar.semTelefone > 0 && (

@@ -225,7 +225,7 @@ export default function Laboratorio() {
                 className="m-focus"
                 style={s(`height:44px;padding:0 18px;display:flex;align-items:center;gap:8px;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--on-primary);background:var(--primary);border:1px solid var(--primary);border-radius:12px;${ocupada || !texto.trim() ? "opacity:.42;cursor:not-allowed" : "cursor:pointer"}`)}
               >
-                <Icon name="send" size={16} sw={2} stroke="var(--on-primary)" />
+                <Icon name="send" size={16} stroke="var(--on-primary)" />
                 Enviar
               </button>
             </form>
@@ -308,7 +308,7 @@ function Cabecalho({
           title="Apaga memória, histórico e agenda — para testar o caminho de quem nunca falou com a MAISA"
           style={s(`display:flex;align-items:center;gap:7px;font-size:var(--t-sm);color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:7px 12px;${ocupada ? "opacity:.42;cursor:not-allowed" : "cursor:pointer"}`)}
         >
-          <Icon name="trash" size={15} sw={1.9} />
+          <Icon name="trash" size={15} />
           Esquecer tudo
         </button>
       </div>
@@ -325,7 +325,7 @@ function Selo({ icone, texto, tom }: { icone: string; texto: string; tom: "prima
         : "background:var(--surface);color:var(--muted);border-color:var(--border)";
   return (
     <span style={s(`display:inline-flex;align-items:center;gap:6px;font-size:var(--t-label);font-family:var(--font-mono);padding:4px 10px;border:1px solid;border-radius:999px;${pele}`)}>
-      <Icon name={icone} size={13} sw={2} />
+      <Icon name={icone} size={13} />
       {texto}
     </span>
   );
@@ -335,7 +335,7 @@ function Faixa({ tom, children }: { tom: "erro" | "aviso"; children: React.React
   const pele = tom === "erro" ? "background:var(--danger-soft);color:var(--danger)" : "background:var(--warn-soft);color:var(--warn)";
   return (
     <div style={s(`flex-shrink:0;padding:11px 22px;font-size:var(--t-sm);display:flex;align-items:center;gap:9px;${pele}`)}>
-      <Icon name="alert" size={16} sw={2} />
+      <Icon name="alert" size={16} />
       <span>{children}</span>
     </div>
   );
@@ -344,7 +344,7 @@ function Faixa({ tom, children }: { tom: "erro" | "aviso"; children: React.React
 function Vazio({ agenda }: { agenda?: string }) {
   return (
     <div style={s("margin:auto;max-width:38ch;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center;color:var(--muted)")}>
-      <Icon name="chat" size={26} sw={1.6} stroke="var(--primary)" />
+      <Icon name="chat" size={26} stroke="var(--primary)" />
       <p style={s("margin:0;font-size:var(--t-body);color:var(--ink)")}>Você é o cliente. Manda um &ldquo;bom dia&rdquo;.</p>
       <p style={s("margin:0;font-size:var(--t-sm);line-height:var(--lh-prose)")}>
         Ela deve responder o cumprimento e só então perguntar como ajudar — em outra mensagem.
@@ -389,7 +389,7 @@ function Bolha({ fala }: { fala: Fala }) {
       >
         {!meu && (
           <span role="img" aria-label="Enviada pela MAISA" style={s("display:flex;flex-shrink:0;margin-top:5px")}>
-            <Icon name="bot" size={15} sw={1.9} stroke="var(--primary)" />
+            <Icon name="bot" size={15} stroke="var(--primary)" />
           </span>
         )}
         <span style={s("white-space:pre-wrap")}>{fala.txt}</span>
@@ -401,7 +401,7 @@ function Bolha({ fala }: { fala: Fala }) {
 function Digitando() {
   return (
     <div style={s("align-self:flex-start;display:flex;align-items:center;gap:9px;padding:11px 15px;background:var(--surface);border:1px solid var(--primary-soft);border-radius:20px;border-bottom-left-radius:7px;color:var(--muted);font-size:var(--t-sm)")}>
-      <Icon name="bot" size={15} sw={1.9} stroke="var(--primary)" />
+      <Icon name="bot" size={15} stroke="var(--primary)" />
       digitando…
     </div>
   );
@@ -439,7 +439,7 @@ function Trilha({ passos, voltas, ocupada }: { passos: Passo[]; voltas: number |
               )}
             >
               <div style={s("padding:8px 11px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)")}>
-                <Icon name={p.erro ? "x" : "check"} size={13} sw={2.4} stroke={p.erro ? "var(--danger)" : "var(--success)"} />
+                <Icon name={p.erro ? "x" : "check"} size={13} stroke={p.erro ? "var(--danger)" : "var(--success)"} />
                 <code style={{ ...mono, fontWeight: 500, color: "var(--ink)" }}>{p.ferramenta}</code>
               </div>
               {Object.keys(p.entrada).length > 0 && (
@@ -503,7 +503,7 @@ function Agendados({ itens }: { itens: Estado["agendados"] }) {
         <ul style={s("margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px")}>
           {itens.map((a, i) => (
             <li key={i} style={s("display:flex;align-items:center;gap:9px;border:1px solid var(--border);border-radius:10px;padding:9px 11px")}>
-              <Icon name="calendar-check" size={15} sw={1.9} stroke="var(--success)" />
+              <Icon name="calendar-check" size={15} stroke="var(--success)" />
               <div style={s("display:flex;flex-direction:column;gap:1px;min-width:0")}>
                 <code style={{ ...mono, color: "var(--ink)" }}>
                   {a.data} · {a.hora}

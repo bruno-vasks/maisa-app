@@ -105,7 +105,7 @@ export default function NovaSenha() {
           {pronto ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center", textAlign: "center" }}>
               <div style={s("display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:999px;background:var(--success-soft)")}>
-                <Icon name="check" size={26} sw={2.4} stroke="var(--success)" />
+                <Icon name="check" size={26} stroke="var(--success)" />
               </div>
               <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>Senha trocada</p>
               <p style={s("font-size:var(--t-sm);color:var(--muted);margin:0")}>Abrindo seu painel…</p>
