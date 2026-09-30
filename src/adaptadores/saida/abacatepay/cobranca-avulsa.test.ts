@@ -94,3 +94,21 @@ describe("lerPagamento", () => {
     expect(await m.cobrancaAbacatePayAvulsa.lerPagamento(ctx(T), "pix_char_nao")).toBeNull();
   });
 });
+
+/* ★ Medido em produção: travessão e `$` na descrição derrubam o Pix inteiro. */
+describe("descricaoDoPix", () => {
+  it("troca o travessão por hífen e tira o que a API recusa", async () => {
+    const { m } = await carregar(() => ({ data: null }));
+    expect(m.descricaoDoPix("MAISA Profissional — 1 mês")).toBe("MAISA Profissional - 1 mês");
+    expect(m.descricaoDoPix("MAISA (R$ 1)")).toBe("MAISA (R 1)");
+    expect(m.descricaoDoPix("💥")).toBe("MAISA");
+  });
+
+  it("o Pix sai com a descrição limpa", async () => {
+    const { m, pedidos } = await carregar((url) =>
+      url.includes("/products/get") ? { data: PRODUTO } : { data: { id: "pix_char_1", brCode: "000201…", status: "PENDING" } });
+    await m.cobrancaAbacatePayAvulsa.abrirCheckout(ctx(T), { plano: "profissional", voltarPara: "https://x.com/a", cancelarPara: "https://x.com/b" });
+    const pix = pedidos.find((p) => p.url.includes("/transparents/create"))!.corpo as { data: { description: string } };
+    expect(pix.data.description).toBe("MAISA Profissional - 1 mês");
+  });
+});

@@ -116,6 +116,28 @@ export function paraPagamentoPix(b: PixBruto, plano: ChaveDePlano | null): Pagam
   };
 }
 
+/**
+ * A descrição do Pix, só com o que a API aceita.
+ *
+ * ⚠️ ELES RECUSAM CARACTERE NA DESCRIÇÃO, E O PEDIDO INTEIRO VOLTA ERRO. Medido em 30/09/2026,
+ * logo depois de publicar: `"MAISA Profissional — 1 mês"` (o nome do produto avulso) voltou
+ * `Disallowed character in description: "—" (U+2014)`, e `R$` voltou o mesmo para o `$`. Acento
+ * passa. Sem esta limpeza, todo clique em "Assinar" morria aqui.
+ *
+ * Lista do que PASSA, e não do que não passa: não há lista publicada do que eles recusam, e o
+ * próximo caractere proibido seria descoberto do mesmo jeito — em produção. Faixas ASCII e
+ * Latin-1 escritas à mão, sem `\p{L}`: o `target` do projeto é anterior a ES2015.
+ */
+export function descricaoDoPix(nome: string): string {
+  const limpo = nome
+    .replace(/[\u2012-\u2015]/g, "-")
+    .replace(/[^A-Za-z0-9\u00C0-\u00FF .,()\/-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+  return limpo || "MAISA";
+}
+
 export const cobrancaAbacatePayAvulsa: Cobranca = {
   async abrirCheckout(t: ContextoTenant, p: PedidoDeCheckout): Promise<CheckoutAberto> {
     const produto = await doProdutoAvulso(p.plano);
@@ -126,7 +148,7 @@ export const cobrancaAbacatePayAvulsa: Cobranca = {
         data: {
           amount: produto.preco,
           /* Aparece no app do banco de quem paga. É o que a pessoa lê antes de confirmar. */
-          description: produto.nome,
+          description: descricaoDoPix(produto.nome),
           /* ★ O carimbo no `metadata`, que volta intacto na releitura (medido em 30/09/2026).
            * É dele que o webhook tira o inquilino — nunca do corpo do evento. */
           metadata: { carimbo: carimbo(t.tenantId, p.plano, hojeISO()), tenant_id: t.tenantId, plano: p.plano },
