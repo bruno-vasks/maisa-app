@@ -18,7 +18,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import type { Assinatura, MetodoDePagamento, Provedor } from "@/nucleo/dominio/assinatura";
-import type { RepositorioAssinaturas } from "@/nucleo/portas/saida/repositorio-assinaturas";
+import type { ParaAvisar, RepositorioAssinaturas } from "@/nucleo/portas/saida/repositorio-assinaturas";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { adminFaltando, createAdminClient, isAdminConfigured } from "./admin";
 import { clienteDoContexto } from "./contexto-cliente";
@@ -80,6 +80,59 @@ function paraDominio(l: Linha): Assinatura {
 }
 
 export const assinaturasSupabase: RepositorioAssinaturas = {
+  async paraAvisar(): Promise<ParaAvisar[]> {
+    /* ⚠️ CROSS-TENANT POR CONSTRUÇÃO, como `tenantDoCliente`: é a rotina diária perguntando
+     * "quem vence?", e não há sessão nem inquilino. Service role explícito, e nenhum parâmetro
+     * por onde escolher de quem ler. Ver a porta. */
+    if (!isAdminConfigured) throw new Error(`falta ${adminFaltando().join(", ")}`);
+    const admin = createAdminClient();
+
+    const { data, error } = await admin
+      .from(TABELA)
+      .select(`tenant_id, ${COLUNAS}`)
+      .in("status", ["trial", "ativa"]);
+    if (error) throw new Error(`assinaturas.paraAvisar: ${error.message}`);
+
+    const linhas = (data ?? []) as unknown as (Linha & { tenant_id: string })[];
+    if (!linhas.length) return [];
+    const ids = linhas.map((l) => l.tenant_id);
+
+    /* O nome do negócio e o DONO, em duas leituras e não uma por linha: a rotina roda uma vez
+     * por dia sobre todos os negócios, e N+1 aqui é N idas ao banco a cada manhã. */
+    const [negocios, donos] = await Promise.all([
+      admin.from("negocios").select("id, nome").in("id", ids),
+      admin.from("membros").select("tenant_id, user_id").eq("papel", "dono").in("tenant_id", ids),
+    ]);
+    if (negocios.error) throw new Error(`assinaturas.paraAvisar (negocios): ${negocios.error.message}`);
+    if (donos.error) throw new Error(`assinaturas.paraAvisar (membros): ${donos.error.message}`);
+
+    const nomeDe = new Map((negocios.data ?? []).map((n: { id: string; nome: string }) => [n.id, n.nome]));
+    const donoDe = new Map<string, string>();
+    for (const m of (donos.data ?? []) as { tenant_id: string; user_id: string }[]) {
+      /* Um dono por negócio é o que o provisionamento cria. Se um dia houver dois, o primeiro
+       * basta: o aviso é para alguém que pode pagar, não para todos. */
+      if (!donoDe.has(m.tenant_id)) donoDe.set(m.tenant_id, m.user_id);
+    }
+
+    /* O e-mail mora em `auth.users`, que o PostgREST não expõe. Uma chamada por dono à API de
+     * admin; falha num dono vira `email: null` para ele, e não derruba o aviso dos outros. */
+    const emailDe = new Map<string, string | null>();
+    await Promise.all([...new Set(donoDe.values())].map(async (uid) => {
+      const { data: u, error: e } = await admin.auth.admin.getUserById(uid);
+      emailDe.set(uid, e ? null : u.user?.email ?? null);
+    }));
+
+    return linhas.map((l) => {
+      const uid = donoDe.get(l.tenant_id);
+      return {
+        tenantId: l.tenant_id,
+        negocio: nomeDe.get(l.tenant_id) ?? "seu negócio",
+        email: uid ? emailDe.get(uid) ?? null : null,
+        assinatura: paraDominio(l),
+      };
+    });
+  },
+
   async ler(t: ContextoTenant): Promise<Assinatura | null> {
     const { data, error } = await clienteDoContexto(t)
       .from(TABELA)

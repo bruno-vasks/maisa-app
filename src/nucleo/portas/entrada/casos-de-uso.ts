@@ -44,7 +44,7 @@ import type { Escolha, MemoriaCliente } from "../../dominio/memoria";
 import type { VagasDoDia } from "../../dominio/vagas";
 import type { Faq, FaqEncontrada } from "../../dominio/faq";
 import type { ProgressoDaAtivacao } from "../../dominio/ativacao";
-import type { Assinatura } from "../../dominio/assinatura";
+import type { Assinatura, MetodoDePagamento } from "../../dominio/assinatura";
 import type { CheckoutAberto, PedidoDeCheckout } from "../saida/cobranca";
 
 /* ───────────────────────────── agenda ───────────────────────────── */
@@ -975,3 +975,63 @@ export type CancelarAssinatura = (t: ContextoTenant) => Promise<void>;
 export type LerAssinatura = (t: ContextoTenant) => Promise<Assinatura | null>;
 
 export type RegistrarAssinatura = (t: ContextoTenant, a: Assinatura) => Promise<void>;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O PRÉ-PAGO (29/09/2026) — cada Pix compra um mês.
+ *
+ * Três casos de uso, e o terceiro é a TERCEIRA exceção à regra do `ContextoTenant` primeiro,
+ * decidida e com o limite escrito logo abaixo dele.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Um pagamento avulso confirmado pelo provedor, já relido na fonte.
+ *
+ * `pagamentoId` é o id do pagamento NO PROVEDOR (`bill_…`), e é a chave de idempotência: o
+ * mesmo pagamento chega de novo em cada reentrega do webhook, e somar um mês a cada uma seria
+ * dar sete meses por um Pix.
+ */
+export type PagamentoAvulso = {
+  pagamentoId: string;
+  /** O nome do plano, como a tela mostra ("Profissional"). */
+  plano: string;
+  /** Em reais, o que o provedor cobrou. */
+  preco: number;
+  metodo: MetodoDePagamento | null;
+  clienteId: string | null;
+  /** Hoje em São Paulo, `YYYY-MM-DD`. Ver o cabeçalho do pré-pago em `dominio/assinatura.ts`. */
+  hoje: string;
+};
+
+/** `creditado: false` = este pagamento já tinha sido somado. Não é erro: é a reentrega. */
+export type RegistrarPagamentoAvulso = (
+  t: ContextoTenant,
+  p: PagamentoAvulso,
+) => Promise<{ creditado: boolean; assinatura: Assinatura | null }>;
+
+/**
+ * ★ Este negócio pode usar a MAISA hoje? A pergunta que o webhook do WhatsApp faz ANTES de
+ * gastar um token com o modelo. Ver `acessoLiberado` no domínio.
+ */
+export type AcessoDoNegocio = (
+  t: ContextoTenant,
+  hoje: string,
+) => Promise<{ liberado: boolean; fim: string | null }>;
+
+/* ── a rotina de avisos ──
+ * ⚠️ A TERCEIRA EXCEÇÃO À REGRA DO `ContextoTenant` PRIMEIRO, pelo mesmo motivo da rotina de
+ * lembretes: é agendada, e a pergunta é sobre TODOS os negócios ("quem vence hoje?"). Não tem
+ * sessão nem dono, e um `tenantId` de entrada seria um parâmetro por onde disparar e-mail de
+ * cobrança em nome de outra pessoa.
+ *
+ * O limite: ela só LÊ assinaturas e MANDA e-mail ao dono de cada uma. Não grava nada — não
+ * muda status, não corta acesso. O corte é derivado da data, na hora de responder
+ * (`AcessoDoNegocio`), e é por isso que uma rotina que não rodou não libera ninguém de graça. */
+
+export type ResultadoDosAvisos = {
+  enviados: number;
+  /** Negócios que tinham aviso para hoje e nenhum dono com e-mail. */
+  semEmail: number;
+  falhas: { tenantId: string; motivo: string }[];
+};
+
+export type AvisarVencimentos = (hoje: string) => Promise<ResultadoDosAvisos>;

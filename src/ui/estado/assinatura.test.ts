@@ -23,7 +23,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { chaveDoPlano, resumoDaAssinatura, type EstadoAssinatura, type Oferta } from "./store";
+import { chaveDoPlano, resumoDaAssinatura as resumoNoDia, type EstadoAssinatura, type Oferta } from "./store";
 import type { Assinatura } from "@/nucleo/dominio/assinatura";
 import { telaDoEndereco } from "./endereco";
 
@@ -54,6 +54,12 @@ const OFERTAS: Oferta[] = [
 ];
 
 const ok = (a: Assinatura | null, ofertas = OFERTAS): EstadoAssinatura => ({ status: "ok", assinatura: a, ofertas });
+
+/* ⚠️ O DIA É FIXO. Desde o pré-pago (29/09/2026) a gaveta olha a data — teste vencido pausa, e
+ * três dias antes aparece o aviso. Sem fixar o dia, o `trial()` de cima (até 5/10) viraria
+ * "teste encerrado" sozinho em outubro, e a suíte quebraria sem ninguém ter mexido em nada. */
+const HOJE = "2026-09-29";
+const resumoDaAssinatura = (e: EstadoAssinatura, hoje = HOJE) => resumoNoDia(e, hoje);
 const linha = (r: ReturnType<typeof resumoDaAssinatura>, label: string) =>
   r.linhas.find(([l]) => l === label)?.[1];
 
@@ -223,5 +229,58 @@ describe("a volta do checkout vai para uma rota que existe", () => {
      * Até 24/09/2026 este teste lia o literal `const VALIDAS: TelaId[]` de dentro do store;
      * a lista virou `endereco.ts` (guarda G10) e o teste passou a perguntar à função. */
     expect(telaDoEndereco("mais")).toBe("mais");
+  });
+});
+
+/* ─────────────────────── o pré-pago (29/09/2026) ─────────────────────── */
+
+describe("resumoDaAssinatura — o pré-pago", () => {
+  const pre = (a: Assinatura): EstadoAssinatura => ({ ...ok(a), prepago: true });
+  const pago = (over: Partial<Assinatura> = {}) => trial({
+    status: "ativa", provedor: "abacatepay", metodo: "pix", preco: 197, periodoFim: "2026-10-30", ...over,
+  });
+
+  /* ★ O oposto do recorrente: quem já paga PODE pagar de novo, porque soma um mês. */
+  it("ativa no pré-pago oferece pagar mais um mês, com o preço, e nenhum portal", () => {
+    const r = resumoDaAssinatura(pre(pago()));
+    expect(r.assinar?.label).toBe("Pagar mais um mês · R$ 197/mês");
+    expect(r.gerenciar).toBe(false);
+    expect(linha(r, "Pago até")).toBe("30 de outubro");
+    expect(linha(r, "Forma de pagamento")).toBe("Pix, mês a mês");
+    expect(r.aviso).toBeNull();
+  });
+
+  it("três dias antes avisa, sem pausar", () => {
+    const r = resumoDaAssinatura(pre(pago()), "2026-10-27");
+    expect(r.aviso?.tone).toBe("warn");
+    expect(r.aviso?.texto).toMatch(/em 3 dias/);
+    expect(linha(r, "Situação")).toBe("Ativa");
+  });
+
+  it("depois do último dia pago, diz que a MAISA pausou e oferece pagar", () => {
+    const r = resumoDaAssinatura(pre(pago()), "2026-10-31");
+    expect(r.aviso?.tone).toBe("danger");
+    expect(r.aviso?.texto).toMatch(/pausada/);
+    expect(linha(r, "Situação")).toBe("Pausada");
+    expect(r.assinar?.plano).toBe("profissional");
+  });
+
+  it("teste vencido também pausa — o status continua `trial` na tabela", () => {
+    const r = resumoDaAssinatura(ok(trial()), "2026-10-06");
+    expect(r.sub).toBe("teste encerrado");
+    expect(r.aviso?.tone).toBe("danger");
+    expect(r.assinar?.plano).toBe("profissional");
+  });
+
+  /* Recorrente com assinatura no provedor segue o caminho de antes, mesmo com o provedor
+   * ligado hoje sendo o pré-pago: quem tem débito automático não paga "mais um mês". */
+  it("ativa COM assinatura no provedor não vira pré-paga", () => {
+    const r = resumoDaAssinatura(pre(pago({ assinaturaId: "sub_1" })));
+    expect(r.assinar).toBeNull();
+    expect(r.gerenciar).toBe(true);
+  });
+
+  it("Pix não aparece mais como \"nenhuma ainda\"", () => {
+    expect(linha(resumoDaAssinatura(ok(pago({ assinaturaId: "subs_1" }))), "Forma de pagamento")).toBe("Pix");
   });
 });

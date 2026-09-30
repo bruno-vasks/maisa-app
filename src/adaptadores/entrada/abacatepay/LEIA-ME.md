@@ -7,11 +7,37 @@ Irmão de [`entrada/stripe/`](../stripe/) — mesmo problema (um POST sem cookie
 A rota é [`app/api/abacatepay/webhook/route.ts`](../../../app/api/abacatepay/webhook/route.ts),
 e ela é fina: confere, resolve, chama. Tudo que decide alguma coisa está em `eventos.ts`.
 
+## ★ O pré-pago (29/09/2026): `checkout.completed`, COM releitura na fonte
+
+Desde 29/09/2026 a cobrança padrão é o pré-pago — um Pix avulso por mês (ver o topo de
+`saida/abacatepay/LEIA-ME.md`). O evento que importa passa a ser `checkout.completed`, e ele
+tem o que a assinatura não tinha: **`GET /checkouts/get?id=`**. Então esse caminho faz o
+desenho da Stripe:
+
+1. do corpo sai **só o `bill_…`**;
+2. o checkout é **relido na API com a nossa chave** — status, valor e `externalId`;
+3. `status !== "PAID"` na fonte → 200 e nada acontece, diga o evento o que disser;
+4. o inquilino sai do **carimbo relido** (`saida/abacatepay/carimbo.ts`), nunca do corpo;
+5. `registrarPagamentoAvulso` soma um mês, com o `bill_…` como chave de idempotência —
+   sete reentregas não viram sete meses.
+
+Um `webhookSecret` vazado de um log não inventa pagamento por aqui: o id tem de ser de um
+checkout da nossa loja, e pago.
+
+⚠️ **O webhook de produção precisa escutar `checkout.completed`.** O `npm run abacate:catalogo`
+confere e, com `--aplicar`, cria um segundo webhook para o que faltar (a API não tem update).
+
+> Em 23/09/2026 a AbacatePay passou a documentar também `GET /v2/subscriptions/get` (por `id`,
+> `externalId` ou `customerId`) — medido em 29/09: a rota existe. **A seção 2 abaixo ("não
+> existe releitura na fonte") está vencida para assinatura também.** O caminho recorrente não
+> foi reescrito porque nenhuma assinatura nasceu ainda para medir o formato; reescrever antes
+> de ligar o recorrente.
+
 ## Arquivos
 
 | Arquivo | O que faz |
 |---|---|
-| `eventos.ts` | `verificar` (segredo + HMAC), `ehRelevante`, `pistasDeDono`, `assinaturaDoEvento` |
+| `eventos.ts` | `verificar` (segredo + HMAC), `ehRelevante`, `pistasDeDono`, `assinaturaDoEvento` · ★ pré-pago: `ehPagamentoAvulso`, `idDoPagamentoAvulso`, `lerPagamentoAvulso` (a releitura) |
 
 ---
 

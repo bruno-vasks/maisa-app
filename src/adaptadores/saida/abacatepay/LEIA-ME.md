@@ -7,6 +7,51 @@ Os dois compartilham `config.ts` de propósito: duplicar o segredo criaria duas
 configurações capazes de divergir, e o sintoma seria o webhook recusando 100% dos eventos
 enquanto o checkout cobra normalmente.
 
+## ★ Hoje ela cobra no PRÉ-PAGO — um Pix por mês (29/09/2026)
+
+A loja foi aprovada para produção em 29/09/2026 e **a recorrência continua bloqueada nos dois
+trilhos**, medido na conta de produção depois de o fundador deles ativar o cartão:
+
+| Chamada (produção, 29/09) | Resultado |
+|---|---|
+| `subscriptions/create` `["PIX"]` | ❌ `PIX Automático is not available for this store` |
+| `subscriptions/create` `["CARD"]` | ❌ `CARD is not available for this store` |
+| `checkouts/create` `["PIX"]` com produto **com** `cycle` | ❌ a mesma recusa do Pix Automático |
+| `checkouts/create` `["PIX"]` com produto **sem** `cycle` | ✅ `bill_…`, `frequency: ONE_TIME` |
+| `transparents/create` Pix de R$ 1 | ✅ **pago** — a primeira transação real da loja |
+
+Então o padrão virou o **pré-pago** (`ABACATEPAY_COBRANCA=avulsa`, que é o default):
+`cobranca-avulsa.ts` abre um checkout avulso do mês, o webhook `checkout.completed` soma um
+mês (`creditarUmMes`, no domínio), a rotina diária manda o aviso de vencimento por e-mail, e o
+webhook do WhatsApp deixa a MAISA em silêncio quando o mês acaba. Nada disso precisou de
+migração: o fim do mês é o `periodo_fim` que já existia.
+
+`cobranca-abacatepay.ts` (o recorrente) continua aqui, inteiro, para o dia em que a sonda
+passar. Trocar é `ABACATEPAY_COBRANCA=assinatura` + redeploy.
+
+### ⚠️ As três coisas medidas que desenharam o pré-pago
+
+1. **O `externalId` do checkout é CHAVE DE IDEMPOTÊNCIA.** Dois `checkouts/create` com o mesmo
+   `externalId` devolveram **o mesmo** `bill_…`. Ótimo contra clique duplo, e uma armadilha com
+   carimbo fixo: o mês seguinte devolveria o checkout já pago. Por isso o carimbo tem a data
+   (`carimbo.ts`), e por isso `abrirCheckout` pula para o carimbo seguinte quando o do dia volta
+   pago ou expirado.
+2. **`/products/list` sem parâmetro mente logo depois de criar.** Voltou lista vazia por minutos
+   depois do `--aplicar`, com os produtos lá. `products/get?externalId=` acha na hora — é o que
+   `cobranca-avulsa.ts` usa. (O `idDoProduto` do recorrente ainda usa `list`; trocar antes de
+   ligar o recorrente.)
+3. **Produto com `cycle` não serve para checkout avulso.** A loja entende como recorrência e
+   recusa com a mensagem do Pix Automático, que não fala de produto. Daí o segundo catálogo:
+
+| Plano | `externalId` avulso | Preço (centavos) | `prod_…` em produção |
+|---|---|---|---|
+| Essencial | `maisa-essencial-avulso` | `12700` | (criado pelo `--aplicar`) |
+| Profissional | `maisa-profissional-avulso` | `19700` | `prod_mtQxtCmu1chYxkJMkMwXYp6M` |
+| Escala | `maisa-escala-avulso` | `39700` | (criado pelo `--aplicar`) |
+
+A taxa medida é **R$ 1,00 por checkout pago por Pix** (`platformFee: 100`) e R$ 0,80 no Pix
+transparente (`platformFee: 80`) — não os R$ 0,80 da página comercial para os dois.
+
 ## Por que ela existe, se já havia Stripe
 
 Porque **a Stripe não faz Pix recorrente em conta brasileira.** Está medido e escrito em
@@ -33,7 +78,9 @@ E custa na conversão, que é o lado que não aparece em planilha: Pix é como o
 |---|---|
 | `config.ts` | As env vars, o `CATALOGO` (plano → `externalId`), `METODOS` e `mundo`. ⚠️ **Id de produto não é env var** — leia o cabeçalho antes de "simplificar" |
 | `cliente.ts` | `fetch` à mão, com retry, teto de 8s e o desembrulho do envelope. ⚠️ **erro vem com HTTP 200** |
-| `cobranca-abacatepay.ts` | `abrirCheckout`, `cancelar`, `capacidades`. Resolve `externalId → prod_…` com cache de processo |
+| `cobranca-abacatepay.ts` | O modo RECORRENTE: `abrirCheckout`, `cancelar`, `capacidades`. Resolve `externalId → prod_…` com cache de processo |
+| `cobranca-avulsa.ts` | ★ O PRÉ-PAGO (padrão desde 29/09/2026): checkout avulso de um mês, só Pix, sem cancelar nem portal |
+| `carimbo.ts` | O `externalId` do checkout avulso — `maisa:<tenant>:<plano>:<dia>` — e a leitura de volta, que o webhook usa depois de reler na fonte |
 
 ## ⚠️ As cinco armadilhas desta API
 
@@ -58,10 +105,10 @@ Nenhuma é hipótese — todas saem da documentação lida em 21/09/2026.
    pede três campos, e documento não é um deles). Sem `taxId`, dois cliques criam duas
    fichas. → o que impede é a nossa tabela: o `cust_…` é gravado na ida.
 
-5. **Não há chave de idempotência.** A Stripe aceita `idempotencyKey`; aqui não há nada
-   equivalente documentado. Dois cliques criam dois checkouts. O dano fica contido porque
-   `assinaturas` tem `tenant_id` como PK — o que sobra é alguém pagar duas vezes de
-   verdade, e isso é reembolso pelo painel.
+5. **A idempotência não é documentada, mas existe — e é o `externalId`.** Medido em
+   29/09/2026 no checkout avulso: o mesmo `externalId` devolve o mesmo checkout. No
+   recorrente o carimbo é o `tenantId` puro, então dois cliques dão no mesmo checkout de
+   assinatura também (não medido lá). No avulso, ver o ★ do topo: o carimbo tem data.
 
 ## O catálogo — o contrato com a conta da AbacatePay
 

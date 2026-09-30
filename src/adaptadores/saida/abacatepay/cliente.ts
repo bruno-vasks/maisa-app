@@ -71,15 +71,16 @@ const dorme = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function chamar<T>(
   caminho: `/${string}`,
-  init?: { metodo?: "GET" | "POST"; corpo?: unknown },
+  init?: { metodo?: "GET" | "POST"; corpo?: unknown; busca?: Record<string, string> },
 ): Promise<T> {
   if (!CHAVE) throw new NaoConfigurado(faltando());
 
   const url = new URL(`${BASE}${caminho}`);
-  /* Sem opção de query string: os cinco endpoints que esta integração usa não pedem
-   * nenhuma. Acrescentar um `busca?: Record<string, string>` "para quando precisar" seria
-   * parâmetro morto — e parâmetro morto num cliente de pagamento é onde alguém acaba
-   * passando um filtro que muda o que se cobra. Quando fizer falta, é uma linha. */
+  /* A query string entrou em 29/09/2026, e com os dois usos que a pediram: achar o produto
+   * por `externalId` (`/products/get`) e reler o pagamento na fonte (`/checkouts/get`).
+   * Só leitura — nenhum POST desta integração leva filtro, e é bom que continue assim: filtro
+   * num POST de pagamento é onde alguém acaba mudando o que se cobra. */
+  for (const [k, v] of Object.entries(init?.busca ?? {})) url.searchParams.set(k, v);
 
   const metodo = init?.metodo ?? (init?.corpo === undefined ? "GET" : "POST");
 

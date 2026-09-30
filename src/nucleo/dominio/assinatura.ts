@@ -20,6 +20,8 @@
  * reprova se as chaves divergirem — garantia por teste, não por boa vontade.
  * ────────────────────────────────────────────────────────────────────────────── */
 
+import { diaDoMes, diasEntre, diasNoMes, ehDataCivil, mesDe, rotuloDia, somarMeses } from "./tempo";
+
 /** Os três planos. Mesma chave usada em `_lib/planos.ts` e no `metadata.plano` do provedor. */
 export type ChaveDePlano = "essencial" | "profissional" | "escala";
 
@@ -178,7 +180,13 @@ export function statusDaAbacatePay(e: {
   }
 }
 
-/** Esta assinatura dá direito a usar o produto hoje? */
+/**
+ * O STATUS dá direito a usar o produto? Só o status — a data fica com `acessoLiberado`.
+ *
+ * ⚠️ NÃO É A PERGUNTA DO CORTE. Um trial que acabou há um mês continua `trial` na tabela
+ * (ninguém reescreve a linha quando o prazo passa), e esta função diria "liberada". Quem
+ * decide se a MAISA responde hoje é `acessoLiberado`, que olha o status E o fim do período.
+ */
 export function liberada(a: Pick<Assinatura, "status">): boolean {
   return a.status === "trial" || a.status === "ativa";
 }
@@ -209,5 +217,200 @@ export function diasDoCiclo(frequency: string): number | null {
        * Um default de 30 dias inventaria uma data de cobrança para um ciclo que ninguém
        * leu ainda. */
       return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ O PRÉ-PAGO — cada Pix compra um mês (29/09/2026).
+ *
+ * A recorrência da AbacatePay está bloqueada na conta: Pix Automático e cartão, medidos em
+ * produção em 29/09/2026 (ver `saida/abacatepay/LEIA-ME.md`). O Pix AVULSO cobra. Então o mês
+ * passou a ser vendido como um pacote: a pessoa paga, ganha um mês de calendário, e antes de
+ * acabar recebe o aviso para pagar o próximo. Decisão do Bruno no mesmo dia.
+ *
+ * Isso muda quem guarda o relógio. Na assinatura recorrente o provedor cobra sozinho e avisa
+ * por webhook quando falha. Aqui ninguém cobra sozinho: o fim do período é a única verdade, e
+ * ela mora na nossa tabela (`periodo_fim`). Por isso as funções abaixo são domínio, e não
+ * detalhe de adaptador — são elas que decidem se a MAISA responde hoje.
+ *
+ * Todas recebem `hoje` como argumento (`YYYY-MM-DD` de São Paulo, ver `tempo.ts`). Quem sabe
+ * que dia é hoje é quem chama; é o que torna o corte testável sem mexer no relógio.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+type Vigencia = Pick<Assinatura, "status" | "trialFim" | "periodoFim">;
+
+/**
+ * O último dia em que este negócio pode usar a MAISA. `null` = não há data para cortar.
+ *
+ * O dia é INCLUSIVO: `periodoFim = 2026-10-30` quer dizer que no dia 30 ela ainda responde, e
+ * no 31 não. É o mesmo dia em que o aviso diz "vence hoje".
+ */
+export function fimDoAcesso(a: Vigencia): string | null {
+  if (a.status === "trial") return a.trialFim;
+  if (a.status === "ativa") return a.periodoFim;
+  return null;
+}
+
+/**
+ * ★ Esta assinatura dá direito a usar a MAISA HOJE? É a pergunta do corte.
+ *
+ * `liberada` olha só o status. Esta olha também a data, porque no pré-pago o status não
+ * muda sozinho: quem pagou em setembro continua `ativa` na tabela em novembro, e só o
+ * `periodoFim` sabe que acabou.
+ *
+ * ⚠️ SEM DATA, NÃO CORTA. `ativa` com `periodoFim` nulo é o que a Stripe grava quando o item
+ * da assinatura não traz o fim do período, e trial sem `trialFim` é linha semeada à mão.
+ * Cortar ali seria calar um cliente que paga por falta de um campo que nunca esteve lá. O
+ * caso restritivo continua sendo o do STATUS: `inadimplente` e `cancelada` não passam.
+ */
+export function acessoLiberado(a: Vigencia, hoje: string): boolean {
+  if (!liberada(a)) return false;
+  const fim = fimDoAcesso(a);
+  if (!fim || !ehDataCivil(fim)) return true;
+  return hoje <= fim;
+}
+
+/** Quantos dias faltam para o acesso acabar. `0` = hoje é o último dia; negativo = acabou. */
+export function diasParaVencer(a: Vigencia, hoje: string): number | null {
+  const fim = fimDoAcesso(a);
+  if (!liberada(a) || !fim || !ehDataCivil(fim)) return null;
+  return diasEntre(hoje, fim);
+}
+
+/**
+ * A mesma data, um mês de calendário depois. `2026-01-31` → `2026-02-28`.
+ *
+ * Mês de calendário e não 30 dias, ao contrário de `diasDoCiclo`: aqui a data é a que corta o
+ * acesso, e não um texto de orientação. Pagar no dia 10 e vencer no dia 9 do mês seguinte
+ * seria cobrar 12 meses e entregar menos. O dia que não existe no mês seguinte cai no último.
+ */
+export function somarUmMes(data: string): string {
+  const anoMes = somarMeses(mesDe(data), 1);
+  const dia = Math.min(diaDoMes(data), diasNoMes(anoMes));
+  return `${anoMes}-${String(dia).padStart(2, "0")}`;
+}
+
+/**
+ * Esta linha é pré-paga, ou seja, alguém TEM de pagar antes de acabar?
+ *
+ * Trial é, por definição: ninguém pagou nada, e o fim do teste é o primeiro vencimento. `ativa`
+ * sem `assinaturaId` também: é um mês comprado por Pix avulso, sem assinatura no provedor que
+ * cobre sozinha. Quem tem assinatura recorrente (Stripe, ou AbacatePay no dia em que liberar)
+ * NÃO recebe aviso de vencimento, porque o provedor cobra sem ninguém pedir. Mandar "pague até
+ * sexta" para quem tem débito automático é o jeito mais rápido de gerar pagamento em dobro.
+ */
+export function ehPrePaga(a: Pick<Assinatura, "status" | "assinaturaId">): boolean {
+  return a.status === "trial" || (a.status === "ativa" && !a.assinaturaId);
+}
+
+/**
+ * ★ Um pagamento avulso confirmado → a linha com mais um mês.
+ *
+ * A base é o fim do que já está pago, e não o dia do pagamento. Quem paga três dias antes de
+ * vencer não perde três dias, e quem paga atrasado começa a contar de hoje (os dias em que a
+ * MAISA ficou pausada não são cobrados).
+ *
+ * ⚠️ O TESTE GRÁTIS CONTINUA VALENDO. Quem paga no quinto dia de um teste de 14 ganha o mês a
+ * partir do fim do teste, não do dia do pagamento. É decisão: o funil da LP cobra na hora do
+ * cadastro, e sem isto pagar cedo seria perder o teste — o incentivo contrário ao que se quer.
+ *
+ * Não confere se o pagamento é repetido. Isso é da porta (`eventoJaVisto`), e o caso de uso
+ * faz antes de chamar aqui: esta função sempre soma, e somar duas vezes é dar dois meses.
+ */
+export function creditarUmMes(
+  atual: Assinatura | null,
+  p: {
+    hoje: string;
+    plano: string;
+    /** Em reais, o que o provedor cobrou. */
+    preco: number;
+    provedor: Provedor;
+    metodo: MetodoDePagamento | null;
+    clienteId: string | null;
+  },
+): Assinatura {
+  const fim = atual && acessoLiberado(atual, p.hoje) ? fimDoAcesso(atual) : null;
+  const base = fim && fim > p.hoje ? fim : p.hoje;
+
+  return {
+    plano: p.plano,
+    preco: p.preco,
+    moeda: "BRL",
+    status: "ativa",
+    provedor: p.provedor,
+    clienteId: p.clienteId ?? atual?.clienteId ?? null,
+    /* `null` de propósito: não existe assinatura no provedor, só pagamentos. É o que faz
+     * `ehPrePaga` reconhecer a linha, e o que impede a tela de oferecer um portal que não há. */
+    assinaturaId: null,
+    periodoFim: somarUmMes(base),
+    trialFim: atual?.trialFim ?? null,
+    metodo: p.metodo,
+    cartaoMarca: null,
+    cartaoFinal4: null,
+  };
+}
+
+/**
+ * O aviso que sai HOJE para este negócio, se sair algum.
+ *
+ * Quatro dias no calendário: três dias antes, um dia antes, no último dia e no dia seguinte
+ * (quando a MAISA já pausou). Nos outros dias, nada. A rotina roda uma vez por dia, então cada
+ * aviso sai uma vez, sem tabela de "já avisei" — se a rotina rodar duas vezes no mesmo dia, sai
+ * duas vezes, e o custo aceito é um e-mail repetido.
+ */
+export type AvisoDeVencimento =
+  | { tipo: "faltam"; dias: number; fim: string }
+  | { tipo: "vence_hoje"; fim: string }
+  | { tipo: "pausou"; fim: string };
+
+export function avisoDoDia(a: Assinatura, hoje: string): AvisoDeVencimento | null {
+  if (!ehPrePaga(a)) return null;
+  const fim = fimDoAcesso(a);
+  if (!fim || !ehDataCivil(fim)) return null;
+
+  const d = diasEntre(hoje, fim);
+  if (d === 3 || d === 1) return { tipo: "faltam", dias: d, fim };
+  if (d === 0) return { tipo: "vence_hoje", fim };
+  if (d === -1) return { tipo: "pausou", fim };
+  return null;
+}
+
+/**
+ * O e-mail do aviso, em texto. Puro, para o texto ser testado sem rede.
+ *
+ * ⚠️ NÃO DIZ O PREÇO. `assinaturas.preco` de quem está em teste é o `149.90` que o
+ * `005_provisionar.sql` semeou, valor de plano nenhum. O preço certo aparece na página de
+ * pagamento, que lê a fonte única. Um número errado num e-mail de cobrança é pior que número
+ * nenhum.
+ */
+export function textoDoAviso(
+  aviso: AvisoDeVencimento,
+  p: { negocio: string; emTeste: boolean; link: string },
+): { assunto: string; texto: string } {
+  const oQue = p.emTeste ? "Seu teste grátis da MAISA" : "O mês pago da sua MAISA";
+  const dia = rotuloDia(aviso.fim);
+  const pagar = `Para ela continuar respondendo seus clientes no WhatsApp, pague o próximo mês por Pix:\n${p.link}`;
+  const rodape = "\n\nSe você já pagou, pode ignorar este e-mail: a confirmação chega em alguns minutos.";
+
+  switch (aviso.tipo) {
+    case "faltam": {
+      const quando = aviso.dias === 1 ? "amanhã" : `em ${aviso.dias} dias`;
+      return {
+        assunto: `Sua MAISA vence ${quando}`,
+        texto: `Oi! ${oQue} (${p.negocio}) vai até ${dia}.\n\n${pagar}${rodape}`,
+      };
+    }
+    case "vence_hoje":
+      return {
+        assunto: "Sua MAISA vence hoje",
+        texto: `Oi! Hoje, ${dia}, é o último dia de ${p.emTeste ? "teste" : "acesso pago"} da MAISA do ${p.negocio}. `
+          + `A partir de amanhã ela para de responder até o pagamento entrar.\n\n${pagar}${rodape}`,
+      };
+    case "pausou":
+      return {
+        assunto: "Sua MAISA pausou",
+        texto: `Oi! A MAISA do ${p.negocio} parou de responder seus clientes: o acesso acabou em ${dia}.\n\n`
+          + `Pague por Pix e ela volta na hora, sem perder nada do que você configurou:\n${p.link}${rodape}`,
+      };
   }
 }

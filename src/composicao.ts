@@ -43,16 +43,24 @@ import { assinaturasDemo, cobrancaDemo } from "@/adaptadores/saida/demo/assinatu
 import { cobrancaStripe } from "@/adaptadores/saida/stripe/cobranca-stripe";
 import { estaConfigurado as isStripeConfigured } from "@/adaptadores/saida/stripe/config";
 import { cobrancaAbacatePay } from "@/adaptadores/saida/abacatepay/cobranca-abacatepay";
+import { cobrancaAbacatePayAvulsa } from "@/adaptadores/saida/abacatepay/cobranca-avulsa";
 import {
+  MODO as abacateModo,
   mundo as abacateMundo,
   estaConfigurado as isAbacateConfigured,
 } from "@/adaptadores/saida/abacatepay/config";
+import { correioResend } from "@/adaptadores/saida/resend/correio-resend";
+import { estaConfigurado as isResendConfigured } from "@/adaptadores/saida/resend/config";
+import { correioDemo } from "@/adaptadores/saida/demo/correio";
 import {
   criarAbrirCheckout,
   criarAbrirPortalDeCobranca,
+  criarAcessoDoNegocio,
+  criarAvisarVencimentos,
   criarCancelarAssinatura,
   criarLerAssinatura,
   criarRegistrarAssinatura,
+  criarRegistrarPagamentoAvulso,
 } from "@/nucleo/aplicacao/assinatura";
 import { ativacaoDemo } from "@/adaptadores/saida/demo/ativacao";
 import { criarProvisionarNegocio } from "@/nucleo/aplicacao/provisionar";
@@ -272,11 +280,20 @@ const assinaturas = isSupabaseConfigured ? assinaturasSupabase : assinaturasDemo
  * dela continua no ar por isso — é o motivo de `/api/stripe/webhook` não ter sido
  * apagado. O que muda é para onde vão os checkouts NOVOS.
  */
+/* ★ E DENTRO DA ABACATEPAY, QUAL DOS DOIS MODOS (29/09/2026). O padrão é o PRÉ-PAGO — um Pix
+ * por mês — porque a recorrência da conta está bloqueada (Pix Automático e cartão, medidos em
+ * produção nesse dia). `ABACATEPAY_COBRANCA=assinatura` volta para o recorrente no dia em que a
+ * sonda passar. Ver `saida/abacatepay/config.ts`, `MODO`. */
 const cobranca = isAbacateConfigured
-  ? cobrancaAbacatePay
+  ? (abacateModo === "assinatura" ? cobrancaAbacatePay : cobrancaAbacatePayAvulsa)
   : isStripeConfigured
     ? cobrancaStripe
     : cobrancaDemo;
+
+/* O e-mail dos avisos de vencimento. Sem `RESEND_API_KEY`, o demo escreve no log o que teria
+ * mandado. ⚠️ O `.env.local` tem a chave e aponta para o banco de produção: a rotina chamada à
+ * mão no local manda e-mail de verdade. Ver `saida/resend/LEIA-ME.md`. */
+const correio = isResendConfigured ? correioResend : correioDemo;
 
 /** Vai para a coluna `assinaturas.provedor` no primeiro checkout de cada inquilino. */
 const provedorDeCobranca = isAbacateConfigured ? "abacatepay" as const : "stripe" as const;
@@ -765,6 +782,20 @@ export const app = {
   /* ★ A ÚNICA ESCRITA EM `assinaturas` DO PRODUTO INTEIRO. Chamada só pelos webhooks, e
    * só depois de o segredo conferir. Ver `entrada/stripe/` e `entrada/abacatepay/`. */
   registrarAssinatura: criarRegistrarAssinatura({ assinaturas }),
+
+  /* ── O PRÉ-PAGO (29/09/2026) ──
+   * O pagamento avulso soma um mês; o acesso é perguntado pelo webhook do WhatsApp antes de
+   * gastar token; os avisos saem uma vez por dia. Ver o cabeçalho do pré-pago em
+   * `dominio/assinatura.ts`. */
+  registrarPagamentoAvulso: criarRegistrarPagamentoAvulso({ assinaturas, provedor: provedorDeCobranca }),
+  acessoDoNegocio: criarAcessoDoNegocio({ assinaturas }),
+  /* `/?tela=mais` é a tela do plano: a mesma volta do checkout, ver `VOLTA` em
+   * `api/assinatura/route.ts`. Absoluta porque é lida num cliente de e-mail. */
+  avisarVencimentos: criarAvisarVencimentos({
+    assinaturas,
+    correio,
+    linkDePagamento: `${URL_CANONICA || "https://app.maisasecretary.com.br"}/?tela=mais`,
+  }),
 };
 
 /** O repositório de assinaturas, cru — o webhook precisa do reverso por cliente, que

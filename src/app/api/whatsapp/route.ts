@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { agenteConfigurado, agenteWhatsapp } from "@/composicao";
+import { agenteConfigurado, agenteWhatsapp, app } from "@/composicao";
+import { hojeISO } from "@/nucleo/dominio/tempo";
+import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { contextoDaMensagem, normalizar, numeroPermitido, SEGREDO } from "@/adaptadores/entrada/whatsapp/contexto";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +122,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignorado: true, motivo: "numero_nao_liberado" });
   }
 
+  /* ── 5. o negócio está em dia? (29/09/2026) ──
+   * ★ É AQUI QUE O PRÉ-PAGO CORTA. Venceu o mês pago (ou o teste), a MAISA para de responder
+   * os clientes daquele negócio até o próximo Pix entrar — e volta sozinha quando entra,
+   * porque a pergunta é refeita a cada mensagem. Antes do agente pelo mesmo motivo da lista
+   * acima: depois do primeiro token, a checagem não economiza nada.
+   *
+   * SILÊNCIO, como a lista, e pelo mesmo motivo: a MAISA dizer "meu dono não pagou" para o
+   * cliente dele seria a pior mensagem possível. O dono recebe o aviso por e-mail, e o cliente
+   * vê o WhatsApp como se o dono ainda não tivesse lido — que, sem a MAISA, é a verdade. */
+  if (!(await emDia(resolucao.tenant))) {
+    console.warn(`[api/whatsapp] ${resolucao.tenant.tenantId}: assinatura vencida — a MAISA não responde.`);
+    return NextResponse.json({ ok: true, ignorado: true, motivo: "assinatura_vencida" });
+  }
+
   try {
     const resposta = await agenteWhatsapp()(resolucao.tenant, { de: envelope.de, texto: envelope.texto, jid: envelope.jid });
 
@@ -132,5 +148,22 @@ export async function POST(request: Request) {
      * loop pelo provedor viraria a mesma falha N vezes, cobrando token a cada volta. */
     console.error("[api/whatsapp] falha ao responder", e);
     return NextResponse.json({ ok: false, erro: "falha_interna" }, { status: 200 });
+  }
+}
+
+/**
+ * O negócio pode usar a MAISA hoje?
+ *
+ * ⚠️ FALHA ABERTA, e é o contrário do resto desta rota de propósito. Se a leitura da
+ * assinatura falhar (banco fora, service role faltando), a MAISA RESPONDE. Calar o cliente de
+ * quem pagou por um defeito nosso custa o cliente; responder um dia a mais para quem venceu
+ * custa um dia de MAISA. O erro vai para o log, que é onde se descobre o defeito.
+ */
+async function emDia(t: ContextoTenant): Promise<boolean> {
+  try {
+    return (await app.acessoDoNegocio(t, hojeISO())).liberado;
+  } catch (e) {
+    console.error(`[api/whatsapp] não consegui ler a assinatura de ${t.tenantId} — respondendo mesmo assim`, e);
+    return true;
   }
 }

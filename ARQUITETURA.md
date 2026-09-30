@@ -72,6 +72,7 @@ code/
     │       ├── evolution/      ..... WhatsApp: por onde a MAISA FALA
     │       ├── gemini/         ..... o modelo que responde HOJE (chave de teste)
     │       ├── anthropic/      ..... o outro modelo — troca em 1 linha
+    │       ├── resend/         ..... e-mail: o aviso de vencimento do pré-pago
     │       ├── supabase/       ..... auth, sessão, cliente do banco
     │       └── demo/           ..... fixtures em memória (cadastro, agenda, memória)
     │
@@ -279,6 +280,7 @@ Honestidade sobre o estado real, para ninguém achar que está mais pronto do qu
 | `src/adaptadores/saida/focus/` | [.../saida/focus/LEIA-ME.md](src/adaptadores/saida/focus/LEIA-ME.md) |
 | `src/adaptadores/saida/stripe/` | [.../saida/stripe/LEIA-ME.md](src/adaptadores/saida/stripe/LEIA-ME.md) |
 | `src/adaptadores/saida/abacatepay/` | [.../saida/abacatepay/LEIA-ME.md](src/adaptadores/saida/abacatepay/LEIA-ME.md) |
+| `src/adaptadores/saida/resend/` | [.../saida/resend/LEIA-ME.md](src/adaptadores/saida/resend/LEIA-ME.md) |
 | `src/adaptadores/saida/evolution/` | [.../saida/evolution/LEIA-ME.md](src/adaptadores/saida/evolution/LEIA-ME.md) |
 | `src/adaptadores/saida/rebots/` | [.../saida/rebots/LEIA-ME.md](src/adaptadores/saida/rebots/LEIA-ME.md) |
 | `src/adaptadores/saida/gemini/` | [.../saida/gemini/LEIA-ME.md](src/adaptadores/saida/gemini/LEIA-ME.md) |

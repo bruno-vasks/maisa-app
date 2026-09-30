@@ -13,6 +13,9 @@
  * hospedado dela, a AbacatePay não tem portal e cancela por API. A tela pergunta
  * `capacidades()` antes de desenhar o botão — ver `portas/saida/cobranca.ts`.
  *
+ * E, desde 29/09/2026, os três do PRÉ-PAGO no fim do arquivo (`registrarPagamentoAvulso`,
+ * `acessoDoNegocio`, `avisarVencimentos`): cada Pix compra um mês, e o corte vem da data.
+ *
  * O terceiro é o que decide o desenho. Ele não pode confiar em nada que veio no pedido —
  * o pedido é um POST de um servidor que não é nosso. O que o torna confiável é a
  * assinatura criptográfica conferida no adaptador de entrada ANTES de chegar aqui.
@@ -21,16 +24,23 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { DadoInvalido, NaoEncontrado } from "../dominio/erros";
-import { ehChaveDePlano } from "../dominio/assinatura";
+import {
+  acessoLiberado, avisoDoDia, creditarUmMes, ehChaveDePlano, fimDoAcesso, textoDoAviso,
+} from "../dominio/assinatura";
 import type { Assinatura, Provedor } from "../dominio/assinatura";
 import type {
   AbrirCheckout,
   AbrirPortalDeCobranca,
+  AcessoDoNegocio,
+  AvisarVencimentos,
   CancelarAssinatura,
   LerAssinatura,
   RegistrarAssinatura,
+  RegistrarPagamentoAvulso,
+  ResultadoDosAvisos,
 } from "../portas/entrada/casos-de-uso";
 import type { Cobranca } from "../portas/saida/cobranca";
+import type { Correio } from "../portas/saida/correio";
 import type { RepositorioAssinaturas } from "../portas/saida/repositorio-assinaturas";
 
 export function criarAbrirCheckout(deps: {
@@ -147,5 +157,106 @@ export function criarRegistrarAssinatura(deps: {
 }): RegistrarAssinatura {
   return async (t, a: Assinatura) => {
     await deps.assinaturas.gravar(t, a);
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O PRÉ-PAGO (29/09/2026) — cada Pix compra um mês. As regras estão em `dominio/assinatura.ts`;
+ * aqui fica só a ordem das coisas.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * ★ Um Pix confirmado soma um mês.
+ *
+ * ⚠️ A ORDEM É A MESMA DO WEBHOOK RECORRENTE, E PELO MESMO MOTIVO: confere se já viu, grava,
+ * e só então marca. Marcar antes e falhar no meio deixaria o pagamento como visto com a linha
+ * no estado antigo — e a reentrega, que existe para salvar esse caso, seria descartada. A
+ * pessoa pagou e a MAISA seguiria pausada.
+ *
+ * ⚠️ JANELA ACEITA: duas entregas SIMULTÂNEAS do mesmo pagamento passam as duas pelo
+ * `eventoJaVisto` antes de qualquer uma marcar, e somam dois meses. Exige a reentrega deles
+ * chegar enquanto a primeira ainda está sendo gravada — a primeira reentrega é 5s depois, e a
+ * gravação leva milissegundos. O erro, se acontecer, é um mês a favor do cliente.
+ */
+export function criarRegistrarPagamentoAvulso(deps: {
+  assinaturas: RepositorioAssinaturas;
+  provedor: Provedor;
+}): RegistrarPagamentoAvulso {
+  return async (t, p) => {
+    if (await deps.assinaturas.eventoJaVisto(p.pagamentoId)) {
+      return { creditado: false, assinatura: null };
+    }
+
+    const atual = await deps.assinaturas.ler(t);
+    const nova = creditarUmMes(atual, {
+      hoje: p.hoje,
+      plano: p.plano,
+      preco: p.preco,
+      provedor: deps.provedor,
+      metodo: p.metodo,
+      clienteId: p.clienteId,
+    });
+
+    await deps.assinaturas.gravar(t, nova);
+    await deps.assinaturas.registrarEvento({
+      eventoId: p.pagamentoId,
+      provedor: deps.provedor,
+      tipo: "pagamento_avulso",
+      tenantId: t.tenantId,
+    });
+
+    return { creditado: true, assinatura: nova };
+  };
+}
+
+/**
+ * ★ Este negócio pode usar a MAISA hoje?
+ *
+ * Sem linha de assinatura, libera. Todo negócio nasce com uma (`005_provisionar.sql`), então a
+ * ausência é defeito nosso, e defeito nosso não cala o cliente de ninguém.
+ */
+export function criarAcessoDoNegocio(deps: { assinaturas: RepositorioAssinaturas }): AcessoDoNegocio {
+  return async (t, hoje) => {
+    const a = await deps.assinaturas.ler(t);
+    if (!a) return { liberado: true, fim: null };
+    return { liberado: acessoLiberado(a, hoje), fim: fimDoAcesso(a) };
+  };
+}
+
+/**
+ * ★ A rotina diária: manda o aviso de quem vence daqui a 3 dias, amanhã, hoje, ou venceu ontem.
+ *
+ * Não grava nada e não corta nada — ver o limite em `portas/entrada/casos-de-uso.ts`. Um e-mail
+ * que falhou é contado e a rodada segue; um negócio que falha não derruba o aviso dos outros.
+ */
+export function criarAvisarVencimentos(deps: {
+  assinaturas: RepositorioAssinaturas;
+  correio: Correio;
+  /** Para onde o e-mail manda pagar. Absoluta: é lida fora do app, no cliente de e-mail. */
+  linkDePagamento: string;
+}): AvisarVencimentos {
+  return async (hoje) => {
+    const r: ResultadoDosAvisos = { enviados: 0, semEmail: 0, falhas: [] };
+
+    for (const item of await deps.assinaturas.paraAvisar()) {
+      const aviso = avisoDoDia(item.assinatura, hoje);
+      if (!aviso) continue;
+      if (!item.email) { r.semEmail++; continue; }
+
+      const { assunto, texto } = textoDoAviso(aviso, {
+        negocio: item.negocio,
+        emTeste: item.assinatura.status === "trial",
+        link: deps.linkDePagamento,
+      });
+
+      try {
+        await deps.correio.enviar({ para: item.email, assunto, texto });
+        r.enviados++;
+      } catch (e) {
+        r.falhas.push({ tenantId: item.tenantId, motivo: String((e as Error)?.message ?? e) });
+      }
+    }
+
+    return r;
   };
 }

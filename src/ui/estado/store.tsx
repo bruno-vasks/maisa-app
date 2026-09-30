@@ -30,7 +30,10 @@ import type { Faturamento } from "@/nucleo/portas/entrada/casos-de-uso";
 /* Direto do arquivo, e não do barril `@/nucleo/dominio`: o barril não reexporta
  * `assinatura` (e o `PLANOS` dele colidiria de nome com o de `_lib/planos.ts`, que é
  * outra coisa — lá são os planos exibidos na LP, aqui são as chaves). */
-import { ehChaveDePlano, type Assinatura, type ChaveDePlano, type StatusAssinatura } from "@/nucleo/dominio/assinatura";
+import {
+  acessoLiberado, diasParaVencer, ehChaveDePlano, liberada, type Assinatura, type ChaveDePlano, type StatusAssinatura,
+} from "@/nucleo/dominio/assinatura";
+import { hojeISO } from "@/nucleo/dominio/tempo";
 
 /**
  * Uma linha da tela de Faturamento.
@@ -1177,6 +1180,15 @@ export type EstadoAssinatura = {
   assinatura: Assinatura | null;
   /** Os três planos com nome e preço, como `GET /api/assinatura` devolveu. */
   ofertas: Oferta[];
+  /**
+   * ★ O provedor ligado hoje vende o mês como pacote (29/09/2026)? Vem de `capacidades` do
+   * mesmo `GET`. Muda o que a gaveta oferece a quem está `ativa`: no pré-pago, pagar de novo
+   * soma um mês; num provedor recorrente, criaria uma segunda assinatura.
+   *
+   * Opcional para o estado inicial e para o payload antigo, e ausente conta como `false` — o
+   * lado que não oferece botão a mais.
+   */
+  prepago?: boolean;
 };
 
 /**
@@ -1251,7 +1263,7 @@ export type ResumoDaAssinatura = {
  * botão que pode cobrar o plano errado, e um "Gerenciar cobrança" sobre estado
  * desconhecido abre uma página em branco no provedor.
  */
-export function resumoDaAssinatura(e: EstadoAssinatura): ResumoDaAssinatura {
+export function resumoDaAssinatura(e: EstadoAssinatura, hoje: string = hojeISO()): ResumoDaAssinatura {
   const vazio = {
     linhas: [] as [string, string][],
     assinar: null,
@@ -1300,20 +1312,71 @@ export function resumoDaAssinatura(e: EstadoAssinatura): ResumoDaAssinatura {
    * pior que botão ausente. Em trial ainda não existe assinatura lá. */
   const gerenciar = !!a.assinaturaId;
 
+  /* ★ O PRÉ-PAGO (29/09/2026). Uma linha `ativa` sem assinatura no provedor é um mês comprado
+   * por Pix avulso: ninguém cobra sozinho, e o fim do mês corta a MAISA. `vencida` é o status
+   * dizendo "liberada" e a data dizendo que não — o caso que a tabela sozinha não mostra,
+   * porque ninguém reescreve a linha quando o prazo passa. */
+  const prePaga = a.status === "ativa" ? !a.assinaturaId && e.prepago === true : false;
+  const vencida = liberada(a) && !acessoLiberado(a, hoje);
+  const dias = diasParaVencer(a, hoje);
+  const perto = !vencida && dias !== null && dias <= 3;
+  const quando = dias === 0 ? "hoje" : dias === 1 ? "amanhã" : `em ${dias} dias`;
+
+  const forma = a.metodo === "pix"
+    ? (prePaga ? "Pix, mês a mês" : "Pix")
+    : a.cartaoMarca && a.cartaoFinal4 ? `${a.cartaoMarca} final ${a.cartaoFinal4}` : "nenhuma ainda";
+
   const linhas: [string, string][] = [
     ["Plano", a.plano],
-    ["Situação", SITUACAO[a.status]],
-    a.status === "trial" ? ["Teste até", data(a.trialFim)] : ["Próxima cobrança", data(a.periodoFim)],
+    ["Situação", vencida ? "Pausada" : SITUACAO[a.status]],
+    a.status === "trial"
+      ? ["Teste até", data(a.trialFim)]
+      : [prePaga ? "Pago até" : "Próxima cobrança", data(a.periodoFim)],
     /* O preço COBRADO, que o webhook gravou — não o da landing page. Enquanto ninguém
      * pagou ele é `null`, e "—" é a resposta honesta. Ver `dominio/assinatura.ts`. */
     ["Valor", a.preco === null ? "—" : fmt(a.preco)],
-    ["Forma de pagamento", a.cartaoMarca && a.cartaoFinal4 ? `${a.cartaoMarca} final ${a.cartaoFinal4}` : "nenhuma ainda"],
+    ["Forma de pagamento", forma],
   ];
 
   switch (a.status) {
     case "trial":
-      return { sub: `em teste até ${data(a.trialFim)}`, linhas, aviso: null, assinar, outras, gerenciar };
+      if (vencida) {
+        return {
+          sub: "teste encerrado", linhas,
+          aviso: { texto: `Seu teste acabou em ${data(a.trialFim)} e a MAISA está pausada: ela não responde seus clientes até você assinar.`, tone: "danger" },
+          assinar, outras, gerenciar,
+        };
+      }
+      return {
+        sub: `em teste até ${data(a.trialFim)}`, linhas,
+        aviso: perto
+          ? { texto: `Seu teste acaba ${quando}. Assine agora e o mês pago só começa quando o teste terminar.`, tone: "warn" }
+          : null,
+        assinar, outras, gerenciar,
+      };
     case "ativa":
+      if (prePaga) {
+        /* ★ NO PRÉ-PAGO, QUEM JÁ PAGA PODE PAGAR DE NOVO — e é o único jeito de continuar.
+         * Pagar antes de vencer soma um mês a partir do fim do atual (`creditarUmMes`), então o
+         * botão fica sempre lá, e o aviso aparece quando falta pouco. A troca de plano também:
+         * pagar outro plano faz o próximo mês ser daquele plano. */
+        const pagar = assinar && {
+          plano: assinar.plano,
+          label: daLinha ? `Pagar mais um mês · ${daLinha.preco}` : "Pagar mais um mês",
+        };
+        return {
+          sub: vencida ? "pausada · falta pagar" : `paga até ${data(a.periodoFim)}`,
+          linhas,
+          aviso: vencida
+            ? { texto: `Seu mês pago acabou em ${data(a.periodoFim)} e a MAISA está pausada. Pague por Pix e ela volta na hora.`, tone: "danger" }
+            : perto
+              ? { texto: `Seu mês pago acaba ${quando}. Pague agora e o novo mês começa quando este terminar: você não perde nenhum dia.`, tone: "warn" }
+              : null,
+          assinar: pagar,
+          outras,
+          gerenciar: false,
+        };
+      }
       /* Sem "Assinar" e sem lista: ela já paga. Trocar de plano é assunto do portal, que
        * sabe fazer proração — oferecer a troca aqui criaria uma segunda assinatura. */
       return { sub: `ativa · ${a.plano}`, linhas, aviso: null, assinar: null, outras: [], gerenciar };
@@ -3978,7 +4041,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       /* Com prazo, como `/api/fiscal`: requisição pendurada deixaria `carregando` para
        * sempre, e `carregando` é o estado em que a gaveta não oferece botão nenhum. */
       const d = (await fetch("/api/assinatura", { cache: "no-store", signal: AbortSignal.timeout(15_000) })
-        .then((x) => x.json())) as { ok?: boolean; assinatura?: Assinatura | null; ofertas?: Oferta[] } | null;
+        .then((x) => x.json())) as {
+          ok?: boolean; assinatura?: Assinatura | null; ofertas?: Oferta[]; capacidades?: { prepago?: boolean };
+        } | null;
       if (!d?.ok) { setAssinatura((v) => ({ ...v, status: "erro" })); return; }
       /* `?? null` e não um objeto chutado: ver o ⚠️ de `EstadoAssinatura`. Ofertas vazias
        * não são erro — a gaveta só deixa de oferecer troca, e o botão do plano da linha
@@ -3987,6 +4052,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         status: "ok",
         assinatura: d.assinatura ?? null,
         ofertas: Array.isArray(d.ofertas) ? d.ofertas : [],
+        prepago: d.capacidades?.prepago === true,
       });
     } catch {
       setAssinatura((v) => ({ ...v, status: "erro" }));

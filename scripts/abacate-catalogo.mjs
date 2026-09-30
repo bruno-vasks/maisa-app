@@ -79,12 +79,18 @@ const EH_PRODUCAO = MUNDO === "producao";
  * arquivo como texto é feio e é certo: um `.mjs` não importa `.ts`, e o `planos.test.ts`
  * já usa exatamente esta técnica. */
 
+/* Os dois catálogos de `config.ts`: `CATALOGO` (assinatura, com `cycle`) e `CATALOGO_AVULSO`
+ * (um mês do pré-pago, SEM `cycle` — produto com ciclo num checkout avulso a loja entende como
+ * recorrência e recusa). Medido em 29/09/2026. */
+function blocoDe(cfg, nome) {
+  const bloco = cfg.match(new RegExp(`export const ${nome}\\b[^=]*=\\s*\\{([^}]+)\\}`))?.[1] ?? "";
+  return Object.fromEntries([...bloco.matchAll(/(\w+)\s*:\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]));
+}
+
 function doCodigo() {
   const cfg = readFileSync(join(RAIZ, "src/adaptadores/saida/abacatepay/config.ts"), "utf8");
-  const bloco = cfg.match(/export const CATALOGO[^=]*=\s*\{([^}]+)\}/)?.[1] ?? "";
-  const externos = Object.fromEntries(
-    [...bloco.matchAll(/(\w+)\s*:\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]),
-  );
+  const externos = blocoDe(cfg, "CATALOGO");
+  const avulsos = blocoDe(cfg, "CATALOGO_AVULSO");
 
   const lp = readFileSync(join(RAIZ, "src/app/(marketing)/_lib/planos.ts"), "utf8");
   const precos = Object.fromEntries(
@@ -100,15 +106,40 @@ function doCodigo() {
     process.exit(1);
   }
 
-  return planos.map((chave) => ({
-    chave,
-    externalId: externos[chave],
-    /* Centavos. É o que a API espera, em todo endpoint. */
-    price: precos[chave],
-    name: `MAISA ${chave[0].toUpperCase()}${chave.slice(1)}`,
-    currency: "BRL",
-    cycle: "MONTHLY",
-  }));
+  const nome = (chave) => `MAISA ${chave[0].toUpperCase()}${chave.slice(1)}`;
+  return [
+    ...planos.map((chave) => ({
+      chave,
+      externalId: externos[chave],
+      /* Centavos. É o que a API espera, em todo endpoint. */
+      price: precos[chave],
+      name: nome(chave),
+      currency: "BRL",
+      cycle: "MONTHLY",
+    })),
+    ...Object.keys(avulsos).map((chave) => ({
+      chave,
+      externalId: avulsos[chave],
+      price: precos[chave],
+      name: `${nome(chave)} — 1 mês`,
+      currency: "BRL",
+      /* ⚠️ SEM ciclo: é o mês avulso do pré-pago. Ver o cabeçalho de `blocoDe`. */
+      cycle: null,
+    })),
+  ];
+}
+
+/* ⚠️ POR `externalId`, E NÃO PELA LISTA. Medido em 29/09/2026: logo depois do `--aplicar`,
+ * `/products/list` sem parâmetro devolveu lista VAZIA por minutos (cache deles) com os
+ * produtos lá — e este script mandou "rode de novo com --aplicar", o que duplicaria o
+ * catálogo inteiro. A busca por `externalId` acha na hora. */
+async function produtoPorExterno(externalId) {
+  try {
+    return await api(`/products/get?externalId=${encodeURIComponent(externalId)}`);
+  } catch (e) {
+    if (/not found/i.test(String(e.message))) return null;
+    throw e;
+  }
 }
 
 /* ── o cliente HTTP, mínimo ─────────────────────────────────────────────────── */
@@ -154,8 +185,11 @@ async function main() {
   console.log(`loja: ${loja?.name ?? "(sem nome)"}\n`);
 
   /* ── 1. os produtos ── */
-  const existentes = await api("/products/list");
-  const porExterno = new Map((existentes ?? []).map((p) => [p.externalId, p]));
+  const porExterno = new Map();
+  for (const alvo of doCodigo()) {
+    const achado = await produtoPorExterno(alvo.externalId);
+    if (achado) porExterno.set(alvo.externalId, achado);
+  }
 
   let criados = 0;
   let divergentes = 0;
@@ -171,8 +205,9 @@ async function main() {
           name: alvo.name,
           price: alvo.price,
           currency: alvo.currency,
-          cycle: alvo.cycle,
+          ...(alvo.cycle ? { cycle: alvo.cycle } : {}),
         });
+        porExterno.set(alvo.externalId, novo);
         console.log(`  + criado  ${alvo.externalId}  R$ ${(alvo.price / 100).toFixed(2)}  → ${novo.id}`);
         criados++;
       } else {
@@ -186,8 +221,10 @@ async function main() {
     if (achado.price !== alvo.price) {
       problemas.push(`preço lá é R$ ${(achado.price / 100).toFixed(2)}, código diz R$ ${(alvo.price / 100).toFixed(2)}`);
     }
-    /* ⚠️ Produto sem ciclo não serve para assinatura, e o erro da API não diz isso. */
-    if (!achado.cycle) problemas.push("sem `cycle` — não serve para assinatura");
+    /* ⚠️ Produto sem ciclo não serve para assinatura, e o erro da API não diz isso. E o
+     * contrário também: produto COM ciclo no catálogo avulso vira recorrência. */
+    if (alvo.cycle && !achado.cycle) problemas.push("sem `cycle` — não serve para assinatura");
+    if (!alvo.cycle && achado.cycle) problemas.push(`com \`cycle\` ${achado.cycle} — não serve para o avulso`);
     if ((achado.status ?? "ACTIVE") !== "ACTIVE") problemas.push(`status ${achado.status}`);
 
     if (problemas.length) {
@@ -201,6 +238,8 @@ async function main() {
   /* ── 2. o webhook ── */
   console.log("\nWEBHOOK");
   const EVENTOS = [
+    /* ★ O pré-pago (29/09/2026): é por aqui que um Pix avulso pago soma um mês. */
+    "checkout.completed",
     "subscription.completed",
     "subscription.renewed",
     "subscription.cancelled",
@@ -217,26 +256,34 @@ async function main() {
     /* ⚠️ O SEGREDO VAI NO CAMPO `secret`, E ELES O DEVOLVEM NA QUERY STRING de cada POST.
      * Não é um HMAC secret — ver `entrada/abacatepay/LEIA-ME.md`. */
     const alvo = `${URL_PUBLICA.replace(/\/$/, "")}/api/abacatepay/webhook`;
-    const jaTem = (await api("/webhooks/list").catch(() => []))
-      ?.find((w) => w.endpoint?.startsWith(alvo));
+    /* ⚠️ A LISTA DELES É CACHEADA, e o cache ignora parâmetro que a API não conhece. Medido em
+     * 29/09/2026: logo depois de um `webhooks/create`, `?limit=50` e `?limit=50&t=<agora>`
+     * devolveram a lista VELHA, e `?limit=49` a nova. Um `limit` que muda a cada rodada é o que
+     * impede este script de não ver o webhook que acabou de criar — e de criá-lo de novo. */
+    const limite = 51 + Math.floor(Math.random() * 49);
+    const nossos = ((await api(`/webhooks/list?limit=${limite}`).catch(() => [])) ?? [])
+      .filter((w) => w.endpoint?.startsWith(alvo));
 
-    if (jaTem) {
-      const faltam = EVENTOS.filter((e) => !(jaTem.events ?? []).includes(e));
-      console.log(faltam.length
-        ? `  ! ${jaTem.id} existe, mas NÃO escuta: ${faltam.join(", ")}`
-        : `  ✓ ${jaTem.id} → ${alvo}`);
-      if (faltam.length) divergentes++;
+    /* Os eventos de TODOS os webhooks nossos somados: a API não tem `update`, então um evento
+     * novo entra como um segundo webhook para a mesma URL, e não substituindo o primeiro. */
+    const escutados = new Set(nossos.flatMap((w) => w.events ?? []));
+    const faltam = EVENTOS.filter((e) => !escutados.has(e));
+
+    for (const w of nossos) console.log(`  ✓ ${w.id} → ${(w.events ?? []).join(", ")}`);
+
+    if (!faltam.length && nossos.length) {
+      /* tudo escutado */
     } else if (APLICAR) {
       const novo = await api("/webhooks/create", {
-        name: "MAISA — assinaturas",
+        name: nossos.length ? "MAISA — eventos novos" : "MAISA — assinaturas",
         endpoint: alvo,
         secret: SEGREDO_WEBHOOK,
-        events: EVENTOS,
+        events: faltam,
       });
-      console.log(`  + criado  ${novo.id} → ${alvo}`);
+      console.log(`  + criado  ${novo.id} → ${faltam.join(", ")}`);
       criados++;
     } else {
-      console.log(`  · FALTA   ${alvo}`);
+      console.log(nossos.length ? `  · FALTA escutar: ${faltam.join(", ")}` : `  · FALTA   ${alvo}`);
       criados++;
     }
   }
@@ -286,6 +333,26 @@ async function main() {
            * available for this store" diz exatamente o que pedir. */
           const msg = String(e.message).split("—").pop().trim();
           console.log(`  ✗ ${metodos[0].padEnd(5)} recorrente bloqueado  (${msg})`);
+        }
+      }
+
+      /* ★ E O PRÉ-PAGO: um checkout avulso só com Pix, do produto sem ciclo. O `externalId`
+       * fixo faz a sonda reaproveitar o MESMO checkout a cada rodada — é chave de
+       * idempotência deles (29/09/2026) —, então rodar de novo não suja o painel. */
+      const avulso = porExterno.get("maisa-profissional-avulso");
+      if (avulso) {
+        try {
+          const r = await api("/checkouts/create", {
+            items: [{ id: avulso.id, quantity: 1 }],
+            methods: ["PIX"],
+            externalId: "sonda-de-capacidade-avulsa",
+            completionUrl: `${(URL_PUBLICA || "https://example.com").replace(/\/$/, "")}/sonda`,
+            returnUrl: `${(URL_PUBLICA || "https://example.com").replace(/\/$/, "")}/sonda`,
+          });
+          console.log(`  ✓ PIX   avulso LIBERADO      (checkout ${r.id}) — é o que o pré-pago usa`);
+        } catch (e) {
+          const msg = String(e.message).split("—").pop().trim();
+          console.log(`  ✗ PIX   avulso bloqueado     (${msg}) — ⚠️ o pré-pago NÃO cobra`);
         }
       }
 

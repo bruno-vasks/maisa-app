@@ -109,7 +109,7 @@ type Cliente = { id: string; email?: string };
  * segunda vez ele chega aqui em `p.clienteId` e nenhuma ficha nova nasce. É a mesma
  * proteção que a Stripe tem, deslocada para o nosso lado porque o lado deles não a dá.
  */
-async function clienteDoInquilino(t: ContextoTenant, p: PedidoDeCheckout): Promise<string | null> {
+export async function clienteDoInquilino(t: ContextoTenant, p: PedidoDeCheckout): Promise<string | null> {
   if (p.clienteId) return p.clienteId;
 
   /* Sem e-mail não há como criar cliente: `email` é o único campo obrigatório deles.
@@ -244,6 +244,9 @@ export const cobrancaAbacatePay: Cobranca = {
        * `LEIA-ME.md`. Não há endpoint documentado que responda "esta conta tem Pix
        * Automático?", então não há como medir isto em runtime. */
       pix: true,
+      /* Este é o modo RECORRENTE: a AbacatePay cobra sozinha a cada ciclo. O pré-pago é o
+       * irmão ao lado, `cobranca-avulsa.ts`. */
+      prepago: false,
     };
   },
 

@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { app, repositorioDeAssinaturas } from "@/composicao";
 import {
   assinaturaDoEvento,
+  ehPagamentoAvulso,
   ehRelevante,
+  idDoPagamentoAvulso,
+  lerPagamentoAvulso,
   pistasDeDono,
   verificar,
 } from "@/adaptadores/entrada/abacatepay/eventos";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
+import { hojeISO } from "@/nucleo/dominio/tempo";
 import { PLANOS } from "@/app/(marketing)/_lib/planos";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -100,6 +104,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, erro: "nao_autenticado" }, { status: 401 });
   }
 
+  /* ★ O PRÉ-PAGO (29/09/2026): um Pix avulso pago soma um mês. Caminho próprio, com releitura
+   * na fonte — ver o bloco do pré-pago no fim de `entrada/abacatepay/eventos.ts`. */
+  if (ehPagamentoAvulso(evento.evento)) return pagamentoAvulso(evento.evento, idDoPagamentoAvulso(evento));
+
   if (!ehRelevante(evento.evento)) {
     return NextResponse.json({ ok: true, ignorado: true, tipo: evento.evento });
   }
@@ -184,6 +192,68 @@ export async function POST(req: Request) {
     /* ★ 500 DE PROPÓSITO. Ver a tabela no cabeçalho: é a resposta que faz a AbacatePay
      * tentar de novo, e é a única chance de o pagamento não se perder. */
     console.error(`[api/abacatepay/webhook] falha ao processar ${evento.evento} (${evento.id})`, e);
+    return NextResponse.json({ ok: false, erro: "falha_interna" }, { status: 500 });
+  }
+}
+
+/**
+ * `checkout.completed` → um mês a mais para quem pagou.
+ *
+ * Do corpo do evento só sai o `bill_…`. O resto — se pagou, quanto, de quem é — vem da
+ * releitura na API. A tabela de status é a mesma do cabeçalho: falha nossa é 500 (a
+ * reentrega salva), o resto é 200.
+ */
+async function pagamentoAvulso(tipo: string, id: string | null) {
+  if (!id) {
+    console.warn(`[api/abacatepay/webhook] ${tipo} sem checkout.id — ignorado.`);
+    return NextResponse.json({ ok: true, ignorado: true, motivo: "sem_checkout" });
+  }
+
+  try {
+    const pg = await lerPagamentoAvulso(id);
+
+    /* O evento diz "pago" e a fonte não: ou é um POST forjado, ou o pagamento foi estornado
+     * no meio tempo. Nos dois casos, nada a somar. 200 para não reentregar o mesmo engano. */
+    if (!pg.pago) {
+      console.warn(`[api/abacatepay/webhook] ${id}: o evento diz pago, a API diz que não. Ignorado.`);
+      return NextResponse.json({ ok: true, ignorado: true, motivo: "nao_pago_na_fonte" });
+    }
+
+    /* Pagamento da conta que não é da MAISA (a conta é da Poli Júnior, e outros produtos podem
+     * cobrar por ela). Reconhecido, não é nosso. */
+    if (!pg.dono) {
+      console.warn(`[api/abacatepay/webhook] ${id}: pago, mas sem carimbo da MAISA. Ignorado.`);
+      return NextResponse.json({ ok: true, ignorado: true, motivo: "inquilino_desconhecido" });
+    }
+
+    /* ⚠️ ATOR `sistema`, pelo mesmo motivo do caminho da assinatura: é ele que destrava a
+     * escrita com service_role, e a RLS de `assinaturas` não deixa usuário logado gravar. */
+    const contexto: ContextoTenant = {
+      tenantId: pg.dono.tenantId,
+      usuarioId: "abacatepay",
+      ator: { tipo: "sistema", rotina: "abacatepay:webhook" },
+    };
+
+    const nome = PLANOS.find((p) => p.chave === pg.dono?.plano)?.nome ?? "Assinatura";
+    const r = await app.registrarPagamentoAvulso(contexto, {
+      pagamentoId: pg.pagamentoId,
+      plano: nome,
+      preco: pg.preco,
+      metodo: pg.metodo,
+      clienteId: pg.clienteId,
+      hoje: hojeISO(),
+    });
+
+    console.info(
+      `[api/abacatepay/webhook] ${tipo} ${id} → ${pg.dono.tenantId}: `
+        + (r.creditado ? `${nome} pago até ${r.assinatura?.periodoFim}` : "já creditado (reentrega)")
+        + (pg.devMode ? "  ⚠️ DEV MODE (pagamento simulado)" : ""),
+    );
+    return NextResponse.json({ ok: true, creditado: r.creditado, ate: r.assinatura?.periodoFim ?? null });
+  } catch (e) {
+    /* ★ 500: a releitura ou a escrita falharam, e a reentrega deles é a chance de o Pix pago
+     * não se perder. */
+    console.error(`[api/abacatepay/webhook] falha ao creditar ${id}`, e);
     return NextResponse.json({ ok: false, erro: "falha_interna" }, { status: 500 });
   }
 }

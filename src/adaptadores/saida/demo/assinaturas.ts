@@ -73,6 +73,12 @@ export const assinaturasDemo: RepositorioAssinaturas = {
   async registrarEvento(e) {
     eventosVistos.add(e.eventoId);
   },
+  async paraAvisar() {
+    /* Um negócio só, como o resto deste demo. `email: null` de propósito: a rotina de avisos
+     * rodando sem banco não pode mandar e-mail de verdade para ninguém, e sem destinatário ela
+     * conta o item como pulado — que é o que se quer ver no `/laboratorio`. */
+    return [{ tenantId: "demo", negocio: "Negócio de demonstração", email: null, assinatura: { ...estado } }];
+  },
   faltando: () => [],
 };
 
@@ -86,7 +92,9 @@ export const cobrancaDemo: Cobranca = {
        * e o que a tela precisa saber desenhar — "Pix" em vez de "Cartão final ····". Um
        * demo que só produz cartão deixaria o caminho de Pix sem nenhuma tela afinada. */
       provedor: "abacatepay",
-      assinaturaId: "subs_demo",
+      /* `null` porque o demo finge o PRÉ-PAGO, que é o modo em produção desde 29/09/2026: cada
+       * Pix compra um mês e não há assinatura no provedor. Ver `ehPrePaga` no domínio. */
+      assinaturaId: null,
       periodoFim: daquiUmMes(),
       trialFim: null,
       metodo: "pix",
@@ -104,9 +112,10 @@ export const cobrancaDemo: Cobranca = {
     estado = { ...estado, status: "cancelada" };
   },
   capacidades() {
-    /* Espelha a AbacatePay, pelo mesmo motivo do `metodo: "pix"` acima: é o conjunto de
-     * capacidades que a tela ainda não sabia desenhar. */
-    return { portal: false, cancelamento: true, pix: true };
+    /* Espelha a AbacatePay no PRÉ-PAGO, pelo mesmo motivo do `metodo: "pix"` acima: é o
+     * conjunto de capacidades que a tela ainda não sabia desenhar. Sem cancelamento porque não
+     * há assinatura para cancelar — quem não quer mais, não paga o mês seguinte. */
+    return { portal: false, cancelamento: false, pix: true, prepago: true };
   },
   faltando: () => [],
 };

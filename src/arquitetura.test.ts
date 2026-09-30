@@ -213,9 +213,14 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
    *     fila traz o inquilino dele, e o envio usa um `ContextoTenant` de ator `sistema`.
    *     Escrita em `portas/saida/fila-de-lembretes.ts`.
    *
-   * Uma terceira exceção não é impossível, mas é decisão de arquitetura: não a acrescente
-   * aqui sem escrever o limite no arquivo da porta, como estas duas fizeram. */
-  it("toda porta de entrada recebe ContextoTenant primeiro, menos o provisionamento", () => {
+   *   `AvisarVencimentos` .. (29/09/2026) A TERCEIRA, e pelo motivo da segunda: é a rotina
+   *     diária do pré-pago perguntando "quem vence hoje?" sobre todos os negócios. O limite
+   *     está escrito em `portas/entrada/casos-de-uso.ts`: ela só LÊ e manda e-mail ao dono —
+   *     não grava nada e não corta ninguém.
+   *
+   * Uma quarta exceção não é impossível, mas é decisão de arquitetura: não a acrescente
+   * aqui sem escrever o limite no arquivo da porta, como estas três fizeram. */
+  it("toda porta de entrada recebe ContextoTenant primeiro, menos o provisionamento e as rotinas", () => {
     const fonte = readFileSync(join(SRC, "nucleo", "portas", "entrada", "casos-de-uso.ts"), "utf8");
 
     /** O primeiro parâmetro de cada `export type X = (…)`, respeitando aninhamento. */
@@ -242,7 +247,7 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
       if (!primeiroParametro(abre).includes("ContextoTenant")) semContexto.push(m[1]);
     }
 
-    expect(semContexto.sort()).toEqual(["EnviarLembretes", "ProvisionarNegocio"]);
+    expect(semContexto.sort()).toEqual(["AvisarVencimentos", "EnviarLembretes", "ProvisionarNegocio"]);
   });
 });
 

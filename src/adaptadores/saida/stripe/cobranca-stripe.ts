@@ -131,6 +131,8 @@ export const cobrancaStripe: Cobranca = {
        * único, liquidação em BRL e por convite. Assinatura em conta BR é cartão ou boleto.
        * É a razão pela qual a AbacatePay entrou neste repositório. */
       pix: false,
+      /* Assinatura de verdade: a Stripe cobra sozinha todo mês. */
+      prepago: false,
     };
   },
 

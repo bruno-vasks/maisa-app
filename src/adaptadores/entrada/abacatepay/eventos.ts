@@ -92,6 +92,9 @@ import { diasDoCiclo, statusDaAbacatePay } from "@/nucleo/dominio/assinatura";
 import type { Assinatura } from "@/nucleo/dominio/assinatura";
 import { NaoConfigurado } from "@/nucleo/dominio/erros";
 import { SEGREDO_WEBHOOK, faltandoWebhook } from "@/adaptadores/saida/abacatepay/config";
+import { lerCarimbo } from "@/adaptadores/saida/abacatepay/carimbo";
+import { chamar } from "@/adaptadores/saida/abacatepay/cliente";
+import type { ChaveDePlano, MetodoDePagamento } from "@/nucleo/dominio/assinatura";
 
 /**
  * ⚠️ IMPORTA UM ADAPTADOR IRMÃO (`saida/abacatepay/config.ts`), e é a MESMA exceção
@@ -347,4 +350,80 @@ function proximaCobranca(sub: SubBruta): string | null {
   if (Number.isNaN(t)) return null;
 
   return new Date(t + dias * 864e5).toISOString().slice(0, 10);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ O PRÉ-PAGO (29/09/2026) — `checkout.completed`, e aqui a RELEITURA EXISTE.
+ *
+ * A decisão 2 do cabeçalho ("não existe releitura na fonte") vale para ASSINATURA. Para
+ * checkout avulso há `GET /checkouts/get?id=`, documentado e medido em produção em 29/09/2026.
+ * Então este caminho faz o que a Stripe faz: usa do corpo do evento só o id, e relê o resto na
+ * API com a nossa chave. Três coisas ficam de graça com isso:
+ *
+ *   · um POST forjado (se o `webhookSecret` vazar de um log) não inventa pagamento: o id tem de
+ *     ser de um checkout da NOSSA loja, e o status lido tem de ser `PAID`;
+ *   · o inquilino sai do `externalId` que NÓS gravamos na criação (ver `carimbo.ts`), relido —
+ *     não de um campo do corpo;
+ *   · a reentrega não soma de novo: a chave de idempotência é o `bill_…`, conferida no caso de
+ *     uso (`registrarPagamentoAvulso`).
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export function ehPagamentoAvulso(tipo: string): boolean {
+  return tipo === "checkout.completed";
+}
+
+/** O `bill_…` do evento. É a ÚNICA coisa que este caminho usa do corpo. */
+export function idDoPagamentoAvulso(v: Verificado): string | null {
+  const id = (v.data.checkout as { id?: unknown } | undefined)?.id;
+  return typeof id === "string" && id.startsWith("bill_") ? id : null;
+}
+
+type CheckoutRelido = {
+  id: string;
+  externalId?: string | null;
+  status?: string;
+  amount?: number;
+  paidAmount?: number | null;
+  methods?: string[];
+  customerId?: string | null;
+  devMode?: boolean;
+};
+
+export type PagamentoRelido = {
+  pagamentoId: string;
+  pago: boolean;
+  /** `null` = o checkout não é nosso (outro produto da conta, link criado no painel). */
+  dono: { tenantId: string; plano: ChaveDePlano } | null;
+  /** Em reais, o que foi pago. */
+  preco: number;
+  metodo: MetodoDePagamento | null;
+  clienteId: string | null;
+  devMode: boolean;
+};
+
+/**
+ * Relê o checkout na fonte e diz de quem é, se foi pago e quanto.
+ *
+ * Lança se a API não responder — e o webhook devolve 500, que é o que faz a AbacatePay tentar
+ * de novo. É o comportamento certo: sem a releitura não há como saber se o Pix caiu.
+ */
+export async function lerPagamentoAvulso(id: string): Promise<PagamentoRelido> {
+  const c = await chamar<CheckoutRelido>("/checkouts/get", { busca: { id } });
+
+  /* `paidAmount` é o que entrou; `amount` é o que foi pedido. Os dois só divergem com cupom,
+   * e o que a linha registra é o cobrado de verdade. Centavos → reais, como tudo desta API. */
+  const centavos = typeof c.paidAmount === "number" ? c.paidAmount : c.amount ?? 0;
+  const metodos = (c.methods ?? []).map((m) => m.toUpperCase());
+
+  return {
+    pagamentoId: c.id,
+    pago: c.status === "PAID",
+    dono: lerCarimbo(c.externalId),
+    preco: centavos / 100,
+    /* O checkout avulso é criado só com Pix (ver `cobranca-avulsa.ts`); o cartão aparece aqui
+     * no dia em que ele entrar na lista. */
+    metodo: metodos.length === 1 && metodos[0] === "CARD" ? "cartao" : metodos.includes("PIX") ? "pix" : null,
+    clienteId: c.customerId ?? null,
+    devMode: c.devMode === true,
+  };
 }

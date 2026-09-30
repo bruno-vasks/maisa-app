@@ -15,8 +15,34 @@
 import type { Assinatura, Provedor } from "../../dominio/assinatura";
 import type { ContextoTenant } from "../../dominio/tenant";
 
+/**
+ * Um negócio que a rotina de avisos precisa olhar, com o que ela precisa para escrever.
+ *
+ * `email` é o do DONO (`membros.papel = 'dono'`), porque é quem paga. `null` quando o negócio
+ * não tem dono com e-mail — a rotina pula e conta, em vez de chutar outro membro.
+ */
+export type ParaAvisar = {
+  tenantId: string;
+  negocio: string;
+  email: string | null;
+  assinatura: Assinatura;
+};
+
 export interface RepositorioAssinaturas {
   ler(t: ContextoTenant): Promise<Assinatura | null>;
+
+  /**
+   * ★ Todo negócio cuja assinatura pode vencer: `trial` e `ativa`. Usado só pela rotina diária
+   * de avisos (`avisarVencimentos`), que roda sem sessão e sem dono — ninguém a chama de uma
+   * tela.
+   *
+   * ⚠️ ATRAVESSA INQUILINOS, e é a terceira consulta deste repositório que faz isso (as outras
+   * são `tenantDoCliente` e `tenantDaAssinatura`). A pergunta é "quem vence esta semana?", e a
+   * resposta é sobre todos. O que a torna segura é não ter parâmetro: não há por onde pedir o
+   * inquilino de alguém. Cada item volta com o seu `tenantId`, e quem usa monta o contexto
+   * dele na linha seguinte — o mesmo arranjo da fila de lembretes.
+   */
+  paraAvisar(): Promise<ParaAvisar[]>;
 
   /**
    * ★ Grava SÓ o cliente do provedor, no momento em que o checkout abre.

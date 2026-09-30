@@ -104,6 +104,19 @@ export type CapacidadesDeCobranca = {
    * cartão ou boleto. É a razão de a AbacatePay existir neste código.
    */
   pix: boolean;
+  /**
+   * ★ Cada pagamento compra UM MÊS, e não existe assinatura no provedor (29/09/2026).
+   *
+   * É o modo da AbacatePay enquanto a recorrência da conta está bloqueada: Pix avulso, um de
+   * cada vez. Muda três coisas na tela, e é por isso que é capacidade e não detalhe:
+   *
+   *   · não há o que cancelar — quem não quer mais, só não paga o próximo mês;
+   *   · quem está `ativa` pode pagar de novo ANTES de vencer, e isso soma um mês em vez de
+   *     criar uma segunda assinatura (o risco que faz a tela esconder "Assinar" de quem já
+   *     paga num provedor recorrente);
+   *   · o "Próxima cobrança" vira "Pago até": ninguém vai cobrar sozinho.
+   */
+  prepago: boolean;
 };
 
 export interface Cobranca {

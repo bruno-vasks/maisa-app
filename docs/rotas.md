@@ -177,12 +177,19 @@ não é falha de requisição, é o app dizendo ao dono o que falta. Ver
 | `/api/assinatura/portal` | POST | `sessaoOuDemo` | `AbrirPortalDeCobranca` — trocar cartão, baixar fatura, cancelar. Separada da irmã porque é a operação destrutiva. **Só provedor com portal** (Stripe); na AbacatePay devolve **501** |
 | `/api/assinatura/cancelar` | POST | `sessaoOuDemo` | `CancelarAssinatura` — o caminho de quem **não** tem portal (AbacatePay). ⚠️ **imediato e irreversível**; na Stripe devolve **501** |
 | `/api/stripe/webhook` | POST | **assinatura HMAC** (`STRIPE_WEBHOOK_SECRET`) | `RegistrarAssinatura` — escrita em `assinaturas`. Continua no ar por quem assinou pela Stripe |
-| `/api/abacatepay/webhook` | POST | **segredo na query** (`ABACATEPAY_WEBHOOK_SECRET`) + HMAC | `RegistrarAssinatura` — o caminho do **Pix**. Ver o ⚠️ do HMAC abaixo |
+| `/api/abacatepay/webhook` | POST | **segredo na query** (`ABACATEPAY_WEBHOOK_SECRET`) + HMAC | `RegistrarAssinatura` — o caminho do **Pix**. Ver o ⚠️ do HMAC abaixo · `checkout.completed` → `RegistrarPagamentoAvulso`: **relê o pagamento na fonte** e soma um mês (pré-pago, 29/09/2026) |
+| `/api/rotinas/cobranca` | GET · POST | `CRON_SECRET` ou `ROTINAS_SECRET` | `AvisarVencimentos` — o cron da Vercel, 1×/dia às 9h. E-mail ao dono 3 dias antes, 1 dia antes, no dia e no dia seguinte ao vencimento. **Não corta ninguém**: o corte é do webhook do WhatsApp |
 
 ⚠️ **`/portal` e `/cancelar` são exclusivas entre si** — cada provedor tem UMA das duas. O
-`GET /api/assinatura` devolve `capacidades` (`{ portal, cancelamento, pix }`) e é por ele
+`GET /api/assinatura` devolve `capacidades` (`{ portal, cancelamento, pix, prepago }`) e é por ele
 que a tela decide qual botão desenhar. Desenhar os dois é como se acaba com um deles
-cancelando diferente do outro.
+cancelando diferente do outro. **No pré-pago nenhuma das duas existe**: não há assinatura no
+provedor, e quem não quer mais só não paga o mês seguinte (`/cancelar` devolve **501**).
+
+★ **O pré-pago corta no `/api/whatsapp`, não aqui.** Venceu o mês pago (ou o teste), a MAISA
+fica em silêncio até o próximo Pix entrar. A pergunta é refeita a cada mensagem, então o
+pagamento religa sozinho. Se a leitura da assinatura falhar, ela **responde** — falha aberta,
+de propósito: defeito nosso não cala o cliente de quem pagou.
 
 ⚠️ **200 no `POST /api/assinatura` significa "a página de pagamento existe", e nada mais.**
 Quem pagou, se pagou e quando pagou é assunto do webhook. Boleto leva um dia; a volta do

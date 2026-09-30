@@ -127,6 +127,42 @@ export const CATALOGO: Record<ChaveDePlano, string> = {
 };
 
 /**
+ * ★ Plano → `externalId` do produto AVULSO — um mês, sem `cycle` (29/09/2026).
+ *
+ * O catálogo de cima é o da ASSINATURA recorrente, e produto com `cycle` não serve para
+ * checkout avulso: pedido com ele e `methods: ["PIX"]` volta `PIX Automático is not available
+ * for this store`, porque a API entende que é recorrência. Medido em produção em 29/09/2026.
+ * Daí um segundo catálogo, com os mesmos preços e sem ciclo.
+ *
+ * Os preços em centavos batem com `_lib/planos.ts`, pelo mesmo `npm run abacate:catalogo` que
+ * cria os de cima.
+ */
+export const CATALOGO_AVULSO: Record<ChaveDePlano, string> = {
+  essencial: "maisa-essencial-avulso",
+  profissional: "maisa-profissional-avulso",
+  escala: "maisa-escala-avulso",
+};
+
+/**
+ * ★ Como a AbacatePay cobra: `avulsa` (um Pix por mês) ou `assinatura` (recorrente).
+ *
+ * ── POR QUE O PADRÃO É `avulsa` ──
+ *
+ * Porque é o único que funciona hoje. A loja foi aprovada para produção em 29/09/2026, mas
+ * Pix Automático e cartão recorrente seguem bloqueados — a sonda (`npm run abacate:catalogo --
+ * --sondar`) recusa os dois. O Pix avulso cobra: a primeira transação real da loja passou
+ * nesse dia.
+ *
+ * No dia em que a recorrência abrir, `ABACATEPAY_COBRANCA=assinatura` troca sem mexer no
+ * código. ⚠️ E ALGUÉM TEM DE DECIDIR O QUE FAZER COM QUEM JÁ PAGOU AVULSO: a linha dessa
+ * pessoa segue pré-paga até o fim do mês comprado, e a troca não a migra sozinha.
+ */
+export type ModoDeCobranca = "avulsa" | "assinatura";
+
+export const MODO: ModoDeCobranca =
+  limpa(process.env.ABACATEPAY_COBRANCA).toLowerCase() === "assinatura" ? "assinatura" : "avulsa";
+
+/**
  * Os métodos que o checkout de assinatura oferece.
  *
  * ── ★ ISTO FOI MEDIDO CONTRA A CONTA REAL EM 21/09/2026, E A MEDIÇÃO DERRUBOU A

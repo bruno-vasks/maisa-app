@@ -41,7 +41,8 @@ tela perde todo o CSS — parece bug do código, e não é.
 - Pôr guardrail em prompt quando ele cabe em código. Prompt é a camada mais fraca e não vale como garantia.
 - Deixar o modelo escolher `tenantId`, `maisaAg`, `comMeet` ou `convidarCliente`. Ficaram fora do schema das ferramentas por decisão, não por esquecimento.
 - Tratar o HMAC da AbacatePay como credencial. **A chave dele é pública, publicada na documentação deles** — qualquer pessoa assina um payload válido. Quem autentica o webhook é o `?webhookSecret=` da query string, conferido primeiro. Há teste.
-- Mandar `methods: ["PIX"]` sozinho no checkout da AbacatePay. Pix em assinatura depende de a conta ter PIX Automático habilitado; sem o recurso, o `create` recusa e **ninguém compra**. Os dois métodos juntos degradam para cartão em vez de fechar a loja. Há teste.
+- Pedir à AbacatePay um método de pagamento que a loja não tem habilitado. `methods` é **conjunção**, medido em 21 e 29/09/2026: um método ausente recusa o checkout inteiro e **ninguém compra** — os dois juntos não degradam para o que estiver ligado. O que a conta deixa cobrar se descobre com `npm run abacate:catalogo -- --sondar`, nunca por suposição.
+- Cortar o acesso de um negócio gravando status. No pré-pago o corte é **derivado da data** (`acessoLiberado`, no domínio) na hora em que a mensagem chega; uma rotina que grava "vencida" e não roda num dia deixaria de cortar, ou de religar quem pagou.
 - Marcar um evento de webhook como processado ANTES de gravar a assinatura. Falhar no meio deixaria o evento como visto com o estado antigo, e a reentrega — que existe para salvar esse caso — passaria a ser descartada. O pagamento se perde para sempre.
 
 **PERGUNTE ANTES**

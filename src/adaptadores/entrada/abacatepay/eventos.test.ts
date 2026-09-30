@@ -358,3 +358,73 @@ describe("assinaturaDoEvento", () => {
     expect(a.periodoFim).toBe("2099-01-08");
   });
 });
+
+/* ─────────────────────── o pré-pago (29/09/2026) ───────────────────────
+ * `checkout.completed`: do corpo só sai o `bill_…`, o resto é relido na fonte. O payload abaixo
+ * é o exemplo publicado em `docs.abacatepay.com/pages/webhooks/events/checkout`. */
+
+const T = "e53f6630-b266-435d-b777-7f0a99d94ce9";
+
+const CHECKOUT_PAGO = {
+  id: "log_chk_1",
+  event: "checkout.completed",
+  apiVersion: 2,
+  devMode: false,
+  data: {
+    checkout: {
+      id: "bill_abc123xyz",
+      /* ⚠️ Este campo do CORPO não é o que decide o inquilino. O teste de `lerPagamentoAvulso`
+       * abaixo prova que quem decide é o `externalId` relido. */
+      externalId: `maisa:${T}:profissional:2026-10-06`,
+      amount: 19700, paidAmount: 19700, status: "PAID", methods: ["PIX"], frequency: "ONE_TIME",
+    },
+    customer: { id: "cust_abc123" },
+    payerInformation: { method: "PIX", PIX: { isSameAsCustomer: true } },
+  },
+};
+
+describe("pré-pago — checkout.completed", () => {
+  it("é o evento do pagamento avulso, e o id sai do corpo", async () => {
+    const m = await comSegredo(SEGREDO);
+    const cru = JSON.stringify(CHECKOUT_PAGO);
+    const v = m.verificar(cru, { segredoDaUrl: SEGREDO, assinatura: assinar(cru) });
+    expect(m.ehPagamentoAvulso(v.evento)).toBe(true);
+    expect(m.idDoPagamentoAvulso(v)).toBe("bill_abc123xyz");
+    expect(m.ehPagamentoAvulso("subscription.completed")).toBe(false);
+  });
+
+  it("id que não é `bill_` não passa", async () => {
+    const m = await comSegredo(SEGREDO);
+    const v = { id: "log", evento: "checkout.completed", devMode: false, data: { checkout: { id: "pix_char_x" } } };
+    expect(m.idDoPagamentoAvulso(v)).toBeNull();
+  });
+
+  /* ★ A releitura: o inquilino, o status e o valor saem da API, não do corpo. */
+  it("relê na fonte: dono pelo carimbo relido, pago só se a API diz PAID", async () => {
+    vi.stubEnv("ABACATEPAY_API_KEY", "abc_prod_teste");
+    const m = await comSegredo(SEGREDO);
+    const chamadas: string[] = [];
+    vi.stubGlobal("fetch", async (url: URL) => {
+      chamadas.push(String(url));
+      return new Response(JSON.stringify({
+        success: true, error: null,
+        data: { id: "bill_abc123xyz", externalId: `maisa:${T}:escala:2026-10-06`, status: "PAID", amount: 39700, paidAmount: 39700, methods: ["PIX"], customerId: "cust_1" },
+      }), { status: 200 });
+    });
+
+    const pg = await m.lerPagamentoAvulso("bill_abc123xyz");
+    expect(chamadas[0]).toContain("/checkouts/get?id=bill_abc123xyz");
+    expect(pg).toMatchObject({ pagamentoId: "bill_abc123xyz", pago: true, preco: 397, metodo: "pix", dono: { tenantId: T, plano: "escala" } });
+    vi.unstubAllGlobals();
+  });
+
+  it("a API dizendo PENDING não credita, diga o evento o que disser", async () => {
+    vi.stubEnv("ABACATEPAY_API_KEY", "abc_prod_teste");
+    const m = await comSegredo(SEGREDO);
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({
+      success: true, error: null, data: { id: "bill_x", externalId: `maisa:${T}:profissional:2026-10-06`, status: "PENDING", amount: 19700, paidAmount: null },
+    }), { status: 200 }));
+    expect((await m.lerPagamentoAvulso("bill_x")).pago).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
