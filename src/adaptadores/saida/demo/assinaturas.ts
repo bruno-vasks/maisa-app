@@ -111,6 +111,10 @@ export const cobrancaDemo: Cobranca = {
      * ilusão do `abrirCheckout` acima, e o ⚠️ do cabeçalho vale igual. */
     estado = { ...estado, status: "cancelada" };
   },
+  /* O demo "paga" na hora (ver `abrirCheckout`), então não há Pix pendente para mostrar. */
+  async lerPagamento() {
+    return null;
+  },
   capacidades() {
     /* Espelha a AbacatePay no PRÉ-PAGO, pelo mesmo motivo do `metodo: "pix"` acima: é o
      * conjunto de capacidades que a tela ainda não sabia desenhar. Sem cancelamento porque não

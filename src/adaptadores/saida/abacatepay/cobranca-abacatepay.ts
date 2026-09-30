@@ -232,6 +232,12 @@ export const cobrancaAbacatePay: Cobranca = {
      * `subscription.cancelled`. Ver `criarCancelarAssinatura`. */
   },
 
+  /* O recorrente cobra no checkout hospedado deles. O Pix na nossa tela é do pré-pago,
+   * `cobranca-avulsa.ts`. */
+  async lerPagamento() {
+    return null;
+  },
+
   capacidades(): CapacidadesDeCobranca {
     return {
       /* Não tem. É a diferença que mais aparece na tela. */

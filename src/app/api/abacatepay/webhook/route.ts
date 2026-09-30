@@ -197,7 +197,7 @@ export async function POST(req: Request) {
 }
 
 /**
- * `checkout.completed` → um mês a mais para quem pagou.
+ * `transparent.completed` (o Pix de `/pagar`) ou `checkout.completed` → um mês a mais.
  *
  * Do corpo do evento só sai o `bill_…`. O resto — se pagou, quanto, de quem é — vem da
  * releitura na API. A tabela de status é a mesma do cabeçalho: falha nossa é 500 (a
@@ -205,8 +205,8 @@ export async function POST(req: Request) {
  */
 async function pagamentoAvulso(tipo: string, id: string | null) {
   if (!id) {
-    console.warn(`[api/abacatepay/webhook] ${tipo} sem checkout.id — ignorado.`);
-    return NextResponse.json({ ok: true, ignorado: true, motivo: "sem_checkout" });
+    console.warn(`[api/abacatepay/webhook] ${tipo} sem id de pagamento — ignorado.`);
+    return NextResponse.json({ ok: true, ignorado: true, motivo: "sem_pagamento" });
   }
 
   try {

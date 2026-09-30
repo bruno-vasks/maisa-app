@@ -120,6 +120,11 @@ export const cobrancaStripe: Cobranca = {
     );
   },
 
+  /* A Stripe cobra na página dela; não há Pix desenhado por nós. */
+  async lerPagamento() {
+    return null;
+  },
+
   capacidades(): CapacidadesDeCobranca {
     return {
       /* Billing Portal: troca de cartão, fatura e cancelamento, hospedado por eles. */

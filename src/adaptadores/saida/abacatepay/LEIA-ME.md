@@ -21,13 +21,40 @@ trilhos**, medido na conta de produção depois de o fundador deles ativar o car
 | `transparents/create` Pix de R$ 1 | ✅ **pago** — a primeira transação real da loja |
 
 Então o padrão virou o **pré-pago** (`ABACATEPAY_COBRANCA=avulsa`, que é o default):
-`cobranca-avulsa.ts` abre um checkout avulso do mês, o webhook `checkout.completed` soma um
-mês (`creditarUmMes`, no domínio), a rotina diária manda o aviso de vencimento por e-mail, e o
+`cobranca-avulsa.ts` cria um **Pix transparente** do mês e manda a pessoa para a NOSSA tela,
+`/pagar`, que desenha o QR Code e o copia-e-cola (desde 30/09/2026 — ver abaixo); o webhook
+`transparent.completed` soma um mês (`creditarUmMes`, no domínio), a rotina diária manda o aviso de vencimento por e-mail, e o
 webhook do WhatsApp deixa a MAISA em silêncio quando o mês acaba. Nada disso precisou de
 migração: o fim do mês é o `periodo_fim` que já existia.
 
 `cobranca-abacatepay.ts` (o recorrente) continua aqui, inteiro, para o dia em que a sonda
 passar. Trocar é `ABACATEPAY_COBRANCA=assinatura` + redeploy.
+
+### ★ Por que o Pix é desenhado por nós, e não pela página deles (30/09/2026)
+
+No primeiro dia o pré-pago mandava para `app.abacatepay.com/pay/bill_…`. A captura de tela
+dessa página mostrou **três etapas depois do nosso cadastro**: nome, CPF, e-mail e telefone
+(os dois últimos pela segunda vez), depois **endereço**, e só então o Pix. Doze campos em dois
+sites. O Pix transparente (`/transparents/create`) pede **só o valor** e devolve `brCode` e
+`brCodeBase64`. Medido em produção:
+
+| | Página hospedada (`checkouts/create`) | Pix transparente (`transparents/create`) |
+|---|---|---|
+| Campos que a pessoa preenche lá | nome, CPF, e-mail, telefone, endereço | **nenhum** |
+| Taxa por Pix pago | R$ 1,00 (`platformFee: 100`) | **R$ 0,80** (`platformFee: 80`) |
+| Onde vai o carimbo | `externalId` | `metadata.carimbo` — volta intacto em `GET /transparents/get` |
+| Releitura na fonte | `GET /checkouts/get` | `GET /transparents/get` |
+
+O preço do Pix vem do **produto avulso** do plano (`products/get?externalId=`), não de um
+número digitado aqui — o valor cobrado continua morando no provedor, e o `abacate:catalogo`
+confere que ele bate com `_lib/planos.ts`. O webhook aceita os dois eventos.
+
+⚠️ **O recebedor que o banco mostra é "POLI JUNIOR"**, o titular da conta. A tela `/pagar`
+avisa antes, porque a pessoa espera ler "maisa" e desiste achando que é golpe.
+
+⚠️ **O Pix transparente não tem idempotência por `externalId`.** Dois cliques criam dois Pix.
+Quem segura é a trava síncrona do botão; se os dois forem pagos, são dois meses — a favor do
+cliente, e sem estorno necessário.
 
 ### ⚠️ As três coisas medidas que desenharam o pré-pago
 
@@ -79,7 +106,7 @@ E custa na conversão, que é o lado que não aparece em planilha: Pix é como o
 | `config.ts` | As env vars, o `CATALOGO` (plano → `externalId`), `METODOS` e `mundo`. ⚠️ **Id de produto não é env var** — leia o cabeçalho antes de "simplificar" |
 | `cliente.ts` | `fetch` à mão, com retry, teto de 8s e o desembrulho do envelope. ⚠️ **erro vem com HTTP 200** |
 | `cobranca-abacatepay.ts` | O modo RECORRENTE: `abrirCheckout`, `cancelar`, `capacidades`. Resolve `externalId → prod_…` com cache de processo |
-| `cobranca-avulsa.ts` | ★ O PRÉ-PAGO (padrão desde 29/09/2026): checkout avulso de um mês, só Pix, sem cancelar nem portal |
+| `cobranca-avulsa.ts` | ★ O PRÉ-PAGO (padrão desde 29/09/2026): Pix transparente de um mês, desenhado em `/pagar` (30/09); `lerPagamento` relê e confere o carimbo; sem cancelar nem portal |
 | `carimbo.ts` | O `externalId` do checkout avulso — `maisa:<tenant>:<plano>:<dia>` — e a leitura de volta, que o webhook usa depois de reler na fonte |
 
 ## ⚠️ As cinco armadilhas desta API

@@ -428,3 +428,31 @@ describe("pré-pago — checkout.completed", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("pré-pago — transparent.completed (o Pix de /pagar, 30/09/2026)", () => {
+  it("é pagamento avulso, e o id sai de data.transparent", async () => {
+    const m = await comSegredo(SEGREDO);
+    const v = { id: "log", evento: "transparent.completed", devMode: false, data: { transparent: { id: "pix_char_abc" } } };
+    expect(m.ehPagamentoAvulso(v.evento)).toBe(true);
+    expect(m.idDoPagamentoAvulso(v)).toBe("pix_char_abc");
+    /* O exemplo publicado usa `char_…`; o real é `pix_char_…`. Os dois passam. */
+    expect(m.idDoPagamentoAvulso({ ...v, data: { transparent: { id: "char_xyz" } } })).toBe("char_xyz");
+  });
+
+  it("relê em /transparents/get e tira o dono do carimbo no metadata", async () => {
+    vi.stubEnv("ABACATEPAY_API_KEY", "abc_prod_teste");
+    const m = await comSegredo(SEGREDO);
+    const chamadas: string[] = [];
+    vi.stubGlobal("fetch", async (url: URL) => {
+      chamadas.push(String(url));
+      return new Response(JSON.stringify({
+        success: true, error: null,
+        data: { id: "pix_char_abc", status: "PAID", amount: 19700, metadata: { carimbo: `maisa:${T}:profissional:2026-09-30` } },
+      }), { status: 200 });
+    });
+    const pg = await m.lerPagamentoAvulso("pix_char_abc");
+    expect(chamadas[0]).toContain("/transparents/get?id=pix_char_abc");
+    expect(pg).toMatchObject({ pago: true, preco: 197, metodo: "pix", dono: { tenantId: T, plano: "profissional" } });
+    vi.unstubAllGlobals();
+  });
+});

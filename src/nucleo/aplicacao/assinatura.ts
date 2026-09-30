@@ -35,6 +35,7 @@ import type {
   AvisarVencimentos,
   CancelarAssinatura,
   LerAssinatura,
+  LerPagamento,
   RegistrarAssinatura,
   RegistrarPagamentoAvulso,
   ResultadoDosAvisos,
@@ -164,6 +165,17 @@ export function criarRegistrarAssinatura(deps: {
  * O PRÉ-PAGO (29/09/2026) — cada Pix compra um mês. As regras estão em `dominio/assinatura.ts`;
  * aqui fica só a ordem das coisas.
  * ────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * O Pix de `/pagar`. Quem garante que é deste negócio é o adaptador, relendo o carimbo na
+ * fonte — ver `Cobranca.lerPagamento`. Id vazio ou torto nem chega ao provedor.
+ */
+export function criarLerPagamento(deps: { cobranca: Cobranca }): LerPagamento {
+  return async (t, id) => {
+    if (!/^[A-Za-z0-9_-]{6,80}$/.test(id ?? "")) return null;
+    return deps.cobranca.lerPagamento(t, id);
+  };
+}
 
 /**
  * ★ Um Pix confirmado soma um mês.

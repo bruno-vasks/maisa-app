@@ -177,7 +177,8 @@ não é falha de requisição, é o app dizendo ao dono o que falta. Ver
 | `/api/assinatura/portal` | POST | `sessaoOuDemo` | `AbrirPortalDeCobranca` — trocar cartão, baixar fatura, cancelar. Separada da irmã porque é a operação destrutiva. **Só provedor com portal** (Stripe); na AbacatePay devolve **501** |
 | `/api/assinatura/cancelar` | POST | `sessaoOuDemo` | `CancelarAssinatura` — o caminho de quem **não** tem portal (AbacatePay). ⚠️ **imediato e irreversível**; na Stripe devolve **501** |
 | `/api/stripe/webhook` | POST | **assinatura HMAC** (`STRIPE_WEBHOOK_SECRET`) | `RegistrarAssinatura` — escrita em `assinaturas`. Continua no ar por quem assinou pela Stripe |
-| `/api/abacatepay/webhook` | POST | **segredo na query** (`ABACATEPAY_WEBHOOK_SECRET`) + HMAC | `RegistrarAssinatura` — o caminho do **Pix**. Ver o ⚠️ do HMAC abaixo · `checkout.completed` → `RegistrarPagamentoAvulso`: **relê o pagamento na fonte** e soma um mês (pré-pago, 29/09/2026) |
+| `/api/abacatepay/webhook` | POST | **segredo na query** (`ABACATEPAY_WEBHOOK_SECRET`) + HMAC | `RegistrarAssinatura` — o caminho do **Pix**. Ver o ⚠️ do HMAC abaixo · `transparent.completed` (o Pix de `/pagar`) e `checkout.completed` → `RegistrarPagamentoAvulso`: **relê o pagamento na fonte** e soma um mês (pré-pago, 29–30/09/2026) |
+| `/api/pagamento` | GET | `sessaoOuDemo` | `LerPagamento` — o Pix que a tela `/pagar` desenha (`?id=pix_char_…`): QR Code, copia-e-cola e status, **relidos na AbacatePay**. 404 se o Pix não existe **ou é de outro negócio** (o carimbo é conferido). **Não credita nada** — quem soma o mês é o webhook |
 | `/api/rotinas/cobranca` | GET · POST | `CRON_SECRET` ou `ROTINAS_SECRET` | `AvisarVencimentos` — o cron da Vercel, 1×/dia às 9h. E-mail ao dono 3 dias antes, 1 dia antes, no dia e no dia seguinte ao vencimento. **Não corta ninguém**: o corte é do webhook do WhatsApp |
 
 ⚠️ **`/portal` e `/cancelar` são exclusivas entre si** — cada provedor tem UMA das duas. O

@@ -353,10 +353,11 @@ function proximaCobranca(sub: SubBruta): string | null {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * ★ O PRÉ-PAGO (29/09/2026) — `checkout.completed`, e aqui a RELEITURA EXISTE.
+ * ★ O PRÉ-PAGO (29/09/2026) — o pagamento avulso, e aqui a RELEITURA EXISTE.
  *
  * A decisão 2 do cabeçalho ("não existe releitura na fonte") vale para ASSINATURA. Para
- * checkout avulso há `GET /checkouts/get?id=`, documentado e medido em produção em 29/09/2026.
+ * pagamento avulso há `GET /transparents/get` (o Pix de `/pagar`) e `GET /checkouts/get` (a
+ * página hospedada), os dois medidos em produção em 29 e 30/09/2026.
  * Então este caminho faz o que a Stripe faz: usa do corpo do evento só o id, e relê o resto na
  * API com a nossa chave. Três coisas ficam de graça com isso:
  *
@@ -368,14 +369,28 @@ function proximaCobranca(sub: SubBruta): string | null {
  *     uso (`registrarPagamentoAvulso`).
  * ────────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Os dois eventos de pagamento avulso. `transparent.completed` é o Pix desenhado na NOSSA tela
+ * (`/pagar`), que é o caminho do pré-pago desde 30/09/2026; `checkout.completed` é o da página
+ * hospedada deles, que o pré-pago usou por um dia e que continua aceito aqui.
+ */
 export function ehPagamentoAvulso(tipo: string): boolean {
-  return tipo === "checkout.completed";
+  return tipo === "transparent.completed" || tipo === "checkout.completed";
 }
 
-/** O `bill_…` do evento. É a ÚNICA coisa que este caminho usa do corpo. */
+/**
+ * O id do pagamento (`pix_char_…` ou `bill_…`). É a ÚNICA coisa que este caminho usa do corpo.
+ *
+ * O exemplo publicado do `transparent.completed` mostra `char_…`; o real, criado por nós em
+ * 29/09/2026, é `pix_char_…`. Aceitar os dois é aceitar o que a documentação diz e o que a
+ * API faz.
+ */
 export function idDoPagamentoAvulso(v: Verificado): string | null {
-  const id = (v.data.checkout as { id?: unknown } | undefined)?.id;
-  return typeof id === "string" && id.startsWith("bill_") ? id : null;
+  const chk = (v.data.checkout as { id?: unknown } | undefined)?.id;
+  if (typeof chk === "string" && chk.startsWith("bill_")) return chk;
+  const pix = (v.data.transparent as { id?: unknown } | undefined)?.id;
+  if (typeof pix === "string" && /^(pix_)?char_/.test(pix)) return pix;
+  return null;
 }
 
 type CheckoutRelido = {
@@ -408,6 +423,24 @@ export type PagamentoRelido = {
  * de novo. É o comportamento certo: sem a releitura não há como saber se o Pix caiu.
  */
 export async function lerPagamentoAvulso(id: string): Promise<PagamentoRelido> {
+  /* ★ O PIX TRANSPARENTE (o de `/pagar`). O carimbo mora no `metadata` — o transparente não
+   * tem `externalId` —, e o `metadata` volta intacto no `GET /transparents/get` (medido em
+   * 30/09/2026). Só Pix: o `/pagar` não cria outro método. */
+  if (!id.startsWith("bill_")) {
+    const t = await chamar<CheckoutRelido & { metadata?: Record<string, unknown> | null }>(
+      "/transparents/get", { busca: { id } },
+    );
+    return {
+      pagamentoId: t.id,
+      pago: t.status === "PAID",
+      dono: lerCarimbo(t.metadata?.carimbo),
+      preco: (typeof t.paidAmount === "number" ? t.paidAmount : t.amount ?? 0) / 100,
+      metodo: "pix",
+      clienteId: t.customerId ?? null,
+      devMode: t.devMode === true,
+    };
+  }
+
   const c = await chamar<CheckoutRelido>("/checkouts/get", { busca: { id } });
 
   /* `paidAmount` é o que entrou; `amount` é o que foi pedido. Os dois só divergem com cupom,

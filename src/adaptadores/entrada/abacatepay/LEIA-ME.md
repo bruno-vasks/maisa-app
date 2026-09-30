@@ -7,7 +7,11 @@ Irmão de [`entrada/stripe/`](../stripe/) — mesmo problema (um POST sem cookie
 A rota é [`app/api/abacatepay/webhook/route.ts`](../../../app/api/abacatepay/webhook/route.ts),
 e ela é fina: confere, resolve, chama. Tudo que decide alguma coisa está em `eventos.ts`.
 
-## ★ O pré-pago (29/09/2026): `checkout.completed`, COM releitura na fonte
+## ★ O pré-pago (29/09/2026): o pagamento avulso, COM releitura na fonte
+
+> Desde 30/09/2026 o Pix é desenhado na nossa tela (`/pagar`), então o evento principal é
+> **`transparent.completed`**, relido em `GET /transparents/get` com o carimbo em
+> `metadata.carimbo`. O `checkout.completed` abaixo segue aceito, pelo mesmo caminho.
 
 Desde 29/09/2026 a cobrança padrão é o pré-pago — um Pix avulso por mês (ver o topo de
 `saida/abacatepay/LEIA-ME.md`). O evento que importa passa a ser `checkout.completed`, e ele

@@ -1,51 +1,65 @@
 /* ─────────────────────────────────────────────────────────────────────────────
- * `Cobranca` CUMPRIDA PELA ABACATEPAY NO PRÉ-PAGO — um Pix por mês (29/09/2026).
+ * `Cobranca` CUMPRIDA PELA ABACATEPAY NO PRÉ-PAGO — um Pix por mês, NA NOSSA TELA.
  * ⚠️ SÓ SERVIDOR.
  *
  * Irmão de `cobranca-abacatepay.ts`, que é o modo RECORRENTE. Este existe porque a recorrência
- * está bloqueada na conta, nos dois trilhos, e o Pix avulso não:
+ * está bloqueada na conta, nos dois trilhos, e o Pix avulso não (medido na loja de produção em
+ * 29/09/2026 — ver o `LEIA-ME.md`).
  *
- *   subscriptions/create  PIX  → "PIX Automático is not available for this store"
- *   subscriptions/create  CARD → "CARD is not available for this store"
- *   checkouts/create      PIX, produto sem ciclo → abre a página ✅
+ * ── ★ POR QUE PIX TRANSPARENTE, E NÃO A PÁGINA HOSPEDADA DELES (30/09/2026) ──
  *
- * (medido na loja de produção em 29/09/2026, depois de o fundador deles ativar o cartão e a
- * conta ser aprovada — e a primeira transação real, um Pix de R$ 1, passou no mesmo dia.)
+ * A primeira versão deste arquivo mandava a pessoa para `app.abacatepay.com/pay/bill_…`. A
+ * captura de tela dessa página mostrou o custo: depois dos nossos três campos, mais TRÊS
+ * etapas — nome, CPF, e-mail, telefone, depois endereço, depois o Pix —, pedindo de novo o
+ * e-mail e o telefone que a pessoa tinha acabado de digitar. Doze campos em dois sites.
  *
- * ── O QUE MUDA EM RELAÇÃO AO RECORRENTE ──
+ * O Pix transparente (`/transparents/create`) não pede nada além do valor, e devolve o QR Code
+ * e o copia-e-cola. Então `abrirCheckout` cria o Pix e devolve a URL da NOSSA página,
+ * `/pagar?id=…`, que desenha os dois e acompanha o pagamento. A pessoa não sai do app.
  *
- *   · o checkout é `/checkouts/create` com o produto AVULSO do plano (`CATALOGO_AVULSO`);
- *   · o webhook que importa é `checkout.completed`, e cada um soma UM MÊS (`creditarUmMes`);
- *   · não há assinatura no provedor: `cancelar` não existe (quem não quer mais, não paga o
- *     mês seguinte), e `capacidades().prepago` avisa a tela;
- *   · quem cobra de novo é a rotina diária de avisos, por e-mail. Ninguém cobra sozinho.
+ * E é mais barato: `platformFee` 80 (R$ 0,80) no transparente contra 100 no checkout
+ * hospedado, medido nos dois em 29/09/2026.
+ *
+ * ── O QUE CONTINUA IGUAL ──
+ *
+ *   · o webhook que importa é o do pagamento (`transparent.completed`), relido na fonte, e
+ *     cada um soma UM MÊS (`creditarUmMes`);
+ *   · não há assinatura no provedor: `cancelar` não existe, e `capacidades().prepago` avisa;
+ *   · o inquilino viaja no CARIMBO (`carimbo.ts`), aqui dentro de `metadata` — o Pix
+ *     transparente não tem `externalId`. Medido em 30/09/2026: o `metadata` volta intacto no
+ *     `GET /transparents/get`.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { FalhaDoProvedor, NaoEncontrado, NaoSuportado } from "@/nucleo/dominio/erros";
 import type { ChaveDePlano } from "@/nucleo/dominio/assinatura";
 import { hojeISO } from "@/nucleo/dominio/tempo";
 import type {
-  CapacidadesDeCobranca, CheckoutAberto, Cobranca, PedidoDeCheckout,
+  CapacidadesDeCobranca, CheckoutAberto, Cobranca, PagamentoPix, PedidoDeCheckout,
 } from "@/nucleo/portas/saida/cobranca";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
-import { carimbo } from "./carimbo";
+import { carimbo, lerCarimbo } from "./carimbo";
 import { chamar } from "./cliente";
-import { clienteDoInquilino } from "./cobranca-abacatepay";
 import { CATALOGO_AVULSO, faltando } from "./config";
 
-type Produto = { id: string; externalId: string; status?: string; cycle?: string | null };
+type Produto = { id: string; externalId: string; name?: string; price?: number; status?: string; cycle?: string | null };
 
-const cache = new Map<string, string>();
+const cache = new Map<string, { preco: number; nome: string }>();
 
 /**
- * O `prod_…` do mês avulso deste plano.
+ * O preço e o nome do mês avulso deste plano, lidos do produto na conta.
  *
- * ⚠️ POR `products/get?externalId=`, E NÃO POR `products/list`. Medido em 29/09/2026: logo
- * depois de criar os produtos, `/products/list` sem parâmetro continuou devolvendo lista
- * VAZIA por minutos (cache deles), enquanto a busca por `externalId` achava na hora. Pelo
- * `list`, o primeiro clique em "pagar" depois de um catálogo novo lançaria `NaoEncontrado`.
+ * ── POR QUE O PREÇO VEM DO PRODUTO, SE O PIX TRANSPARENTE ACEITA QUALQUER VALOR ──
+ *
+ * Porque o valor COBRADO mora no provedor, e o exibido mora em `_lib/planos.ts` — a divisão
+ * está no cabeçalho de `dominio/assinatura.ts`, e `planos.test.ts` + `npm run
+ * abacate:catalogo` cobram que os dois batam. Digitar o valor aqui criaria a terceira tabela
+ * de preço do projeto, e este adaptador não pode importar a da LP (a seta sairia do hexágono).
+ * O produto avulso já existe para isso: o Pix leva o preço dele.
+ *
+ * ⚠️ POR `products/get?externalId=`, E NÃO POR `products/list`: logo depois de criar, a lista
+ * sem parâmetro voltou VAZIA por minutos (cache deles, 29/09/2026).
  */
-async function idDoProdutoAvulso(plano: ChaveDePlano): Promise<string> {
+async function doProdutoAvulso(plano: ChaveDePlano): Promise<{ preco: number; nome: string }> {
   const externo = CATALOGO_AVULSO[plano];
   const guardado = cache.get(externo);
   if (guardado) return guardado;
@@ -54,73 +68,102 @@ async function idDoProdutoAvulso(plano: ChaveDePlano): Promise<string> {
   try {
     achado = await chamar<Produto>("/products/get", { busca: { externalId: externo } });
   } catch (e) {
-    /* "Product not found" chega como erro de negócio (HTTP 200 com `error`). Vira a mensagem
-     * que diz o que fazer; qualquer outra falha (rede, chave) sobe como veio. */
     if (!/not found/i.test(String((e as Error)?.message))) throw e;
   }
 
-  if (!achado || (achado.status ?? "ACTIVE") !== "ACTIVE") {
+  if (!achado || (achado.status ?? "ACTIVE") !== "ACTIVE" || typeof achado.price !== "number" || achado.price <= 0) {
     throw new NaoEncontrado(
-      `produto avulso "${externo}" ativo na conta da AbacatePay (rode \`npm run abacate:catalogo -- --aplicar\`)`,
-    );
-  }
-  /* ⚠️ COM `cycle` O CHECKOUT VIRA RECORRÊNCIA, e a loja recusa com "PIX Automático is not
-   * available" — uma mensagem que não fala de produto nenhum. Melhor dizer aqui. */
-  if (achado.cycle) {
-    throw new NaoEncontrado(
-      `produto "${externo}" sem ciclo: ele foi criado como assinatura (${achado.cycle}), e o avulso não pode ter \`cycle\``,
+      `produto avulso "${externo}" ativo e com preço na conta da AbacatePay (rode \`npm run abacate:catalogo -- --aplicar\`)`,
     );
   }
 
-  cache.set(externo, achado.id);
-  return achado.id;
+  const r = { preco: achado.price, nome: achado.name ?? `MAISA ${plano}` };
+  cache.set(externo, r);
+  return r;
 }
 
-type Checkout = { id: string; url?: string; status?: string; customerId?: string | null };
+type PixBruto = {
+  id: string;
+  status?: string;
+  amount?: number;
+  brCode?: string | null;
+  brCodeBase64?: string | null;
+  expiresAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
 
-/**
- * Quantos carimbos do mesmo dia tentar. O segundo só existe se o primeiro já foi pago ou
- * expirou — a idempotência deles devolve o checkout antigo, e ele não serve para pagar de
- * novo. Três é folga para "paguei hoje e quero pagar mais um mês hoje" e nada além disso.
- */
-const CARIMBOS_POR_DIA = 3;
+const STATUS: Record<string, PagamentoPix["status"]> = {
+  PENDING: "pendente",
+  PAID: "pago",
+  EXPIRED: "expirado",
+  CANCELLED: "cancelado",
+  /* Estornado é, para a tela, um Pix que não vale: não há o que pagar nele. */
+  REFUNDED: "cancelado",
+};
+
+/** O Pix cru → o que a tela desenha. Só mostra o código enquanto ele pode ser pago. */
+export function paraPagamentoPix(b: PixBruto, plano: ChaveDePlano | null): PagamentoPix {
+  const status = STATUS[b.status ?? ""] ?? "cancelado";
+  const pendente = status === "pendente";
+  return {
+    id: b.id,
+    status,
+    valor: (b.amount ?? 0) / 100,
+    plano,
+    copiaECola: pendente ? b.brCode ?? null : null,
+    qrCode: pendente && b.brCodeBase64?.startsWith("data:image/") ? b.brCodeBase64 : null,
+    expiraEm: b.expiresAt ?? null,
+  };
+}
 
 export const cobrancaAbacatePayAvulsa: Cobranca = {
   async abrirCheckout(t: ContextoTenant, p: PedidoDeCheckout): Promise<CheckoutAberto> {
-    const [produto, cliente] = await Promise.all([idDoProdutoAvulso(p.plano), clienteDoInquilino(t, p)]);
-    const dia = hojeISO();
+    const produto = await doProdutoAvulso(p.plano);
 
-    for (let n = 1; n <= CARIMBOS_POR_DIA; n++) {
-      const chk = await chamar<Checkout>("/checkouts/create", {
-        corpo: {
-          items: [{ id: produto, quantity: 1 }],
-          /* Pix sozinho. ⚠️ `methods` é CONJUNÇÃO nesta API: pedir CARD numa loja sem cartão
-           * avulso recusa o pedido inteiro. O cartão entra aqui no dia em que a sonda disser
-           * que ele passa em checkout avulso — ver o `LEIA-ME.md`. */
-          methods: ["PIX"],
-          ...(cliente ? { customerId: cliente } : {}),
-          /* ★ O carimbo com data. Ver o cabeçalho de `carimbo.ts`: o `externalId` é chave de
-           * idempotência deles, e sem a data o mês seguinte devolveria o checkout já pago. */
-          externalId: carimbo(t.tenantId, p.plano, dia, n),
-          /* Para o humano que abrir o painel deles investigando. O código não depende disto:
-           * quem resolve o inquilino é o carimbo, relido na fonte. */
-          metadata: { tenant_id: t.tenantId, plano: p.plano },
-          completionUrl: p.voltarPara,
-          returnUrl: p.cancelarPara,
+    const pix = await chamar<PixBruto>("/transparents/create", {
+      corpo: {
+        method: "PIX",
+        data: {
+          amount: produto.preco,
+          /* Aparece no app do banco de quem paga. É o que a pessoa lê antes de confirmar. */
+          description: produto.nome,
+          /* ★ O carimbo no `metadata`, que volta intacto na releitura (medido em 30/09/2026).
+           * É dele que o webhook tira o inquilino — nunca do corpo do evento. */
+          metadata: { carimbo: carimbo(t.tenantId, p.plano, hojeISO()), tenant_id: t.tenantId, plano: p.plano },
         },
-      });
+      },
+    });
 
-      /* O checkout do carimbo pode já existir e ter acabado — pago mais cedo, ou expirado.
-       * Nos dois casos a página dele não cobra de novo: próximo carimbo. */
-      if ((chk.status ?? "PENDING") === "PENDING" && chk.url) {
-        return { url: chk.url, clienteId: cliente ?? chk.customerId ?? null };
-      }
+    if (!pix.id || !pix.brCode) throw new FalhaDoProvedor("AbacatePay: o Pix foi criado sem código.");
+
+    /* A URL é da NOSSA página. A volta vai como caminho relativo, e `/pagar` só aceita
+     * caminho que começa com uma barra: é o que impede este parâmetro de virar um
+     * redirecionamento para fora do app. O destino em si quem escolhe é o servidor
+     * (`VOLTA` em `api/assinatura/route.ts`), nunca o corpo do pedido. */
+    const volta = new URL(p.voltarPara);
+    const pagina = new URL("/pagar", volta.origin);
+    pagina.searchParams.set("id", pix.id);
+    pagina.searchParams.set("volta", volta.pathname + volta.search);
+
+    return { url: pagina.toString(), clienteId: null };
+  },
+
+  async lerPagamento(t: ContextoTenant, id: string): Promise<PagamentoPix | null> {
+    let b: PixBruto;
+    try {
+      b = await chamar<PixBruto>("/transparents/get", { busca: { id } });
+    } catch (e) {
+      if (/not found/i.test(String((e as Error)?.message))) return null;
+      throw e;
     }
 
-    throw new FalhaDoProvedor(
-      `AbacatePay: ${CARIMBOS_POR_DIA} checkouts de hoje para ${t.tenantId} já foram usados. `
-        + "Tente amanhã, ou confira no painel deles se há pagamento pendente de confirmação.",
-    );
+    /* ★ O PIX TEM DE SER DESTE NEGÓCIO. O id viaja na URL, e URL se compartilha: sem esta
+     * checagem, qualquer pessoa logada leria valor e QR Code de outro inquilino trocando o
+     * `?id=`. `null`, e não um erro, para a resposta não confirmar que o id existe. */
+    const dono = lerCarimbo(b.metadata?.carimbo);
+    if (!dono || dono.tenantId !== t.tenantId) return null;
+
+    return paraPagamentoPix(b, dono.plano);
   },
 
   async abrirPortal(): Promise<CheckoutAberto> {
@@ -129,8 +172,7 @@ export const cobrancaAbacatePayAvulsa: Cobranca = {
 
   async cancelar(): Promise<void> {
     /* Não há o que cancelar: não existe assinatura no provedor, só meses pagos. O mês que já
-     * foi pago vai até o fim, e o próximo simplesmente não é pago. `capacidades()` diz isso à
-     * tela antes, e este erro é a rede de quem não perguntou. */
+     * foi pago vai até o fim, e o próximo simplesmente não é pago. */
     throw new NaoSuportado("cancelamento — no pré-pago, basta não pagar o próximo mês", "AbacatePay");
   },
 

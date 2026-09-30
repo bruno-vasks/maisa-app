@@ -59,6 +59,7 @@ import {
   criarAvisarVencimentos,
   criarCancelarAssinatura,
   criarLerAssinatura,
+  criarLerPagamento,
   criarRegistrarAssinatura,
   criarRegistrarPagamentoAvulso,
 } from "@/nucleo/aplicacao/assinatura";
@@ -789,6 +790,8 @@ export const app = {
    * `dominio/assinatura.ts`. */
   registrarPagamentoAvulso: criarRegistrarPagamentoAvulso({ assinaturas, provedor: provedorDeCobranca }),
   acessoDoNegocio: criarAcessoDoNegocio({ assinaturas }),
+  /* O Pix que `/pagar` desenha (30/09/2026): o QR Code na nossa tela, sem a página deles. */
+  lerPagamento: criarLerPagamento({ cobranca }),
   /* `/?tela=mais` é a tela do plano: a mesma volta do checkout, ver `VOLTA` em
    * `api/assinatura/route.ts`. Absoluta porque é lida num cliente de e-mail. */
   avisarVencimentos: criarAvisarVencimentos({

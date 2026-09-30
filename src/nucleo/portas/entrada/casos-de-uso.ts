@@ -45,7 +45,7 @@ import type { VagasDoDia } from "../../dominio/vagas";
 import type { Faq, FaqEncontrada } from "../../dominio/faq";
 import type { ProgressoDaAtivacao } from "../../dominio/ativacao";
 import type { Assinatura, MetodoDePagamento } from "../../dominio/assinatura";
-import type { CheckoutAberto, PedidoDeCheckout } from "../saida/cobranca";
+import type { CheckoutAberto, PagamentoPix, PedidoDeCheckout } from "../saida/cobranca";
 
 /* ───────────────────────────── agenda ───────────────────────────── */
 
@@ -1001,6 +1001,12 @@ export type PagamentoAvulso = {
   /** Hoje em São Paulo, `YYYY-MM-DD`. Ver o cabeçalho do pré-pago em `dominio/assinatura.ts`. */
   hoje: string;
 };
+
+/**
+ * O Pix que a tela `/pagar` desenha, relido no provedor. `null` = não existe, não é deste
+ * negócio, ou o provedor ligado não mostra Pix na nossa tela. Ver `PagamentoPix`.
+ */
+export type LerPagamento = (t: ContextoTenant, id: string) => Promise<PagamentoPix | null>;
 
 /** `creditado: false` = este pagamento já tinha sido somado. Não é erro: é a reentrega. */
 export type RegistrarPagamentoAvulso = (

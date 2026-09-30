@@ -119,6 +119,32 @@ export type CapacidadesDeCobranca = {
   prepago: boolean;
 };
 
+/**
+ * ★ Um Pix que a MAISA mostra NA PRÓPRIA TELA (30/09/2026).
+ *
+ * A página hospedada da AbacatePay pedia três etapas depois do nosso cadastro — nome, CPF,
+ * e-mail, telefone e ENDEREÇO — antes de mostrar o Pix, e perguntava de novo o e-mail e o
+ * telefone que a pessoa tinha acabado de digitar. Medido por captura de tela em 30/09/2026.
+ * O Pix transparente não pede nada: só o valor. Então o QR Code passou a ser desenhado por
+ * nós, em `/pagar`, e esta é a forma dele depois de relido na fonte.
+ *
+ * `null` nos dois campos do código quando o Pix não está mais pendente: um QR Code pago ou
+ * vencido na tela é um convite para pagar duas vezes, ou para pagar um que não vale mais.
+ */
+export type PagamentoPix = {
+  id: string;
+  status: "pendente" | "pago" | "expirado" | "cancelado";
+  /** Em reais. */
+  valor: number;
+  plano: ChaveDePlano | null;
+  /** O "copia e cola". */
+  copiaECola: string | null;
+  /** A imagem do QR Code, já como `data:image/png;base64,…`. */
+  qrCode: string | null;
+  /** ISO. Quando o QR Code para de valer. */
+  expiraEm: string | null;
+};
+
 export interface Cobranca {
   /**
    * Abre o checkout para este inquilino.
@@ -157,6 +183,15 @@ export interface Cobranca {
    * aceitasse e o evento não chegasse (ou vice-versa).
    */
   cancelar(t: ContextoTenant, p: { assinaturaId: string }): Promise<void>;
+
+  /**
+   * ★ Um Pix aberto por este inquilino, relido na fonte (30/09/2026).
+   *
+   * `null` quando o provedor não mostra Pix na nossa tela (Stripe, o recorrente, o demo),
+   * quando o id não existe, **e quando o Pix é de outro inquilino** — a tela não distingue
+   * "não existe" de "não é seu" de propósito, para não servir de oráculo de ids alheios.
+   */
+  lerPagamento(t: ContextoTenant, id: string): Promise<PagamentoPix | null>;
 
   /** O que este provedor sabe fazer. Ver `CapacidadesDeCobranca`. */
   capacidades(): CapacidadesDeCobranca;

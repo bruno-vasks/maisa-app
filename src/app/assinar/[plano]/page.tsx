@@ -6,7 +6,8 @@ import Assinar from "./Assinar";
 // ─────────────────────────────────────────────────────────────────────────────
 // O PRÉ-CADASTRO — a página que o anúncio aponta.
 //
-// É o funil inteiro numa tela: três campos, e o próximo clique é o checkout da Stripe.
+// É o funil inteiro numa tela: três campos, e o próximo clique é o Pix em `/pagar` (desde
+// 30/09/2026 — antes era o checkout hospedado do provedor, que pedia tudo de novo).
 // Quem chega aqui já escolheu o plano na landing page; esta página não vende de novo,
 // ela só confirma o que está sendo comprado e pede o mínimo para poder cobrar.
 //

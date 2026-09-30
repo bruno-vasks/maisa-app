@@ -238,7 +238,10 @@ async function main() {
   /* ── 2. o webhook ── */
   console.log("\nWEBHOOK");
   const EVENTOS = [
-    /* ★ O pré-pago (29/09/2026): é por aqui que um Pix avulso pago soma um mês. */
+    /* ★ O pré-pago: é por aqui que um Pix avulso pago soma um mês. `transparent.completed` é
+     * o Pix desenhado na nossa tela, `/pagar` (30/09/2026); `checkout.completed`, o da página
+     * hospedada deles (29/09/2026), segue aceito. */
+    "transparent.completed",
     "checkout.completed",
     "subscription.completed",
     "subscription.renewed",
