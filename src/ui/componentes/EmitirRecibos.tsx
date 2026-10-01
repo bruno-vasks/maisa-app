@@ -280,7 +280,7 @@ function ParaOndeVaiORecibo({ mobile }: { mobile: boolean }) {
     });
   };
   return (
-    <div style={s(`display:flex;flex-direction:column;gap:6px;${mobile ? "width:100%" : "align-items:flex-end;max-width:440px"}`)}>
+    <div style={s(`display:flex;flex-direction:column;gap:6px;${mobile ? "width:100%" : "align-items:flex-end;flex:none"}`)}>
       <div role="radiogroup" aria-label="Para onde vai o recibo" style={s(`display:flex;align-items:center;gap:6px;flex-wrap:wrap;${mobile ? "" : "justify-content:flex-end"}`)}>
         <span style={s("font-size:var(--t-label);color:var(--muted);margin-right:4px")}>Recibo pronto vai</span>
         {DESTINOS.map((d) => {
@@ -299,7 +299,7 @@ function ParaOndeVaiORecibo({ mobile }: { mobile: boolean }) {
           );
         })}
       </div>
-      <span style={s(`font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);${mobile ? "" : "text-align:right"}`)}>
+      <span style={s(`font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);${mobile ? "" : "text-align:right;white-space:nowrap"}`)}>
         {fraseDoDestino(atual)}
       </span>
     </div>
