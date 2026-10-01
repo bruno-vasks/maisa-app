@@ -127,12 +127,14 @@ export async function POST(req: Request) {
   const volta = corpo.destino === "onboarding" ? VOLTA.onboarding : VOLTA.painel;
 
   try {
-    const { url } = await app.abrirCheckout(porteiro.tenant, {
+    const { url, pagamento } = await app.abrirCheckout(porteiro.tenant, {
       plano: corpo.plano as never,
       voltarPara: `${origem}${volta.ok}`,
       cancelarPara: `${origem}${volta.cancelado}`,
     });
-    return NextResponse.json({ ok: true, status: "ok", url });
+    /* `pagamento` vai junto quando o provedor desenha o Pix na nossa tela (`/pagar`): é o que
+     * deixa a página aparecer com o QR Code em vez de buscá-lo de novo. Ver `CheckoutAberto`. */
+    return NextResponse.json({ ok: true, status: "ok", url, ...(pagamento ? { pagamento } : {}) });
   } catch (e) {
     return falha("assinatura", e);
   }

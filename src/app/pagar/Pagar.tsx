@@ -32,6 +32,7 @@ import { whatsappUrl } from "@/app/(marketing)/_lib/icp";
 import { LinhaLegal } from "@/app/(marketing)/_lib/LinhaLegal";
 import type { PagamentoPix } from "@/nucleo/portas/saida/cobranca";
 import { destinoDaVolta, horaQueVence, voltaSegura } from "./regras";
+import { guardarPix, pixGuardado } from "@/ui/estado/pix";
 
 const NOME_DO_PLANO: Record<string, string> = {
   essencial: "Essencial",
@@ -82,6 +83,10 @@ function PagarInner() {
 
   useEffect(() => {
     if (!id) { setLeitura({ fase: "nao_encontrado" }); return; }
+    /* O Pix que veio da tela anterior desenha na hora; a releitura confirma logo depois. Ver
+     * `ui/estado/pix.ts`. */
+    const guardado = pixGuardado(id);
+    if (guardado) setLeitura({ fase: "ok", p: guardado });
     void reler();
   }, [id, reler]);
 
@@ -124,8 +129,9 @@ function PagarInner() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ plano, destino: destinoDaVolta(volta) }),
-      }).then((x) => x.json())) as { ok?: boolean; url?: string } | null;
+      }).then((x) => x.json())) as { ok?: boolean; url?: string; pagamento?: PagamentoPix } | null;
       if (!r?.ok || !r.url) throw new Error("sem url");
+      guardarPix(r.pagamento);
       window.location.href = r.url;
     } catch {
       setGerando(false);

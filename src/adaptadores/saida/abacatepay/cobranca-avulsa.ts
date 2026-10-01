@@ -167,7 +167,7 @@ export const cobrancaAbacatePayAvulsa: Cobranca = {
     pagina.searchParams.set("id", pix.id);
     pagina.searchParams.set("volta", volta.pathname + volta.search);
 
-    return { url: pagina.toString(), clienteId: null };
+    return { url: pagina.toString(), clienteId: null, pagamento: paraPagamentoPix(pix, p.plano) };
   },
 
   async lerPagamento(t: ContextoTenant, id: string): Promise<PagamentoPix | null> {

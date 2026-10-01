@@ -73,7 +73,18 @@ export type PedidoDeCheckout = {
  * `null` é resposta legítima: a Stripe cria o cliente só quando a pessoa conclui o
  * checkout, então não há id para devolver na abertura. O caso de uso trata os dois.
  */
-export type CheckoutAberto = { url: string; clienteId?: string | null };
+export type CheckoutAberto = {
+  url: string;
+  clienteId?: string | null;
+  /**
+   * O Pix recém-criado, quando a URL é a nossa tela `/pagar` (30/09/2026).
+   *
+   * Existe por tempo, medido: sem ele a tela abria e relia na AbacatePay o Pix que tinha acabado
+   * de nascer — 2 dos 10 segundos entre o clique em "Ir para o pagamento" e o QR Code. Com ele,
+   * a tela desenha na hora e só relê para acompanhar o pagamento.
+   */
+  pagamento?: PagamentoPix;
+};
 
 /**
  * O que ESTE provedor sabe fazer. A tela desenha a partir disto.

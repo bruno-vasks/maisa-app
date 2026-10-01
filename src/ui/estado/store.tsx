@@ -34,6 +34,8 @@ import {
   acessoLiberado, diasParaVencer, ehChaveDePlano, liberada, type Assinatura, type ChaveDePlano, type StatusAssinatura,
 } from "@/nucleo/dominio/assinatura";
 import { hojeISO } from "@/nucleo/dominio/tempo";
+import type { PagamentoPix } from "@/nucleo/portas/saida/cobranca";
+import { guardarPix } from "./pix";
 
 /**
  * Uma linha da tela de Faturamento.
@@ -4082,8 +4084,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(corpo),
-      }).then((x) => x.json())) as { ok?: boolean; url?: string; info?: string } | null;
+      }).then((x) => x.json())) as { ok?: boolean; url?: string; info?: string; pagamento?: PagamentoPix } | null;
       if (!r?.ok || !r.url) throw new Error(r?.info ?? "sem url");
+      /* No pré-pago a URL é a nossa `/pagar`, e o Pix vem junto: ela desenha sem reler. */
+      guardarPix(r.pagamento);
       window.location.href = r.url;
     } catch {
       toast("Não foi possível abrir o pagamento. Tente de novo.");

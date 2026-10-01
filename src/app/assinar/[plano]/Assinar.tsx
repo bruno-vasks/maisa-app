@@ -51,6 +51,7 @@ import { whatsappUrl } from "@/app/(marketing)/_lib/icp";
 import { LinhaLegal } from "@/app/(marketing)/_lib/LinhaLegal";
 import { ehVertical, NOME_NEGOCIO_MIN, type Vertical } from "@/nucleo/dominio/negocio";
 import { soDigitos, TELEFONE_MIN_DIGITOS } from "@/nucleo/dominio/clientes";
+import { guardarPix } from "@/ui/estado/pix";
 
 const inputCss =
   "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
@@ -85,6 +86,9 @@ function AssinarInner({ plano }: { plano: Plano }) {
   const [email, setEmail] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [estado, setEstado] = useState<Estado>({ fase: "formulario" });
+  /* O que o botão diz enquanto espera. São três chamadas em série (~7s medidos em 30/09/2026), e
+   * um "Abrindo o pagamento…" parado esse tempo todo lê como travado. */
+  const [etapa, setEtapa] = useState("Criando sua conta…");
 
   /* De onde a pessoa veio decide a vertical do negócio E a copy do cartão. Validado
    * contra a lista do domínio: `?icp=` é texto que qualquer um escreve na barra de
@@ -124,6 +128,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
       }
 
       setEstado({ fase: "indo" });
+      setEtapa("Criando sua conta…");
       const supabase = createClient();
 
       /* 1. A conta. O metadata leva tudo que precisamos depois e que não tem coluna:
@@ -163,6 +168,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
 
       /* 2. O negócio. Sem ele não há inquilino, e sem inquilino o checkout cobraria
        *    sem saber de quem é — que é o defeito que esta página existe para não repetir. */
+      setEtapa("Preparando a sua maisa…");
       const neg = await fetch("/api/negocio", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -178,6 +184,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
       /* 3. O checkout, com `destino: "onboarding"` — quem vem do funil pagou e nunca usou
        *    o produto, então a volta é o wizard, não a gaveta de cobrança. O destino é um
        *    NOME, não uma URL: ver o comentário de `VOLTA` em `api/assinatura/route.ts`. */
+      setEtapa("Gerando o seu Pix…");
       const ass = await fetch("/api/assinatura", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -190,6 +197,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
         return;
       }
 
+      guardarPix(ass.pagamento);
       window.location.href = ass.url;
     },
     [nome, telefone, email, plano.chave, vertical, campanha],
@@ -266,7 +274,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
             )}
 
             <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:50px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
-              {travado ? "Abrindo o pagamento…" : "Ir para o pagamento"}
+              {travado ? etapa : "Ir para o pagamento"}
               {!travado && <Icon name="chevron-right" size={18} />}
             </button>
 
