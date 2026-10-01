@@ -70,7 +70,8 @@ export const repositorioDemo: RepositorioNegocio = {
   },
 
   async cliente(_t, id) {
-    return CLIENTES.find((c) => c.id === id) ?? null;
+    const c = CLIENTES.find((x) => x.id === id);
+    return c ? { ...c, diaRecibo: c.diaRecibo ?? null } : null;
   },
 
   async expediente(_t, profissionalId) {
@@ -183,7 +184,9 @@ export const repositorioDemo: RepositorioNegocio = {
   },
 
   async clientes() {
-    return [...CLIENTES];
+    /* `diaRecibo: null` e não ausente: no demo o "banco" sabe guardar o dia (ver o ⚠️ de
+     * `paraCliente` no adaptador Supabase, onde ausente quer dizer "falta a 032"). */
+    return CLIENTES.map((c) => ({ ...c, diaRecibo: c.diaRecibo ?? null }));
   },
 
   /* ── EDITAR CLIENTE ──
@@ -203,6 +206,7 @@ export const repositorioDemo: RepositorioNegocio = {
     const atual = CLIENTES[i];
     const novo: Cliente = {
       ...atual,
+      diaRecibo: atual.diaRecibo ?? null,
       nome: r.nome,
       telefone: r.telefone,
       /* `null` do rascunho é "apaga", e no domínio o vazio de `email`/`cpf` é `""` — não

@@ -621,7 +621,9 @@ export function useDetalhe(id: string | null): Detalhe | null {
                emite recibo do Receita Saúde: para quem emite nota fiscal o campo não faria nada.
                A dica diz o PRÓXIMO dia e para quem a mensagem vai, que é a pergunta que vem logo
                depois de escolher. Ver `dominio/recibo-automatico.ts` e a rotina `/api/rotinas/recibos`. */
-            ...(emiteRecibo
+            /* `!== undefined`: ausente é banco sem a 032 (ver `paraCliente`), e um campo que recusa
+               ao gravar é pior que nenhum. Aparece sozinho quando a migração rodar. */
+            ...(emiteRecibo && cli.diaRecibo !== undefined
               ? [{
                 id: "diaRecibo", label: "Dia do recibo", tipo: "select" as const,
                 valor: cli.diaRecibo == null ? "" : String(cli.diaRecibo),

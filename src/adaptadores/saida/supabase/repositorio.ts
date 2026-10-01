@@ -258,9 +258,10 @@ function paraCliente(l: LinhaCliente): Cliente {
     atendimentos: l.atendimentos ?? 0,
     valor: num(l.valor),
     valorSessao: l.valor_sessao == null ? null : num(l.valor_sessao),
-    /* Sem a 032 a coluna não vem (a leitura é com `*`), e `undefined` vira `null`: ninguém tem
-     * recibo automático num banco que não sabe guardar o dia. */
-    diaRecibo: l.dia_recibo == null ? null : Number(l.dia_recibo),
+    /* ⚠️ AUSENTE, e não `null`, num banco sem a 032 (a leitura é com `*`, então a coluna só não
+     * vem). A ficha usa a diferença: com `undefined` ela nem desenha o "Dia do recibo", porque
+     * escolher um dia ali seria recusado ao gravar. `null` é "a coluna existe e ela não escolheu". */
+    ...(l.dia_recibo === undefined ? {} : { diaRecibo: l.dia_recibo == null ? null : Number(l.dia_recibo) }),
     /* `teste` é `not null default false` no banco, mas o campo do domínio é opcional.
      * Só propaga quando for true: um `teste: false` explícito em todo cliente faria o
      * store achar que a marca existe e vale checar. */
