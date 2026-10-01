@@ -512,7 +512,7 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
         <span style={s("flex:1;min-width:0;font-size:var(--t-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>Buscar cliente, conversa ou tela</span>
         {/* ⌘K é string de máquina — um dos poucos lugares onde o mono sobrevive. Peso de dado (500):
             é a tecla literal, não um título. */}
-        <span style={s("flex-shrink:0;font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:var(--r-controle);background:var(--surface);border:1px solid var(--border)")}>⌘K</span>
+        <span style={s("flex-shrink:0;font-variant-numeric:tabular-nums;font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:var(--r-controle);background:var(--surface);border:1px solid var(--border)")}>⌘K</span>
       </button>
 
       <div style={s("margin-left:auto;display:flex;align-items:center;gap:14px;flex-shrink:0")}>

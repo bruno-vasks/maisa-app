@@ -214,7 +214,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
         <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px")}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <span style={s("font-size:var(--t-lg);font-weight:var(--w-title);color:var(--ink)")}>{plano.nome}</span>
-            <span style={s("font-family:var(--font-mono);font-size:var(--t-body);font-weight:var(--w-data);color:var(--ink);white-space:nowrap")}>
+            <span style={s("font-variant-numeric:tabular-nums;font-size:var(--t-body);font-weight:var(--w-data);color:var(--ink);white-space:nowrap")}>
               {plano.preco}<span style={s("color:var(--muted)")}>{plano.periodo}</span>
             </span>
           </div>
@@ -222,7 +222,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
             {specsDoPlano(plano, icpCopy).map((sp) => (
               <div key={sp.rotulo} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span style={s("font-size:var(--t-label);color:var(--muted)")}>{sp.rotulo}</span>
-                <span style={s("font-family:var(--font-mono);font-size:var(--t-label);font-weight:var(--w-data);color:var(--ink-800);white-space:nowrap")}>{sp.valor}</span>
+                <span style={s("font-variant-numeric:tabular-nums;font-size:var(--t-label);font-weight:var(--w-data);color:var(--ink-800);white-space:nowrap")}>{sp.valor}</span>
               </div>
             ))}
           </div>

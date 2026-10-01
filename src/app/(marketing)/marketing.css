@@ -584,7 +584,7 @@ body:has(.mundo-terapeutas) {
 /* Os escopos aparecem como código porque é o nome EXATO que o usuário vê na tela de
    consentimento do Google. Parafrasear aqui faria a política não casar com o que ele leu. */
 .lp-juridico-corpo code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: inherit;
   font-size: 0.9em;
   padding: 2px 6px;
   border-radius: 6px;

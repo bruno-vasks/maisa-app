@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans, IBM_Plex_Mono, Plus_Jakarta_Sans, Alegreya_Sans } from "next/font/google";
+import { IBM_Plex_Sans, Plus_Jakarta_Sans, Alegreya_Sans } from "next/font/google";
 import "./globals.css";
 import { BASE_DE_METADATA } from "@/config/endereco";
 
@@ -15,12 +15,6 @@ const plexSans = IBM_Plex_Sans({
   display: "swap",
 });
 
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-plex-mono",
-  display: "swap",
-});
 
 // A VOZ DA SIDEBAR. O rail navy é o único lugar do app que não está a serviço de uma tarefa — é
 // onde a MAISA se apresenta —, então ganha uma segunda família, contrastando no eixo de
@@ -102,7 +96,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" className={`${plexSans.variable} ${plexMono.variable} ${alegreya.variable} ${jakarta.variable}`}>
+    <html lang="pt-BR" className={`${plexSans.variable} ${alegreya.variable} ${jakarta.variable}`}>
       {/* sem className de fonte no body: quem manda é `font-family: var(--font-sans)` no
           globals.css. Antes havia um literal 'Plus Jakarta Sans' no CSS que NUNCA resolvia (o
           next/font ofusca o nome da família) e só não quebrava porque o className vencia por

@@ -175,7 +175,7 @@ function PagarInner() {
             <div style={s(cartao)}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
                 <span style={s("font-size:var(--t-lg);font-weight:var(--w-title);color:var(--ink)")}>{plano}</span>
-                <span style={s("font-family:var(--font-mono);font-size:var(--t-body);font-weight:var(--w-data);color:var(--ink);white-space:nowrap")}>{fmt(p.valor)}</span>
+                <span style={s("font-variant-numeric:tabular-nums;font-size:var(--t-body);font-weight:var(--w-data);color:var(--ink);white-space:nowrap")}>{fmt(p.valor)}</span>
               </div>
               <p style={s("margin:6px 0 0;font-size:var(--t-label);color:var(--muted)")}>Um mês de maisa. Sem fidelidade: você paga o próximo quando quiser continuar.</p>
             </div>
@@ -228,7 +228,7 @@ function PagarInner() {
                 <Icon name={copiado ? "check" : "copy"} size={18} />
                 {copiado ? "Código copiado" : "Copiar código Pix"}
               </button>
-              <textarea id="pix-codigo" readOnly value={p.copiaECola} rows={2} onFocus={(e) => e.currentTarget.select()} aria-label="Código Pix copia e cola" style={s("width:100%;resize:none;border:1px solid var(--border);border-radius:var(--r-controle);padding:10px 12px;font-family:var(--font-mono);font-size:var(--t-micro);color:var(--muted);background:var(--bg);line-height:1.4")} />
+              <textarea id="pix-codigo" readOnly value={p.copiaECola} rows={2} onFocus={(e) => e.currentTarget.select()} aria-label="Código Pix copia e cola" style={s("width:100%;resize:none;border:1px solid var(--border);border-radius:var(--r-controle);padding:10px 12px;font-variant-numeric:tabular-nums;font-size:var(--t-micro);color:var(--muted);background:var(--bg);line-height:1.4")} />
             </div>
           );
 

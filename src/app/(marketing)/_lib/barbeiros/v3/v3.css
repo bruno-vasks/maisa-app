@@ -1156,11 +1156,10 @@ body:has(.lp-v3.mundo-barbeiros) {
 
 .lp-v3 .lp3-t-num {
   flex: 0 0 auto;
-  /* IBM Plex Mono, que o layout.tsx já carrega — dígitos de avanço igual, então o
-     "01/02/03" não dança quando o ativo muda. É a quarta família da página, e a
-     alternativa (Hanken com tabular-nums) perderia justamente o contraste que faz
-     esses dois dígitos lerem como etiqueta e não como texto. */
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  /* Era IBM Plex Mono até 30/09/2026, quando o Bruno vetou a fonte monoespaçada no produto
+     inteiro. `tabular-nums` mantém o que ela fazia aqui: o "01/02/03" não dança quando o
+     ativo muda. */
+  font-variant-numeric: tabular-nums;
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--mk-ink);
@@ -1989,7 +1988,7 @@ body:has(.lp-v3.mundo-barbeiros) {
 }
 
 .lp-v3 .lp3-t-rotulo {
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -2325,7 +2324,7 @@ body:has(.lp-v3.mundo-barbeiros) {
   border-radius: 999px;
   background: var(--mk-bg);
   border: 2px solid var(--mk-ink);
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
   font-size: clamp(0.72rem, 0.9vw, 0.86rem);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -2376,7 +2375,7 @@ body:has(.lp-v3.mundo-barbeiros) {
 
 .lp-v3 .lp3-d-rotulo {
   margin: 0;
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -2907,7 +2906,7 @@ body:has(.lp-v3.mundo-barbeiros) {
    proporcional eles dançariam, e a comparação exigiria ler número por número. */
 .lp-v3 .lp3-p-valor {
   margin: 0;
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
   font-size: clamp(0.82rem, 0.95vw, 0.92rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;

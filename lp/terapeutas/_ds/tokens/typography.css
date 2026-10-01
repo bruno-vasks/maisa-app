@@ -2,7 +2,10 @@
 :root{
   --font-display:'Bricolage Grotesque','Figtree',ui-sans-serif,system-ui,sans-serif;
   --font-sans:'Figtree',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
-  --font-mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  /* ⚠️ NÃO É MAIS MONO (30/09/2026). O Bruno vetou a fonte monoespaçada no produto inteiro
+     ("o maior slop de todos"). O nome do token ficou para não reescrever as 58 marcações da
+     página uma a uma; o que ele entrega agora é a Figtree com dígitos de largura igual. */
+  --font-mono:'Figtree',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
 
   /* escala — passo ~1.22, arredondado para px inteiros */
   --text-2xs:11px;--text-xs:12px;--text-sm:14px;--text-md:16px;--text-lg:18px;

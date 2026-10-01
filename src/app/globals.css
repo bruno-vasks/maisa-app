@@ -122,7 +122,6 @@
   --radius-card: var(--r-painel);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --font-sans: var(--font-plex-sans), system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
   /* voz da sidebar — Alegreya Sans, humanista calligráfica (ver layout.tsx) */
   --font-nav: var(--font-nav-src), var(--font-plex-sans), system-ui, sans-serif;
   /* COMPENSAÇÃO ÓPTICA: a x-height da Alegreya é 0.461 contra 0.516 da Plex — 11% menor. A 14px
@@ -191,13 +190,14 @@ button, input, select, textarea { font-family: inherit; }
 ::placeholder { color: var(--muted); opacity: 1; }
 
 /* Numerais tabulares. Os dígitos da IBM Plex Sans já são todos 600/1000 (tabulares por
-   construção) e os da Plex Mono também — mesmo advance, então valor no cartão, na tabela e no
-   recibo da NFS-e alinham nos três contextos. Esta classe é o contrato explícito e cobre o
+   construção), então valor no cartão, na tabela e no recibo da NFS-e alinham nos três contextos. Esta classe é o contrato explícito e cobre o
    fallback de system-ui, cujos dígitos são proporcionais.
    Aplicar em TODO dado que muda: dinheiro, hora, duração, contagem. */
 .n { font-variant-numeric: tabular-nums; }
-/* string de máquina — CNPJ, número da nota, chave, ⌘K. Mono + zero cortado. */
-.n-mach { font-family: var(--font-mono); font-variant-numeric: tabular-nums slashed-zero; }
+/* string de máquina — CNPJ, número da nota, chave, ⌘K. Zero cortado e dígito de largura igual.
+   ⚠️ SEM FONTE MONOESPAÇADA, e é decisão do Bruno (30/09/2026): "essa fonte é o maior slop de
+   todos, não vamos usar mais". A Plex Mono deixou de ser carregada; a guarda G21 reprova a volta. */
+.n-mach { font-variant-numeric: tabular-nums slashed-zero; }
 
 /* anel de foco de teclado em TODOS os controles de formulário — cobre inputs inline
    que só setam outline:none (o box-shadow não é afetado pelo outline:none inline) */

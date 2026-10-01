@@ -266,7 +266,7 @@ export default function Laboratorio() {
 
 /* ───────────────────────────── partes ───────────────────────────── */
 
-const mono = s("font-family:var(--font-mono);font-size:var(--t-label)");
+const mono = s("font-variant-numeric:tabular-nums;font-size:var(--t-label)");
 const rotulo = s("font-size:var(--t-micro);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)");
 
 function Cabecalho({
@@ -298,7 +298,7 @@ function Cabecalho({
             onChange={(e) => setTelefone(e.target.value)}
             aria-label="Telefone do cliente que está escrevendo"
             className="m-focus"
-            style={s("width:132px;padding:6px 9px;font-family:var(--font-mono);font-size:var(--t-label);color:var(--ink);background:var(--surface);border:1px solid var(--border-field);border-radius:8px")}
+            style={s("width:132px;padding:6px 9px;font-variant-numeric:tabular-nums;font-size:var(--t-label);color:var(--ink);background:var(--surface);border:1px solid var(--border-field);border-radius:8px")}
           />
         </label>
         <button
@@ -324,7 +324,7 @@ function Selo({ icone, texto, tom }: { icone: string; texto: string; tom: "prima
         ? "background:var(--warm-soft);color:var(--warm-ink);border-color:transparent"
         : "background:var(--surface);color:var(--muted);border-color:var(--border)";
   return (
-    <span style={s(`display:inline-flex;align-items:center;gap:6px;font-size:var(--t-label);font-family:var(--font-mono);padding:4px 10px;border:1px solid;border-radius:999px;${pele}`)}>
+    <span style={s(`display:inline-flex;align-items:center;gap:6px;font-size:var(--t-label);font-variant-numeric:tabular-nums;padding:4px 10px;border:1px solid;border-radius:999px;${pele}`)}>
       <Icon name={icone} size={13} />
       {texto}
     </span>
@@ -412,7 +412,7 @@ function Secao({ titulo, contagem, children }: { titulo: string; contagem?: stri
     <section style={s("display:flex;flex-direction:column;gap:10px")}>
       <div style={s("display:flex;align-items:baseline;justify-content:space-between;gap:8px")}>
         <h2 style={{ ...rotulo, margin: 0 }}>{titulo}</h2>
-        {contagem && <span style={s("font-family:var(--font-mono);font-size:var(--t-micro);color:var(--muted)")}>{contagem}</span>}
+        {contagem && <span style={s("font-variant-numeric:tabular-nums;font-size:var(--t-micro);color:var(--muted)")}>{contagem}</span>}
       </div>
       {children}
     </section>

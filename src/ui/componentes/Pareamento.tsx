@@ -57,9 +57,10 @@ export const telefoneMascarado = (digitos: string) => (digitos ? telefoneBonito(
  * o dele). Quando falha, o código ainda está na tela para ler — e o `catch` avisa em vez
  * de fingir que copiou.
  *
- * **Monospace e `letter-spacing`.** O WhatsApp emite alfanumérico maiúsculo, onde 0/O e
- * 1/I são o erro mais comum. Fonte de largura fixa não resolve sozinha, mas é o que
- * separa os caracteres o bastante para a pessoa conferir o que digitou.
+ * **Zero cortado e `letter-spacing`.** O WhatsApp emite alfanumérico maiúsculo, onde 0/O e
+ * 1/I são o erro mais comum. Era fonte monoespaçada até 30/09/2026, quando o Bruno a vetou no
+ * produto inteiro (guarda G21); o `slashed-zero` separa o 0 do O, e o espaçamento separa o
+ * resto o bastante para a pessoa conferir o que digitou.
  */
 /* ─────────────────────────────────────────────────────────────────────────────
  * O NÚMERO, NA TELA — E A CONFERÊNCIA ANTES DE MANDAR.
@@ -290,7 +291,7 @@ export function CodigoPareamento(
         <span
           aria-label={`Código de pareamento ${codigo}`}
           style={s(
-            "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:26px;font-weight:var(--w-title);" +
+            "font-variant-numeric:tabular-nums slashed-zero;font-size:26px;font-weight:var(--w-title);" +
             "letter-spacing:.18em;color:var(--ink);white-space:nowrap",
           )}
         >

@@ -156,7 +156,7 @@ export default function Paleta({ aberta, fechar }: { aberta: boolean; fechar: ()
             className="m-hov-bg m-press-icon m-focus"
             /* mono FICA aqui: "esc" é a tecla literal, string de máquina — o único papel que
                sobrou para o monoespaçado depois da troca de fonte. */
-            style={s("flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);color:var(--muted);font-family:var(--font-mono);font-size:var(--t-micro);font-weight:var(--w-data);padding:4px 8px;cursor:pointer")}
+            style={s("flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);color:var(--muted);font-variant-numeric:tabular-nums;font-size:var(--t-micro);font-weight:var(--w-data);padding:4px 8px;cursor:pointer")}
           >
             esc
           </button>
