@@ -367,9 +367,13 @@ function Rodape({ acoes, mais, mobile }: { acoes: readonly Acao[]; mais: readonl
   }, [menu]);
 
   const pedida = mais.find((a): a is AcaoDestrutiva => a.tone === "danger" && st.cancelarPedido === a.confirmar.chave);
+  /* ⚠️ `paddingBottom` SÓ ENTRA NO CELULAR, nunca como `undefined` no desktop (01/10/2026). Chave
+   * com `undefined` não é "sem valor" para o React: ele grava `style.paddingBottom = ""`, que APAGA
+   * o lado de baixo do `padding` do shorthand. O desktop media 0px embaixo, e o botão azul colava
+   * na borda do painel como se estivesse cortado. 24px embaixo é a mesma margem dos lados. */
   const pad = {
-    ...s(`padding:${mobile ? "12px 16px" : "14px 24px 18px"};border-top:1px solid var(--line);background:var(--bg);display:flex;flex-wrap:wrap;gap:10px;flex-shrink:0`),
-    paddingBottom: mobile ? "max(16px, env(safe-area-inset-bottom))" : undefined,
+    ...s(`padding:${mobile ? "12px 16px" : "16px 24px 24px"};border-top:1px solid var(--line);background:var(--bg);display:flex;flex-wrap:wrap;gap:10px;flex-shrink:0`),
+    ...(mobile ? { paddingBottom: "max(16px, env(safe-area-inset-bottom))" } : {}),
   };
 
   if (pedida) {

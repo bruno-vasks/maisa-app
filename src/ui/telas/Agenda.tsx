@@ -1005,7 +1005,7 @@ export default function Agenda() {
         // grade de horas ficar sob a barra fixa. No celular isso vira uma armadilha: a linha
         // travava em 614px e o cartão, que é `overflow:hidden`, cortava o atendimento das 15:30 no
         // meio, sem barra de rolagem nenhuma. `max-content` devolve a rolagem para a PÁGINA.
-        gridAutoRows: mobile ? "max-content" : undefined,
+        ...(mobile ? { gridAutoRows: "max-content" } : {}),
       }}
     >
       {calendario}
