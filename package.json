@@ -19,7 +19,8 @@
     "semear": "node scripts/semear-demo.mjs",
     "callback": "node scripts/registrar-callback.mjs",
     "abacate:catalogo": "node scripts/abacate-catalogo.mjs",
-    "email:conferir": "node scripts/confere-email.mjs"
+    "email:conferir": "node scripts/confere-email.mjs",
+    "leads": "node scripts/leads.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
