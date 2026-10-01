@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/rotinas/cobranca", "schedule": "0 12 * * *" }
+    { "path": "/api/rotinas/cobranca", "schedule": "0 12 * * *" },
+    { "path": "/api/rotinas/recibos", "schedule": "0 12 * * *" }
   ]
 }

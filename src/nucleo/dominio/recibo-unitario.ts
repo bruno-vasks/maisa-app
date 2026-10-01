@@ -66,7 +66,9 @@ export type SituacaoDoRecibo = "pendente" | "emitido" | "recusado" | "cancelado"
  * é um paciente que ficou sem saber. Foi essa confusão que fez 19 falhas passarem despercebidas em
  * 26/08/2026 (ver a migração 025).
  */
-export type DesfechoDoAviso = "enviado" | "sem_telefone" | "falhou" | "desligado";
+/* `enviado_ao_dono` (01/10/2026, migração 032): a mensagem saiu, mas para a dona, pronta para ela
+ * encaminhar ("primeiro para mim"). Contá-la como `enviado` diria que o paciente soube. */
+export type DesfechoDoAviso = "enviado" | "enviado_ao_dono" | "sem_telefone" | "falhou" | "desligado";
 
 export type ReciboEmitido = {
   id: string;

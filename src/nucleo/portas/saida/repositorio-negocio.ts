@@ -91,6 +91,8 @@ export type RascunhoDeCliente = {
   ativo?: boolean;
   /** Preço próprio da sessão. `null` = volta a valer o do serviço. Ausente = não mexe. */
   valorSessao?: number | null;
+  /** Dia do recibo automático, 1 a 31. `null` = não emite sozinha. Ausente = não mexe. */
+  diaRecibo?: number | null;
 };
 
 export interface RepositorioNegocio {

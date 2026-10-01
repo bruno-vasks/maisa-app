@@ -35,10 +35,21 @@ const NOME_MAX = 40;
 /** Uma saudação é uma frase, não um manifesto. Vai inteira no prompt, toda mensagem. */
 const SAUDACAO_MAX = 280;
 
-/** As sete chaves de `cfg`, em runtime. `ChaveCfg` só existe em tempo de compilação. */
-const CHAVES: ChaveCfg[] = [
-  "confirmar", "lembrete", "remarcar", "encaminhar", "precoCatalogo", "pix", "encaixe",
-];
+/**
+ * As chaves de `cfg`, em runtime. `ChaveCfg` só existe em tempo de compilação.
+ *
+ * ⚠️ UM `Record<ChaveCfg, true>`, E NÃO UMA LISTA, E O MOTIVO É UM DEFEITO MEDIDO. Era a lista das
+ * sete primeiras, escrita à mão, e ficou para trás quando a 024 criou `avisarRecibo`: o
+ * interruptor "Avisar os pacientes" da tela de recibos mandava o PATCH, este caso de uso recusava
+ * com "Ajuste desconhecido", e a tela voltava atrás. Ninguém conseguia ligar o aviso pela tela
+ * (achado em 01/10/2026, ao acrescentar `reciboPrimeiroParaMim`). Com o `Record`, chave nova no
+ * tipo que não estiver aqui não compila.
+ */
+const TODAS: Record<ChaveCfg, true> = {
+  confirmar: true, lembrete: true, remarcar: true, encaminhar: true, precoCatalogo: true,
+  pix: true, encaixe: true, avisarRecibo: true, reciboPrimeiroParaMim: true,
+};
+const CHAVES = Object.keys(TODAS) as ChaveCfg[];
 
 const normalizar = (s: string) => s.replace(/\s+/g, " ").trim();
 

@@ -22,7 +22,8 @@ import { semConfirmacao } from "@/ui/estado/leitura";
 import { resumoDaJornada } from "@/ui/componentes/JornadaDeAtivacao";
 import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
-import { cpfMascarado } from "@/nucleo/dominio/clientes";
+import { cpfMascarado, cpfValido } from "@/nucleo/dominio/clientes";
+import { proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
 import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
@@ -615,6 +616,32 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 st.editarCliente(cli.id, { valorSessao: n });
               },
             },
+            /* ★ O DIA DO RECIBO (01/10/2026, pedido da Regina): todo mês, nesse dia, a MAISA emite
+               sozinha os recibos das sessões desta pessoa que ainda não têm. Só aparece para quem
+               emite recibo do Receita Saúde: para quem emite nota fiscal o campo não faria nada.
+               A dica diz o PRÓXIMO dia e para quem a mensagem vai, que é a pergunta que vem logo
+               depois de escolher. Ver `dominio/recibo-automatico.ts` e a rotina `/api/rotinas/recibos`. */
+            ...(emiteRecibo
+              ? [{
+                id: "diaRecibo", label: "Dia do recibo", tipo: "select" as const,
+                valor: cli.diaRecibo == null ? "" : String(cli.diaRecibo),
+                opcoes: ["", ...Array.from({ length: 31 }, (_, i) => String(i + 1))],
+                rotuloOpcao: (v: string) => (v ? `Todo dia ${v}` : "Nenhum, emito eu pela tela"),
+                hint: cli.diaRecibo == null
+                  ? "Escolha um dia e a MAISA emite sozinha, todo mês, os recibos das sessões que ainda não têm."
+                  : [
+                    `Próximo: ${D.rotuloDia(proximoDiaDoRecibo(cli.diaRecibo, D.HOJE.iso))}, com as sessões até a véspera.`,
+                    cli.diaRecibo > 28 ? "Em mês mais curto, sai no último dia." : "",
+                    !cpfValido(cli.cpf) ? `Sem o CPF de ${primeiro}, o recibo não sai.` : "",
+                    !st.cfg.avisarRecibo
+                      ? "Ninguém recebe mensagem: a escolha fica no Fiscal."
+                      : st.cfg.reciboPrimeiroParaMim
+                        ? "A mensagem vai primeiro para você."
+                        : `A mensagem vai para ${primeiro}.`,
+                  ].filter(Boolean).join(" "),
+                onChange: (v: string) => st.editarCliente(cli.id, { diaRecibo: v ? Number(v) : null }),
+              }]
+              : []),
             {
               id: "canal", label: "Atendimento", valor: cli.canal, tipo: "select",
               opcoes: ["Online", "Presencial"],

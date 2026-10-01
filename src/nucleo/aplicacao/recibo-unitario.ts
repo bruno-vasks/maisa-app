@@ -34,6 +34,8 @@ import type { ContextoTenant } from "../dominio/tenant";
 import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
 import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
+import type { RepositorioCanal } from "../portas/saida/repositorio-canal";
+import { cabecalhoParaADona, numeroDaDona } from "../dominio/recibo-automatico";
 /* A frase é a MESMA do caminho do lote, de propósito: dois textos para a mesma notícia dariam
  * duas MAISAs. Ver `avisoDeRecibo` — inclusive a parte que explica a pré-preenchida, que existe
  * para o paciente não responder "me manda o PDF". */
@@ -323,6 +325,8 @@ export type DepsDeAviso = {
   canal: CanalDeMensagens;
   negocio: RepositorioNegocio;
   assistente: RepositorioAssistente;
+  /** Só para achar o número da dona, no "primeiro para mim" (01/10/2026). Ver `numeroDaDona`. */
+  canalDoNegocio: RepositorioCanal;
 };
 
 export function criarFecharReciboDoCallback(
@@ -400,7 +404,7 @@ export function criarFecharReciboDoCallback(
 }
 
 /**
- * Manda a notícia do recibo para quem foi atendido.
+ * Manda a notícia do recibo para quem foi atendido, ou para a dona, se ela pediu para ver antes.
  *
  * ⚠️ NUNCA LANÇA — quem chama já a envolve num `catch`, e este `try` de dentro é o segundo cinto.
  * O recibo está gravado; uma mensagem que não sai não pode desfazer isso nem virar erro na rota.
@@ -408,6 +412,10 @@ export function criarFecharReciboDoCallback(
  * ⚠️ E É OPT-IN, no interruptor `avisarRecibo` (migração 024, padrão `false`). A mensagem vai para
  * o WhatsApp de um terceiro e sai do número pessoal de quem usa a MAISA — ligar por padrão faria o
  * primeiro fechamento de mês depois de um deploy surpreender trinta pacientes.
+ *
+ * ★ "PRIMEIRO PARA MIM" (`reciboPrimeiroParaMim`, 01/10/2026, a Regina): a mesma mensagem que o
+ * paciente receberia vai para a dona, com uma linha antes dizendo de quem é, para ela conferir e
+ * encaminhar. O telefone do paciente deixa de ser condição: quem decide se ele recebe é ela.
  */
 async function avisarPaciente(
   aviso: DepsDeAviso,
@@ -422,18 +430,31 @@ async function avisarPaciente(
     if (!ajustes?.cfg.avisarRecibo) return "desligado";
 
     const quem = await livro.destinatario(t, reciboId);
+    if (!quem) return "sem_telefone";
+
+    const recibo = { nome: quem.nome, data: quem.data, valor: quem.valor };
+    const nomeDoNegocio = (await aviso.negocio.negocio(t)).nome;
+    const aoPaciente = avisoDeRecibo({
+      recibo,
+      nomeDoNegocio,
+      nomeDaAssistente: ajustes.assistente.nome ?? "MAISA",
+    });
+
+    if (ajustes.cfg.reciboPrimeiroParaMim) {
+      /* Sem número de avisos E sem WhatsApp conectado não há "mim" para onde mandar: é o mesmo
+       * caso do paciente sem telefone, e a tela conta igual. */
+      const dona = numeroDaDona(await aviso.canalDoNegocio.ler(t));
+      if (!dona) return "sem_telefone";
+      /* Duas bolhas: a primeira é para ela, a segunda é a que ela encaminha. Numa bolha só, o
+       * encaminhar levaria junto o "Recibo emitido: …" que não é para o paciente ler. */
+      await aviso.canal.enviar(t, dona, [cabecalhoParaADona(recibo, Boolean(quem.telefone)), aoPaciente]);
+      return "enviado_ao_dono";
+    }
+
     /* Sem telefone não há o que fazer, e não é erro: o avulso de quem não é cadastro nasce assim.
      * Ver `DestinatarioDoRecibo` — quem chama conta, não falha. */
-    if (!quem?.telefone) return "sem_telefone";
-
-    const nomeDoNegocio = (await aviso.negocio.negocio(t)).nome;
-    await aviso.canal.enviar(t, quem.telefone, [
-      avisoDeRecibo({
-        recibo: { nome: quem.nome, data: quem.data, valor: quem.valor },
-        nomeDoNegocio,
-        nomeDaAssistente: ajustes.assistente.nome ?? "MAISA",
-      }),
-    ]);
+    if (!quem.telefone) return "sem_telefone";
+    await aviso.canal.enviar(t, quem.telefone, [aoPaciente]);
     return "enviado";
   } catch {
     /* Engole o erro, guarda o fato. Telefone que mudou de dono, canal fora do ar, número que não

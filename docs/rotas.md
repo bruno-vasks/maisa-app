@@ -31,7 +31,7 @@ Definidos em [`src/adaptadores/entrada/http/contexto.ts`](../src/adaptadores/ent
 | `/api/ativacao` | GET | `sessaoOuDemo` | `LerAtivacao` — quantos dos 5 passos estão feitos. **Derivado do banco a cada leitura**, nunca de uma flag de progresso |
 | `/api/servicos` | PUT · DELETE | `sessaoOuDemo` | `AjustarServico` — cria ou edita pelo `id` · `RemoverServico` |
 | `/api/equipe` | PUT | `sessaoOuDemo` | `AjustarProfissional` — cria ou edita quem atende. **Não mexe em expediente**: aquilo manda na grade inteira e pede caso de uso próprio |
-| `/api/clientes` | PUT | `sessaoOuDemo` | `AjustarCliente` — **só edita**, `id` obrigatório. Nome, telefone, e-mail, CPF, canal, serviço habitual e `ativo` |
+| `/api/clientes` | PUT | `sessaoOuDemo` | `AjustarCliente` — **só edita**, `id` obrigatório. Nome, telefone, e-mail, CPF, canal, serviço habitual, `ativo`, `valorSessao` (030) e `diaRecibo` (032, 1 a 31 ou `null`: o dia em que a MAISA emite sozinha os recibos da pessoa) |
 | `/api/clientes` | POST | `sessaoOuDemo` | `CadastrarCliente` — só `nome` obrigatório; `telefone` e `cpf` opcionais (o recibo da Rebots pede só CPF). Telefone que já existe devolve o cliente existente com `jaExistia: true` |
 
 ⚠️ **Serviço tem DELETE e profissional não**, e a assimetria vem do esquema, não de gosto:
@@ -114,7 +114,8 @@ muda o comportamento da tela — procure o nome no store antes.
 | `/api/recibos/lote` | POST · PATCH | `exigirSessao` | `GerarLoteDeRecibos` · `FecharLoteDeRecibos` — o CSV do Receita Saúde, para quem atende como pessoa física. `PATCH { avisar: true }` manda a notícia do recibo aos pacientes no WhatsApp |
 | `/api/recibos` | GET · POST · DELETE | `exigirSessao` | `LerRecibosPendentes` · `LancarPagamentoAvulso` · `ExcluirPagamentoAvulso` — o que vai no arquivo, e o pagamento que a agenda não pegou |
 | `/api/recibos/emitir` | POST | `exigirSessao` | `EmitirRecibo` — UM pagamento, pelo canal programático (Rebots, ou o demo quando não há credencial). Recebe só `{fonte, id}`: valor, CPF e data saem do banco. ⚠️ 200 quer dizer "o canal aceitou", **não** "emitido" — o desfecho chega no callback |
-| `/api/recibos/callback` | POST | **segredo** (`RECIBOS_CALLBACK_SECRET`) | o canal de emissão diz o que aconteceu com o recibo. Sem sessão: quem chama é o servidor do fornecedor |
+| `/api/recibos/callback` | POST | **segredo** (`RECIBOS_CALLBACK_SECRET`) | o canal de emissão diz o que aconteceu com o recibo. Sem sessão: quem chama é o servidor do fornecedor. Com `avisarRecibo` ligado, avisa o paciente, ou a dona se `reciboPrimeiroParaMim` (032): a mesma mensagem, com uma linha antes, para ela encaminhar |
+| `/api/rotinas/recibos` | GET · POST | `CRON_SECRET` ou `ROTINAS_SECRET` | `EmitirRecibosAutomaticos` — o cron da Vercel, 1×/dia às 9h (01/10/2026). Para quem tem `dia_recibo` hoje (ou nos 2 dias anteriores, se a rotina falhou), emite pelo mesmo `EmitirRecibo` da tela as sessões **anteriores** àquele dia que ainda não têm recibo. **Não manda mensagem**: quem avisa é o callback |
 
 **O `/api/fiscal` é o onboarding fiscal, e ele faz UMA pergunta: o CNPJ.** Razão social,
 município, CNAE e — o que decide o caminho de emissão — `optante_mei` vêm da Receita a partir

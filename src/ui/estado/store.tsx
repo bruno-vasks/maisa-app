@@ -972,6 +972,10 @@ export type StoreValue = {
   setHorario: (dow: number, campo: "de" | "ate", valor: string) => void;
   cfg: Record<D.ChaveCfg, boolean>;
   alternarCfg: (chave: D.ChaveCfg) => void;
+  /** Grava várias chaves de uma vez, num pedido só. A escolha "para onde vai o recibo" mexe em
+   *  duas (`avisarRecibo` e `reciboPrimeiroParaMim`), e dois `alternarCfg` dependeriam de saber
+   *  o valor de antes. */
+  definirCfg: (p: Partial<Record<D.ChaveCfg, boolean>>) => void;
   salvo: boolean;
   /** Tenta de novo: manda o que está na janela agora e reaplica o que o servidor recusou. */
   salvar: () => void;
@@ -2877,6 +2881,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ...("servicoId" in patch ? { servicoId: alvo.servicoId } : {}),
           ...("ativo" in patch ? { ativo: alvo.ativo } : {}),
           ...("valorSessao" in patch ? { valorSessao: alvo.valorSessao ?? null } : {}),
+          ...("diaRecibo" in patch ? { diaRecibo: alvo.diaRecibo ?? null } : {}),
         }),
       }).then((x) => x.json());
 
@@ -3611,6 +3616,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const setAssistente = useCallback((p: Partial<Assistente>) => {
     mexerNosAjustes({ assistente: p });
+  }, [mexerNosAjustes]);
+
+  const definirCfg = useCallback((p: Partial<Record<D.ChaveCfg, boolean>>) => {
+    mexerNosAjustes({ cfg: p });
   }, [mexerNosAjustes]);
 
   /* ─────────────────────────────────────────────────────────────────────────────
@@ -4760,7 +4769,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
-    cfg: ajustes.cfg, alternarCfg,
+    cfg: ajustes.cfg, alternarCfg, definirCfg,
     salvo, salvar, gravacao,
     diaSel, verDia,
     rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
@@ -4793,7 +4802,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
     canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
-    ajustes.cfg, alternarCfg,
+    ajustes.cfg, alternarCfg, definirCfg,
     salvo, salvar, gravacao,
     diaSel, rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
     vagasDe, proximoVago, novoEmLinha, pedirNovo,

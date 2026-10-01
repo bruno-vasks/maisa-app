@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { falasDoPreview, recorteAtivo, RECORTES, type DadosDoPreview } from "./ajustes";
 import { SECOES } from "@/ui/estado/endereco";
 
-const cfg = { confirmar: true, lembrete: true, remarcar: true, encaminhar: true, precoCatalogo: true, pix: false, encaixe: false, avisarRecibo: false };
+const cfg = { confirmar: true, lembrete: true, remarcar: true, encaminhar: true, precoCatalogo: true, pix: false, encaixe: false, avisarRecibo: false, reciboPrimeiroParaMim: false };
 const base: DadosDoPreview = {
   nomeAssistente: "Lia", nomeNegocio: "Clínica Aurora", lidos: true,
   /* `dow` 0 é segunda (`DIAS_DA_SEMANA`). */

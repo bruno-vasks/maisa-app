@@ -54,7 +54,12 @@ export type ChaveCfg =
    * alguém do outro lado tendo escrito. Este é acionado pelo CALLBACK do canal de emissão, minutos
    * depois de um clique — e a mensagem vai para o paciente, do número pessoal de quem usa a MAISA.
    * Daí o padrão `false` no banco (024). Ver `criarFecharReciboDoCallback`. */
-  | "avisarRecibo";
+  | "avisarRecibo"
+  /* Para QUEM vai esse aviso (01/10/2026, migração 032): `true` = para a dona, pronto para ela
+   * encaminhar; `false` = para o paciente. Sozinho não manda nada: só vale com `avisarRecibo`
+   * ligado. A tela junta os dois numa escolha de três ("Não enviar", "Para o paciente",
+   * "Primeiro para mim"). Ver `dominio/recibo-automatico.ts`. */
+  | "reciboPrimeiroParaMim";
 
 export type SecaoAjuste = { id: string; titulo: string; sub: string };
 

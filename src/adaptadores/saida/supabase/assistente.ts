@@ -37,7 +37,13 @@ import { clienteDoContexto } from "./contexto-cliente";
 const COLS_BASE =
   "nome, tom, saudacao, ativa, confirmar, lembrete, remarcar, encaixe, encaminhar, preco_catalogo, pix";
 
-const COLS = `${COLS_BASE}, avisar_recibo, lembrete_horas`;
+/* Em degraus, do mais novo para o mais velho: cada migração que acrescenta coluna aqui ganha um
+ * degrau, e a leitura desce até o primeiro que o banco conhece. Um degrau só (tudo ou a base)
+ * faria a 032 pendente apagar também o `avisar_recibo` da 024, que já rodou: quem avisava os
+ * pacientes pararia de avisar até alguém clicar Run. */
+const COLS_024 = `${COLS_BASE}, avisar_recibo, lembrete_horas`;
+const COLS = `${COLS_024}, recibo_primeiro_para_mim`;
+const DEGRAUS = [COLS, COLS_024, COLS_BASE];
 
 /** `42703` coluna inexistente · `PGRST204` coluna fora do cache de schema do PostgREST. */
 const colunaNaoExiste = (e: { code?: string; message?: string } | null): boolean =>
@@ -58,6 +64,7 @@ type Linha = {
   pix: boolean;
   avisar_recibo: boolean;
   lembrete_horas: number;
+  recibo_primeiro_para_mim: boolean;
 };
 
 /**
@@ -70,6 +77,7 @@ type Linha = {
 const COLUNA_DE: Partial<Record<ChaveCfg, string>> = {
   precoCatalogo: "preco_catalogo",
   avisarRecibo: "avisar_recibo",
+  reciboPrimeiroParaMim: "recibo_primeiro_para_mim",
 };
 
 const coluna = (c: ChaveCfg): string => COLUNA_DE[c] ?? c;
@@ -104,6 +112,9 @@ function paraAjustes(l: Linha): AjustesDaAssistente {
      * `undefined` num toggle deixaria a tela mostrar o switch em estado indefinido. Falha para o
      * lado de NÃO mandar mensagem para paciente nenhum, que é o lado barato. */
     avisarRecibo: l.avisar_recibo ?? false,
+    /* `?? false` pelo mesmo motivo, com a 032: sem a coluna, o aviso segue indo para o paciente,
+     * que é o comportamento de antes dela existir. */
+    reciboPrimeiroParaMim: l.recibo_primeiro_para_mim ?? false,
   };
 
   return { assistente, cfg };
@@ -112,24 +123,24 @@ function paraAjustes(l: Linha): AjustesDaAssistente {
 export const assistenteSupabase: RepositorioAssistente = {
   async ler(t: ContextoTenant): Promise<AjustesDaAssistente | null> {
     const supabase = clienteDoContexto(t);
-    let { data, error } = await supabase
-      .from("assistente")
-      .select(COLS)
-      .eq("tenant_id", t.tenantId)
-      .maybeSingle<Linha>();
+    let data: Linha | null = null;
+    let error: { code?: string; message: string } | null = null;
 
-    /* A 024 ainda não rodou neste banco: relê sem a coluna, e `paraAjustes` resolve o resto com
-     * `?? false`. Degrada para "não avisar ninguém", que é o lado barato de errar. */
-    if (colunaNaoExiste(error)) {
-      console.warn(
-        `[supabase/assistente] o inquilino ${t.tenantId} leu ajustes antes de `
-        + `supabase/024_avisar_recibo.sql rodar — o aviso de recibo fica desligado. Rode a migração.`,
-      );
+    /* Uma migração ainda não rodou neste banco: desce um degrau e relê sem as colunas dela, e
+     * `paraAjustes` resolve o resto com `?? false`. Degrada para "não avisar ninguém" (024) e
+     * "avisar o paciente" (032), que é o comportamento de antes de cada uma. */
+    for (const [i, cols] of DEGRAUS.entries()) {
       ({ data, error } = await supabase
         .from("assistente")
-        .select(COLS_BASE)
+        .select(cols)
         .eq("tenant_id", t.tenantId)
         .maybeSingle<Linha>());
+      if (!colunaNaoExiste(error) || i === DEGRAUS.length - 1) break;
+      console.warn(
+        `[supabase/assistente] o inquilino ${t.tenantId} leu ajustes antes de `
+        + `${i === 0 ? "supabase/032_recibo_automatico.sql" : "supabase/024_avisar_recibo.sql"} rodar. Rode a migração `
+        + "(npm run banco:conferir lista o que falta).",
+      );
     }
 
     if (error) {
@@ -169,12 +180,28 @@ export const assistenteSupabase: RepositorioAssistente = {
     patch.atualizado_em = new Date().toISOString();
 
     const supabase = clienteDoContexto(t);
-    const { data, error } = await supabase
-      .from("assistente")
-      .update(patch)
-      .eq("tenant_id", t.tenantId)
-      .select(COLS)
-      .maybeSingle<Linha>();
+    let data: Linha | null = null;
+    let error: { code?: string; message: string } | null = null;
+    /* O `select` de volta desce os mesmos degraus da leitura. O PostgREST recusa o pedido
+     * INTEIRO quando a lista de colunas tem uma que não existe, antes de gravar, então repetir com
+     * o degrau de baixo não grava duas vezes. Sem isto, com a 032 pendente, nenhum ajuste da tela
+     * "A MAISA" salvaria, nem o tom. */
+    for (const [i, cols] of DEGRAUS.entries()) {
+      ({ data, error } = await supabase
+        .from("assistente")
+        .update(patch)
+        .eq("tenant_id", t.tenantId)
+        .select(cols)
+        .maybeSingle<Linha>());
+      if (!colunaNaoExiste(error) || i === DEGRAUS.length - 1) break;
+    }
+
+    /* A coluna que falta é a que se quer gravar: não há degrau que resolva. Frase para a tela, e
+     * o arquivo para o log. */
+    if (colunaNaoExiste(error) && "recibo_primeiro_para_mim" in patch) {
+      console.error("[supabase/assistente] para quem vai o recibo: falta rodar supabase/032_recibo_automatico.sql");
+      throw new FalhaDoProvedor("Ainda não dá para escolher para quem vai o recibo. Tente de novo mais tarde.");
+    }
 
     if (error) {
       throw new FalhaDoProvedor(`Não foi possível salvar os ajustes da assistente: ${error.message}`);

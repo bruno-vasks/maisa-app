@@ -1041,3 +1041,32 @@ export type ResultadoDosAvisos = {
 };
 
 export type AvisarVencimentos = (hoje: string) => Promise<ResultadoDosAvisos>;
+
+/* ── a rotina do recibo automático (01/10/2026) ──
+ * ⚠️ A QUARTA EXCEÇÃO À REGRA DO `ContextoTenant` PRIMEIRO, pelo motivo das outras duas rotinas:
+ * é agendada (o cron da Vercel, uma vez por dia), e a pergunta é sobre TODOS os negócios ("de
+ * quem é o dia de recibo hoje?"). Sem sessão nem dono; um `tenantId` de entrada seria um
+ * parâmetro por onde emitir documento fiscal no CPF de outra pessoa.
+ *
+ * O LIMITE, escrito como as outras três pediram:
+ *   · a única coisa cross-tenant é a LEITURA de quem tem dia (`AgendaDeRecibos`). Daí em diante,
+ *     cada negócio é um `ContextoTenant` de ator `sistema`, e a emissão é o MESMO `EmitirRecibo`
+ *     da tela, com as mesmas recusas (caminho fiscal, dados faltando, CPF, cliente de teste);
+ *   · só emite o que já está na lista de pendentes, de sessões ANTERIORES ao dia do recibo, e só
+ *     de quem a dona deu um dia. Ninguém ganha recibo automático sem ela escolher;
+ *   · não manda mensagem nenhuma. Quem avisa é o callback do canal, quando a Receita confirma, e
+ *     ele segue os ajustes do negócio (`avisarRecibo`, `reciboPrimeiroParaMim`). */
+
+export type ResultadoDosRecibosAutomaticos = {
+  /** Pacientes cujo dia de recibo caiu hoje (ou na folga), em negócios que emitem Receita Saúde. */
+  pacientes: number;
+  /** Recibos pedidos ao canal. O desfecho chega depois, pelo callback. */
+  emitidos: number;
+  /** Sessões puladas porque a pessoa está sem CPF válido no cadastro. */
+  semCpf: number;
+  /** Ficaram para a próxima rodada: o tempo da função acabou antes. A folga de dias as alcança. */
+  adiados: number;
+  falhas: { tenantId: string; motivo: string }[];
+};
+
+export type EmitirRecibosAutomaticos = (hoje: string) => Promise<ResultadoDosRecibosAutomaticos>;

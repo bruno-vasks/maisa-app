@@ -214,6 +214,7 @@ export const repositorioDemo: RepositorioNegocio = {
       ...(r.servicoId === undefined ? {} : { servicoId: r.servicoId ?? "" }),
       ...(r.ativo === undefined ? {} : { ativo: r.ativo }),
       ...(r.valorSessao === undefined ? {} : { valorSessao: r.valorSessao }),
+      ...(r.diaRecibo === undefined ? {} : { diaRecibo: r.diaRecibo }),
     };
     CLIENTES[i] = novo;
     return novo;

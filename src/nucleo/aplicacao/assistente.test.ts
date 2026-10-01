@@ -27,7 +27,7 @@ const INICIAL = (): AjustesDaAssistente => ({
   assistente: { nome: "MAISA", tom: "amigável", saudacao: "Oi!", ativa: true, lembreteHoras: 3 },
   cfg: {
     confirmar: true, lembrete: true, remarcar: true, encaminhar: true,
-    precoCatalogo: true, pix: false, encaixe: false, avisarRecibo: false,
+    precoCatalogo: true, pix: false, encaixe: false, avisarRecibo: false, reciboPrimeiroParaMim: false,
   },
 });
 
@@ -86,6 +86,20 @@ describe("patch parcial", () => {
 
     expect(guardado.assistente.tom).toBe("profissional");
     expect(guardado.cfg.pix).toBe(true);
+  });
+});
+
+/* ★ 01/10/2026: o interruptor "Avisar os pacientes" da tela de recibos nunca gravou. A lista de
+ * chaves aceitas parou nas sete primeiras, e o PATCH de `avisarRecibo` voltava "Ajuste
+ * desconhecido". Os dois ajustes do recibo têm que passar daqui. */
+describe("os ajustes do recibo gravam", () => {
+  it("avisar os pacientes", async () => {
+    await ajustar(t, { cfg: { avisarRecibo: true } });
+    expect(recebido).toEqual({ cfg: { avisarRecibo: true } });
+  });
+  it("primeiro para mim, junto com o aviso, num pedido só", async () => {
+    await ajustar(t, { cfg: { avisarRecibo: true, reciboPrimeiroParaMim: true } });
+    expect(guardado.cfg).toMatchObject({ avisarRecibo: true, reciboPrimeiroParaMim: true });
   });
 });
 

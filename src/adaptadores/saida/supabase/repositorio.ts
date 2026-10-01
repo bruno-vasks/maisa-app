@@ -95,6 +95,7 @@ type LinhaCliente = {
   telefone: string | null;
   /** Só existe depois da 030 — ver `COLS_CLIENTE`. */
   valor_sessao?: string | number | null;
+  dia_recibo?: number | null;
   email: string | null;
   cpf: string | null;
   canal: string;
@@ -257,6 +258,9 @@ function paraCliente(l: LinhaCliente): Cliente {
     atendimentos: l.atendimentos ?? 0,
     valor: num(l.valor),
     valorSessao: l.valor_sessao == null ? null : num(l.valor_sessao),
+    /* Sem a 032 a coluna não vem (a leitura é com `*`), e `undefined` vira `null`: ninguém tem
+     * recibo automático num banco que não sabe guardar o dia. */
+    diaRecibo: l.dia_recibo == null ? null : Number(l.dia_recibo),
     /* `teste` é `not null default false` no banco, mas o campo do domínio é opcional.
      * Só propaga quando for true: um `teste: false` explícito em todo cliente faria o
      * store achar que a marca existe e vale checar. */
@@ -309,7 +313,7 @@ const COLS_CLIENTE = "*";
  */
 function recusaDeCliente(error: { code?: string; message: string } | null): void {
   if (!error) return;
-  const campo = /"(telefone|nome|cpf|email|valor_sessao)"|clientes_(\w+?)_check/.exec(error.message);
+  const campo = /"(telefone|nome|cpf|email|valor_sessao|dia_recibo)"|clientes_(\w+?)_check/.exec(error.message);
   const qual = campo?.[1] ?? campo?.[2];
   /* Banco sem a 030 (01/10/2026, a Regina): a coluna não existe, o PostgREST recusa com
    * `PGRST204` ("Could not find the 'valor_sessao' column…"), e a frase crua ia para o toast
@@ -317,6 +321,11 @@ function recusaDeCliente(error: { code?: string; message: string } | null): void
   if ((error.code === "42703" || error.code === "PGRST204") && /valor_sessao/.test(error.message)) {
     console.error("[supabase/repositorio] valor da sessão recusado: falta rodar supabase/030_valor_da_sessao.sql");
     throw new FalhaDoProvedor("O valor da sessão ainda não fica guardado na ficha. Por enquanto, ponha o valor na hora de marcar.");
+  }
+  /* O mesmo, com a 032: o dia do recibo automático ainda não tem onde morar. */
+  if ((error.code === "42703" || error.code === "PGRST204") && /dia_recibo/.test(error.message)) {
+    console.error("[supabase/repositorio] dia do recibo recusado: falta rodar supabase/032_recibo_automatico.sql");
+    throw new FalhaDoProvedor("O dia do recibo ainda não fica guardado. Tente de novo mais tarde.");
   }
   if (error.code === "23502" && qual === "telefone") {
     /* Só acontece num banco que ainda não rodou a 029 — o código já trata telefone como
@@ -331,6 +340,7 @@ function recusaDeCliente(error: { code?: string; message: string } | null): void
       nome: "Diga o nome do cliente.",
       valor: "O valor da sessão precisa ser um número entre 0 e 100 mil.",
       valor_sessao: "O valor da sessão precisa ser um número entre 0 e 100 mil.",
+      dia_recibo: "O dia do recibo é um dia do mês, de 1 a 31.",
     };
     throw new FalhaDoProvedor(rotulo[qual ?? ""] ?? "Algum campo do cliente não foi aceito — confira e tente de novo.");
   }
@@ -765,6 +775,7 @@ export const repositorioSupabase: RepositorioNegocio = {
       ...(r.servicoId === undefined ? {} : { servico_id: r.servicoId }),
       ...(r.ativo === undefined ? {} : { ativo: r.ativo }),
       ...(r.valorSessao === undefined ? {} : { valor_sessao: r.valorSessao }),
+      ...(r.diaRecibo === undefined ? {} : { dia_recibo: r.diaRecibo }),
     };
 
     /* O `.eq("tenant_id")` não é redundante com a RLS — ver o bloco acima do

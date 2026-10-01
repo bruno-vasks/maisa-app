@@ -218,8 +218,14 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
    *     está escrito em `portas/entrada/casos-de-uso.ts`: ela só LÊ e manda e-mail ao dono —
    *     não grava nada e não corta ninguém.
    *
-   * Uma quarta exceção não é impossível, mas é decisão de arquitetura: não a acrescente
-   * aqui sem escrever o limite no arquivo da porta, como estas três fizeram. */
+   *   `EmitirRecibosAutomaticos` (01/10/2026) A QUARTA, pedida pela Regina: a rotina diária
+   *     do recibo automático pergunta "de quem é o dia de recibo hoje?" sobre todos os
+   *     negócios. O limite está escrito em `portas/entrada/casos-de-uso.ts` e na porta de
+   *     saída `agenda-de-recibos.ts`: a leitura cross-tenant traz só negócio, pessoa e dia, e
+   *     cada emissão é o MESMO `EmitirRecibo` da tela, num `ContextoTenant` de ator `sistema`.
+   *
+   * Uma quinta exceção não é impossível, mas é decisão de arquitetura: não a acrescente
+   * aqui sem escrever o limite no arquivo da porta, como estas quatro fizeram. */
   it("toda porta de entrada recebe ContextoTenant primeiro, menos o provisionamento e as rotinas", () => {
     const fonte = readFileSync(join(SRC, "nucleo", "portas", "entrada", "casos-de-uso.ts"), "utf8");
 
@@ -247,7 +253,7 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
       if (!primeiroParametro(abre).includes("ContextoTenant")) semContexto.push(m[1]);
     }
 
-    expect(semContexto.sort()).toEqual(["AvisarVencimentos", "EnviarLembretes", "ProvisionarNegocio"]);
+    expect(semContexto.sort()).toEqual(["AvisarVencimentos", "EmitirRecibosAutomaticos", "EnviarLembretes", "ProvisionarNegocio"]);
   });
 });
 

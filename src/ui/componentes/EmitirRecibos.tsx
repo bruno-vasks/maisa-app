@@ -60,7 +60,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { s, Icon, fmt, Btn, Card, EmptyState, Estado, Toggle, toast } from "@/ui/primitivos";
+import { s, Icon, fmt, Btn, Card, EmptyState, Estado, toast } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import { useIsMobile } from "@/ui/useIsMobile";
 import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -246,7 +246,67 @@ function BarraDeEtapas({ etapa, ir }: { etapa: number; ir: (n: number) => void }
  * esperando o nosso aceite, a linha fica âmbar com a frase de `faltaParaEmitirRecibo`, e
  * "Renovar autorização" quando a bola é dela.
  */
-function Emitente({ config }: { config: ConfigFiscal }) {
+/* ── ★ PARA ONDE VAI O RECIBO (01/10/2026, pedido da Regina) ──
+ *
+ * Era o interruptor "Avisar os pacientes", ao lado do "Emitir". A Regina pediu um terceiro
+ * caminho, ver o recibo antes do paciente, e o Bruno pediu a escolha no canto de cima, à direita.
+ * Três posições e não dois interruptores: "avisar" e "para quem" são uma pergunta só para quem
+ * usa ("o que acontece quando o recibo sai?"), e dois interruptores deixariam ligar "primeiro para
+ * mim" com o aviso desligado, um estado que não faz nada.
+ *
+ * ⚠️ O PEDIDO MANDA SÓ O QUE MUDA. `reciboPrimeiroParaMim` só existe depois da 032; mandá-lo em
+ * todo clique faria "Não enviar" e "Para o paciente" falharem num banco sem ela, e esses dois
+ * funcionam desde a 024. Ver `definirCfg` no store.
+ *
+ * Vale para todo recibo, o da tela e o automático (o "Dia do recibo" da ficha). */
+type Destino = "nao" | "paciente" | "mim";
+const DESTINOS: { id: Destino; rotulo: string; frase: string }[] = [
+  { id: "nao", rotulo: "Não enviar", frase: "Ninguém recebe mensagem. O recibo aparece no app da Receita do paciente." },
+  { id: "paciente", rotulo: "Para o paciente", frase: "Quando a Receita confirmar, a MAISA avisa o paciente pelo seu WhatsApp." },
+  { id: "mim", rotulo: "Primeiro para mim", frase: "Quando a Receita confirmar, a mensagem vem para você no WhatsApp, pronta para encaminhar." },
+];
+export const destinoDoRecibo = (cfg: { avisarRecibo: boolean; reciboPrimeiroParaMim: boolean }): Destino =>
+  !cfg.avisarRecibo ? "nao" : cfg.reciboPrimeiroParaMim ? "mim" : "paciente";
+export const fraseDoDestino = (d: Destino) => DESTINOS.find((x) => x.id === d)!.frase;
+
+function ParaOndeVaiORecibo({ mobile }: { mobile: boolean }) {
+  const st = useStore();
+  const atual = destinoDoRecibo(st.cfg);
+  const escolher = (d: Destino) => {
+    if (d === atual) return;
+    st.definirCfg({
+      avisarRecibo: d !== "nao",
+      ...(d === "mim" ? { reciboPrimeiroParaMim: true } : d === "paciente" && st.cfg.reciboPrimeiroParaMim ? { reciboPrimeiroParaMim: false } : {}),
+    });
+  };
+  return (
+    <div style={s(`display:flex;flex-direction:column;gap:6px;${mobile ? "width:100%" : "align-items:flex-end;max-width:440px"}`)}>
+      <div role="radiogroup" aria-label="Para onde vai o recibo" style={s(`display:flex;align-items:center;gap:6px;flex-wrap:wrap;${mobile ? "" : "justify-content:flex-end"}`)}>
+        <span style={s("font-size:var(--t-label);color:var(--muted);margin-right:4px")}>Recibo pronto vai</span>
+        {DESTINOS.map((d) => {
+          const on = d.id === atual;
+          return (
+            <button
+              key={d.id}
+              role="radio"
+              aria-checked={on}
+              onClick={() => escolher(d.id)}
+              className="m-press m-focus m-hov-prim-border m-filtro"
+              style={s(`font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);padding:7px 13px;border-radius:999px;cursor:pointer;white-space:nowrap;border:1px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"};color:${on ? "var(--primary-dark)" : "var(--muted)"}`)}
+            >
+              {d.rotulo}
+            </button>
+          );
+        })}
+      </div>
+      <span style={s(`font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);${mobile ? "" : "text-align:right"}`)}>
+        {fraseDoDestino(atual)}
+      </span>
+    </div>
+  );
+}
+
+function Emitente({ config, mobile }: { config: ConfigFiscal; mobile: boolean }) {
   const st = useStore();
   const nome = NOME_DA_OCUPACAO[config.ocupacaoSaude ?? "psicologo"];
   const hoje = hojeISO();
@@ -254,7 +314,8 @@ function Emitente({ config }: { config: ConfigFiscal }) {
   const bloqueio = faltaParaEmitirRecibo(config, hoje).find((f) => f.id === "autorizacao");
   return (
     <div style={s("display:flex;flex-direction:column;gap:8px")}>
-    <div style={s("display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 4px")}>
+    <div style={s("display:flex;align-items:flex-start;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;padding:0 4px")}>
+    <div style={s("display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;padding-top:6px")}>
       <span style={s("font-size:var(--t-label);color:var(--muted)")}>Emitente</span>
       <span className="n-mach" style={s("font-size:var(--t-label);color:var(--ink);font-weight:var(--w-title)")}>
         {config.prestadorCpf}
@@ -269,16 +330,20 @@ function Emitente({ config }: { config: ConfigFiscal }) {
           </span>
         </>
       )}
+      {/* Encostado no dado desde 01/10/2026: o canto direito passou a ser da escolha de para
+          onde vai o recibo, e "Editar" lá ficaria parecendo editar a escolha. */}
       <button
         onClick={() => st.irPara("fiscal")}
         className="m-focus"
-        style={s("margin-left:auto;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary);padding:2px 0")}
+        style={s("margin-left:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary);padding:2px 0")}
       >
         {/* "Editar", e não "Documento fiscal" como antes: desde que a etapa 1 ganhou o botão
             "Voltar e editar meus dados" no pé, dois nomes diferentes para o MESMO destino na mesma
             tela sugeririam dois lugares. Aqui, ao lado do dado, o verbo basta. */}
         Editar
       </button>
+    </div>
+    <ParaOndeVaiORecibo mobile={mobile} />
     </div>
     {bloqueio ? (
       <div role="status" style={s("display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:var(--r-painel);border:1px solid var(--warn-line);background:var(--warn-soft)")}>
@@ -542,24 +607,16 @@ export function EmitirRecibos() {
   const previaItem = aEmitir[Math.min(previa, Math.max(aEmitir.length - 1, 0))];
   const travado = aEmitir.length === 0 || emitindoAgora || bloqueioDaAutorizacao !== null;
 
-  /* O interruptor do aviso ao paciente, encostado no verbo (ver o ★ dentro do painel). No
-   * celular o painel não existe, e ele fica no pé da lista, logo acima da barra do "Emitir". */
+  /* Para onde vai o recibo, dito ao lado do verbo (Bruno, 26/08/2026: *"poderia ficar logo acima
+   * do emitir"*). Desde 01/10/2026 a ESCOLHA mora no canto de cima (`ParaOndeVaiORecibo`); aqui
+   * fica só a frase, para quem vai clicar saber o que acontece depois, sem um segundo controle
+   * para a mesma pergunta. */
   const avisar = (
-      <div style={s(`display:flex;align-items:flex-start;gap:11px;padding-top:14px;border-top:1px solid var(--border);${mobile ? "" : "margin-top:auto"}`)}>
-        <span style={s("flex:1;min-width:0")}>
-          <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-            Avisar os pacientes
-          </span>
-          <span style={s("display:block;font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);margin-top:2px")}>
-            Uma mensagem por recibo, do seu WhatsApp, quando a Receita confirmar. Vale para todo
-            recibo, não só os deste mês.
-          </span>
+      <div style={s(`display:flex;align-items:flex-start;gap:9px;padding-top:14px;border-top:1px solid var(--border);${mobile ? "" : "margin-top:auto"}`)}>
+        <span aria-hidden style={s("flex:none;color:var(--muted);display:flex;padding-top:1px")}><Icon name="chat" size={15} /></span>
+        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose)")}>
+          {fraseDoDestino(destinoDoRecibo(st.cfg))}
         </span>
-        <Toggle
-          on={st.cfg.avisarRecibo}
-          onChange={() => st.alternarCfg("avisarRecibo")}
-          rotulo="Avisar os pacientes quando o recibo sair"
-        />
       </div>
   );
 
@@ -827,7 +884,7 @@ export function EmitirRecibos() {
   return (
     <Moldura pe={mobile ? peCelular : undefined}>
     <div style={s(`display:flex;flex-direction:column;gap:12px;${esticar}`)}>
-      <Emitente config={fiscal.config} />
+      <Emitente config={fiscal.config} mobile={mobile} />
 
       {/* ★ QUEM FICOU SEM SABER. Em 26/08/2026 dezenove mensagens falharam e o silêncio foi
           idêntico ao sucesso — o dono só descobriu contando. Agora é uma linha na tela. */}
@@ -858,7 +915,6 @@ export function EmitirRecibos() {
       <div style={s(`display:flex;gap:12px;align-items:${mobile ? "flex-start" : "stretch"};${mobile ? "flex-direction:column" : ""}${esticar}`)}>
         <Card style={s(`flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;${mobile ? "width:100%" : "min-height:0"}`)}>
           {conteudo}
-          {mobile && avisar}
           {/* `margin-top:auto` na etapa 2: lá o conteúdo é curto (uma lista de conferência), e sem
               isto o pé subiria para o meio do cartão esticado. Na etapa 1 a lista já ocupou tudo. */}
           <div style={s(`display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:14px;border-top:1px solid var(--line);${mobile || etapa === 1 ? "" : "margin-top:auto"}`)}>

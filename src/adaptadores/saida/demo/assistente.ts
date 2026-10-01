@@ -45,6 +45,7 @@ export const CFG_PADRAO: Record<ChaveCfg, boolean> = {
   encaixe: false,
   /* Desligado no demo pelo mesmo motivo do banco (024): a mensagem vai para terceiro. */
   avisarRecibo: false,
+  reciboPrimeiroParaMim: false,
 };
 
 export const TOGGLES_AGENDAMENTO: Toggle[] = [

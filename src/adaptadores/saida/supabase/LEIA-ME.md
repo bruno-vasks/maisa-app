@@ -23,6 +23,8 @@ renovar sessão.
 | `contatos.ts` | servidor | `RepositorioContatos`: o caderno de nomes (tabela `contatos`) e o modo do número (`integracoes_whatsapp.modo`). ⚠️ Lido pelo AGENTE, sem sessão — a RLS sai de cena e o `.eq("tenant_id")` daqui é o cinto único. O upsert da importação **não toca em `cliente`**: reimportar não pode apagar o que o dono marcou. |
 | `livro-de-recibos.ts` | servidor | `LivroDeRecibos`: a linha do razão da emissão unitária + `tenantDoProtocolo` (o resolvedor de inquilino do callback). ⚠️ `fechar` sai de `pendente` para emitido/recusado **e de `emitido` para `cancelado`** — sem a segunda transição o cancelamento se perdia calado. |
 | `guarda-de-comprovante.ts` | servidor | `GuardaDeComprovante`: a nossa cópia do PDF do recibo no bucket privado `comprovantes-recibo`. ⚠️ Existe porque a `file_url` do canal vale **5 minutos** e a API dele não tem consulta — fora da janela do callback o documento é irrecuperável. Falha em silêncio (`null`) de propósito: perder o PDF é ruim, perder o desfecho é irreversível. |
+| `agenda-de-recibos.ts` | servidor | `AgendaDeRecibos`: `clientes.dia_recibo` de todos os negócios, para a rotina do recibo automático (01/10/2026). ⚠️ **Service role direto**, como `lembretes.ts`: não há contexto. Banco sem a 032 devolve lista vazia com aviso no log, não erro |
+| `assistente.ts` | servidor | `RepositorioAssistente`. ⚠️ Lê e grava **em degraus** desde 01/10/2026 (`DEGRAUS`: com a 032, sem ela, sem a 024): um degrau só faria a 032 pendente apagar também o `avisar_recibo` da 024 |
 
 ## Duas decisões estruturais
 

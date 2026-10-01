@@ -68,6 +68,7 @@ import { criarProvisionarNegocio } from "@/nucleo/aplicacao/provisionar";
 import { criarAjustarAssistente, criarLerAssistente } from "@/nucleo/aplicacao/assistente";
 import { criarAjustarHorarios, criarLerHorarios } from "@/nucleo/aplicacao/horarios";
 import { criarEnviarLembretes } from "@/nucleo/aplicacao/lembretes";
+import { criarEmitirRecibosAutomaticos } from "@/nucleo/aplicacao/recibo-automatico";
 import {
   criarConectarCanal, criarDefinirDonoDoCanal, criarDesconectarCanal, criarLerCanal, criarRenovarCodigo,
 } from "@/nucleo/aplicacao/canal";
@@ -90,6 +91,7 @@ import { provisionadorSupabase } from "@/adaptadores/saida/supabase/provisionado
 import { assistenteDemo } from "@/adaptadores/saida/demo/assistente-repo";
 import { horariosDemo } from "@/adaptadores/saida/demo/horarios-repo";
 import { lembretesDemo } from "@/adaptadores/saida/demo/lembretes";
+import { agendaDeRecibosDemo } from "@/adaptadores/saida/demo/agenda-de-recibos";
 import { assistenteSupabase } from "@/adaptadores/saida/supabase/assistente";
 import { horariosSupabase } from "@/adaptadores/saida/supabase/horarios";
 import { faqsSupabase } from "@/adaptadores/saida/supabase/faqs";
@@ -98,6 +100,7 @@ import { embeddingDemo } from "@/adaptadores/saida/demo/embedding";
 import { embeddingDePergunta, embeddingGemini } from "@/adaptadores/saida/gemini/embedding";
 import { criarAjustarFaq, criarLerFaqs, criarRemoverFaq, criarResponderDuvida } from "@/nucleo/aplicacao/faqs";
 import { lembretesSupabase } from "@/adaptadores/saida/supabase/lembretes";
+import { agendaDeRecibosSupabase } from "@/adaptadores/saida/supabase/agenda-de-recibos";
 import { canalSupabase } from "@/adaptadores/saida/supabase/canal";
 import { canalDemoRepo, provisionamentoDemo } from "@/adaptadores/saida/demo/canal";
 import { provisionamentoEvolution } from "@/adaptadores/saida/evolution/provisionamento-evolution";
@@ -353,6 +356,9 @@ const embeddingParaBuscar = isGeminiConfigured ? embeddingDePergunta : embedding
  * cair, então um Supabase configurado sem service role a deixaria estourando a cada
  * tique. Sem ela, a rotina roda em demonstração e devolve zero envios. */
 const filaLembretes = isAdminConfigured ? lembretesSupabase : lembretesDemo;
+/* Quem tem dia de recibo automático (01/10/2026). Mesmo critério e mesmo motivo da fila acima: a
+ * pergunta atravessa negócios, e só a service role a responde. */
+const agendaDeRecibos = isAdminConfigured ? agendaDeRecibosSupabase : agendaDeRecibosDemo;
 
 /**
  * O CANAL DE WHATSAPP, por inquilino.
@@ -516,6 +522,17 @@ const historicoDoCanal = isEvolutionConfigured
   : historicoDoCanalDemo;
 
 const agendarAtendimento = criarAgendarAtendimento({ agenda, negocio, registro });
+
+/* A emissão unitária fica numa constante, e não só dentro de `app`, porque são DOIS a usá-la: o
+ * botão "Emitir" (pela rota) e a rotina do recibo automático. Duas instâncias seriam a mesma
+ * coisa hoje e duas coisas no dia em que alguém mudasse uma. */
+const emitirReciboUnitario = criarEmitirRecibo({
+  livro: livroRecibos,
+  emissor: emissorRecibo,
+  recibos: recibosRepo,
+  fiscal: fiscalRepo,
+  guarda: guardaComprovante,
+});
 
 /** Tudo que o app sabe fazer, já montado. */
 export const app = {
@@ -749,12 +766,16 @@ export const app = {
   /* ★ A EMISSÃO UNITÁRIA, finalmente ligada. Ela existia com teste e sem rota desde 24/08/2026 —
    * e foi justamente por não ser exercitada de ponta a ponta que cinco defeitos do adaptador da
    * Rebots sobreviveram até o sandbox responder. Porta sem fio ligado não é porta testada. */
-  emitirRecibo: criarEmitirRecibo({
-    livro: livroRecibos,
-    emissor: emissorRecibo,
+  emitirRecibo: emitirReciboUnitario,
+
+  /* ★ O RECIBO AUTOMÁTICO (01/10/2026, a Regina): a rotina diária usa a MESMA emissão da tela,
+   * e com ela todas as travas (pagamento preso antes de falar com a Receita, valor do banco, CPF,
+   * cliente de teste). Ela só decide quando e de quem. Ver `aplicacao/recibo-automatico.ts`. */
+  emitirRecibosAutomaticos: criarEmitirRecibosAutomaticos({
+    agenda: agendaDeRecibos,
     recibos: recibosRepo,
     fiscal: fiscalRepo,
-    guarda: guardaComprovante,
+    emitirRecibo: emitirReciboUnitario,
   }),
 
   /* O callback do canal de emissão. ⚠️ Ele grava a única cópia do desfecho que existe no mundo:
@@ -767,7 +788,9 @@ export const app = {
      * uma notícia, uma voz. O que muda é o gatilho — lá é um clique com alguém olhando, aqui é o
      * callback de um servidor. Por isso lá o opt-in é por envio e aqui é um interruptor do
      * inquilino (`avisarRecibo`, migração 024, padrão `false`). */
-    aviso: { canal, negocio, assistente },
+    /* `canalRepo` desde 01/10/2026: no "primeiro para mim" o aviso vai para a dona, e o número
+     * dela mora lá (ver `numeroDaDona`). */
+    aviso: { canal, negocio, assistente, canalDoNegocio: canalRepo },
   }),
 
   /* ── A COBRANÇA ──

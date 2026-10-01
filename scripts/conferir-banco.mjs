@@ -66,6 +66,7 @@ export const MARCADORES = [
   { migracao: "029_cliente_sem_telefone", tabela: null, coluna: null },
   { migracao: "030_valor_da_sessao", tabela: "v_clientes", coluna: "valor_sessao" },
   { migracao: "031_foto_do_negocio", tabela: "negocios", coluna: "foto" },
+  { migracao: "032_recibo_automatico", tabela: "assistente", coluna: "recibo_primeiro_para_mim" },
 ];
 
 const FALTA = new Set(["42703", "PGRST204", "42P01", "PGRST205", "PGRST200"]);

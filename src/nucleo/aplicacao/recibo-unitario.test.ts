@@ -28,6 +28,7 @@ import type { ContextoTenant } from "../dominio/tenant";
 import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
 import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
+import type { RepositorioCanal } from "../portas/saida/repositorio-canal";
 import { DadoInvalido } from "../dominio/erros";
 
 const t: ContextoTenant = { tenantId: "t1", usuarioId: "u1", ator: { tipo: "usuario", id: "u1" } };
@@ -86,6 +87,10 @@ function ambiente(p: {
   cadastroQuebra?: Error;
   /** A configuração fiscal lida. Padrão: a Carla, completa. */
   config?: ConfigFiscal;
+  /** "Primeiro para mim" (032). Padrão desligado: o aviso vai para o paciente. */
+  primeiroParaMim?: boolean;
+  /** O canal do negócio: o número de avisos e o número conectado. `null` = nada conectado. */
+  canalDaDona?: { telefoneDono: string | null; numero: string | null } | null;
 } = {}) {
   const ordem: string[] = [];
   const protocolos: { reciboId: string; protocolo: string }[] = [];
@@ -188,6 +193,7 @@ function ambiente(p: {
           confirmar: true, lembrete: true, remarcar: true, encaminhar: true,
           precoCatalogo: true, pix: false, encaixe: false,
           avisarRecibo: p.avisarRecibo === true,
+          reciboPrimeiroParaMim: p.primeiroParaMim === true,
         },
       };
     },
@@ -198,10 +204,17 @@ function ambiente(p: {
     async pendentes() { return p.pendentes ?? [sessao()]; },
   } as unknown as RepositorioRecibos;
 
+  const canalDoNegocio = {
+    async ler() {
+      const c = p.canalDaDona === undefined ? { telefoneDono: null, numero: "5511988887777" } : p.canalDaDona;
+      return c && { status: "conectado", instancia: "i1", conectadoEm: null, ...c };
+    },
+  } as unknown as RepositorioCanal;
+
   return {
     emitir: criarEmitirRecibo({ livro, emissor, recibos, fiscal: fiscalDe(p.config ?? carla), guarda }),
     reconciliar: criarReconciliarRecibos({ livro, emissor }),
-    fecharDoCallback: criarFecharReciboDoCallback({ livro, guarda, aviso: { canal, negocio, assistente } }),
+    fecharDoCallback: criarFecharReciboDoCallback({ livro, guarda, aviso: { canal, negocio, assistente, canalDoNegocio } }),
     /* Sem as portas do aviso: é o mesmo caso de uso de antes, e tem que continuar mudo. */
     fecharSemAviso: criarFecharReciboDoCallback({ livro, guarda }),
     ordem, protocolos, descartados, soltos, fechados, consultados, arquivados, enviadas, avisosAnotados,
@@ -773,5 +786,65 @@ describe("★ o desfecho do aviso é anotado", () => {
     await a.fecharDoCallback(t, desfechoDe());
     expect(a.ordem.indexOf("fechar")).toBeLessThan(a.ordem.indexOf("registrarAviso"));
     expect(a.ordem.indexOf("enviar")).toBeLessThan(a.ordem.indexOf("registrarAviso"));
+  });
+});
+
+
+/* ── ★ "PRIMEIRO PARA MIM" (01/10/2026, a Regina) ────────────────────────────
+ *
+ * Ela quer ver o recibo antes do paciente. A mensagem que ele receberia vai para ela, com uma
+ * linha antes dizendo de quem é, para conferir e encaminhar. O número dela é o de avisos, ou, sem
+ * ele, o próprio WhatsApp conectado: a MAISA da Regina roda no número pessoal dela, e ela nunca
+ * preencheu o de avisos (medido em 01/10/2026). */
+describe("★ primeiro para mim", () => {
+  it("vai para o número conectado quando não há número de avisos, em duas bolhas", async () => {
+    const a = ambiente({ avisarRecibo: true, primeiroParaMim: true });
+    await a.fecharDoCallback(t, desfechoDe());
+
+    expect(a.enviadas).toHaveLength(1);
+    expect(a.enviadas[0].para).toBe("5511988887777");
+    expect(a.enviadas[0].textos).toHaveLength(2);
+    /* A primeira é para ela: nome inteiro, data e valor. */
+    expect(a.enviadas[0].textos[0]).toContain("Patrícia Mendes");
+    expect(a.enviadas[0].textos[0]).toContain("07/08/2026");
+    expect(a.enviadas[0].textos[0]).toContain("250,00");
+    /* A segunda é a que o paciente receberia, igual. */
+    expect(a.enviadas[0].textos[1]).toContain("Oi, Patrícia!");
+    expect(a.avisosAnotados).toEqual(["enviado_ao_dono"]);
+  });
+
+  it("o número de avisos, quando existe, ganha do número conectado", async () => {
+    const a = ambiente({ avisarRecibo: true, primeiroParaMim: true, canalDaDona: { telefoneDono: "5511977776666", numero: "5511988887777" } });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas[0].para).toBe("5511977776666");
+  });
+
+  it("nunca manda para o paciente", async () => {
+    const a = ambiente({ avisarRecibo: true, primeiroParaMim: true });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas.map((e) => e.para)).not.toContain("11999990000");
+  });
+
+  it("paciente sem telefone ainda chega para ela, e a linha diz isso", async () => {
+    const a = ambiente({ avisarRecibo: true, primeiroParaMim: true, telefoneDoPaciente: null });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas).toHaveLength(1);
+    expect(a.enviadas[0].textos[0]).toContain("Não há telefone no cadastro");
+    expect(a.avisosAnotados).toEqual(["enviado_ao_dono"]);
+  });
+
+  it("sem número nenhum para ela, ninguém recebe, e conta como sem telefone", async () => {
+    const a = ambiente({ avisarRecibo: true, primeiroParaMim: true, canalDaDona: null });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas).toEqual([]);
+    expect(a.avisosAnotados).toEqual(["sem_telefone"]);
+  });
+
+  /* Sozinho, "primeiro para mim" não liga nada: com "Não enviar", silêncio. */
+  it("com o aviso desligado, não manda nem para ela", async () => {
+    const a = ambiente({ avisarRecibo: false, primeiroParaMim: true });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas).toEqual([]);
+    expect(a.avisosAnotados).toEqual(["desligado"]);
   });
 });

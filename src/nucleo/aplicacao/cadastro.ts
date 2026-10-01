@@ -50,6 +50,7 @@ import {
 } from "../dominio/catalogo";
 import { colapsarEspaco, temConteudo } from "../dominio/texto";
 import { DadoInvalido } from "../dominio/erros";
+import { diaDoReciboValido } from "../dominio/recibo-automatico";
 
 export function criarLerCadastro(deps: { negocio: RepositorioNegocio }): LerCadastro {
   return async (t): Promise<CadastroDoNegocio> => {
@@ -374,6 +375,14 @@ export function criarAjustarCliente(deps: { negocio: RepositorioNegocio }): Ajus
       throw new DadoInvalido("O valor da sessão precisa ser um número entre 0 e 100 mil.", "valorSessao");
     }
 
+    /* O dia do recibo automático (01/10/2026, a Regina). 1 a 31, ou `null` para a MAISA não
+     * emitir sozinha. Em mês curto vale o último dia, e isso é regra da rotina
+     * (`diaDoReciboNoMes`), não daqui: aqui só a faixa, que é a mesma do `check` da 032. */
+    const diaRecibo = p?.diaRecibo === undefined || p.diaRecibo === null ? p?.diaRecibo : Number(p.diaRecibo);
+    if (diaRecibo !== undefined && !diaDoReciboValido(diaRecibo)) {
+      throw new DadoInvalido("O dia do recibo é um dia do mês, de 1 a 31.", "diaRecibo");
+    }
+
     return deps.negocio.atualizarCliente(t, {
       id,
       nome,
@@ -384,6 +393,7 @@ export function criarAjustarCliente(deps: { negocio: RepositorioNegocio }): Ajus
       ...(servicoId === undefined ? {} : { servicoId }),
       ...(p.ativo === undefined ? {} : { ativo: p.ativo }),
       ...(valorSessao === undefined ? {} : { valorSessao }),
+      ...(diaRecibo === undefined ? {} : { diaRecibo }),
     });
   };
 }

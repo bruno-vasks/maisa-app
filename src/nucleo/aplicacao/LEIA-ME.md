@@ -13,6 +13,9 @@ portas de saída que recebe por parâmetro.
 | `notas.ts` | `EmitirNota`, `ConsultarNota`, `CancelarNota`, `LerFaturamento` | `EmissorFiscal` · `RepositorioFiscal` · `RepositorioNotas` |
 | `fiscal.ts` | `LerEstadoFiscal`, `ConsultarCnpj`, `LigarNotaFiscal`, `EnviarCertificado`, `LiberarProducaoFiscal` | `RepositorioFiscal` · `CadastroDeEmissor` |
 | `conversas.ts` | `ListarConversas`, `LerConversa`, `ResponderConversa`, `MudarPosseConversa` | `RepositorioHistorico`, `RepositorioConversas`, `CanalDeMensagens` |
+| `recibo-automatico.ts` | `EmitirRecibosAutomaticos` (01/10/2026), a rotina diária: no dia de cada paciente (ou na folga de 3 dias), emite pelo **mesmo** `EmitirRecibo` da tela as sessões dela ANTERIORES àquele dia que ainda não têm recibo. Não avisa ninguém: quem avisa é o callback. Para de emitir em 45s (`TETO_DA_RODADA_MS`) e conta o resto como `adiados`. ⚠️ A quarta exceção ao `ContextoTenant` primeiro, com o limite escrito em `casos-de-uso.ts` | `AgendaDeRecibos` (cross-tenant, só leitura), `RepositorioRecibos`, `RepositorioFiscal`, e o caso de uso `EmitirRecibo` |
+| `recibo-unitario.ts` | ★ Desde 01/10/2026 o aviso do callback segue `reciboPrimeiroParaMim`: a mensagem do paciente vai para a dona, com `cabecalhoParaADona` antes, em duas bolhas, e o desfecho é `enviado_ao_dono`. `DepsDeAviso` ganhou `canalDoNegocio` (o número dela) | `RepositorioCanal`, além das de antes |
+| `assistente.ts` | ⚠️ As chaves aceitas em `cfg` saem de um `Record<ChaveCfg, true>` desde 01/10/2026: a lista à mão parou nas sete primeiras, e o PATCH de `avisarRecibo` voltava "Ajuste desconhecido" (o interruptor "Avisar os pacientes" nunca gravou pela tela) | `RepositorioAssistente` |
 
 ### `conversas.ts` — o painel do outro lado da mesma thread
 

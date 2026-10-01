@@ -27,6 +27,13 @@ export type Cliente = {
    */
   valorSessao?: number | null;
   /**
+   * O dia do mês (1 a 31) em que a MAISA emite sozinha os recibos desta pessoa, com as sessões
+   * que ainda não têm recibo. `null` = não emite sozinha. Em mês curto vale o último dia. Só faz
+   * sentido para quem emite Receita Saúde. Pedido da Regina (01/10/2026); migração 032. Ver
+   * `dominio/recibo-automatico.ts`.
+   */
+  diaRecibo?: number | null;
+  /**
    * Cliente que existe só para validar a integração fiscal em produção.
    * A NFS-e só autoriza de verdade em produção, então testar exige emitir uma
    * nota real — e uma nota real de teste não pode ficar de pé. Marcar `teste`

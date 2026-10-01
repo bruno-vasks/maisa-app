@@ -31,6 +31,7 @@ um modelo de linguagem precisa conseguir preencher isso em JSON.
 | `repositorio-fiscal.ts` | `RepositorioFiscal` (a `config_fiscal` do inquilino). ⚠️ Nunca guarda token nem `.pfx` | `adaptadores/saida/supabase` |
 | `repositorio-notas.ts` | `RepositorioNotas` (o que falta emitir + a CLAIM atômica que impede nota duplicada). ⚠️ Não aceita `valor` em lugar nenhum — quem soma é o banco | `adaptadores/saida/supabase` |
 | `repositorio-negocio.ts` | `RepositorioNegocio` (negócio, profissional, serviço, cliente, expediente, allowlist de agendas, cliente por telefone) | `adaptadores/saida/demo` ⚠️ fixtures |
+| `agenda-de-recibos.ts` | `AgendaDeRecibos.comDia()`: quem tem dia de recibo automático, em **todos** os negócios (01/10/2026). ⚠️ Sem `ContextoTenant`, como a fila de lembretes: só três campos (negócio, pessoa, dia), só leitura, e a trava contra emitir duas vezes é a do pagamento, não desta porta | `adaptadores/saida/supabase` (service role) · `demo` (lista vazia) |
 
 ## Duas decisões que valem explicação
 
