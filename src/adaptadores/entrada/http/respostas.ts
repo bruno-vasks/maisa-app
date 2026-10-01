@@ -73,7 +73,7 @@ export function falha(escopo: string, e: unknown): NextResponse {
  * ("null value in column "telefone" of relation "clientes" violates not-null constraint").
  * Ela continua inteira no `console.error` de cima, que é onde quem mantém procura.
  */
-const JARGAO = /violates|constraint|relation "|column "|PGRST|duplicate key|invalid input syntax|null value|syntax error|permission denied for|JWT|ECONN|ETIMEDOUT|fetch failed|TypeError|undefined is not|Cannot read prop|Unexpected token/i;
+const JARGAO = /violates|constraint|relation "|column "|schema cache|PGRST|duplicate key|invalid input syntax|null value|syntax error|permission denied for|JWT|ECONN|ETIMEDOUT|fetch failed|TypeError|undefined is not|Cannot read prop|Unexpected token/i;
 export function fraseParaATela(e: unknown): string {
   const msg = e instanceof Error ? e.message : "";
   if (!msg || JARGAO.test(msg)) return "Algo falhou do nosso lado. Tente de novo em alguns instantes.";

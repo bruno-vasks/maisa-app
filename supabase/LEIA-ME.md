@@ -46,9 +46,12 @@ nesta ordem. Todos são reexecutáveis (`if not exists`, `create or replace`,
 | 031 | `031_foto_do_negocio.sql` | **A foto de perfil do negócio.** `negocios.foto` (texto, `data:` URL de até 200 mil caracteres, nula = avatar sorteado), com `check` de formato. Entrou com a gaveta "Seu negócio" do painel. O código lê a tabela com `*`, então roda antes e depois desta migração. Aditivo e reexecutável |
 | 099 | `099_auditoria.sql` | **Falha se o isolamento estiver aberto.** Rode a cada mudança de schema |
 
-⚠️ O 001–008 já rodou contra o Supabase do Bruno (o app lê `negocios` e `clientes` de lá).
-O **009 é o único pendente** enquanto isto está escrito, e sem ele a tela de Conversas
-responde erro: o adaptador consulta uma view que ainda não existe. Rode em ordem e leia os
+**O que falta rodar se descobre com `npm run banco:conferir`**, nunca por esta página: ele
+pergunta ao banco de produção, migração por migração, se a coluna ou tabela que ela cria
+existe (só leitura, sem ler dado de ninguém). Esta seção dizia "o 009 é o único pendente" e
+envelheceu calada; em 01/10/2026 a **030** estava pendente e o único sintoma era o valor da
+sessão sumindo da ficha da Regina. Migração nova entra com o marcador dela em `MARCADORES`
+(`scripts/conferir-banco.mjs`). Rode em ordem e leia os
 `notice` — o 007 é a prova de que eles importam: um `create policy` abortado deixou duas
 tabelas com RLS ligada e política nenhuma, e o sintoma foi "o painel não lê, o agente lê".
 

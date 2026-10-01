@@ -311,6 +311,13 @@ function recusaDeCliente(error: { code?: string; message: string } | null): void
   if (!error) return;
   const campo = /"(telefone|nome|cpf|email|valor_sessao)"|clientes_(\w+?)_check/.exec(error.message);
   const qual = campo?.[1] ?? campo?.[2];
+  /* Banco sem a 030 (01/10/2026, a Regina): a coluna não existe, o PostgREST recusa com
+   * `PGRST204` ("Could not find the 'valor_sessao' column…"), e a frase crua ia para o toast
+   * enquanto o valor sumia da ficha. `npm run banco:conferir` lista o que falta rodar. */
+  if ((error.code === "42703" || error.code === "PGRST204") && /valor_sessao/.test(error.message)) {
+    console.error("[supabase/repositorio] valor da sessão recusado: falta rodar supabase/030_valor_da_sessao.sql");
+    throw new FalhaDoProvedor("O valor da sessão ainda não fica guardado na ficha. Por enquanto, ponha o valor na hora de marcar.");
+  }
   if (error.code === "23502" && qual === "telefone") {
     /* Só acontece num banco que ainda não rodou a 029 — o código já trata telefone como
      * opcional. O log diz qual arquivo rodar. */

@@ -20,7 +20,8 @@
     "callback": "node scripts/registrar-callback.mjs",
     "abacate:catalogo": "node scripts/abacate-catalogo.mjs",
     "email:conferir": "node scripts/confere-email.mjs",
-    "leads": "node scripts/leads.mjs"
+    "leads": "node scripts/leads.mjs",
+    "banco:conferir": "node scripts/conferir-banco.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
