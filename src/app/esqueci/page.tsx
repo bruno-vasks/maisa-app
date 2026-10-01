@@ -119,7 +119,7 @@ export default function Esqueci() {
                 <input
                   type="email" required autoFocus autoComplete="email"
                   value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="voce@exemplo.com" className="m-focus" style={s(inputCss)}
+                  placeholder="Escreva seu e-mail…" className="m-focus" style={s(inputCss)}
                   disabled={!isSupabaseConfigured || carregando}
                 />
               </label>

@@ -158,7 +158,7 @@ function DonoDoCanal() {
           onKeyDown={(e) => { if (e.key === "Enter" && editando) void salvar(); }}
           inputMode="tel"
           autoComplete="tel"
-          placeholder="(11) 99999-9999"
+          placeholder="Escreva o número com DDD…"
           aria-label="WhatsApp de quem recebe os avisos"
           className="m-focus"
           style={s(`${CAMPO};height:40px;max-width:220px`)}
@@ -389,7 +389,7 @@ function FaixaCanalLida() {
             onChange={(e) => setTelefone(digitosDoTelefone(e.target.value))}
             inputMode="tel"
             autoComplete="tel"
-            placeholder="(11) 99999-9999"
+            placeholder="Escreva o número com DDD…"
             className="m-focus"
             style={s(`${CAMPO};height:42px;max-width:260px`)}
           />
@@ -780,7 +780,7 @@ function Duvidas() {
           <input
             value={rascunho.pergunta}
             onChange={(e) => setRascunho((r) => ({ ...r, pergunta: e.target.value }))}
-            placeholder="Vocês têm estacionamento?"
+            placeholder="Escreva uma pergunta que os clientes costumam fazer…"
             className="m-focus"
             style={s(CAMPO)}
           />
@@ -792,7 +792,7 @@ function Duvidas() {
             rows={2}
             value={rascunho.resposta}
             onChange={(e) => setRascunho((r) => ({ ...r, resposta: e.target.value }))}
-            placeholder="Temos convênio com o estacionamento da esquina."
+            placeholder="Escreva o que a MAISA deve responder…"
             className="m-focus"
             style={s("width:100%;padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);line-height:1.55;color:var(--ink);outline:none;resize:vertical;min-height:64px")}
           />

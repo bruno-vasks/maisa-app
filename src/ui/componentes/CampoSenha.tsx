@@ -49,7 +49,9 @@ export function CampoSenha({
   autoComplete,
   autoFocus,
   minLength,
-  placeholder = "••••••••",
+  /* Eram oito bolinhas: num campo de senha, é exatamente o desenho de uma senha já digitada
+   * (01/10/2026, emenda 6). */
+  placeholder = "Escreva sua senha…",
   desabilitado,
   dica,
   required = true,

@@ -96,7 +96,7 @@ function LoginInner() {
           <form onSubmit={entrar} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>E-mail</span>
-              <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@exemplo.com" className="m-focus" style={s(inputCss)} disabled={!isSupabaseConfigured || carregando} />
+              <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Escreva seu e-mail…" className="m-focus" style={s(inputCss)} disabled={!isSupabaseConfigured || carregando} />
             </label>
             <CampoSenha
               rotulo="Senha"

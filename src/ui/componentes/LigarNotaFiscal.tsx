@@ -32,6 +32,8 @@ import { s, Icon, Estado } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import { mensagemDaFalha } from "@/ui/falhas";
 import type { CadastroDoCnpj, ConfigFiscal } from "@/nucleo/dominio/fiscal";
+import { CONSELHO } from "@/nucleo/dominio/checklist-recibo";
+import type { OcupacaoSaude } from "@/nucleo/dominio/recibo-saude";
 
 type Estado = {
   config: ConfigFiscal;
@@ -327,7 +329,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               value={cpf}
               onChange={(e) => setCpf(mascaraCpf(e.target.value))}
               inputMode="numeric"
-              placeholder="000.000.000-00"
+              placeholder="Escreva seu CPF aqui…"
               className="n m-focus"
               style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
@@ -362,7 +364,9 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
             <input
               value={registro}
               onChange={(e) => setRegistro(e.target.value.slice(0, 15))}
-              placeholder="CRP 06/123456"
+              /* Era "CRP 06/123456": com a cor de texto, a Regina achou que o campo já estava
+                 preenchido e foi apagar (01/10/2026). A sigla segue a profissão escolhida. */
+              placeholder={`Escreva seu ${CONSELHO[ocupacao as OcupacaoSaude] ?? "registro"} aqui…`}
               className="n m-focus"
               style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
@@ -416,7 +420,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               value={cnpj}
               onChange={(e) => setCnpj(mascaraCnpj(e.target.value))}
               inputMode="numeric"
-              placeholder="00.000.000/0000-00"
+              placeholder="Escreva o CNPJ aqui…"
               className="n m-focus"
               style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
@@ -472,7 +476,7 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               style={s("font-family:inherit;font-size:var(--t-sm);color:var(--ink)")} />
             <input
               value={senha} onChange={(e) => setSenha(e.target.value)}
-              type="password" placeholder="Senha do certificado" className="m-focus"
+              type="password" placeholder="Escreva a senha do certificado…" className="m-focus"
               style={s("font-family:inherit;font-size:var(--t-body);padding:11px 13px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg);color:var(--ink)")}
             />
             <button

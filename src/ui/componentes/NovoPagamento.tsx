@@ -27,7 +27,9 @@ import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
 import { mensagemDaFalha } from "@/ui/falhas";
 
 const CAMPO =
-  "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--bg);color:var(--ink);width:100%";
+  "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box";
+/** O rótulo em cima do campo, no mesmo desenho do cartão "Meus dados" do `LoteReceitaSaude`. */
+const ROTULO = "display:grid;gap:5px;font-size:var(--t-label);color:var(--muted)";
 
 /** Hoje em São Paulo. O fuso do navegador do dono não decide a data de um documento fiscal. */
 export const hojeSP = () =>
@@ -207,18 +209,32 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
         ))}
       </select>
 
-      <input
-        value={r.nome}
-        onChange={(e) => setR((a) => ({ ...a, nome: e.target.value, clienteId: "" }))}
-        placeholder="Nome de quem foi atendido"
-        className="n m-focus"
-        style={s(CAMPO)}
-      />
+      {/* ★ RÓTULO EM CIMA, INSTRUÇÃO APAGADA DENTRO (01/10/2026, emenda 6). O texto de dentro
+          era o único rótulo destes campos; com ele apagado, o que o campo pede mora aqui fora. */}
+      <label style={s(ROTULO)}>
+        Nome de quem foi atendido
+        <input
+          value={r.nome}
+          onChange={(e) => setR((a) => ({ ...a, nome: e.target.value, clienteId: "" }))}
+          placeholder="Escreva o nome…"
+          className="n m-focus"
+          style={s(CAMPO)}
+        />
+      </label>
 
       <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
-        <input value={r.cpf} onChange={(e) => põe("cpf", mascaraCpf(e.target.value))} inputMode="numeric" placeholder="CPF de quem foi atendido" className="n m-focus" style={s(`${CAMPO};flex:2;min-width:170px`)} />
-        <input value={r.data} onChange={(e) => põe("data", e.target.value)} type="date" max={hojeSP()} className="n m-focus" style={s(`${CAMPO};flex:1;min-width:130px`)} />
-        <input value={r.valor} onChange={(e) => põe("valor", e.target.value)} inputMode="decimal" placeholder="Valor" className="n m-focus" style={s(`${CAMPO};flex:1;min-width:90px`)} />
+        <label style={s(`${ROTULO};flex:2;min-width:170px`)}>
+          CPF de quem foi atendido
+          <input value={r.cpf} onChange={(e) => põe("cpf", mascaraCpf(e.target.value))} inputMode="numeric" placeholder="Escreva o CPF…" className="n m-focus" style={s(CAMPO)} />
+        </label>
+        <label style={s(`${ROTULO};flex:1;min-width:130px`)}>
+          Dia da sessão
+          <input value={r.data} onChange={(e) => põe("data", e.target.value)} type="date" max={hojeSP()} className="n m-focus" style={s(CAMPO)} />
+        </label>
+        <label style={s(`${ROTULO};flex:1;min-width:90px`)}>
+          Valor, em reais
+          <input value={r.valor} onChange={(e) => põe("valor", e.target.value)} inputMode="decimal" placeholder="Escreva o valor…" className="n m-focus" style={s(CAMPO)} />
+        </label>
       </div>
 
       {digitosCpf.length === 11 && !cpfValido(digitosCpf) && (
@@ -236,7 +252,10 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
       {/* Opcional, e o rótulo diz PARA QUE serve: quem paga é quem deduz no IRPF e pede
           reembolso — mãe que paga a terapia do filho precisa do recibo no CPF dela. Vazio
           significa "pagou por si". */}
-      <input value={r.cpfPagador} onChange={(e) => põe("cpfPagador", mascaraCpf(e.target.value))} inputMode="numeric" placeholder="CPF de quem pagou — só se for outra pessoa" className="n m-focus" style={s(CAMPO)} />
+      <label style={s(ROTULO)}>
+        CPF de quem pagou, só se for outra pessoa
+        <input value={r.cpfPagador} onChange={(e) => põe("cpfPagador", mascaraCpf(e.target.value))} inputMode="numeric" placeholder="Deixe vazio se foi a própria pessoa…" className="n m-focus" style={s(CAMPO)} />
+      </label>
 
       <div style={s("display:flex;gap:9px;align-items:center;flex-wrap:wrap")}>
         {/* `button` cru e não `Btn`: o primitivo não aceita `disabled`, e botão clicável que

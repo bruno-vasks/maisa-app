@@ -128,11 +128,11 @@ export default function NovaSenha() {
             <form onSubmit={salvar} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <CampoSenha
                 rotulo="Senha nova" valor={senha} aoMudar={setSenha}
-                autoComplete="new-password" autoFocus placeholder="pelo menos 8 caracteres"
+                autoComplete="new-password" autoFocus placeholder="Pelo menos 8 caracteres…"
               />
               <CampoSenha
                 rotulo="Repita a senha" valor={confirma} aoMudar={setConfirma}
-                autoComplete="new-password" placeholder="Digite a senha de novo"
+                autoComplete="new-password" placeholder="Escreva a senha de novo…"
               />
 
               {erro && (

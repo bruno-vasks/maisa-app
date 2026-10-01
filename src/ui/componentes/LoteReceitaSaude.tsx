@@ -614,7 +614,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
                   value={fCpf}
                   onChange={(e) => setFCpf(mascaraCpf(e.target.value))}
                   inputMode="numeric"
-                  placeholder="000.000.000-00"
+                  placeholder="Escreva seu CPF aqui…"
                   className="n m-focus"
                   style={s(CAMPO)}
                 />
@@ -641,7 +641,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
                 <input
                   value={fRegistro}
                   onChange={(e) => setFRegistro(e.target.value)}
-                  placeholder={`${CONSELHO[fOcupacao]} 00/000000`}
+                  placeholder={`Escreva seu ${CONSELHO[fOcupacao]} aqui…`}
                   maxLength={15}
                   className="n m-focus"
                   style={s(CAMPO)}
@@ -662,7 +662,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
                     value={fProc}
                     onChange={(e) => setFProc(e.target.value)}
                     inputMode="numeric"
-                    placeholder="deixe vazio se você mesma emite"
+                    placeholder="Deixe vazio se você mesma emite…"
                     className="n m-focus"
                     style={s(CAMPO)}
                   />

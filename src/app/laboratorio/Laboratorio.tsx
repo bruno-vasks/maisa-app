@@ -214,7 +214,7 @@ export default function Laboratorio() {
                   }
                 }}
                 rows={1}
-                placeholder="Escreva como se fosse o cliente"
+                placeholder="Escreva como se fosse o cliente…"
                 aria-label="Mensagem do cliente"
                 className="m-focus"
                 style={s("flex:1;resize:none;min-height:44px;max-height:132px;padding:11px 14px;font-size:var(--t-body);line-height:var(--lh-ui);color:var(--ink);background:var(--surface);border:1px solid var(--border-field);border-radius:12px")}

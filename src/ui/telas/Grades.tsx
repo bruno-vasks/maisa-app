@@ -217,7 +217,7 @@ export function Clientes() {
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder={mobile ? "Nome, telefone ou CPF" : "Buscar por nome, telefone ou CPF"}
+              placeholder={mobile ? "Nome, telefone ou CPF…" : "Buscar por nome, telefone ou CPF…"}
               aria-label="Buscar cliente por nome, telefone ou CPF"
               className="m-focus"
               style={s(`flex:1 1 200px;min-width:0;max-width:${mobile ? "none" : "22rem"};height:44px;padding:0 14px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none`)}
@@ -353,13 +353,13 @@ function NovoCliente({ aoFechar }: { aoFechar: () => void }) {
       style={s("display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:16px 18px")}
     >
       <Field label="Nome" style={s("flex:1 1 220px")}>
-        <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Maria Silva" autoFocus onKeyDown={enter} />
+        <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Escreva o nome…" autoFocus onKeyDown={enter} />
       </Field>
       <Field label="WhatsApp, com DDD (opcional)" style={s("flex:1 1 200px")}>
-        <Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 98123-4567" inputMode="tel" onKeyDown={enter} />
+        <Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="Escreva o número com DDD…" inputMode="tel" onKeyDown={enter} />
       </Field>
       <Field label="CPF (opcional)" style={s("flex:1 1 170px")}>
-        <Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" inputMode="numeric" onKeyDown={enter} />
+        <Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="Escreva o CPF…" inputMode="numeric" onKeyDown={enter} />
       </Field>
       <span style={s("display:flex;gap:8px")}>
         <Btn variant="primary" icon="check" onClick={() => void salvar()}>
@@ -391,10 +391,10 @@ function NovoProfissional({ aoFechar }: { aoFechar: () => void }) {
   return (
     <div style={s("display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:16px 18px")}>
       <Field label="Nome" style={s("flex:1 1 220px")}>
-        <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ana Souza" autoFocus onKeyDown={enter} />
+        <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Escreva o nome…" autoFocus onKeyDown={enter} />
       </Field>
       <Field label="O que faz (opcional)" style={s("flex:1 1 200px")}>
-        <Input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Atendimento geral" onKeyDown={enter} />
+        <Input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Escreva o que essa pessoa faz…" onKeyDown={enter} />
       </Field>
       <span style={s("display:flex;gap:8px")}>
         <Btn variant="primary" icon="check" disabled={!pronto || enviando} onClick={() => void salvar()}>

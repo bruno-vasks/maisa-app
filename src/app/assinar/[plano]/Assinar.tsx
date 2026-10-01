@@ -262,18 +262,18 @@ function AssinarInner({ plano }: { plano: Plano }) {
           <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: 13 }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--ink-800)")}>Nome do seu negócio</span>
-              <input value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={60} placeholder={vertical === "barbeiros" ? "Barbearia Central" : "Clínica ou o seu nome"} className="m-focus" style={s(inputCss)} disabled={travado} />
+              <input value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={60} placeholder={vertical === "barbeiros" ? "Escreva o nome da barbearia…" : "Escreva o nome da clínica ou o seu…"} className="m-focus" style={s(inputCss)} disabled={travado} />
               <span style={s("font-size:var(--t-micro);color:var(--muted)")}>É o nome que a maisa usa ao falar com seus clientes.</span>
             </label>
 
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--ink-800)")}>Seu WhatsApp</span>
-              <input value={telefone} onChange={(e) => setTelefone(e.target.value)} required inputMode="tel" autoComplete="tel" placeholder="(11) 99999-9999" className="m-focus" style={s(inputCss)} disabled={travado} />
+              <input value={telefone} onChange={(e) => setTelefone(e.target.value)} required inputMode="tel" autoComplete="tel" placeholder="Escreva seu WhatsApp com DDD…" className="m-focus" style={s(inputCss)} disabled={travado} />
             </label>
 
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--ink-800)")}>Seu e-mail</span>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="voce@exemplo.com" className="m-focus" style={s(inputCss)} disabled={travado} />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="Escreva seu e-mail…" className="m-focus" style={s(inputCss)} disabled={travado} />
             </label>
 
             {erro && (

@@ -346,7 +346,7 @@ export default function Contatos() {
               <input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por nome ou telefone"
+                placeholder="Buscar por nome ou telefone…"
                 aria-label="Buscar contato"
                 className="m-focus"
                 style={s("width:100%;max-width:380px;height:44px;padding:0 14px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none")}

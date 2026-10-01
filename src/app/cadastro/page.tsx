@@ -362,12 +362,12 @@ function CadastroInner() {
               <form onSubmit={criar} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                   <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>E-mail</span>
-                  <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@exemplo.com" className="m-focus" style={s(inputCss)} disabled={travado} />
+                  <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Escreva seu e-mail…" className="m-focus" style={s(inputCss)} disabled={travado} />
                 </label>
                 <CampoSenha
                   rotulo="Senha" valor={senha} aoMudar={setSenha}
                   autoComplete="new-password" minLength={SENHA_MIN}
-                  placeholder={`Pelo menos ${SENHA_MIN} caracteres`} desabilitado={travado}
+                  placeholder={`Pelo menos ${SENHA_MIN} caracteres…`} desabilitado={travado}
                 />
                 {/* ⚠️ NÃO usa o placeholder de bolinhas que estava aqui. Com o olho ao lado,
                     `••••••••` passou a parecer um campo JÁ PREENCHIDO cuja senha bastava
@@ -375,7 +375,7 @@ function CadastroInner() {
                 <CampoSenha
                   rotulo="Repita a senha" valor={confirma} aoMudar={setConfirma}
                   autoComplete="new-password" desabilitado={travado}
-                  placeholder="Digite a senha de novo"
+                  placeholder="Escreva a senha de novo…"
                 />
 
                 {erro && <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>{erro}</div>}

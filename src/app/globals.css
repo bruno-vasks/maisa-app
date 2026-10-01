@@ -20,6 +20,10 @@
   /* contorno de INPUT/SELECT/TEXTAREA — o único que delimita controle, então precisa dos 3:1 da
      WCAG 1.4.11 de verdade (3.17:1 sobre --surface). --border reprovava a 1.3:1. */
   --border-field: oklch(0.655 0.020 262);
+  /* texto de exemplo DENTRO do campo, e só ele (01/10/2026, emenda 6 do maisa-design). Apagado
+     de propósito: 2,3:1 sobre --surface. Com --muted (7,3:1) o "CRP 06/123456" parecia já
+     preenchido e a Regina tentou apagá-lo. O que a pessoa precisa saber mora no rótulo. */
+  --placeholder: oklch(0.740 0.016 262);
 
   /* primário — MESMO matiz do navy (antes 248 vs 262: dois azuis a 14° sem regra) */
   --primary: oklch(0.470 0.135 262);
@@ -184,10 +188,16 @@ body {
 
 button, input, select, textarea { font-family: inherit; }
 
-/* O placeholder padrão do Chrome (#757575) dá 4,22:1 e REPROVA — e no composer travado de
-   Conversas ele é a única explicação de por que o campo está morto. --muted passa a 6,4:1.
+/* O texto de exemplo do campo é DICA, não dado (01/10/2026, emenda 6 do maisa-design). Com
+   --muted ele tinha o mesmo peso de um valor digitado: a Regina viu "CRP 06/123456" no cadastro
+   dos recibos e achou que precisava apagar. Agora é --placeholder, bem apagado, e o texto é uma
+   instrução com reticências ("Escreva seu CRP aqui…"), nunca um exemplo com cara de preenchido.
+   A guarda G23 reprova a volta.
+   ⚠️ Campo DESLIGADO volta a --muted: ali a frase é a única explicação de por que não dá para
+   escrever (o composer de Conversas: "Assuma a conversa para escrever você mesmo").
    `opacity:1` porque o Firefox aplica opacidade própria ao placeholder. */
-::placeholder { color: var(--muted); opacity: 1; }
+::placeholder { color: var(--placeholder); opacity: 1; }
+:disabled::placeholder { color: var(--muted); }
 
 /* Numerais tabulares. Os dígitos da IBM Plex Sans já são todos 600/1000 (tabulares por
    construção), então valor no cartão, na tabela e no recibo da NFS-e alinham nos três contextos. Esta classe é o contrato explícito e cobre o

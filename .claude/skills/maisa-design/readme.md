@@ -197,6 +197,25 @@ Rede Inspira, `docs/texto-de-tela.md` de lá):
 - **Limite medido:** o guarda G1 (`src/ui/guardas/travessao.test.ts`) lê a fonte e reprova
   travessão novo; os arquivos que ainda têm estão numa lista de dívida que só encolhe.
 
+### 6. O texto de dentro do campo é dica apagada, não dado (01/10/2026)
+Pedido do Bruno depois de uma call com a Regina, a primeira usuária: no cadastro dos recibos
+ela viu "CRP 06/123456" e achou que tinha que apagar o CRP "que já estava lá". Com a cor de
+texto, um exemplo realista é igual a um campo preenchido.
+
+1. **Cor `--placeholder`** (`globals.css`, 2,3:1 sobre branco): bem apagada, de propósito.
+   **Diverge da regra de contraste AA** de *Acessibilidade*, e só aqui.
+2. **O texto é uma instrução com reticências**: "Escreva seu CRP aqui…", "Escreva o número com
+   DDD…". Nunca um exemplo com cara de valor (máscara `000.000.000-00`, telefone, nome de
+   pessoa, e-mail de exemplo, bolinhas de senha).
+
+- **Limite:** como o texto de dentro quase não se lê, **ele não pode carregar informação que
+  não esteja no rótulo**. Campo sem rótulo visível ganha um antes de ganhar texto de dentro
+  (foi o que aconteceu com o "Novo pagamento").
+- **Exceção:** campo **desligado** volta a `--muted` (`:disabled::placeholder`). Ali a frase é a
+  única explicação de por que não dá para escrever (o composer de Conversas).
+- **Limite medido:** o guarda G23 (`src/ui/guardas/placeholder.test.ts`) reprova placeholder sem
+  reticências ou com cara de dado no painel e nas rotas de entrada.
+
 ---
 
 ## ICONOGRAPHY

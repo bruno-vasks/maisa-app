@@ -411,7 +411,7 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
         </span>
         <input
           autoFocus value={nome} onChange={(e) => setNome(e.target.value)}
-          placeholder="Barbearia do Zé" className="m-focus" style={s(CAMPO)}
+          placeholder="Escreva o nome do seu negócio…" className="m-focus" style={s(CAMPO)}
           onKeyDown={(e) => { if (e.key === "Enter" && nome.trim() && vertical && modo) void criar(); }}
         />
         {/* Diz a CONSEQUÊNCIA, não a regra. Este campo entra no prompt do agente a cada
@@ -1010,7 +1010,7 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
             <input
               value={telefoneMascarado(digitos)}
               onChange={(e) => setTelefone(digitosDoTelefone(e.target.value))}
-              inputMode="tel" autoComplete="tel" placeholder="(11) 99999-9999"
+              inputMode="tel" autoComplete="tel" placeholder="Escreva o número com DDD…"
               className="m-focus" style={s(CAMPO)}
               onKeyDown={(e) => { if (e.key === "Enter" && podePedirCodigo) setConferindo(true); }}
             />
@@ -1413,7 +1413,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
         <input
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder="Ou escreva do seu jeito"
+          placeholder="Ou escreva do seu jeito…"
           aria-label="Mensagem do cliente"
           className="m-focus"
           style={s(`${CAMPO};flex:1;min-width:0`)}
