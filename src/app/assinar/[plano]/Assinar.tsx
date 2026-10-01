@@ -172,7 +172,14 @@ function AssinarInner({ plano }: { plano: Plano }) {
       const neg = await fetch("/api/negocio", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ nome: nomeLimpo, vertical }),
+        /* ⚠️ `profissional` VAI EXPLÍCITO (30/09/2026). Sem ele, o `criar_negocio()` batiza o
+         * primeiro profissional com o começo do e-mail — e `a@a.com` virou o profissional "a",
+         * que reprova no `check (length(btrim(nome)) between 2 and 120)` da tabela. O negócio
+         * não nascia, e a pessoa via "não conseguimos montar o negócio" depois de preencher
+         * tudo. Medido no log de produção. O nome do negócio já passou pelo mínimo daqui de
+         * cima, e é o que a pessoa escreveu ("Clínica ou o seu nome"); a equipe se ajusta no
+         * `/comecar`. */
+        body: JSON.stringify({ nome: nomeLimpo, vertical, profissional: nomeLimpo }),
       }).then((r) => r.json()).catch(() => null);
 
       if (!neg?.ok) {
