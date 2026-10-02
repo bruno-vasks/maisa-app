@@ -621,7 +621,12 @@ export function EmitirRecibos() {
     valor: previaRecibo.reduce((a, p) => a + p.valor, 0),
     datas: previaRecibo.map((p) => p.data).sort(),
   };
-  const travado = aEmitir.length === 0 || emitindoAgora || bloqueioDaAutorizacao !== null;
+  /* ⚠️ SEM AS FICHAS, NÃO EMITE. Antes de `/api/cadastro` responder, o store tem as fichas de
+   * primeira pintura, sem `recibosPorMes`, e a conta dava um recibo por sessão: medido na bancada
+   * (`recibo-por-mes.mjs`), "Emitir 5 recibos" no primeiro segundo e "Emitir 2 recibos" depois. Um
+   * clique rápido emitiria cinco documentos fiscais no lugar de dois. */
+  const fichasLidas = st.cadastroCarregado;
+  const travado = aEmitir.length === 0 || emitindoAgora || bloqueioDaAutorizacao !== null || !fichasLidas;
 
   /* Para onde vai o recibo, dito ao lado do verbo (Bruno, 26/08/2026: *"poderia ficar logo acima
    * do emitir"*). Desde 01/10/2026 a ESCOLHA mora no canto de cima (`ParaOndeVaiORecibo`); aqui
@@ -648,7 +653,7 @@ export function EmitirRecibos() {
           A emitir
         </span>
         <span className="n" style={s("display:block;font-size:var(--t-data);line-height:var(--lh-tight);font-weight:var(--w-emph);letter-spacing:var(--ls-data);color:var(--ink);margin-top:6px")}>
-          {recibos.length}
+          {fichasLidas ? recibos.length : "…"}
         </span>
         <span className="n" style={s("display:block;font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg);color:var(--muted);margin-top:3px")}>
           {fmt(valor)}
@@ -728,7 +733,9 @@ export function EmitirRecibos() {
           ? "Emitindo…"
           : aEmitir.length === 0
             ? "Nada a emitir"
-            : recibos.length === 1 ? "Emitir 1 recibo" : `Emitir ${recibos.length} recibos`}
+            : !fichasLidas
+              ? "Lendo as fichas…"
+              : recibos.length === 1 ? "Emitir 1 recibo" : `Emitir ${recibos.length} recibos`}
       </button>
       <span style={s(`text-align:center;font-size:var(--t-label);color:${bloqueioDaAutorizacao ? "var(--warn)" : "var(--muted)"};font-weight:${bloqueioDaAutorizacao ? "var(--w-title)" : "inherit"};line-height:1.5`)}>
         {bloqueioDaAutorizacao
@@ -889,7 +896,7 @@ export function EmitirRecibos() {
    * no resumo), e o pé da `Moldura`, `sticky` logo acima das abas, com o resumo e o verbo. */
   const peCelular = (
     <PeDeAcao
-      resumo={recibos.length > 0 ? `${recibos.length} ${recibos.length === 1 ? "recibo" : "recibos"} · ${fmt(valor)}` : "Mês em dia"}
+      resumo={!fichasLidas ? "Lendo as fichas…" : recibos.length > 0 ? `${recibos.length} ${recibos.length === 1 ? "recibo" : "recibos"} · ${fmt(valor)}` : "Mês em dia"}
       acao={{
         label: emitindoAgora ? "Emitindo…" : aEmitir.length === 0 ? "Nada a emitir" : "Emitir",
         onClick: emitir,
