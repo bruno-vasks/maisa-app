@@ -35,7 +35,7 @@ import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
 import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
 import type { RepositorioCanal } from "../portas/saida/repositorio-canal";
-import { cabecalhoParaADona, numeroDaDona } from "../dominio/recibo-automatico";
+import { cabecalhoParaADona, nomeDoPdf, numeroDaDona } from "../dominio/recibo-automatico";
 /* A frase é a MESMA do caminho do lote, de propósito: dois textos para a mesma notícia dariam
  * duas MAISAs. Ver `avisoDeRecibo` — inclusive a parte que explica a pré-preenchida, que existe
  * para o paciente não responder "me manda o PDF". */
@@ -51,7 +51,8 @@ import {
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
 import { DadoInvalido, NaoConfigurado } from "../dominio/erros";
 import { cpfValido } from "../dominio/clientes";
-import { hojeISO } from "../dominio/tempo";
+import { hojeISO, mesDe } from "../dominio/tempo";
+import { descricaoDasSessoes } from "../dominio/recibos-do-mes";
 
 export type DepsReciboUnitario = {
   livro: LivroDeRecibos;
@@ -62,18 +63,15 @@ export type DepsReciboUnitario = {
   guarda: GuardaDeComprovante;
 };
 
-/**
- * A descrição que sai no documento.
+/* A descrição que sai no documento é `descricaoDasSessoes` (`dominio/recibos-do-mes.ts`).
  *
  * ⚠️ TEXTO FIXO POR DATA, e a regra é a mesma do lote: **nunca o nome do serviço**. "Terapia de
  * casal" ou "Avaliação TDAH" num recibo é dado sensível saindo por um campo que ninguém pensou
- * como sigiloso. A única coisa variável é a data, que é justamente o que o plano de saúde pede
- * para reembolsar.
- */
-function descricaoPadrao(data: string): string {
-  const [a, m, d] = data.slice(0, 10).split("-");
-  return `Atendimento realizado em ${d}/${m}/${a}`;
-}
+ * como sigiloso. A única coisa variável são as datas, que é justamente o que o plano de saúde pede
+ * para reembolsar. */
+
+/** Teto de sessões num recibo: um mês inteiro, todo dia. Acima disso o pedido é torto. */
+const SESSOES_MAX = 31;
 
 export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
   return async (t, p): Promise<ReciboLancado> => {
@@ -106,19 +104,40 @@ export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
     /* Os dados do pagamento saem da lista de pendentes, não do corpo do request. É a mesma
      * regra de `/api/nf/emitir`, que aceitava `valor` e `tomador` de fora até 17/08/2026 — e
      * com isso um POST forjado emitia documento fiscal de qualquer valor para qualquer CPF. */
+    /* ── ★ UM OU VÁRIOS (01/10/2026: um recibo por mês) ──
+     * Vários pagamentos num recibo só exigem que sejam UMA pessoa, UM pagador e UM mês: o recibo
+     * tem um beneficiário e um pagador, e a renda entra no Carnê-Leão pelo mês. Quem decide como
+     * agrupar é quem chama (`juntarEmRecibos`); aqui se recusa o que não pode ir junto. */
+    const pedidos = "itens" in p ? p.itens : [p];
+    if (pedidos.length === 0 || pedidos.length > SESSOES_MAX) {
+      throw new DadoInvalido(`Um recibo leva de 1 a ${SESSOES_MAX} sessões.`, "itens");
+    }
     const pendentes = await deps.recibos.pendentes(t, { ate: hoje });
-    const alvo = pendentes.find((x) => x.id === p.id && x.fonte === p.fonte);
-    if (!alvo) {
+    const alvos = pedidos.map((q) => pendentes.find((x) => x.id === q.id && x.fonte === q.fonte));
+    if (alvos.some((x) => !x)) {
       throw new DadoInvalido(
-        "Este pagamento não está na lista do que falta emitir. Ele já saiu, ou está num lote.",
+        pedidos.length === 1
+          ? "Este pagamento não está na lista do que falta emitir. Ele já saiu, ou está num lote."
+          : "Uma das sessões já não está na lista do que falta emitir. Ela já saiu, ou está num lote.",
         "id",
       );
     }
-    if (alvo.teste) {
+    const todos = alvos as NonNullable<(typeof alvos)[number]>[];
+    const alvo = todos.reduce((a, b) => (b.data > a.data ? b : a));
+    if (todos.some((x) => x.teste)) {
       throw new DadoInvalido(
         "Este é o cliente de demonstração. Recibo de verdade para cadastro de teste não.",
         "teste",
       );
+    }
+    if (todos.length > 1) {
+      const um = (f: (x: (typeof todos)[number]) => string) => new Set(todos.map(f)).size === 1;
+      if (!todos.every((x) => x.clienteId) || !um((x) => x.clienteId!) || !um((x) => x.cpf ?? "") || !um((x) => x.cpfPagador ?? "")) {
+        throw new DadoInvalido("Só sessões da mesma pessoa, com o mesmo pagador, vão num recibo só.", "itens");
+      }
+      if (!um((x) => mesDe(x.data))) {
+        throw new DadoInvalido("Sessões de meses diferentes não vão no mesmo recibo.", "itens");
+      }
     }
 
     const cpfBeneficiario = alvo.cpf ?? "";
@@ -145,13 +164,16 @@ export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
 
     /* ── 1 · PRENDE ANTES DE FALAR COM O MUNDO ── */
     const aberto = await deps.livro.abrir(t, {
-      fonte: alvo.fonte,
-      id: alvo.id,
+      itens: todos.map((x) => ({ fonte: x.fonte, id: x.id })),
       canal: deps.emissor.canal,
     });
-    /* `null` = outra aba prendeu primeiro, ou já saiu. NÃO é erro — ver a porta. */
+    /* `null` = outra aba prendeu primeiro, ou já saiu. NÃO é erro — ver a porta. Com várias, é
+     * tudo ou nada: nenhuma ficou presa. */
     if (!aberto) {
-      throw new DadoInvalido("Este pagamento já entrou num recibo ou num lote.", "id");
+      throw new DadoInvalido(
+        todos.length === 1 ? "Este pagamento já entrou num recibo ou num lote." : "Uma das sessões já entrou num recibo ou num lote. Nenhuma foi presa.",
+        "id",
+      );
     }
 
     const pedido: PedidoDeRecibo = {
@@ -164,7 +186,8 @@ export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
        * devolveu somado na mesma transação em que prendeu — tela velha manda total velho, e
        * total velho aqui vira documento fiscal de valor errado. */
       valor: aberto.valor,
-      descricao: descricaoPadrao(alvo.data),
+      /* A data do recibo é a da ÚLTIMA sessão (`alvo`): ver o cabeçalho de `recibos-do-mes.ts`. */
+      descricao: descricaoDasSessoes(todos.map((x) => x.data)),
       cpfPagador,
       cpfBeneficiario,
     };
@@ -222,6 +245,7 @@ export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
       valor: aberto.valor,
       nome: alvo.nome,
       data: alvo.data,
+      sessoes: todos.length,
     };
   };
 }
@@ -393,7 +417,10 @@ export function criarFecharReciboDoCallback(
        * continua engolido — o recibo já existe, e mensagem que não sai não desemite nada — mas o
        * QUE aconteceu vira dado. Antes, 19 falhas de envio ficavam idênticas a 19 sucessos, e o
        * dono só descobria contando (26/08/2026). Ver a migração 025. */
-      const desfechoDoAviso = await avisarPaciente(deps.aviso, deps.livro, t, fechada.id)
+      const desfechoDoAviso = await avisarPaciente(deps.aviso, deps.livro, deps.guarda, t, fechada.id, {
+        caminho: comprovanteCaminho ?? fechada.comprovanteCaminho ?? null,
+        urlDoCanal: d.pdfUrl ?? null,
+      })
         .catch((): DesfechoDoAviso => "falhou");
       await deps.livro.registrarAviso(t, { reciboId: fechada.id, desfecho: desfechoDoAviso })
         .catch(() => {});
@@ -417,11 +444,16 @@ export function criarFecharReciboDoCallback(
  * paciente receberia vai para a dona, com uma linha antes dizendo de quem é, para ela conferir e
  * encaminhar. O telefone do paciente deixa de ser condição: quem decide se ele recebe é ela.
  */
+/** Validade do link do PDF que o canal baixa. Ele baixa na hora; dez minutos é folga, não prazo. */
+const PDF_VALE_SEGUNDOS = 600;
+
 async function avisarPaciente(
   aviso: DepsDeAviso,
   livro: DepsReciboUnitario["livro"],
+  guarda: GuardaDeComprovante,
   t: ContextoTenant,
   reciboId: string,
+  pdf: { caminho: string | null; urlDoCanal: string | null },
 ): Promise<DesfechoDoAviso> {
   try {
     const ajustes = await aviso.assistente.ler(t);
@@ -432,7 +464,7 @@ async function avisarPaciente(
     const quem = await livro.destinatario(t, reciboId);
     if (!quem) return "sem_telefone";
 
-    const recibo = { nome: quem.nome, data: quem.data, valor: quem.valor };
+    const recibo = { nome: quem.nome, data: quem.data, valor: quem.valor, sessoes: quem.sessoes };
     const nomeDoNegocio = (await aviso.negocio.negocio(t)).nome;
     const aoPaciente = avisoDeRecibo({
       recibo,
@@ -440,21 +472,38 @@ async function avisarPaciente(
       nomeDaAssistente: ajustes.assistente.nome ?? "MAISA",
     });
 
+    /* ── ★ O PDF VAI JUNTO (01/10/2026, Bruno: "é onde mora o valor do produto") ──
+     * O documento sai como arquivo, com a mensagem na legenda: uma bolha só, e quem encaminha leva
+     * as duas coisas. O link é da NOSSA cópia (`comprovantes-recibo`), gerado agora e curto; sem
+     * cópia, o link do canal, que ainda vale nos cinco minutos do callback. Sem nenhum dos dois, só
+     * a mensagem, como era. */
+    const urlDoPdf = (pdf.caminho
+      ? await guarda.linkParaBaixar(t, { caminho: pdf.caminho, segundos: PDF_VALE_SEGUNDOS }).catch(() => null)
+      : null) ?? pdf.urlDoCanal;
+    const mandar = async (para: string, antes: string[]) => {
+      if (urlDoPdf) {
+        if (antes.length) await aviso.canal.enviar(t, para, antes);
+        await aviso.canal.enviarDocumento(t, para, { url: urlDoPdf, nomeDoArquivo: nomeDoPdf(recibo), legenda: aoPaciente });
+      } else {
+        await aviso.canal.enviar(t, para, [...antes, aoPaciente]);
+      }
+    };
+
     if (ajustes.cfg.reciboPrimeiroParaMim) {
       /* Sem número de avisos E sem WhatsApp conectado não há "mim" para onde mandar: é o mesmo
        * caso do paciente sem telefone, e a tela conta igual. */
       const dona = numeroDaDona(await aviso.canalDoNegocio.ler(t));
       if (!dona) return "sem_telefone";
-      /* Duas bolhas: a primeira é para ela, a segunda é a que ela encaminha. Numa bolha só, o
-       * encaminhar levaria junto o "Recibo emitido: …" que não é para o paciente ler. */
-      await aviso.canal.enviar(t, dona, [cabecalhoParaADona(recibo, Boolean(quem.telefone)), aoPaciente]);
+      /* A linha dela vai numa bolha à parte, ANTES: no arquivo (ou na bolha seguinte) fica só o
+       * que é para o paciente, e o encaminhar não leva junto o "Recibo emitido: …". */
+      await mandar(dona, [cabecalhoParaADona(recibo, Boolean(quem.telefone))]);
       return "enviado_ao_dono";
     }
 
     /* Sem telefone não há o que fazer, e não é erro: o avulso de quem não é cadastro nasce assim.
      * Ver `DestinatarioDoRecibo` — quem chama conta, não falha. */
     if (!quem.telefone) return "sem_telefone";
-    await aviso.canal.enviar(t, quem.telefone, [aoPaciente]);
+    await mandar(quem.telefone, []);
     return "enviado";
   } catch {
     /* Engole o erro, guarda o fato. Telefone que mudou de dono, canal fora do ar, número que não

@@ -32,6 +32,8 @@ import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
 const pag = (over: Partial<PagamentoPendente> = {}): PagamentoPendente => ({
   id: "p1",
   fonte: "atendimento",
+  clienteId: "cl1",
+  cpfPagador: null,
   nome: "Patrícia Mendes",
   cpf: "545.739.088-89",
   data: "2026-08-07",

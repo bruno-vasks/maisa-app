@@ -33,6 +33,7 @@ import type {
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { clienteDoContexto } from "./contexto-cliente";
 import { civilSP } from "@/nucleo/dominio/tempo";
+import { FalhaDoProvedor } from "@/nucleo/dominio/erros";
 
 /* A data que vai na mensagem é a CIVIL em São Paulo: `inicio` é timestamptz, e uma sessão das 21h
  * lida em UTC cai no dia seguinte — o paciente receberia "recibo do dia 13" de uma sessão do 12. */
@@ -124,12 +125,27 @@ const doBanco = (l: LinhaRazao): ReciboEmitido => {
 export const livroDeRecibosSupabase: LivroDeRecibos = {
   async abrir(t: ContextoTenant, p): Promise<ReciboAberto | null> {
     const supabase = clienteDoContexto(t);
-    const { data, error } = await supabase.rpc("abrir_recibo_unitario", {
-      p_tenant_id: t.tenantId,
-      p_fonte: p.fonte,
-      p_id: p.id,
-      p_canal: p.canal,
-    });
+    /* Uma sessão vai pela função de sempre, que existe desde a 020 e não depende da 033. Várias
+     * vão pela `abrir_recibo_agrupado` (033), tudo ou nada, com a soma feita no banco. */
+    const [primeiro] = p.itens;
+    const umSo = p.itens.length === 1;
+    const { data, error } = umSo
+      ? await supabase.rpc("abrir_recibo_unitario", {
+        p_tenant_id: t.tenantId,
+        p_fonte: primeiro.fonte,
+        p_id: primeiro.id,
+        p_canal: p.canal,
+      })
+      : await supabase.rpc("abrir_recibo_agrupado", {
+        p_tenant_id: t.tenantId,
+        p_atendimentos: p.itens.filter((x) => x.fonte === "atendimento").map((x) => x.id),
+        p_avulsos: p.itens.filter((x) => x.fonte === "avulso").map((x) => x.id),
+        p_canal: p.canal,
+      });
+    if (!umSo && faltaMigracao(error)) {
+      console.error("[supabase/livro-de-recibos] juntar sessões num recibo: falta rodar supabase/033_recibo_por_mes.sql");
+      throw new FalhaDoProvedor("Ainda não dá para juntar as sessões num recibo só. Tente de novo mais tarde.");
+    }
     estourar(error);
 
     /* Zero linhas = já preso por outro canal, ou segundo clique. NÃO é erro — ver a porta. */
@@ -343,38 +359,44 @@ export const livroDeRecibosSupabase: LivroDeRecibos = {
   async destinatario(t: ContextoTenant, reciboId: string): Promise<DestinatarioDoRecibo | null> {
     const supabase = clienteDoContexto(t);
 
-    const { data: atend } = await supabase
-      .from("atendimentos")
-      .select("inicio, servico_valor, clientes(nome, telefone)")
-      .eq("tenant_id", t.tenantId)
-      .eq("recibo_id", reciboId)
-      .maybeSingle<{ inicio: string; servico_valor: number | null; clientes: { nome: string; telefone: string | null } | null }>();
+    /* ⚠️ LISTAS, E NÃO `maybeSingle`, desde 01/10/2026: um recibo por mês junta várias sessões com
+     * o mesmo `recibo_id`, e o `maybeSingle` com duas linhas devolve erro, que aqui virava
+     * "ninguém para avisar". */
+    const [{ data: atends }, { data: avulsos }] = await Promise.all([
+      supabase
+        .from("atendimentos")
+        .select("inicio, servico_valor, clientes(nome, telefone)")
+        .eq("tenant_id", t.tenantId)
+        .eq("recibo_id", reciboId),
+      supabase
+        .from("pagamentos_avulsos")
+        .select("data, valor, nome, clientes(nome, telefone)")
+        .eq("tenant_id", t.tenantId)
+        .eq("recibo_id", reciboId),
+    ]);
 
-    if (atend) {
-      return {
-        nome: atend.clientes?.nome ?? null,
-        telefone: atend.clientes?.telefone ?? null,
-        data: dataCivil(atend.inicio),
-        valor: Number(atend.servico_valor ?? 0),
-      };
-    }
+    type Pessoa = { nome: string; telefone: string | null } | null;
+    const linhas = [
+      ...((atends ?? []) as unknown as { inicio: string; servico_valor: number | null; clientes: Pessoa }[]).map((a) => ({
+        nome: a.clientes?.nome ?? null, telefone: a.clientes?.telefone ?? null,
+        data: dataCivil(a.inicio), valor: Number(a.servico_valor ?? 0),
+      })),
+      ...((avulsos ?? []) as unknown as { data: string; valor: number | null; nome: string | null; clientes: Pessoa }[]).map((q) => ({
+        /* O nome do cadastro na frente do nome digitado: quem lançou à mão pode ter escrito
+         * "Ana" para uma Ana Beatriz que já existe. */
+        nome: q.clientes?.nome ?? q.nome ?? null, telefone: q.clientes?.telefone ?? null,
+        data: String(q.data).slice(0, 10), valor: Number(q.valor ?? 0),
+      })),
+    ];
+    if (!linhas.length) return null;
 
-    const { data: avulso } = await supabase
-      .from("pagamentos_avulsos")
-      .select("data, valor, nome, clientes(nome, telefone)")
-      .eq("tenant_id", t.tenantId)
-      .eq("recibo_id", reciboId)
-      .maybeSingle<{ data: string; valor: number | null; nome: string | null; clientes: { nome: string; telefone: string | null } | null }>();
-
-    if (!avulso) return null;
-
+    const ultima = linhas.reduce((a, b) => (b.data > a.data ? b : a));
     return {
-      /* O nome do cadastro na frente do nome digitado: quem lançou à mão pode ter escrito
-       * "Ana" para uma Ana Beatriz que já existe. */
-      nome: avulso.clientes?.nome ?? avulso.nome ?? null,
-      telefone: avulso.clientes?.telefone ?? null,
-      data: String(avulso.data).slice(0, 10),
-      valor: Number(avulso.valor ?? 0),
+      nome: ultima.nome,
+      telefone: linhas.find((l) => l.telefone)?.telefone ?? null,
+      data: ultima.data,
+      valor: linhas.reduce((s, l) => s + l.valor, 0),
+      sessoes: linhas.length,
     };
   },
 };

@@ -108,6 +108,23 @@ describe("★ a rota não aceita dinheiro", () => {
     expect(recebidos).toEqual([{ fonte: "atendimento", id: "at1" }]);
   });
 
+  /* Um recibo por mês (01/10/2026): várias sessões, e de cada uma só `fonte` e `id`. */
+  it("com `itens`, chega a lista, e só fonte e id de cada", async () => {
+    const POST = await rota();
+    await POST(pedir({ itens: [
+      { fonte: "atendimento", id: "at1", valor: 999999 },
+      { fonte: "avulso", id: "av2", cpfPagador: "00000000000" },
+    ], valor: 1 }));
+    expect(recebidos).toEqual([{ itens: [{ fonte: "atendimento", id: "at1" }, { fonte: "avulso", id: "av2" }] }]);
+  });
+
+  it("um item torto na lista recusa o pedido inteiro", async () => {
+    const POST = await rota();
+    const r = await POST(pedir({ itens: [{ fonte: "atendimento", id: "at1" }, { fonte: "boleto", id: "x" }] }));
+    expect(r.status).toBe(400);
+    expect(recebidos).toEqual([]);
+  });
+
   /* ⚠️ E o inquilino vem da SESSÃO, não do corpo — mesmo com o corpo pedindo outro. */
   it("`tenantId` no corpo não escolhe inquilino", async () => {
     const POST = await rota();

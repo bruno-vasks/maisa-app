@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { aplicarDesfecho, comecarEmissao, type NaFila } from "./store";
 
 const fila = (...nomes: string[]): NaFila[] =>
-  nomes.map((nome, i) => ({ fonte: "atendimento" as const, id: `at${i}`, nome }));
+  nomes.map((nome, i) => ({ itens: [{ fonte: "atendimento" as const, id: `at${i}` }], nome }));
 
 describe("comecarEmissao", () => {
   it("começa em zero, apontando para o primeiro da fila", () => {

@@ -39,7 +39,7 @@ function ambiente(p: {
   passoDoRelogio?: number;
   teto?: number;
 } = {}) {
-  const emitidos: { tenantId: string; id: string; fonte: string; ator: ContextoTenant["ator"] }[] = [];
+  const emitidos: { tenantId: string; id: string; ids: string[]; fonte: string; ator: ContextoTenant["ator"] }[] = [];
   const pedidosDePendentes: { tenantId: string; ate: string }[] = [];
   let relogio = 0;
 
@@ -55,13 +55,15 @@ function ambiente(p: {
   } as unknown as RepositorioRecibos;
   const emitirRecibo: EmitirRecibo = async (t, x) => {
     if (p.emitirQuebra) throw new Error(p.emitirQuebra);
-    emitidos.push({ tenantId: t.tenantId, id: x.id, fonte: x.fonte, ator: t.ator });
+    const itens = "itens" in x ? x.itens : [x];
+    /* `id` é o primeiro, para os testes de antes (um por sessão) lerem igual; `ids` é o recibo. */
+    emitidos.push({ tenantId: t.tenantId, id: itens[0].id, ids: itens.map((i) => i.id), fonte: itens[0].fonte, ator: t.ator });
     relogio += p.passoDoRelogio ?? 0;
-    return { reciboId: `r-${x.id}`, canal: "rebots", situacao: "pendente", protocolo: "1", valor: 180, nome: "Ana", data: "2026-09-16" };
+    return { reciboId: `r-${itens[0].id}`, canal: "rebots", situacao: "pendente", protocolo: "1", valor: 180, sessoes: itens.length, nome: "Ana", data: "2026-09-16" };
   };
 
   const rodar = criarEmitirRecibosAutomaticos({
-    agenda: { async comDia() { return p.agenda ?? [{ tenantId: "regina", clienteId: "ana", dia: 5 }]; } },
+    agenda: { async comDia() { return p.agenda ?? [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 0 }]; } },
     recibos, fiscal, emitirRecibo,
     agora: () => relogio,
     teto: p.teto,
@@ -109,7 +111,7 @@ describe("recibo automático: de quem", () => {
   });
 
   it("cada negócio com o seu contexto, e o ator é a rotina", async () => {
-    const a = ambiente({ agenda: [{ tenantId: "regina", clienteId: "ana", dia: 5 }, { tenantId: "carla", clienteId: "ana", dia: 5 }] });
+    const a = ambiente({ agenda: [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 0 }, { tenantId: "carla", clienteId: "ana", dia: 5, porMes: 0 }] });
     await a.rodar("2026-10-05");
     expect(a.emitidos.map((e) => e.tenantId).sort()).toEqual(["carla", "regina"]);
     expect(a.emitidos.every((e) => e.ator.tipo === "sistema")).toBe(true);
@@ -140,7 +142,7 @@ describe("recibo automático: o que não é com ela", () => {
 
   it("sem registro no conselho, vira falha do negócio, e os outros seguem", async () => {
     const a = ambiente({
-      agenda: [{ tenantId: "sem-crp", clienteId: "ana", dia: 5 }, { tenantId: "regina", clienteId: "ana", dia: 5 }],
+      agenda: [{ tenantId: "sem-crp", clienteId: "ana", dia: 5, porMes: 0 }, { tenantId: "regina", clienteId: "ana", dia: 5, porMes: 0 }],
       config: (id) => (id === "sem-crp" ? { ...regina, registroProfissional: null } : regina),
     });
     const r = await a.rodar("2026-10-05");
@@ -166,5 +168,39 @@ describe("recibo automático: o relógio da função", () => {
     const r = await a.rodar("2026-10-05");
     expect(a.emitidos.map((e) => e.id)).toEqual(["a1", "a2"]);
     expect(r.adiados).toBe(1);
+  });
+});
+
+/* ★ UM RECIBO POR MÊS (01/10/2026, Bruno): "cada paciente só recebe um recibo por mês". */
+describe("recibo automático: um recibo por mês", () => {
+  const tres = [sessao({ id: "a", data: "2026-09-02" }), sessao({ id: "b", data: "2026-09-09" }), sessao({ id: "c", data: "2026-09-16" })];
+
+  it("com 1 por mês, as sessões do mês saem num recibo só", async () => {
+    const a = ambiente({ agenda: [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 1 }], pendentes: tres });
+    const r = await a.rodar("2026-10-05");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["a", "b", "c"]]);
+    expect(r.emitidos).toBe(1);
+  });
+
+  it("meses diferentes viram recibos diferentes", async () => {
+    const a = ambiente({
+      agenda: [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 1 }],
+      pendentes: [sessao({ id: "ago", data: "2026-08-28" }), ...tres],
+    });
+    await a.rodar("2026-10-05");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["ago"], ["a", "b", "c"]]);
+  });
+
+  it("um por sessão segue como era", async () => {
+    const a = ambiente({ agenda: [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 0 }], pendentes: tres });
+    await a.rodar("2026-10-05");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["a"], ["b"], ["c"]]);
+  });
+
+  it("sessão sem CPF não segura as outras, e é contada", async () => {
+    const a = ambiente({ agenda: [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 1 }], pendentes: [...tres, sessao({ id: "x", cpf: null })] });
+    const r = await a.rodar("2026-10-05");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["a", "b", "c"]]);
+    expect(r.semCpf).toBe(1);
   });
 });

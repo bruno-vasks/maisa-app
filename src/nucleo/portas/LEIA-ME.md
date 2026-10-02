@@ -32,6 +32,8 @@ um modelo de linguagem precisa conseguir preencher isso em JSON.
 | `repositorio-notas.ts` | `RepositorioNotas` (o que falta emitir + a CLAIM atômica que impede nota duplicada). ⚠️ Não aceita `valor` em lugar nenhum — quem soma é o banco | `adaptadores/saida/supabase` |
 | `repositorio-negocio.ts` | `RepositorioNegocio` (negócio, profissional, serviço, cliente, expediente, allowlist de agendas, cliente por telefone) | `adaptadores/saida/demo` ⚠️ fixtures |
 | `agenda-de-recibos.ts` | `AgendaDeRecibos.comDia()`: quem tem dia de recibo automático, em **todos** os negócios (01/10/2026). ⚠️ Sem `ContextoTenant`, como a fila de lembretes: só três campos (negócio, pessoa, dia), só leitura, e a trava contra emitir duas vezes é a do pagamento, não desta porta | `adaptadores/saida/supabase` (service role) · `demo` (lista vazia) |
+| `canal-mensagens.ts` | `CanalDeMensagens`: `enviar` (bolhas de texto), `escalar` e, desde 01/10/2026, `enviarDocumento` (um arquivo com legenda: o PDF do recibo) | `adaptadores/saida/evolution` · `demo` (log, sem o link) |
+| `livro-de-recibos.ts` | `LivroDeRecibos`: a claim do recibo unitário. Desde 01/10/2026 `abrir` recebe `itens` (uma ou várias sessões, tudo ou nada) e `destinatario` devolve `sessoes` | `adaptadores/saida/supabase` · `demo` |
 
 ## Duas decisões que valem explicação
 

@@ -70,6 +70,7 @@ import { hojeISO, rotuloBR } from "@/nucleo/dominio/tempo";
 import { NovoPagamento } from "@/ui/componentes/NovoPagamento";
 import { Moldura, PeDeAcao } from "@/ui/componentes/Moldura";
 import { semAcento } from "@/ui/estado/busca";
+import { juntarEmRecibos } from "@/nucleo/dominio/recibos-do-mes";
 
 /* ── o que as rotas devolvem ─────────────────────────────────────────────── */
 
@@ -447,6 +448,15 @@ export function EmitirRecibos() {
   );
   const aEmitir = useMemo(() => escolhidos.flatMap((g) => g.itens), [escolhidos]);
   const valor = useMemo(() => aEmitir.reduce((a, p) => a + p.valor, 0), [aEmitir]);
+  /* ★ OS RECIBOS, E NÃO AS SESSÕES (01/10/2026, Bruno: "cada paciente só recebe um recibo por
+   * mês"). As sessões escolhidas viram recibos pela escolha da ficha de cada pessoa
+   * (`recibosPorMes`). Sem a 033 a ficha não tem a escolha (`undefined`), e cai em um por sessão,
+   * que é como era: juntar sem a função do banco seria recusado. A contagem do botão, a prévia e a
+   * conferência falam de recibos. */
+  const recibos = useMemo(
+    () => juntarEmRecibos(aEmitir, (id) => st.clienteDe(id)?.recibosPorMes ?? 0),
+    [aEmitir, st.cadastro.clientes], // eslint-disable-line react-hooks/exhaustive-deps -- `clienteDe` lê de `cadastro.clientes`
+  );
 
   /**
    * ★ O LANÇAMENTO ENTRA NA LISTA NO MESMO CLIQUE.
@@ -497,7 +507,7 @@ export function EmitirRecibos() {
    *
    * ⚠️ E A LISTA SE RELÊ DO SERVIDOR quando a emissão termina (`emissoesFeitas`). Descontar na mão
    * mostraria o que a tela ACHA que saiu; o que vale é o que o banco diz. */
-  const emitir = () => void st.emitirRecibos(aEmitir.map((p) => ({ fonte: p.fonte, id: p.id, nome: p.nome })));
+  const emitir = () => void st.emitirRecibos(recibos.map((r) => ({ itens: r.map((p) => ({ fonte: p.fonte, id: p.id })), nome: r[0].nome })));
 
   const emitindoAgora = st.emissao?.estado === "andando";
 
@@ -604,7 +614,13 @@ export function EmitirRecibos() {
    * lista, não uma tela diferente: a forma é a mesma com 0 e com 1000, e o que muda é o que a
    * lista mostra e se o CTA está clicável. */
 
-  const previaItem = aEmitir[Math.min(previa, Math.max(aEmitir.length - 1, 0))];
+  const previaRecibo = recibos[Math.min(previa, Math.max(recibos.length - 1, 0))];
+  const previaItem = previaRecibo && {
+    nome: previaRecibo[0].nome,
+    cpf: previaRecibo[0].cpf,
+    valor: previaRecibo.reduce((a, p) => a + p.valor, 0),
+    datas: previaRecibo.map((p) => p.data).sort(),
+  };
   const travado = aEmitir.length === 0 || emitindoAgora || bloqueioDaAutorizacao !== null;
 
   /* Para onde vai o recibo, dito ao lado do verbo (Bruno, 26/08/2026: *"poderia ficar logo acima
@@ -632,7 +648,7 @@ export function EmitirRecibos() {
           A emitir
         </span>
         <span className="n" style={s("display:block;font-size:var(--t-data);line-height:var(--lh-tight);font-weight:var(--w-emph);letter-spacing:var(--ls-data);color:var(--ink);margin-top:6px")}>
-          {aEmitir.length}
+          {recibos.length}
         </span>
         <span className="n" style={s("display:block;font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg);color:var(--muted);margin-top:3px")}>
           {fmt(valor)}
@@ -643,12 +659,12 @@ export function EmitirRecibos() {
         <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:14px;display:flex;flex-direction:column;gap:7px")}>
           <div style={s("display:flex;align-items:center;justify-content:space-between;gap:8px")}>
             <span style={s("font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>
-              Prévia · {Math.min(previa + 1, aEmitir.length)} de {aEmitir.length}
+              Prévia · {Math.min(previa + 1, recibos.length)} de {recibos.length}
             </span>
-            {aEmitir.length > 1 && (
+            {recibos.length > 1 && (
               <span style={s("display:flex;gap:5px")}>
                 <button
-                  onClick={() => setPrevia((i) => (i - 1 + aEmitir.length) % aEmitir.length)}
+                  onClick={() => setPrevia((i) => (i - 1 + recibos.length) % recibos.length)}
                   className="m-focus m-hov-bg"
                   aria-label="Recibo anterior"
                   style={s("width:26px;height:26px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted)")}
@@ -656,7 +672,7 @@ export function EmitirRecibos() {
                   <Icon name="chevron-left" size={14} />
                 </button>
                 <button
-                  onClick={() => setPrevia((i) => (i + 1) % aEmitir.length)}
+                  onClick={() => setPrevia((i) => (i + 1) % recibos.length)}
                   className="m-focus m-hov-bg"
                   aria-label="Próximo recibo"
                   style={s("width:26px;height:26px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted)")}
@@ -671,7 +687,9 @@ export function EmitirRecibos() {
           </span>
           <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{previaItem.nome}</span>
           <span className="n-mach" style={s("font-size:var(--t-label);color:var(--muted)")}>
-            {previaItem.cpf} · {previaItem.data.slice(8, 10)}/{previaItem.data.slice(5, 7)}/{previaItem.data.slice(0, 4)}
+            {previaItem.cpf} · {previaItem.datas.length === 1
+              ? rotuloBR(previaItem.datas[0])
+              : `${previaItem.datas.length} sessões, ${previaItem.datas.map((d) => d.slice(8, 10) + "/" + d.slice(5, 7)).join(", ")}`}
           </span>
         </div>
       )}
@@ -710,7 +728,7 @@ export function EmitirRecibos() {
           ? "Emitindo…"
           : aEmitir.length === 0
             ? "Nada a emitir"
-            : aEmitir.length === 1 ? "Emitir 1 recibo" : `Emitir ${aEmitir.length} recibos`}
+            : recibos.length === 1 ? "Emitir 1 recibo" : `Emitir ${recibos.length} recibos`}
       </button>
       <span style={s(`text-align:center;font-size:var(--t-label);color:${bloqueioDaAutorizacao ? "var(--warn)" : "var(--muted)"};font-weight:${bloqueioDaAutorizacao ? "var(--w-title)" : "inherit"};line-height:1.5`)}>
         {bloqueioDaAutorizacao
@@ -831,7 +849,7 @@ export function EmitirRecibos() {
       <dl style={s("margin:0;display:flex;flex-direction:column")}>
         {[
           ["Clientes", String(escolhidos.length)],
-          ["Recibos a emitir", String(aEmitir.length)],
+          ["Recibos a emitir", String(recibos.length)],
           ["Valor", fmt(valor)],
           ["Emitente", fiscal.config.prestadorCpf ?? "—"],
         ].map(([k, v], i, arr) => (
@@ -871,7 +889,7 @@ export function EmitirRecibos() {
    * no resumo), e o pé da `Moldura`, `sticky` logo acima das abas, com o resumo e o verbo. */
   const peCelular = (
     <PeDeAcao
-      resumo={aEmitir.length > 0 ? `${aEmitir.length} ${aEmitir.length === 1 ? "recibo" : "recibos"} · ${fmt(valor)}` : "Mês em dia"}
+      resumo={recibos.length > 0 ? `${recibos.length} ${recibos.length === 1 ? "recibo" : "recibos"} · ${fmt(valor)}` : "Mês em dia"}
       acao={{
         label: emitindoAgora ? "Emitindo…" : aEmitir.length === 0 ? "Nada a emitir" : "Emitir",
         onClick: emitir,

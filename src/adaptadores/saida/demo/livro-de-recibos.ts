@@ -21,7 +21,8 @@ import type { LivroDeRecibos, ReciboAberto, DestinatarioDoRecibo } from "@/nucle
 import type { DesfechoDeRecibo, ReciboEmitido } from "@/nucleo/dominio/recibo-unitario";
 import type { FontePagamento } from "@/nucleo/portas/saida/repositorio-recibos";
 
-type Linha = ReciboEmitido & { fonte: FontePagamento; pagamentoId: string; valor: number };
+/* `pagamentos` é lista desde 01/10/2026: um recibo por mês junta várias sessões. */
+type Linha = ReciboEmitido & { pagamentos: { fonte: FontePagamento; id: string }[]; valor: number };
 
 let linhas: Linha[] = [];
 let sequencia = 0;
@@ -49,11 +50,11 @@ export function limparLivroDemo(): void {
 
 /** O que o razão prendeu. Serve ao demo do lote, para os dois não brigarem pelo pagamento. */
 export function pagamentosPresosNoDemo(): string[] {
-  return linhas.filter((l) => l.situacao !== "recusado").map((l) => l.pagamentoId);
+  return linhas.filter((l) => l.situacao !== "recusado").flatMap((l) => l.pagamentos.map((x) => x.id));
 }
 
 const semInternos = (l: Linha): ReciboEmitido => {
-  const { fonte: _f, pagamentoId: _p, valor: _v, ...limpo } = l;
+  const { pagamentos: _p, valor: _v, ...limpo } = l;
   return limpo;
 };
 
@@ -61,12 +62,14 @@ export const livroDeRecibosDemo: LivroDeRecibos = {
   async abrir(_t, p): Promise<ReciboAberto | null> {
     /* A claim: um pagamento já preso não se prende de novo. `recusado` não conta como preso —
      * ele foi solto, e é o único estado do qual se pode tentar outra vez. */
-    const preso = linhas.some((l) => l.pagamentoId === p.id && l.situacao !== "recusado");
-    if (preso) return null;
+    /* Tudo ou nada, como a `abrir_recibo_agrupado`: uma presa e nenhuma é presa. */
+    const pedidos = new Set(p.itens.map((x) => x.id));
+    const preso = linhas.some((l) => l.situacao !== "recusado" && l.pagamentos.some((x) => pedidos.has(x.id)));
+    if (preso || pedidos.size === 0) return null;
 
     const numero = ++sequencia;
     const id = `rec-demo-${numero}`;
-    const valor = valores.get(p.id) ?? VALOR_PADRAO;
+    const valor = [...pedidos].reduce((s, x) => s + (valores.get(x) ?? VALOR_PADRAO), 0);
 
     linhas = [
       {
@@ -82,8 +85,7 @@ export const livroDeRecibosDemo: LivroDeRecibos = {
         erro: null,
         criadoEm: new Date().toISOString(),
         emitidoEm: null,
-        fonte: p.fonte,
-        pagamentoId: p.id,
+        pagamentos: p.itens.map((x) => ({ fonte: x.fonte, id: x.id })),
         valor,
       },
       ...linhas,
@@ -190,10 +192,11 @@ export const livroDeRecibosDemo: LivroDeRecibos = {
     const l = linhas.find((x) => x.id === reciboId);
     if (!l) return null;
     return {
-      nome: `Cliente ${l.pagamentoId}`,
+      nome: `Cliente ${l.pagamentos[0]?.id ?? ""}`,
       telefone: telefoneDoDemo,
       data: l.criadoEm.slice(0, 10),
       valor: l.valor,
+      sessoes: l.pagamentos.length,
     };
   },
 };

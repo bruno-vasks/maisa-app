@@ -59,9 +59,13 @@ export type DestinatarioDoRecibo = {
   nome: string | null;
   /** `null` quando não há para onde mandar. Quem chama conta, não falha. */
   telefone: string | null;
-  /** Data do pagamento, ISO. É ela que vira dd/mm na mensagem. */
+  /** Data do pagamento, ISO. É ela que vira dd/mm na mensagem. Num recibo que junta sessões, a
+   *  da última. */
   data: string;
+  /** A soma, num recibo que junta sessões. */
   valor: number;
+  /** Quantas sessões o recibo leva (01/10/2026). 1 = o recibo de uma sessão, como era. */
+  sessoes: number;
 };
 
 export interface LivroDeRecibos {
@@ -77,8 +81,9 @@ export interface LivroDeRecibos {
    * errado**, que só se conserta cancelando.
    */
   abrir(t: ContextoTenant, p: {
-    fonte: FontePagamento;
-    id: string;
+    /** Um ou mais pagamentos DA MESMA PESSOA, no mesmo mês (01/10/2026: um recibo por mês). Mais
+     *  de um é TUDO OU NADA: se um já estiver preso, nenhum é preso. Ver `abrir_recibo_agrupado`. */
+    itens: { fonte: FontePagamento; id: string }[];
     canal: CanalDeEmissao;
   }): Promise<ReciboAberto | null>;
 

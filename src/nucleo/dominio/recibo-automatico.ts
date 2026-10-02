@@ -19,7 +19,7 @@
  * mensagem que o paciente receberia, pronta para encaminhar, com uma linha antes dizendo de quem é.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import { diasEntre, diasNoMes, mesDe, rotuloBR, somarMeses } from "./tempo";
+import { diasEntre, diasNoMes, mesDe, nomeMes, rotuloBR, rotuloDoMes, somarMeses } from "./tempo";
 import { valorBrasileiro, type ReciboAvisavel } from "./recibo-saude";
 
 /**
@@ -87,10 +87,27 @@ export function numeroDaDona(canal: { telefoneDono: string | null; numero: strin
  */
 export function cabecalhoParaADona(recibo: ReciboAvisavel, temTelefone: boolean): string {
   const quem = (recibo.nome ?? "").trim() || "um paciente sem nome no cadastro";
+  const n = recibo.sessoes ?? 1;
+  const doQue = n > 1
+    ? `${n} atendimentos de ${rotuloDoMes(recibo.data.slice(0, 10))}`
+    : `atendimento de ${rotuloBR(recibo.data.slice(0, 10))}`;
   return (
-    `Recibo emitido: ${quem}, atendimento de ${rotuloBR(recibo.data.slice(0, 10))}, R$ ${valorBrasileiro(recibo.valor)}. ` +
+    `Recibo emitido: ${quem}, ${doQue}, R$ ${valorBrasileiro(recibo.valor)}. ` +
     (temTelefone
-      ? "A mensagem abaixo está pronta para você encaminhar."
-      : "Não há telefone no cadastro dessa pessoa; a mensagem abaixo está pronta, se quiser mandar por outro caminho.")
+      ? "O recibo e a mensagem abaixo estão prontos para você encaminhar."
+      : "Não há telefone no cadastro dessa pessoa; o recibo e a mensagem abaixo estão prontos, se quiser mandar por outro caminho.")
   );
+}
+
+/**
+ * O nome do arquivo do PDF no WhatsApp (01/10/2026). É o que a pessoa vê na conversa e na pasta de
+ * downloads, então diz de quem e de quando, e nada do serviço.
+ */
+export function nomeDoPdf(recibo: ReciboAvisavel): string {
+  const quem = (recibo.nome ?? "").trim().replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ") || "paciente";
+  const ano = recibo.data.slice(0, 4);
+  const quando = (recibo.sessoes ?? 1) > 1
+    ? `${nomeMes(mesDe(recibo.data))} ${ano}`
+    : rotuloBR(recibo.data.slice(0, 10)).replace(/\//g, "-");
+  return `Recibo ${quem} ${quando}.pdf`;
 }

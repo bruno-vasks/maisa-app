@@ -197,6 +197,8 @@ function avisosDe(
 const paraPendente = (x: PagamentoAFaturar): PagamentoPendente => ({
   id: x.id,
   fonte: x.fonte,
+  clienteId: x.clienteId,
+  cpfPagador: x.cpfPagador,
   nome: x.nome,
   cpf: x.cpf,
   data: x.data,

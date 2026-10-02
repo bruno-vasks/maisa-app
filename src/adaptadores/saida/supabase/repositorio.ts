@@ -96,6 +96,8 @@ type LinhaCliente = {
   /** Só existe depois da 030 — ver `COLS_CLIENTE`. */
   valor_sessao?: string | number | null;
   dia_recibo?: number | null;
+  /** Só existe depois da 033. */
+  recibos_por_mes?: number | null;
   email: string | null;
   cpf: string | null;
   canal: string;
@@ -262,6 +264,9 @@ function paraCliente(l: LinhaCliente): Cliente {
      * vem). A ficha usa a diferença: com `undefined` ela nem desenha o "Dia do recibo", porque
      * escolher um dia ali seria recusado ao gravar. `null` é "a coluna existe e ela não escolheu". */
     ...(l.dia_recibo === undefined ? {} : { diaRecibo: l.dia_recibo == null ? null : Number(l.dia_recibo) }),
+    /* Ausente sem a 033, pelo mesmo motivo do `diaRecibo`: a ficha não desenha a escolha, e a
+     * tela de emitir segue um recibo por sessão, como era antes dela. */
+    ...(l.recibos_por_mes == null ? {} : { recibosPorMes: Number(l.recibos_por_mes) }),
     /* `teste` é `not null default false` no banco, mas o campo do domínio é opcional.
      * Só propaga quando for true: um `teste: false` explícito em todo cliente faria o
      * store achar que a marca existe e vale checar. */
@@ -314,7 +319,7 @@ const COLS_CLIENTE = "*";
  */
 function recusaDeCliente(error: { code?: string; message: string } | null): void {
   if (!error) return;
-  const campo = /"(telefone|nome|cpf|email|valor_sessao|dia_recibo)"|clientes_(\w+?)_check/.exec(error.message);
+  const campo = /"(telefone|nome|cpf|email|valor_sessao|dia_recibo|recibos_por_mes)"|clientes_(\w+?)_check/.exec(error.message);
   const qual = campo?.[1] ?? campo?.[2];
   /* Banco sem a 030 (01/10/2026, a Regina): a coluna não existe, o PostgREST recusa com
    * `PGRST204` ("Could not find the 'valor_sessao' column…"), e a frase crua ia para o toast
@@ -322,6 +327,10 @@ function recusaDeCliente(error: { code?: string; message: string } | null): void
   if ((error.code === "42703" || error.code === "PGRST204") && /valor_sessao/.test(error.message)) {
     console.error("[supabase/repositorio] valor da sessão recusado: falta rodar supabase/030_valor_da_sessao.sql");
     throw new FalhaDoProvedor("O valor da sessão ainda não fica guardado na ficha. Por enquanto, ponha o valor na hora de marcar.");
+  }
+  if ((error.code === "42703" || error.code === "PGRST204") && /recibos_por_mes/.test(error.message)) {
+    console.error("[supabase/repositorio] recibos por mês recusado: falta rodar supabase/033_recibo_por_mes.sql");
+    throw new FalhaDoProvedor("Quantos recibos por mês ainda não fica guardado. Tente de novo mais tarde.");
   }
   /* O mesmo, com a 032: o dia do recibo automático ainda não tem onde morar. */
   if ((error.code === "42703" || error.code === "PGRST204") && /dia_recibo/.test(error.message)) {
@@ -342,6 +351,7 @@ function recusaDeCliente(error: { code?: string; message: string } | null): void
       valor: "O valor da sessão precisa ser um número entre 0 e 100 mil.",
       valor_sessao: "O valor da sessão precisa ser um número entre 0 e 100 mil.",
       dia_recibo: "O dia do recibo é um dia do mês, de 1 a 31.",
+      recibos_por_mes: "Recibos por mês é de 1 a 4, ou um por sessão.",
     };
     throw new FalhaDoProvedor(rotulo[qual ?? ""] ?? "Algum campo do cliente não foi aceito — confira e tente de novo.");
   }
@@ -777,6 +787,7 @@ export const repositorioSupabase: RepositorioNegocio = {
       ...(r.ativo === undefined ? {} : { ativo: r.ativo }),
       ...(r.valorSessao === undefined ? {} : { valor_sessao: r.valorSessao }),
       ...(r.diaRecibo === undefined ? {} : { dia_recibo: r.diaRecibo }),
+      ...(r.recibosPorMes === undefined ? {} : { recibos_por_mes: r.recibosPorMes }),
     };
 
     /* O `.eq("tenant_id")` não é redundante com a RLS — ver o bloco acima do

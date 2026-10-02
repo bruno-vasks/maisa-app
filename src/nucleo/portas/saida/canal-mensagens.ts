@@ -19,6 +19,11 @@ export interface CanalDeMensagens {
    *  em cima de mensagem entregue, e finge-la seria pior que assumir isso. */
   enviar(t: ContextoTenant, para: string, textos: string[]): Promise<void>;
 
+  /** Envia UM arquivo, com a legenda embaixo (01/10/2026: o PDF do recibo). `url` é de onde o canal
+   *  baixa, e vale pouco tempo de propósito; quem chama gera na hora. A legenda vai junto quando
+   *  a pessoa encaminha o arquivo. */
+  enviarDocumento(t: ContextoTenant, para: string, doc: { url: string; nomeDoArquivo: string; legenda: string }): Promise<void>;
+
   /** Chama o dono para assumir a conversa. Hoje é uma linha na fila do painel; um dia
    *  é um push. O agente precisa poder desistir — ver `chamar_humano`. */
   escalar(t: ContextoTenant, p: { telefone: string; motivo: string }): Promise<void>;

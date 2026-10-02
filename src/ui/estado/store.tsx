@@ -1125,8 +1125,9 @@ export type EmissaoDeRecibos = {
   falhas: { nome: string; erro: string }[];
 };
 
-/** Um pagamento na fila de emissão. É o que a tela manda; o resto o servidor lê do banco. */
-export type NaFila = { fonte: "atendimento" | "avulso"; id: string; nome: string };
+/** Um RECIBO na fila de emissão: uma ou mais sessões da mesma pessoa (01/10/2026, um recibo por
+ *  mês). É o que a tela manda; valor, CPF e data o servidor lê do banco. */
+export type NaFila = { itens: { fonte: "atendimento" | "avulso"; id: string }[]; nome: string };
 
 /** O placar no instante zero. */
 export function comecarEmissao(fila: NaFila[]): EmissaoDeRecibos {
@@ -2882,6 +2883,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ...("ativo" in patch ? { ativo: alvo.ativo } : {}),
           ...("valorSessao" in patch ? { valorSessao: alvo.valorSessao ?? null } : {}),
           ...("diaRecibo" in patch ? { diaRecibo: alvo.diaRecibo ?? null } : {}),
+          ...("recibosPorMes" in patch ? { recibosPorMes: alvo.recibosPorMes } : {}),
         }),
       }).then((x) => x.json());
 
@@ -3909,13 +3911,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setEmissao((e) => e && { ...e, atual: p.nome });
       let falha: string | null = null;
       try {
-        /* Uma chamada por pagamento, EM SÉRIE. Não é limitação: o canal cobra por processamento, a
+        /* Uma chamada por RECIBO, EM SÉRIE. Não é limitação: o canal cobra por processamento, a
          * Receita não gosta de rajada, e uma falha no meio de dez chamadas simultâneas deixaria o
          * dono sem saber quais saíram. */
         const r = await fetch("/api/recibos/emitir", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fonte: p.fonte, id: p.id }),
+          body: JSON.stringify(p.itens.length === 1 ? p.itens[0] : { itens: p.itens }),
         }).then((x) => x.json());
         if (r?.ok !== true) falha = r?.info ?? r?.detalhe ?? r?.erro ?? "O canal recusou.";
       } catch {

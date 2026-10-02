@@ -234,6 +234,7 @@ function ambiente(p: {
         if (quebra.has(para)) throw new Error("WhatsApp desconectado");
         enviados.push({ para, texto: textos.join(" ") });
       },
+      async enviarDocumento() { throw new Error("o lote não manda arquivo"); },
       async escalar() {},
     };
 

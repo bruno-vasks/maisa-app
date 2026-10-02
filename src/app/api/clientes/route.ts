@@ -79,7 +79,7 @@ export async function PUT(req: Request) {
     );
   }
 
-  const { id, nome, telefone, email, cpf, canal, servicoId, ativo, valorSessao, diaRecibo } =
+  const { id, nome, telefone, email, cpf, canal, servicoId, ativo, valorSessao, diaRecibo, recibosPorMes } =
     (corpo ?? {}) as Record<string, unknown>;
 
   try {
@@ -109,6 +109,7 @@ export async function PUT(req: Request) {
       ...(diaRecibo === undefined
         ? {}
         : { diaRecibo: diaRecibo === null || diaRecibo === "" ? null : Number(diaRecibo) }),
+      ...(recibosPorMes === undefined || recibosPorMes === null ? {} : { recibosPorMes: Number(recibosPorMes) }),
     });
 
     return NextResponse.json({ ok: true, status: "ok", cliente });

@@ -34,6 +34,12 @@ export type Cliente = {
    */
   diaRecibo?: number | null;
   /**
+   * Quantos recibos por mês: 1 (o padrão, todas as sessões do mês num só), 2 a 4, ou 0 = um por
+   * sessão. AUSENTE num banco sem a 033, e aí tudo segue como era, um por sessão. Ver
+   * `dominio/recibos-do-mes.ts`.
+   */
+  recibosPorMes?: number;
+  /**
    * Cliente que existe só para validar a integração fiscal em produção.
    * A NFS-e só autoriza de verdade em produção, então testar exige emitir uma
    * nota real — e uma nota real de teste não pode ficar de pé. Marcar `teste`

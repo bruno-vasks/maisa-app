@@ -25,6 +25,8 @@ export type PacienteComDiaDeRecibo = {
   clienteId: string;
   /** 1 a 31. Em mês curto, vale o último dia: ver `diaDoReciboNoMes`. */
   dia: number;
+  /** Quantos recibos por mês (0 = um por sessão). Ver `juntarEmRecibos`. */
+  porMes: number;
 };
 
 export interface AgendaDeRecibos {

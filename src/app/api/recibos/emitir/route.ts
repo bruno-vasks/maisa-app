@@ -52,21 +52,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, erro: "corpo_invalido" }, { status: 400 });
   }
 
-  const fonte = corpo?.fonte;
-  const id = typeof corpo?.id === "string" ? corpo.id.trim() : "";
+  /* Um recibo de uma sessão (`{ fonte, id }`) ou de várias (`{ itens: [{ fonte, id }, …] }`), desde
+   * 01/10/2026: um recibo por mês. Se as várias podem ir juntas (mesma pessoa, pagador e mês) é
+   * regra, e quem decide é o caso de uso. */
+  const brutos: unknown[] = Array.isArray(corpo?.itens) ? corpo.itens : [corpo];
+  const itens = brutos.map((x) => {
+    const o = (x ?? {}) as { fonte?: unknown; id?: unknown };
+    return { fonte: o.fonte, id: typeof o.id === "string" ? o.id.trim() : "" };
+  });
 
   /* Valida a FORMA aqui — é tradução, não regra. `fonte` fora do par conhecido não é "dado de
    * negócio inválido", é corpo torto: deixar passar faria a função do banco levantar exceção
    * de SQL, que na tela do dono não quer dizer nada. */
-  if ((fonte !== "atendimento" && fonte !== "avulso") || !id) {
+  if (!itens.length || itens.some((x) => (x.fonte !== "atendimento" && x.fonte !== "avulso") || !x.id)) {
     return NextResponse.json(
-      { ok: false, erro: "corpo_invalido", detalhe: "Informe `fonte` ('atendimento' ou 'avulso') e `id`." },
+      { ok: false, erro: "corpo_invalido", detalhe: "Informe `fonte` ('atendimento' ou 'avulso') e `id`, ou `itens` com eles." },
       { status: 400 },
     );
   }
 
   try {
-    const r = await app.emitirRecibo(porteiro.tenant, { fonte, id });
+    const validos = itens as { fonte: "atendimento" | "avulso"; id: string }[];
+    const r = await app.emitirRecibo(porteiro.tenant, validos.length === 1 ? validos[0] : { itens: validos });
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     /* `falha` já traduz `DadoInvalido` em 400 com o campo, e `NaoConfigurado` em 400 com a lista

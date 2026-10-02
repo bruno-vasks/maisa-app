@@ -51,6 +51,7 @@ import {
 import { colapsarEspaco, temConteudo } from "../dominio/texto";
 import { DadoInvalido } from "../dominio/erros";
 import { diaDoReciboValido } from "../dominio/recibo-automatico";
+import { recibosPorMesValido } from "../dominio/recibos-do-mes";
 
 export function criarLerCadastro(deps: { negocio: RepositorioNegocio }): LerCadastro {
   return async (t): Promise<CadastroDoNegocio> => {
@@ -383,6 +384,12 @@ export function criarAjustarCliente(deps: { negocio: RepositorioNegocio }): Ajus
       throw new DadoInvalido("O dia do recibo é um dia do mês, de 1 a 31.", "diaRecibo");
     }
 
+    /* Quantos recibos por mês (01/10/2026): 1 a 4, ou 0 = um por sessão. */
+    const recibosPorMes = p?.recibosPorMes === undefined ? undefined : Number(p.recibosPorMes);
+    if (recibosPorMes !== undefined && !recibosPorMesValido(recibosPorMes)) {
+      throw new DadoInvalido("Recibos por mês é de 1 a 4, ou um por sessão.", "recibosPorMes");
+    }
+
     return deps.negocio.atualizarCliente(t, {
       id,
       nome,
@@ -394,6 +401,7 @@ export function criarAjustarCliente(deps: { negocio: RepositorioNegocio }): Ajus
       ...(p.ativo === undefined ? {} : { ativo: p.ativo }),
       ...(valorSessao === undefined ? {} : { valorSessao }),
       ...(diaRecibo === undefined ? {} : { diaRecibo }),
+      ...(recibosPorMes === undefined ? {} : { recibosPorMes }),
     });
   };
 }

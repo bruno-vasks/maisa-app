@@ -24,6 +24,7 @@ import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 import { cpfMascarado, cpfValido } from "@/nucleo/dominio/clientes";
 import { proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
+import { OPCOES_RECIBOS_POR_MES, rotuloRecibosPorMes } from "@/nucleo/dominio/recibos-do-mes";
 import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
@@ -632,7 +633,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 hint: cli.diaRecibo == null
                   ? "Escolha um dia e a MAISA emite sozinha, todo mês, os recibos das sessões que ainda não têm."
                   : [
-                    `Próximo: ${D.rotuloDia(proximoDiaDoRecibo(cli.diaRecibo, D.HOJE.iso))}, com as sessões até a véspera.`,
+                    `Próximo: ${D.rotuloDia(proximoDiaDoRecibo(cli.diaRecibo, D.HOJE.iso))}, com as sessões até a véspera que ainda não têm recibo.`,
                     cli.diaRecibo > 28 ? "Em mês mais curto, sai no último dia." : "",
                     !cpfValido(cli.cpf) ? `Sem o CPF de ${primeiro}, o recibo não sai.` : "",
                     !st.cfg.avisarRecibo
@@ -642,6 +643,23 @@ export function useDetalhe(id: string | null): Detalhe | null {
                         : `A mensagem vai para ${primeiro}.`,
                   ].filter(Boolean).join(" "),
                 onChange: (v: string) => st.editarCliente(cli.id, { diaRecibo: v ? Number(v) : null }),
+              }]
+              : []),
+            /* ★ QUANTOS RECIBOS POR MÊS (01/10/2026, Bruno: "cada paciente só recebe um recibo por
+               mês, mas podemos configurar isso"). Vale para o automático e para o botão "Emitir".
+               Ausente sem a 033, e aí o campo não aparece (ver `paraCliente`). */
+            ...(emiteRecibo && cli.recibosPorMes !== undefined
+              ? [{
+                id: "recibosPorMes", label: "Recibos por mês", tipo: "select" as const,
+                valor: String(cli.recibosPorMes),
+                opcoes: OPCOES_RECIBOS_POR_MES.map(String),
+                rotuloOpcao: (v: string) => rotuloRecibosPorMes(Number(v)),
+                hint: cli.recibosPorMes === 0
+                  ? `Cada sessão de ${primeiro} vira um recibo, e uma mensagem.`
+                  : cli.recibosPorMes === 1
+                    ? `As sessões de ${primeiro} no mês saem num recibo só, com a soma e as datas.`
+                    : `As sessões de ${primeiro} no mês se dividem em ${cli.recibosPorMes} recibos, em ordem de data.`,
+                onChange: (v: string) => st.editarCliente(cli.id, { recibosPorMes: Number(v) }),
               }]
               : []),
             {

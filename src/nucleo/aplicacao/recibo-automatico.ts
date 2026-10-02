@@ -2,9 +2,10 @@
  * CASO DE USO — emitir sozinha os recibos de quem tem dia marcado (01/10/2026, a Regina).
  *
  * Roda uma vez por dia (o cron da Vercel chama `/api/rotinas/recibos`). Para cada pessoa cujo dia
- * de recibo caiu hoje, ou nos dois dias anteriores (`FOLGA_DO_RECIBO_AUTOMATICO`), emite um
- * recibo por pagamento pendente dela com data ANTERIOR ao dia do recibo. Dia 5, por exemplo:
- * entra o que foi atendido até o dia 4 e ainda não tem recibo.
+ * de recibo caiu hoje, ou nos dois dias anteriores (`FOLGA_DO_RECIBO_AUTOMATICO`), emite os recibos
+ * das sessões pendentes dela com data ANTERIOR ao dia do recibo. Dia 5, por exemplo: entra o que
+ * foi atendido até o dia 4 e ainda não tem recibo. Desde 01/10/2026 elas vão juntas, um recibo por
+ * mês (ou o que a ficha escolheu: `juntarEmRecibos`), e não mais um por sessão.
  *
  * ── ★ É A MESMA EMISSÃO DA TELA ──
  *
@@ -36,6 +37,7 @@ import type { ContextoTenant } from "../dominio/tenant";
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
 import { cpfValido } from "../dominio/clientes";
 import { diaDoReciboAlcancado } from "../dominio/recibo-automatico";
+import { juntarEmRecibos } from "../dominio/recibos-do-mes";
 import { somarDias } from "../dominio/tempo";
 
 /**
@@ -97,13 +99,17 @@ export function criarEmitirRecibosAutomaticos(deps: {
         for (const { p, dia } of devidos) {
           r.pacientes++;
           const dela = pendentes.filter((x) => x.clienteId === p.clienteId && x.data < dia && !x.teste);
-          for (const [i, pg] of dela.entries()) {
-            if (agora() - inicio > teto) { r.adiados += dela.length - i; break; }
-            /* Conta à parte, antes de chamar: `emitirRecibo` recusaria do mesmo jeito, mas como
-             * falha, e "falta o CPF da Ana" é coisa que a dona resolve, não erro da rotina. */
-            if (!cpfValido(pg.cpf ?? "")) { r.semCpf++; continue; }
+          /* Conta à parte, antes de chamar: `emitirRecibo` recusaria do mesmo jeito, mas como
+           * falha, e "falta o CPF da Ana" é coisa que a dona resolve, não erro da rotina. */
+          const comCpf = dela.filter((x) => cpfValido(x.cpf ?? ""));
+          r.semCpf += dela.length - comCpf.length;
+          /* ★ UM RECIBO POR MÊS (01/10/2026): as sessões viram recibos pela escolha da ficha
+           * (`porMes`). Sessões de meses diferentes nunca vão juntas. */
+          const recibos = juntarEmRecibos(comCpf, () => p.porMes);
+          for (const [i, grupo] of recibos.entries()) {
+            if (agora() - inicio > teto) { r.adiados += recibos.length - i; break; }
             try {
-              await deps.emitirRecibo(t, { fonte: pg.fonte, id: pg.id });
+              await deps.emitirRecibo(t, { itens: grupo.map((x) => ({ fonte: x.fonte, id: x.id })) });
               r.emitidos++;
             } catch (e) {
               r.falhas.push({ tenantId, motivo: e instanceof Error ? e.message : String(e) });

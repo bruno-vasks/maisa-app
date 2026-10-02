@@ -91,6 +91,12 @@ function ambiente(p: {
   primeiroParaMim?: boolean;
   /** O canal do negócio: o número de avisos e o número conectado. `null` = nada conectado. */
   canalDaDona?: { telefoneDono: string | null; numero: string | null } | null;
+  /** O bucket não devolveu link da nossa cópia do PDF. */
+  semLinkDaCopia?: boolean;
+  /** O WhatsApp recusa o arquivo (e só o arquivo). */
+  documentoQuebra?: boolean;
+  /** Quantas sessões o recibo junta, para o destinatário. Padrão 1. */
+  sessoes?: number;
 } = {}) {
   const ordem: string[] = [];
   const protocolos: { reciboId: string; protocolo: string }[] = [];
@@ -131,6 +137,7 @@ function ambiente(p: {
         telefone: p.telefoneDoPaciente === undefined ? "11999990000" : p.telefoneDoPaciente,
         data: "2026-08-07",
         valor: 250,
+        sessoes: p.sessoes ?? 1,
       };
     },
     async porProtocolo() { return null; },
@@ -169,16 +176,23 @@ function ambiente(p: {
       if (p.guardaFalha) return null;
       return { caminho: `t1/${x.protocolo}.pdf`, bytes: 2048 };
     },
-    async linkParaBaixar() { return null; },
+    /* O link da NOSSA cópia, como o bucket daria. `semLinkDaCopia` simula o serviço não respondendo. */
+    async linkParaBaixar(_t, x) { return p.semLinkDaCopia ? null : `https://nossa-copia/${x.caminho}?vale=${x.segundos}`; },
   };
 
   /* ── as três portas do aviso ao paciente ── */
-  const enviadas: { para: string; textos: string[] }[] = [];
+  /* Texto e arquivo na mesma lista, na ordem em que saíram. No arquivo, `textos` é a legenda. */
+  const enviadas: { para: string; textos: string[]; arquivo?: { url: string; nome: string } }[] = [];
   const canal = {
     async enviar(_t: unknown, para: string, textos: string[]) {
       ordem.push("enviar");
       if (p.envioQuebra) throw new Error("o WhatsApp recusou");
       enviadas.push({ para, textos });
+    },
+    async enviarDocumento(_t: unknown, para: string, doc: { url: string; nomeDoArquivo: string; legenda: string }) {
+      ordem.push("enviar");
+      if (p.envioQuebra || p.documentoQuebra) throw new Error("o WhatsApp recusou o arquivo");
+      enviadas.push({ para, textos: [doc.legenda], arquivo: { url: doc.url, nome: doc.nomeDoArquivo } });
     },
     async escalar() {},
   } as unknown as CanalDeMensagens;
@@ -797,19 +811,20 @@ describe("★ o desfecho do aviso é anotado", () => {
  * ele, o próprio WhatsApp conectado: a MAISA da Regina roda no número pessoal dela, e ela nunca
  * preencheu o de avisos (medido em 01/10/2026). */
 describe("★ primeiro para mim", () => {
-  it("vai para o número conectado quando não há número de avisos, em duas bolhas", async () => {
+  it("vai para o número conectado quando não há número de avisos: a linha dela, e o PDF com a mensagem", async () => {
     const a = ambiente({ avisarRecibo: true, primeiroParaMim: true });
     await a.fecharDoCallback(t, desfechoDe());
 
-    expect(a.enviadas).toHaveLength(1);
-    expect(a.enviadas[0].para).toBe("5511988887777");
-    expect(a.enviadas[0].textos).toHaveLength(2);
+    expect(a.enviadas).toHaveLength(2);
+    expect(a.enviadas.every((e) => e.para === "5511988887777")).toBe(true);
     /* A primeira é para ela: nome inteiro, data e valor. */
     expect(a.enviadas[0].textos[0]).toContain("Patrícia Mendes");
     expect(a.enviadas[0].textos[0]).toContain("07/08/2026");
     expect(a.enviadas[0].textos[0]).toContain("250,00");
-    /* A segunda é a que o paciente receberia, igual. */
-    expect(a.enviadas[0].textos[1]).toContain("Oi, Patrícia!");
+    expect(a.enviadas[0].arquivo).toBeUndefined();
+    /* A segunda é o recibo, com a mensagem que o paciente receberia na legenda: é o que ela encaminha. */
+    expect(a.enviadas[1].arquivo?.nome).toBe("Recibo Patrícia Mendes 07-08-2026.pdf");
+    expect(a.enviadas[1].textos[0]).toContain("Oi, Patrícia!");
     expect(a.avisosAnotados).toEqual(["enviado_ao_dono"]);
   });
 
@@ -828,7 +843,7 @@ describe("★ primeiro para mim", () => {
   it("paciente sem telefone ainda chega para ela, e a linha diz isso", async () => {
     const a = ambiente({ avisarRecibo: true, primeiroParaMim: true, telefoneDoPaciente: null });
     await a.fecharDoCallback(t, desfechoDe());
-    expect(a.enviadas).toHaveLength(1);
+    expect(a.enviadas).toHaveLength(2);
     expect(a.enviadas[0].textos[0]).toContain("Não há telefone no cadastro");
     expect(a.avisosAnotados).toEqual(["enviado_ao_dono"]);
   });
@@ -846,5 +861,105 @@ describe("★ primeiro para mim", () => {
     await a.fecharDoCallback(t, desfechoDe());
     expect(a.enviadas).toEqual([]);
     expect(a.avisosAnotados).toEqual(["desligado"]);
+  });
+});
+
+
+/* ── ★ O PDF VAI JUNTO (01/10/2026, Bruno: "é onde mora o valor do produto") ── */
+describe("★ o PDF do recibo no WhatsApp", () => {
+  it("vai como arquivo, da nossa cópia, com a mensagem na legenda", async () => {
+    const a = ambiente({ avisarRecibo: true });
+    await a.fecharDoCallback(t, desfechoDe());
+
+    expect(a.enviadas).toHaveLength(1);
+    expect(a.enviadas[0].para).toBe("11999990000");
+    expect(a.enviadas[0].arquivo?.url).toBe("https://nossa-copia/t1/1042.pdf?vale=600");
+    expect(a.enviadas[0].textos[0]).toContain("Oi, Patrícia!");
+    expect(a.avisosAnotados).toEqual(["enviado"]);
+  });
+
+  it("sem link da nossa cópia, usa o do canal, que ainda vale no callback", async () => {
+    const a = ambiente({ avisarRecibo: true, semLinkDaCopia: true });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas[0].arquivo?.url).toBe("https://s3/f/1.pdf?X-Amz-Expires=300");
+  });
+
+  it("sem PDF nenhum, só a mensagem, como era", async () => {
+    const a = ambiente({ avisarRecibo: true });
+    await a.fecharDoCallback(t, desfechoDe({ pdfUrl: null }));
+    expect(a.enviadas).toHaveLength(1);
+    expect(a.enviadas[0].arquivo).toBeUndefined();
+    expect(a.enviadas[0].textos[0]).toContain("Oi, Patrícia!");
+  });
+
+  /* Sem segunda chance com texto: um "falhou" que talvez tenha entregado, repetido, é o paciente
+   * recebendo duas vezes. A tela conta o "não avisado", e o recibo já existe. */
+  it("arquivo recusado vira falhou, e não cai para texto", async () => {
+    const a = ambiente({ avisarRecibo: true, documentoQuebra: true });
+    const r = await a.fecharDoCallback(t, desfechoDe());
+    expect(r.desfecho).toBe("emitido");
+    expect(a.enviadas).toEqual([]);
+    expect(a.avisosAnotados).toEqual(["falhou"]);
+  });
+
+  it("recibo de várias sessões: a mensagem fala do mês", async () => {
+    const a = ambiente({ avisarRecibo: true, sessoes: 4 });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas[0].textos[0]).toContain("dos seus 4 atendimentos de agosto");
+    expect(a.enviadas[0].arquivo?.nome).toBe("Recibo Patrícia Mendes agosto 2026.pdf");
+  });
+});
+
+/* ── ★ UM RECIBO POR MÊS: a emissão de várias sessões (01/10/2026) ── */
+describe("★ emitir várias sessões num recibo", () => {
+  const set = (id: string, data: string, over: Partial<PagamentoAFaturar> = {}) => sessao({ id, data, valor: 180, ...over });
+
+  it("prende as sessões juntas, uma vez, e a data é a da última", async () => {
+    const a = ambiente({ pendentes: [set("s1", "2026-08-07"), set("s2", "2026-08-14"), set("s3", "2026-08-21")] });
+    const r = await a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "s2" }, { fonte: "atendimento", id: "s3" }] });
+    expect(a.ordem.filter((x) => x === "abrir")).toHaveLength(1);
+    expect(a.ordem.filter((x) => x === "emitir")).toHaveLength(1);
+    expect(a.pedido?.descricao).toBe("Atendimentos realizados em 07/08, 14/08 e 21/08/2026");
+    expect(r.sessoes).toBe(3);
+    expect(r.data).toBe("2026-08-21");
+  });
+
+  it("o valor é o do banco, não a soma da tela", async () => {
+    const a = ambiente({ pendentes: [set("s1", "2026-08-07"), set("s2", "2026-08-14")], aberto: { id: "rec1", numero: 7, valor: 360 } });
+    await a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "s2" }] });
+    expect(a.pedido?.valor).toBe(360);
+  });
+
+  it("recusa pessoas diferentes", async () => {
+    const a = ambiente({ pendentes: [set("s1", "2026-08-07"), set("s2", "2026-08-14", { clienteId: "cl2", cpf: "11144477735" })] });
+    await expect(a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "s2" }] }))
+      .rejects.toMatchObject({ campo: "itens" });
+    expect(a.ordem).not.toContain("abrir");
+  });
+
+  it("recusa outro pagador no mesmo recibo", async () => {
+    const a = ambiente({ pendentes: [set("s1", "2026-08-07"), set("s2", "2026-08-14", { cpfPagador: "12345678909" })] });
+    await expect(a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "s2" }] }))
+      .rejects.toMatchObject({ campo: "itens" });
+  });
+
+  it("recusa meses diferentes", async () => {
+    const a = ambiente({ pendentes: [set("s1", "2026-08-31"), set("s2", "2026-09-01")] });
+    await expect(a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "s2" }] }))
+      .rejects.toMatchObject({ campo: "itens" });
+  });
+
+  it("uma sessão fora da lista recusa o recibo inteiro, antes de prender", async () => {
+    const a = ambiente({ pendentes: [set("s1", "2026-08-07")] });
+    await expect(a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "sumiu" }] }))
+      .rejects.toMatchObject({ campo: "id" });
+    expect(a.ordem).not.toContain("abrir");
+  });
+
+  it("tudo ou nada: o livro não prendeu, nada sai", async () => {
+    const a = ambiente({ pendentes: [set("s1", "2026-08-07"), set("s2", "2026-08-14")], aberto: null });
+    await expect(a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "s2" }] }))
+      .rejects.toMatchObject({ campo: "id" });
+    expect(a.ordem).not.toContain("emitir");
   });
 });

@@ -237,6 +237,32 @@ export function enviarTexto(p: { numero: string; texto: string; delayMs?: number
 }
 
 /**
+ * Manda UM arquivo, com legenda (01/10/2026: o PDF do recibo).
+ *
+ * `POST /message/sendMedia/{instância}`, corpo PLANO como o do texto (é a forma da v2; o
+ * `mediaMessage` aninhado era da v1). Conferido no `SendMediaDto` da Evolution: `mediatype`,
+ * `mimetype`, `caption`, `fileName` e `media`, que aceita URL ou base64. Mandamos URL, curta, que
+ * a Evolution baixa na hora: o PDF não passa pelo corpo da requisição nem fica no nosso log.
+ *
+ * Prazo maior que o do texto: a Evolution segura a resposta enquanto baixa o arquivo.
+ */
+export function enviarDocumento(p: {
+  numero: string; url: string; nomeDoArquivo: string; legenda: string; instancia?: string; mimetype?: string;
+}): Promise<any> {
+  return exigir(`/message/sendMedia/${p.instancia ? encodeURIComponent(p.instancia) : inst()}`, {
+    corpo: {
+      number: p.numero,
+      mediatype: "document",
+      mimetype: p.mimetype ?? "application/pdf",
+      media: p.url,
+      fileName: p.nomeDoArquivo,
+      caption: p.legenda,
+    },
+    timeoutMs: Math.max(EVOLUTION.timeoutMs, 30_000),
+  });
+}
+
+/**
  * "digitando…" por `delayMs`. Disponível, mas fora do caminho normal de envio — ver a
  * nota em `canal-evolution.ts` sobre por que o ritmo vem do `delay` do sendText.
  *

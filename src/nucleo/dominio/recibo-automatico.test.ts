@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cabecalhoParaADona, diaDoReciboAlcancado, diaDoReciboNoMes, diaDoReciboValido,
+  cabecalhoParaADona, nomeDoPdf, diaDoReciboAlcancado, diaDoReciboNoMes, diaDoReciboValido,
   numeroDaDona, proximoDiaDoRecibo,
 } from "./recibo-automatico";
 
@@ -81,12 +81,26 @@ describe("a linha antes do aviso, para a dona", () => {
     expect(t).toContain("Ana Beatriz Moura");
     expect(t).toContain("16/09/2026");
     expect(t).toContain("R$ 180,00");
-    expect(t).toContain("pronta para você encaminhar");
+    expect(t).toContain("prontos para você encaminhar");
   });
   it("sem telefone no cadastro, avisa", () => {
     expect(cabecalhoParaADona(recibo, false)).toContain("Não há telefone no cadastro");
   });
   it("sem travessão", () => {
     expect(cabecalhoParaADona(recibo, true)).not.toContain("—");
+  });
+});
+
+describe("um recibo de várias sessões, para a dona e no nome do arquivo", () => {
+  const doMes = { nome: "Ana Beatriz Moura", data: "2026-09-23", valor: 720, sessoes: 4 };
+  it("a linha da dona fala do mês", () => {
+    expect(cabecalhoParaADona(doMes, true)).toContain("4 atendimentos de setembro de 2026, R$ 720,00");
+  });
+  it("o arquivo diz de quem e de quando, sem o serviço", () => {
+    expect(nomeDoPdf(doMes)).toBe("Recibo Ana Beatriz Moura setembro 2026.pdf");
+    expect(nomeDoPdf({ nome: "Ana", data: "2026-09-16", valor: 180 })).toBe("Recibo Ana 16-09-2026.pdf");
+  });
+  it("nome com barra não vira pasta no arquivo", () => {
+    expect(nomeDoPdf({ nome: "Ana/Bia", data: "2026-09-16", valor: 180 })).toBe("Recibo Ana Bia 16-09-2026.pdf");
   });
 });

@@ -15,7 +15,7 @@ import { soDigitos } from "@/nucleo/dominio/clientes";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 
 import { EVOLUTION } from "./config";
-import { enviarTexto } from "./cliente";
+import { enviarDocumento, enviarTexto } from "./cliente";
 
 /* ───────────────────────────── o número ─────────────────────────────
  * A Evolution quer DDI+DDD+número em dígitos puros. O telefone chega aqui de duas
@@ -153,6 +153,23 @@ export function criarCanalEvolution(deps: {
        * `sinalizarDigitando()` no cliente; o ritmo das bolhas já funciona sem ela. */
       await comSegundaChance(() => enviarTexto({ instancia, numero, texto, delayMs: pausaDaBolha(texto, i) }));
     }
+  },
+
+  /**
+   * Manda um arquivo com legenda (o PDF do recibo). Mesmas regras do `enviar`: a instância é do
+   * inquilino, sem cair na env, e número que não vira WhatsApp não manda nada.
+   *
+   * ⚠️ SEM SEGUNDA CHANCE, ao contrário do texto: a Evolution segura a resposta enquanto baixa o
+   * arquivo, e um "indisponível" no meio disso pode ter entregado. Documento fiscal duplicado no
+   * WhatsApp do paciente é pior que um aviso que a tela conta como "não foi".
+   */
+  async enviarDocumento(t, para, doc) {
+    const instancia = await deps.instanciaDe(t);
+    const numero = paraNumeroWhats(para);
+    if (!numero) {
+      throw new FalhaDoProvedor(`Telefone "${para}" não virou número de WhatsApp válido — nada foi enviado.`);
+    }
+    await enviarDocumento({ instancia, numero, url: doc.url, nomeDoArquivo: doc.nomeDoArquivo, legenda: doc.legenda });
   },
 
   /**

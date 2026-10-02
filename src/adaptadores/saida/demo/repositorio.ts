@@ -22,6 +22,7 @@ import { NEGOCIO } from "./negocio";
 import { COLUNAS_AGENDA, EQUIPE, EXPEDIENTE } from "./equipe";
 import { SERVICOS } from "./catalogo";
 import { CLIENTES } from "./clientes";
+import { RECIBOS_POR_MES_PADRAO } from "@/nucleo/dominio/recibos-do-mes";
 
 /* O nome do negócio de demonstração, editável.
  *
@@ -71,7 +72,7 @@ export const repositorioDemo: RepositorioNegocio = {
 
   async cliente(_t, id) {
     const c = CLIENTES.find((x) => x.id === id);
-    return c ? { ...c, diaRecibo: c.diaRecibo ?? null } : null;
+    return c ? { ...c, diaRecibo: c.diaRecibo ?? null, recibosPorMes: c.recibosPorMes ?? RECIBOS_POR_MES_PADRAO } : null;
   },
 
   async expediente(_t, profissionalId) {
@@ -186,7 +187,7 @@ export const repositorioDemo: RepositorioNegocio = {
   async clientes() {
     /* `diaRecibo: null` e não ausente: no demo o "banco" sabe guardar o dia (ver o ⚠️ de
      * `paraCliente` no adaptador Supabase, onde ausente quer dizer "falta a 032"). */
-    return CLIENTES.map((c) => ({ ...c, diaRecibo: c.diaRecibo ?? null }));
+    return CLIENTES.map((c) => ({ ...c, diaRecibo: c.diaRecibo ?? null, recibosPorMes: c.recibosPorMes ?? RECIBOS_POR_MES_PADRAO }));
   },
 
   /* ── EDITAR CLIENTE ──
@@ -207,6 +208,7 @@ export const repositorioDemo: RepositorioNegocio = {
     const novo: Cliente = {
       ...atual,
       diaRecibo: atual.diaRecibo ?? null,
+      recibosPorMes: atual.recibosPorMes ?? RECIBOS_POR_MES_PADRAO,
       nome: r.nome,
       telefone: r.telefone,
       /* `null` do rascunho é "apaga", e no domínio o vazio de `email`/`cpf` é `""` — não
@@ -219,6 +221,7 @@ export const repositorioDemo: RepositorioNegocio = {
       ...(r.ativo === undefined ? {} : { ativo: r.ativo }),
       ...(r.valorSessao === undefined ? {} : { valorSessao: r.valorSessao }),
       ...(r.diaRecibo === undefined ? {} : { diaRecibo: r.diaRecibo }),
+      ...(r.recibosPorMes === undefined ? {} : { recibosPorMes: r.recibosPorMes }),
     };
     CLIENTES[i] = novo;
     return novo;

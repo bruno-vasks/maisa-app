@@ -50,6 +50,7 @@ const canalFake: CanalDeMensagens = {
     if (quebrarPara.has(t.tenantId)) throw new Error("WhatsApp desconectado");
     enviados.push({ tenantId: t.tenantId, ator: t.ator.tipo, para, texto: textos.join(" ") });
   },
+  async enviarDocumento() { throw new Error("lembrete não manda arquivo"); },
   async escalar() { /* a rotina nunca escala */ },
 };
 

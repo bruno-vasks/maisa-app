@@ -97,7 +97,7 @@ describe("o rótulo do botão nomeia o documento e a quantidade", () => {
 });
 
 const pago = (): PagamentoPendente => ({
-  id: "p1", fonte: "atendimento", nome: "Alguém", cpf: "39053344705",
+  id: "p1", fonte: "atendimento", clienteId: "cl1", cpfPagador: null, nome: "Alguém", cpf: "39053344705",
   data: "2026-08-10", valor: 200, podeExcluir: false,
 });
 

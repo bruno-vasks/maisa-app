@@ -678,6 +678,10 @@ export type PagamentoPendente = {
   id: string;
   /** `atendimento` veio da agenda; `avulso` foi digitado. */
   fonte: "atendimento" | "avulso";
+  /** De quem é, e quem paga: é o que a tela usa para juntar as sessões num recibo por mês
+   *  (`juntarEmRecibos`). `null` = lançado à mão para quem não tem ficha. */
+  clienteId: string | null;
+  cpfPagador: string | null;
   nome: string;
   cpf: string | null;
   data: string;
@@ -862,6 +866,8 @@ export type ReciboLancado = {
   protocolo: string;
   /** Somado pelo banco na claim, nunca recebido da tela. */
   valor: number;
+  /** Quantas sessões este recibo leva. */
+  sessoes: number;
   nome: string;
   data: string;
 };
@@ -873,9 +879,13 @@ export type ReciboLancado = {
  * aceitava `valor` e `tomador` do corpo até 17/08/2026, e com isso um POST forjado emitia
  * documento fiscal de qualquer valor para qualquer CPF, sob o CNPJ do dono.
  */
+export type ItemDeRecibo = { fonte: "atendimento" | "avulso"; id: string };
+
+/* Desde 01/10/2026, um recibo pode levar VÁRIAS sessões da mesma pessoa no mesmo mês (`itens`), e
+ * é o padrão: um recibo por mês. O formato de um só (`{ fonte, id }`) continua valendo. */
 export type EmitirRecibo = (
   t: ContextoTenant,
-  p: { fonte: "atendimento" | "avulso"; id: string },
+  p: ItemDeRecibo | { itens: ItemDeRecibo[] },
 ) => Promise<ReciboLancado>;
 
 /**
@@ -1060,11 +1070,11 @@ export type AvisarVencimentos = (hoje: string) => Promise<ResultadoDosAvisos>;
 export type ResultadoDosRecibosAutomaticos = {
   /** Pacientes cujo dia de recibo caiu hoje (ou na folga), em negócios que emitem Receita Saúde. */
   pacientes: number;
-  /** Recibos pedidos ao canal. O desfecho chega depois, pelo callback. */
+  /** Recibos pedidos ao canal; cada um pode juntar várias sessões. O desfecho chega depois, pelo callback. */
   emitidos: number;
   /** Sessões puladas porque a pessoa está sem CPF válido no cadastro. */
   semCpf: number;
-  /** Ficaram para a próxima rodada: o tempo da função acabou antes. A folga de dias as alcança. */
+  /** Recibos que ficaram para a próxima rodada: o tempo da função acabou antes. A folga de dias os alcança. */
   adiados: number;
   falhas: { tenantId: string; motivo: string }[];
 };

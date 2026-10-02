@@ -179,6 +179,11 @@ export const canalDemo: CanalDeMensagens = {
     for (const txt of textos) console.log(`[MAISA → ${para}] ${txt}`);
   },
 
+  /* O link do PDF não vai para o log: ele abre o recibo de alguém por dez minutos. */
+  async enviarDocumento(_t, para, doc) {
+    console.log(`[MAISA → ${para}] 📄 ${doc.nomeDoArquivo} · ${doc.legenda}`);
+  },
+
   async escalar(_t, p) {
     // No app de verdade isto entra na fila "Precisa de você" (`dominio/conversas.ts`
     // → ItemFila) e notifica o dono. Enquanto a fila é fixture, um log honesto.

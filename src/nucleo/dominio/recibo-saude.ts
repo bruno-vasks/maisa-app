@@ -145,6 +145,7 @@ export const CAMPOS_DO_LOTE = [
 ] as const;
 
 import { cpfValido } from "./clientes";
+import { MESES } from "./tempo";
 
 const digitos = (v: string | null | undefined) => String(v ?? "").replace(/\D/g, "");
 
@@ -320,6 +321,8 @@ export type ReciboAvisavel = {
   /** Data do pagamento, ISO. Vira dd/mm na frase. */
   data: string;
   valor: number;
+  /** Quantas sessões o recibo junta (01/10/2026). Ausente ou 1 = a frase de uma sessão. */
+  sessoes?: number;
 };
 
 const soPrimeiroNome = (nome: string | null): string => {
@@ -336,9 +339,15 @@ export function avisoDeRecibo(p: {
   const nome = soPrimeiroNome(p.recibo.nome);
   const ola = nome ? `Oi, ${nome}!` : "Oi!";
   const [, mes, dia] = p.recibo.data.slice(0, 10).split("-");
+  const n = p.recibo.sessoes ?? 1;
+  /* Um recibo por mês (01/10/2026): "dos seus 4 atendimentos de setembro", sem as datas, que estão
+   * no próprio recibo. */
+  const doQue = n > 1
+    ? `dos seus ${n} atendimentos de ${MESES[Number(mes) - 1]}`
+    : `do seu atendimento de ${dia}/${mes}`;
 
   return (
-    `${ola} O recibo do seu atendimento de ${dia}/${mes} (R$ ${valorBrasileiro(p.recibo.valor)}) ` +
+    `${ola} O recibo ${doQue} (R$ ${valorBrasileiro(p.recibo.valor)}) ` +
     `no ${p.nomeDoNegocio} já foi emitido no Receita Saúde, da Receita Federal. ` +
     /* A parte acionável da frase. Sem ela o paciente responde "me manda o PDF" — e o PDF é
      * justamente o que não temos para dar. */

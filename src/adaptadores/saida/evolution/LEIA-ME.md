@@ -12,9 +12,9 @@ Doc oficial: <https://doc.evolution-api.com/v2/> · Auth: header `apikey: <token
 
 | Arquivo | Assunto | Detalhe que não é óbvio |
 |---|---|---|
-| `canal-evolution.ts` | **A fachada.** Implementa `CanalDeMensagens`: bolhas com ritmo + escalação para o dono. | `escalar()` **nunca lança** — ele é chamado justamente nos caminhos de falha do agente, e uma exceção aqui trocaria o problema original por um erro de notificação. |
+| `canal-evolution.ts` | **A fachada.** Implementa `CanalDeMensagens`: bolhas com ritmo + escalação para o dono. | `escalar()` **nunca lança** — ele é chamado justamente nos caminhos de falha do agente, e uma exceção aqui trocaria o problema original por um erro de notificação. Desde 01/10/2026 também `enviarDocumento` (o PDF do recibo, com a mensagem na legenda), **sem segunda chance**: a Evolution segura a resposta enquanto baixa o arquivo, e repetir pode entregar duas vezes. |
 | `contatos-evolution.ts` | Implementa `ContatosDoCanal`: lê a agenda por `POST /chat/findContacts/{instancia}`. | **Só POST — o GET responde 404** nesta versão. Filtra aqui, não em quem chama: da agenda do Bruno, 1.840 entradas dão **374** utilizáveis (o resto é grupo ou `@lid` sem telefone). `findChats` é fonte pior: 137 conversas, 3 com telefone. |
-| `cliente.ts` | HTTP: `sendText`, `sendPresence`, `connectionState`, `webhook/set` | Todo o mapeamento de erro vive aqui. `LimiteDoProvedor` só para status que provam que a Evolution **não** processou. |
+| `cliente.ts` | HTTP: `sendText`, `sendPresence`, `connectionState`, `webhook/set` | Todo o mapeamento de erro vive aqui. `LimiteDoProvedor` só para status que provam que a Evolution **não** processou. `sendMedia` (01/10/2026): corpo plano da v2 (`mediatype: "document"`, `mimetype`, `media` como URL, `fileName`, `caption`), conferido no `SendMediaDto` da Evolution. |
 | `config.ts` | Env vars, `isEvolutionConfigured`, avisos | Sem configuração o app **não quebra**: cai no `canalDemo` e a MAISA continua respondendo no log. |
 
 ## Fluxo de operação
