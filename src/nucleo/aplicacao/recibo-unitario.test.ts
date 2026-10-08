@@ -41,9 +41,10 @@ const carla: ConfigFiscal = {
   prestadorCpf: "12345678909",
   ocupacaoSaude: "psicologo",
   registroProfissional: "CRP 06/123456",
-  procuradorDocumento: null,
+  /* Representada pela PJ e aceita: sem isso a emissão recusa (08/10/2026). */
+  procuradorDocumento: "62025689000166",
   procuracaoValidaAte: null,
-  procuracaoAceitaEm: null,
+  procuracaoAceitaEm: "2026-08-25",
   inscricaoMunicipal: null, itemListaServico: null,
   aliquotaIss: null, codigoTributarioMunicipio: null,
 };
@@ -285,6 +286,19 @@ describe("emitirRecibo", () => {
     await expect(a.emitir(t, { fonte: "atendimento", id: "at1" }))
       .rejects.toThrow(/registro no conselho/);
     expect(a.ordem).toEqual([]);
+  });
+
+  /* ★ 08/10/2026: a Regina estava `propria` com o "Emitir" aceso e a Rebots em modo teste, que
+   * responde sucesso. Sem autorização, nada é cadastrado, preso nem enviado. */
+  it("sem autorização de acesso, ou com ela esperando o nosso aceite, recusa antes de falar com o canal", async () => {
+    for (const config of [
+      { ...carla, procuradorDocumento: null, procuracaoAceitaEm: null },
+      { ...carla, procuracaoAceitaEm: null },
+    ]) {
+      const a = ambiente({ config });
+      await expect(a.emitir(t, { fonte: "atendimento", id: "at1" })).rejects.toThrow(/autoriza/i);
+      expect(a.ordem).toEqual([]);
+    }
   });
 
   it("termina em `pendente`, com protocolo gravado", async () => {

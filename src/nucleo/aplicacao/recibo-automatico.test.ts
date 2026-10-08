@@ -18,7 +18,8 @@ const regina: ConfigFiscal = {
   prestadorCpf: "12345678909",
   ocupacaoSaude: "psicologo",
   registroProfissional: "CRP 06/123456",
-  procuradorDocumento: null, procuracaoValidaAte: null, procuracaoAceitaEm: null,
+  /* Representada pela PJ e aceita: sem isso a rotina nem tenta (08/10/2026). */
+  procuradorDocumento: "62025689000166", procuracaoValidaAte: null, procuracaoAceitaEm: "2026-08-25",
   inscricaoMunicipal: null, itemListaServico: null,
   aliquotaIss: null, codigoTributarioMunicipio: null,
 };
@@ -94,12 +95,55 @@ describe("recibo automático: quando", () => {
     expect(a.emitidos).toHaveLength(1);
   });
 
-  /* Dia 5: entra o que foi atendido ATÉ o dia 4. Na folga (dia 6), a sessão do dia 5 fica para o
-   * mês que vem, senão o recibo dependeria de em que dia a rotina conseguiu rodar. */
-  it("só sessões ANTERIORES ao dia do recibo, mesmo na folga", async () => {
-    const a = ambiente({ pendentes: [sessao({ id: "a4", data: "2026-10-04" }), sessao({ id: "a5", data: "2026-10-05" })] });
+  /* ★ 08/10/2026: dia 5 fecha o mês ANTERIOR. Até aqui entrava "tudo até a véspera", e o mês
+   * corrente saía cortado num recibo e terminava em outro. */
+  it("dia 5: só o mês que já acabou; o corrente espera o mês que vem, mesmo na folga", async () => {
+    const a = ambiente({
+      agenda: [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 1 }],
+      pendentes: [sessao({ id: "set", data: "2026-09-30" }), sessao({ id: "out4", data: "2026-10-04" }), sessao({ id: "out5", data: "2026-10-05" })],
+    });
     await a.rodar("2026-10-06");
-    expect(a.emitidos.map((e) => e.id)).toEqual(["a4"]);
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["set"]]);
+  });
+
+  /* O caso que a regra antiga partia: dia 10, sessões semanais. */
+  it("dia 10: cada mês sai num recibo só, sem metade de um mês num e metade no outro", async () => {
+    const outubro = ["2026-10-06", "2026-10-13", "2026-10-20", "2026-10-27"].map((data, i) => sessao({ id: `o${i}`, data }));
+    const a = ambiente({
+      agenda: [{ tenantId: "regina", clienteId: "ana", dia: 10, porMes: 1 }],
+      pendentes: [...outubro, sessao({ id: "n1", data: "2026-11-03" })],
+    });
+    await a.rodar("2026-11-10");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["o0", "o1", "o2", "o3"]]);
+  });
+
+  /* ★ Bruno, 08/10/2026: "se colocar dia 31 quer dizer sempre último dia do mês". */
+  it("dia 31 é o último dia, e fecha o PRÓPRIO mês até a véspera", async () => {
+    const a = ambiente({
+      agenda: [{ tenantId: "regina", clienteId: "ana", dia: 31, porMes: 1 }],
+      pendentes: [sessao({ id: "o6", data: "2026-10-06" }), sessao({ id: "o27", data: "2026-10-27" })],
+    });
+    await a.rodar("2026-10-31");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["o6", "o27"]]);
+  });
+
+  it("em mês de 30 dias, o 31 sai no dia 30, e a folga atravessa para o mês seguinte", async () => {
+    const a = ambiente({
+      agenda: [{ tenantId: "regina", clienteId: "ana", dia: 31, porMes: 1 }],
+      pendentes: [sessao({ id: "n3", data: "2026-11-03" }), sessao({ id: "n30", data: "2026-11-30" })],
+    });
+    await a.rodar("2026-12-01");
+    /* A do próprio dia 30 não entra: às 9h ela não aconteceu. Ver `corteDoRecibo`. */
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["n3"]]);
+  });
+
+  it("o 30 não é último dia, nem quando cai nele: fecha o mês anterior", async () => {
+    const a = ambiente({
+      agenda: [{ tenantId: "regina", clienteId: "ana", dia: 30, porMes: 1 }],
+      pendentes: [sessao({ id: "out", data: "2026-10-20" }), sessao({ id: "nov", data: "2026-11-03" })],
+    });
+    await a.rodar("2026-11-30");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["out"]]);
   });
 });
 
@@ -150,6 +194,19 @@ describe("recibo automático: o que não é com ela", () => {
     expect(r.falhas).toHaveLength(1);
     expect(r.falhas[0]).toMatchObject({ tenantId: "sem-crp" });
     expect(r.falhas[0].motivo).toContain("registro no conselho");
+  });
+
+  /* ★ 08/10/2026: a Regina estava sem autorização, e a Rebots em modo teste responde sucesso. */
+  it("sem autorização de acesso, nem tenta: uma falha do negócio, e os outros seguem", async () => {
+    const a = ambiente({
+      agenda: [{ tenantId: "sem-aut", clienteId: "ana", dia: 5, porMes: 0 }, { tenantId: "regina", clienteId: "ana", dia: 5, porMes: 0 }],
+      config: (id) => (id === "sem-aut" ? { ...regina, procuradorDocumento: null, procuracaoAceitaEm: null } : regina),
+    });
+    const r = await a.rodar("2026-10-05");
+    expect(a.emitidos.map((e) => e.tenantId)).toEqual(["regina"]);
+    expect(r.falhas).toHaveLength(1);
+    expect(r.falhas[0]).toMatchObject({ tenantId: "sem-aut" });
+    expect(r.falhas[0].motivo).toContain("autoriza");
   });
 
   it("recibo que o canal recusa vira falha, e a rodada segue", async () => {

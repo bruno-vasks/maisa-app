@@ -493,12 +493,17 @@ describe("★ a ressalva do certificado fica fora da lista numerada", () => {
 describe("★ faltaParaEmitirRecibo: uma regra só para a Fiscal e o Documento fiscal (1A.13)", () => {
   const ids = (c: ConfigFiscal) => faltaParaEmitirRecibo(c, HOJE).map((f) => f.id);
 
-  it("tudo certo e sem procurador: nada falta (sem representação não bloqueia, decisão aberta)", () => {
-    expect(ids(carla())).toEqual([]);
+  /* Era "não bloqueia, decisão aberta" até 08/10/2026: sem a autorização a Rebots não entra no
+   * Carnê-Leão dela, e em modo teste o canal fingia sucesso. Ver o cabeçalho da função. */
+  it("dados certos mas sem procurador: falta autorizar, e a bola é dela", () => {
+    const f = faltaParaEmitirRecibo(carla(), HOJE);
+    expect(f.map((x) => [x.id, x.quem])).toEqual([["autorizacao", "voce"]]);
+    expect(f[0].frase).toContain("autorizar a MAISA");
+    expect(faltaNosDados(f)).toEqual([]);
   });
 
   it("CPF, profissão e registro, cada um na sua frase", () => {
-    expect(ids(carla({ prestadorCpf: null, ocupacaoSaude: null, registroProfissional: "  " }))).toEqual(["cpf", "profissao", "registro"]);
+    expect(ids(carla({ prestadorCpf: null, ocupacaoSaude: null, registroProfissional: "  " }))).toEqual(["cpf", "profissao", "registro", "autorizacao"]);
     expect(faltaParaEmitirRecibo(carla({ registroProfissional: null }), HOJE)[0].frase).toContain("CRP");
   });
 

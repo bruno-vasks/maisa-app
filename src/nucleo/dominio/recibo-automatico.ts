@@ -12,11 +12,16 @@
  *   · o DESTINO é do negócio (`avisarRecibo` + `reciboPrimeiroParaMim`, nos ajustes). Ele decide
  *     para quem vai a mensagem de "seu recibo saiu", e vale para todo recibo, automático ou não.
  *
- * ── ⚠️ A MAISA NÃO MANDA O PDF ──
+ * ── O PDF VAI JUNTO (desde 01/10/2026) ──
  *
- * Manda a notícia, pelo mesmo motivo de `avisoDeRecibo`: o recibo já está no app da Receita do
- * paciente e na declaração pré-preenchida dele. No "primeiro para mim", a dona recebe a mesma
- * mensagem que o paciente receberia, pronta para encaminhar, com uma linha antes dizendo de quem é.
+ * Quando o canal devolve o comprovante, a MAISA manda o PDF (`nomeDoPdf`) com a notícia de
+ * `avisoDeRecibo` como legenda; sem PDF, manda só a notícia. No "primeiro para mim", a dona recebe
+ * o mesmo que o paciente receberia, pronto para encaminhar, com uma linha antes dizendo de quem é.
+ *
+ * ── ★ UM MÊS POR RECIBO (08/10/2026) ──
+ *
+ * O dia diz QUANDO; `corteDoRecibo` diz QUAIS sessões. Dia 31 é "o último dia do mês" e fecha o
+ * próprio mês; qualquer outro dia fecha o mês anterior. Ver `corteDoRecibo`.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { diasEntre, diasNoMes, mesDe, nomeMes, rotuloBR, rotuloDoMes, somarMeses } from "./tempo";
@@ -55,6 +60,36 @@ export function diaDoReciboAlcancado(dia: number, hoje: string): string | null {
     if (atraso >= 0 && atraso < FOLGA_DO_RECIBO_AUTOMATICO) return data;
   }
   return null;
+}
+
+/** O dia que a ficha mostra como "Último dia do mês" (Bruno, 08/10/2026: "dia 31 quer dizer sempre o último dia do mês"). */
+export const ULTIMO_DIA_DO_MES = 31;
+
+/**
+ * Até quando, SEM incluir, entram as sessões no recibo que sai em `dataDoRecibo`.
+ *
+ * Dia 31 fecha o próprio mês: entram as sessões dele até a véspera. Qualquer outro dia fecha o
+ * mês ANTERIOR: entram só os meses que já acabaram.
+ *
+ * ★ Até 08/10/2026 entrava "tudo até a véspera", e com um recibo por mês isso partia o mês ao
+ * meio. Dia 10: em 10 de novembro saíam DOIS recibos (10 a 31 de outubro, e 1º a 9 de novembro),
+ * e outubro já tinha tido um em 10 de outubro. Quem escolhe dia 10 paga ou reembolsa o mês
+ * fechado nesse dia; quem quer o mês corrente no fim dele escolhe o último dia.
+ *
+ * ⚠️ O 29 e o 30 NÃO são "último dia", mesmo quando caem nele (o 30 de novembro): a regra mudaria
+ * de mês para mês e o mesmo paciente receberia dois meses juntos num e nada no outro.
+ *
+ * ⚠️ O preço do último dia: a rotina roda às 9h, então a sessão do PRÓPRIO último dia ainda não
+ * aconteceu e fica para a rodada do mês seguinte, num recibo dela sozinha (meses diferentes nunca
+ * vão juntos). Mudar isso pede rodar a rotina à noite, e aí a mensagem chega ao paciente à noite.
+ */
+export function corteDoRecibo(dia: number, dataDoRecibo: string): string {
+  return dia >= ULTIMO_DIA_DO_MES ? dataDoRecibo : `${mesDe(dataDoRecibo)}-01`;
+}
+
+/** O mês (AAAA-MM) que o recibo de `dataDoRecibo` fecha. É o que a ficha diz ao lado do próximo dia. */
+export function mesQueOReciboFecha(dia: number, dataDoRecibo: string): string {
+  return dia >= ULTIMO_DIA_DO_MES ? mesDe(dataDoRecibo) : somarMeses(mesDe(dataDoRecibo), -1);
 }
 
 /** O próximo dia em que o recibo sai, contando hoje. É o que a ficha da pessoa mostra. */

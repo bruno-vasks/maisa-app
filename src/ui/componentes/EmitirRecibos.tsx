@@ -351,7 +351,11 @@ function Emitente({ config, mobile }: { config: ConfigFiscal; mobile: boolean })
         <Icon name="alert" size={16} style={s("flex-shrink:0;color:var(--warn)")} />
         <span style={s("flex:1;min-width:200px;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{bloqueio.frase}</span>
         {bloqueio.quem === "voce" && (
-          <Btn size="sm" onClick={() => st.irPara("fiscal", "autorizacao")}>Renovar autorização</Btn>
+          /* "Renovar" só para quem já autorizou: desde 08/10/2026 quem nunca autorizou também
+             cai aqui (`propria`), e o verbo dela é outro. */
+          <Btn size="sm" onClick={() => st.irPara("fiscal", "autorizacao")}>
+            {rep.modo === "propria" ? "Autorizar a MAISA" : "Renovar autorização"}
+          </Btn>
         )}
       </div>
     ) : rep.modo === "representada" ? (

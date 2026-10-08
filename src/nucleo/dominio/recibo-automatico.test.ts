@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  cabecalhoParaADona, nomeDoPdf, diaDoReciboAlcancado, diaDoReciboNoMes, diaDoReciboValido,
-  numeroDaDona, proximoDiaDoRecibo,
+  cabecalhoParaADona, nomeDoPdf, corteDoRecibo, diaDoReciboAlcancado, diaDoReciboNoMes, diaDoReciboValido,
+  mesQueOReciboFecha, numeroDaDona, proximoDiaDoRecibo,
 } from "./recibo-automatico";
 
 describe("o dia do recibo no mês", () => {
@@ -33,6 +33,24 @@ describe("a rotina atende o dia hoje?", () => {
     expect(diaDoReciboAlcancado(31, "2026-10-01")).toBe("2026-09-30");
     expect(diaDoReciboAlcancado(31, "2026-10-02")).toBe("2026-09-30");
     expect(diaDoReciboAlcancado(31, "2026-10-03")).toBeNull();
+  });
+});
+
+/* ★ 08/10/2026: um mês por recibo. Dia 31 fecha o próprio mês; os outros, o anterior. */
+describe("quais sessões o recibo fecha", () => {
+  it("dia comum: só os meses que já acabaram", () => {
+    expect(corteDoRecibo(10, "2026-11-10")).toBe("2026-11-01");
+    expect(mesQueOReciboFecha(10, "2026-11-10")).toBe("2026-10");
+    expect(mesQueOReciboFecha(1, "2027-01-01")).toBe("2026-12");
+  });
+  it("último dia: o próprio mês, até a véspera, também no mês curto", () => {
+    expect(corteDoRecibo(31, "2026-10-31")).toBe("2026-10-31");
+    expect(corteDoRecibo(31, "2026-09-30")).toBe("2026-09-30");
+    expect(mesQueOReciboFecha(31, "2026-09-30")).toBe("2026-09");
+  });
+  it("o 30 que cai no último dia de novembro continua fechando o mês anterior", () => {
+    expect(corteDoRecibo(30, "2026-11-30")).toBe("2026-11-01");
+    expect(mesQueOReciboFecha(30, "2026-11-30")).toBe("2026-10");
   });
 });
 

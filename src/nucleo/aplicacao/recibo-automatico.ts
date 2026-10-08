@@ -3,9 +3,15 @@
  *
  * Roda uma vez por dia (o cron da Vercel chama `/api/rotinas/recibos`). Para cada pessoa cujo dia
  * de recibo caiu hoje, ou nos dois dias anteriores (`FOLGA_DO_RECIBO_AUTOMATICO`), emite os recibos
- * das sessões pendentes dela com data ANTERIOR ao dia do recibo. Dia 5, por exemplo: entra o que
- * foi atendido até o dia 4 e ainda não tem recibo. Desde 01/10/2026 elas vão juntas, um recibo por
- * mês (ou o que a ficha escolheu: `juntarEmRecibos`), e não mais um por sessão.
+ * das sessões pendentes dela até o corte (`corteDoRecibo`, 08/10/2026). Dia 5: entra o mês
+ * anterior inteiro, e o que tiver sobrado de meses antes dele. Dia 31, "o último dia do mês":
+ * entra o próprio mês, até a véspera. Desde 01/10/2026 elas vão juntas, um recibo por mês (ou o
+ * que a ficha escolheu: `juntarEmRecibos`), e não mais um por sessão.
+ *
+ * ── SEM AUTORIZAÇÃO, NEM TENTA (08/10/2026) ──
+ *
+ * `emitirRecibo` já recusa quem não autorizou a MAISA no e-CAC. Aqui a recusa vem antes, uma vez
+ * por negócio, para o relatório dizer "falta a autorização" uma vez, e não uma falha por recibo.
  *
  * ── ★ É A MESMA EMISSÃO DA TELA ──
  *
@@ -35,8 +41,9 @@ import type { RepositorioFiscal } from "../portas/saida/repositorio-fiscal";
 import type { RepositorioRecibos } from "../portas/saida/repositorio-recibos";
 import type { ContextoTenant } from "../dominio/tenant";
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
+import { faltaParaEmitirRecibo } from "../dominio/checklist-recibo";
 import { cpfValido } from "../dominio/clientes";
-import { diaDoReciboAlcancado } from "../dominio/recibo-automatico";
+import { corteDoRecibo, diaDoReciboAlcancado } from "../dominio/recibo-automatico";
 import { juntarEmRecibos } from "../dominio/recibos-do-mes";
 import { somarDias } from "../dominio/tempo";
 
@@ -92,13 +99,19 @@ export function criarEmitirRecibosAutomaticos(deps: {
           r.falhas.push({ tenantId, motivo: `dados fiscais incompletos: ${[...falta, ...(config.registroProfissional?.trim() ? [] : ["registro no conselho"])].join(", ")}` });
           continue;
         }
+        const autorizacao = faltaParaEmitirRecibo(config, hoje).find((f) => f.id === "autorizacao");
+        if (autorizacao) {
+          r.falhas.push({ tenantId, motivo: `sem autorização de acesso: ${autorizacao.frase}` });
+          continue;
+        }
 
         /* Uma leitura por negócio, até ontem; cada pessoa recorta a dela pelo próprio dia. */
         const pendentes = await deps.recibos.pendentes(t, { ate: somarDias(hoje, -1) });
 
         for (const { p, dia } of devidos) {
           r.pacientes++;
-          const dela = pendentes.filter((x) => x.clienteId === p.clienteId && x.data < dia && !x.teste);
+          const corte = corteDoRecibo(p.dia, dia);
+          const dela = pendentes.filter((x) => x.clienteId === p.clienteId && x.data < corte && !x.teste);
           /* Conta à parte, antes de chamar: `emitirRecibo` recusaria do mesmo jeito, mas como
            * falha, e "falta o CPF da Ana" é coisa que a dona resolve, não erro da rotina. */
           const comCpf = dela.filter((x) => cpfValido(x.cpf ?? ""));

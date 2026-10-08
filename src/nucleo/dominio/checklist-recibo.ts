@@ -546,9 +546,18 @@ export function seAindaRecusar(ocupacao: OcupacaoSaude | null): string[] {
  * aceitar, e por isso `quem: "nos"`: a tela não manda ela procurar um botão que não existe do
  * lado dela).
  *
- * ⚠️ `propria` (sem procurador) NÃO entra, e é decisão de 25/09/2026 com pergunta aberta: os
- * casos de uso (`aplicacao/recibos.ts`, `recibo-unitario.ts`) não recusam sem representação, e
- * nenhuma leitura daqui diz se o canal recusa. Bloquear seria inventar regra; o Bruno decide.
+ * ★ `propria` (sem procurador) TAMBÉM BLOQUEIA, desde 08/10/2026. Era pergunta aberta em 25/09,
+ * e duas coisas a fecharam:
+ *
+ *   · o produto só emite pela Rebots, e a Rebots entra no Carnê-Leão dela com o certificado da
+ *     PJ (`PROCURADOR_PADRAO`). Sem a autorização dela para esse CNPJ, o e-CAC não deixa trocar
+ *     de perfil, e o recibo volta recusado depois da viagem;
+ *   · enquanto `REBOTS_PRODUCAO` não está ligada, o canal responde SUCESSO em modo teste. Medido
+ *     em 08/10/2026 no banco: a Regina (`propria`) tinha o "Emitir" aceso, e um clique teria
+ *     gerado um recibo que não existe na Receita e trancado a sessão como já recibada.
+ *
+ * O lote CSV (`aplicacao/recibos.ts`) é o único caminho em que ela mesma emite, e ele não passa
+ * por aqui. `recibo-unitario.ts` e a rotina do recibo automático recusam pela mesma regra.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 export type FaltaDoRecibo = {
@@ -568,7 +577,9 @@ export function faltaParaEmitirRecibo(c: ConfigFiscal, hoje: string): FaltaDoRec
     falta.push({ id: "registro", quem: "voce", frase: `Falta o seu ${conselho}: o registro no conselho é obrigatório para emitir.` });
   }
   const rep = representacao(c, hoje);
-  if (rep.modo === "vencida") {
+  if (rep.modo === "propria") {
+    falta.push({ id: "autorizacao", quem: "voce", frase: "Falta autorizar a MAISA no site da Receita. É essa autorização que deixa a MAISA emitir os recibos em seu nome." });
+  } else if (rep.modo === "vencida") {
     falta.push({ id: "autorizacao", quem: "voce", frase: `Sua autorização venceu em ${rotuloBR(rep.ate)}.` });
   } else if (rep.modo === "aguardando_aceite") {
     falta.push({ id: "autorizacao", quem: "nos", frase: "Sua autorização está com a gente: falta a MAISA confirmar. Você não precisa fazer nada." });

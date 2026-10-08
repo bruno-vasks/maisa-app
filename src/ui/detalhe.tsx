@@ -17,13 +17,13 @@
 import * as D from "@/adaptadores/saida/demo";
 import { fmt } from "@/ui/primitivos";
 import { resumoDaAssinatura, useStore } from "@/ui/estado/store";
-import { rotuloDeISO, horaDeISO } from "@/nucleo/dominio/tempo";
+import { rotuloDeISO, horaDeISO, nomeMes } from "@/nucleo/dominio/tempo";
 import { semConfirmacao } from "@/ui/estado/leitura";
 import { resumoDaJornada } from "@/ui/componentes/JornadaDeAtivacao";
 import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 import { cpfMascarado, cpfValido } from "@/nucleo/dominio/clientes";
-import { proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
+import { ULTIMO_DIA_DO_MES, mesQueOReciboFecha, proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
 import { OPCOES_RECIBOS_POR_MES, rotuloRecibosPorMes } from "@/nucleo/dominio/recibos-do-mes";
 import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
 
@@ -618,7 +618,8 @@ export function useDetalhe(id: string | null): Detalhe | null {
               },
             },
             /* ★ O DIA DO RECIBO (01/10/2026, pedido da Regina): todo mês, nesse dia, a MAISA emite
-               sozinha os recibos das sessões desta pessoa que ainda não têm. Só aparece para quem
+               sozinha o recibo do mês que passou (o 31, "último dia", fecha o próprio mês; desde
+               08/10/2026, ver `corteDoRecibo`). Só aparece para quem
                emite recibo do Receita Saúde: para quem emite nota fiscal o campo não faria nada.
                A dica diz o PRÓXIMO dia e para quem a mensagem vai, que é a pergunta que vem logo
                depois de escolher. Ver `dominio/recibo-automatico.ts` e a rotina `/api/rotinas/recibos`. */
@@ -629,12 +630,17 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 id: "diaRecibo", label: "Dia do recibo", tipo: "select" as const,
                 valor: cli.diaRecibo == null ? "" : String(cli.diaRecibo),
                 opcoes: ["", ...Array.from({ length: 31 }, (_, i) => String(i + 1))],
-                rotuloOpcao: (v: string) => (v ? `Todo dia ${v}` : "Nenhum, emito eu pela tela"),
+                /* O 31 é "o último dia do mês" (Bruno, 08/10/2026), e a regra dele é outra: fecha o
+                   próprio mês, não o anterior. Ver `corteDoRecibo`. */
+                rotuloOpcao: (v: string) => (!v ? "Nenhum, emito eu pela tela" : Number(v) === ULTIMO_DIA_DO_MES ? "Último dia do mês" : `Todo dia ${v}`),
                 hint: cli.diaRecibo == null
-                  ? "Escolha um dia e a MAISA emite sozinha, todo mês, os recibos das sessões que ainda não têm."
+                  ? "Escolha um dia e a MAISA emite sozinha, todo mês, o recibo do mês que passou. No último dia do mês, sai o do próprio mês."
                   : [
-                    `Próximo: ${D.rotuloDia(proximoDiaDoRecibo(cli.diaRecibo, D.HOJE.iso))}, com as sessões até a véspera que ainda não têm recibo.`,
-                    cli.diaRecibo > 28 ? "Em mês mais curto, sai no último dia." : "",
+                    /* Diz o MÊS, e não só o dia: "dia 5" sozinho não conta que é o mês que passou. */
+                    ((dia, proximo) => `Próximo: ${D.rotuloDia(proximo)}, com as sessões de ${nomeMes(mesQueOReciboFecha(dia, proximo))}`
+                      + (dia >= ULTIMO_DIA_DO_MES ? " até a véspera." : " que ainda não têm recibo.")
+                    )(cli.diaRecibo, proximoDiaDoRecibo(cli.diaRecibo, D.HOJE.iso)),
+                    cli.diaRecibo > 28 && cli.diaRecibo < ULTIMO_DIA_DO_MES ? "Em mês mais curto, sai no último dia." : "",
                     !cpfValido(cli.cpf) ? `Sem o CPF de ${primeiro}, o recibo não sai.` : "",
                     !st.cfg.avisarRecibo
                       ? "Ninguém recebe mensagem: a escolha fica no Fiscal."

@@ -49,6 +49,7 @@ import {
   type EmissorCredenciado, type PedidoDeRecibo,
 } from "../dominio/recibo-unitario";
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
+import { faltaParaEmitirRecibo } from "../dominio/checklist-recibo";
 import { DadoInvalido, NaoConfigurado } from "../dominio/erros";
 import { cpfValido } from "../dominio/clientes";
 import { hojeISO, mesDe } from "../dominio/tempo";
@@ -94,6 +95,11 @@ export function criarEmitirRecibo(deps: DepsReciboUnitario): EmitirRecibo {
     if (!config.registroProfissional?.trim()) {
       throw new DadoInvalido("Falta o seu registro no conselho — sem ele o recibo não sai.", "registro");
     }
+    /* A autorização de acesso, pela mesma regra da tela (08/10/2026). Sem ela o canal não entra no
+     * Carnê-Leão dela, e em modo teste ele responde sucesso: o recibo sairia "emitido" sem existir
+     * na Receita, com a sessão trancada. Ver o cabeçalho de `faltaParaEmitirRecibo`. */
+    const autorizacao = faltaParaEmitirRecibo(config, hoje).find((f) => f.id === "autorizacao");
+    if (autorizacao) throw new DadoInvalido(autorizacao.frase, "autorizacao");
 
     const emissor: EmissorCredenciado = {
       cpf: config.prestadorCpf!,

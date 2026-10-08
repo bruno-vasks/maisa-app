@@ -10,8 +10,8 @@ import { hojeISO } from "@/nucleo/dominio/tempo";
 // POST /api/rotinas/recibos  →  idem                                               (à mão)
 //
 // Emite, para cada pessoa cujo dia de recibo é hoje (ou foi nos dois dias anteriores), os
-// recibos das sessões dela anteriores a esse dia que ainda não têm. As regras de quem e quando
-// estão em `aplicacao/recibo-automatico.ts`; esta rota só autentica e chama.
+// recibos do mês que passou (no dia 31, "último dia", o do próprio mês) que ainda não têm. As
+// regras de quem e quando estão em `aplicacao/recibo-automatico.ts`; esta rota só autentica e chama.
 //
 // ── POR QUE GET, COMO A DE COBRANÇA ──
 //
