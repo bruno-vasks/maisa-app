@@ -217,10 +217,18 @@ entregue num túnel `cloudflared` para o dev local, linha fechada como `emitido`
 - **Emissores:** não passam de um ambiente para o outro. A rede em `criarEmitirRecibo` recadastra
   cada profissional no primeiro recibo.
 
-⚠️ **`REBOTS_PRODUCAO` continua ausente, e é de propósito.** Todo recibo sai com `test: true`, que
-o OpenAPI define como *"o recibo não é enviado à Receita Federal"*. Então, hoje, cadastro de
-emissor é de verdade e recibo não tem efeito fiscal. Antes de ligar a variável, falta a
-resposta do suporte sobre o código 255 (ver a tabela de ocupações acima).
+★ **`REBOTS_PRODUCAO=true` na Vercel Production desde 08/10/2026**, por decisão do Bruno no dia em
+que a Regina assinou: recibo emitido em produção vai à Receita. A pergunta do código 255 ficou sem
+resposta do suporte, e ele decidiu manter o 255 (o código oficial de Psicólogo). Conferir no
+primeiro PDF que a ocupação saiu "Psicólogo"; se não, cancelar em até 10 dias e reabrir com eles.
+
+O que segura um recibo falso agora é a autorização, não a variável: `faltaParaEmitirRecibo` recusa
+quem não autorizou a PJ ou ainda espera o nosso aceite (`9af8531`). Até 08/10 a variável estava
+ausente de propósito, e todo recibo saía `test: true` (*"o recibo não é enviado à Receita
+Federal"*).
+
+⚠️ A variável é `Sensitive` na Vercel, então não se lê de volta. Desligar é apagá-la e fazer
+redeploy.
 
 **Localmente, as `REBOTS_*` do `.env.local` seguem no sandbox.** Os valores de produção moram em
 `REBOTS_PROD_BASE_URL` e `REBOTS_PROD_MASTER_KEY`, com nomes diferentes de propósito: `npm run dev`
