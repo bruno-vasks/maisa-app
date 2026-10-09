@@ -14,8 +14,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  PLANOS, acessoLiberado, avisoDoDia, creditarUmMes, diasDoCiclo, diasParaVencer, ehChaveDePlano,
-  ehPrePaga, liberada, somarUmMes, statusDaAbacatePay, statusDaStripe, textoDoAviso,
+  DIAS_DO_TESTE_LIBERADO, PLANOS, acessoLiberado, avisoDoDia, creditarUmMes, diasDoCiclo, diasParaVencer,
+  ehChaveDePlano, ehPrePaga, fecharTeste, liberada, liberarTeste, somarUmMes, statusDaAbacatePay,
+  statusDaStripe, textoDoAviso,
 } from "./assinatura";
 import type { Assinatura } from "./assinatura";
 
@@ -216,6 +217,55 @@ describe("creditarUmMes", () => {
     const r = creditarUmMes(linha({ assinaturaId: "subs_velha" }), pago);
     expect(r.assinaturaId).toBeNull();
     expect(ehPrePaga(r)).toBe(true);
+  });
+});
+
+describe("o teste na conversa", () => {
+  /* A linha que o `005_provisionar.sql` cria: 14 dias a partir do cadastro. */
+  const nasceu = linha({ status: "trial", trialFim: "2026-10-23", periodoFim: "2026-10-23", provedor: null, metodo: null, preco: 149.9 });
+
+  it("o funil pago nasce com o teste acabando no dia do cadastro", () => {
+    const f = fecharTeste(nasceu, "2026-10-09");
+    expect(f.trialFim).toBe("2026-10-09");
+    expect(acessoLiberado(f, "2026-10-09")).toBe(true);
+    expect(acessoLiberado(f, "2026-10-10")).toBe(false);
+  });
+
+  /* ★ Pagar no dia do cadastro dá um mês, e não um mês mais os 14 dias que ninguém liberou. */
+  it("quem paga no dia ganha um mês contado de hoje", () => {
+    const r = creditarUmMes(fecharTeste(nasceu, "2026-10-09"), {
+      hoje: "2026-10-09", plano: "Essencial", preco: 127, provedor: "abacatepay", metodo: "pix", clienteId: null,
+    });
+    expect(r.periodoFim).toBe("2026-11-09");
+  });
+
+  it("fechar não mexe em quem já pagou", () => {
+    expect(fecharTeste(linha(), "2026-10-09")).toEqual(linha());
+  });
+
+  it("liberar dá sete dias a partir de hoje", () => {
+    const r = liberarTeste(fecharTeste(nasceu, "2026-10-09"), "2026-10-11");
+    expect(DIAS_DO_TESTE_LIBERADO).toBe(7);
+    expect(r?.status).toBe("trial");
+    expect(r?.trialFim).toBe("2026-10-18");
+    expect(r?.periodoFim).toBe("2026-10-18");
+  });
+
+  it("liberar nunca encurta um teste maior", () => {
+    expect(liberarTeste(nasceu, "2026-10-09")?.trialFim).toBe("2026-10-23");
+  });
+
+  it("liberar de novo recomeça de hoje", () => {
+    const uma = liberarTeste(fecharTeste(nasceu, "2026-10-09"), "2026-10-09")!;
+    expect(liberarTeste(uma, "2026-10-14")?.trialFim).toBe("2026-10-21");
+  });
+
+  it("não há teste para liberar a quem tem mês pago valendo", () => {
+    expect(liberarTeste(linha(), "2026-10-09")).toBeNull();
+  });
+
+  it("quem pagou e venceu pode ganhar teste de novo", () => {
+    expect(liberarTeste(linha(), "2026-11-05")?.trialFim).toBe("2026-11-12");
   });
 });
 

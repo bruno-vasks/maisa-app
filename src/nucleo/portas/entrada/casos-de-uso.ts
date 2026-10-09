@@ -365,6 +365,15 @@ export type PedidoDeNegocio = {
   nome: string;
   vertical: Vertical;
   profissional?: string;
+  /**
+   * `na_conversa` = o teste nasce fechado e só a equipe abre (o `/assinar`, desde 09/10/2026).
+   * Ausente = os 14 dias abertos de sempre (o `/cadastro`). Ver "O TESTE NA CONVERSA" em
+   * `dominio/assinatura.ts`.
+   *
+   * Vem do corpo, então quem chama pode omitir e ficar com os 14 dias. É o mesmo que o
+   * `/cadastro` já dá a qualquer pessoa, então não abre nada que não estivesse aberto.
+   */
+  teste?: "aberto" | "na_conversa";
 };
 
 export type NegocioProvisionado = {
@@ -1032,6 +1041,25 @@ export type AcessoDoNegocio = (
   t: ContextoTenant,
   hoje: string,
 ) => Promise<{ liberado: boolean; fim: string | null }>;
+
+/* ── o teste na conversa (09/10/2026) ──
+ * A equipe abre o teste de quem pediu pelo WhatsApp. Os dois recebem `ContextoTenant` como
+ * qualquer outro: o inquilino vem de um pedido ASSINADO pelo servidor a partir da sessão de quem
+ * pediu (`entrada/http/pedido-de-teste.ts`), nunca de um id escrito no request. Quem confere que
+ * o clique é da equipe é o porteiro da rota. */
+
+export type SituacaoDoTeste = {
+  negocio: string;
+  /** `pago` = mês pago valendo, não há o que liberar. `fechado` = sem acesso hoje. */
+  situacao: "pago" | "em_teste" | "fechado";
+  /** O último dia de acesso, quando há. */
+  fim: string | null;
+};
+
+export type LerSituacaoDoTeste = (t: ContextoTenant, hoje: string) => Promise<SituacaoDoTeste>;
+
+/** Abre `DIAS_DO_TESTE_LIBERADO` dias. Recusa com `DadoInvalido` quem tem mês pago valendo. */
+export type LiberarTeste = (t: ContextoTenant, hoje: string) => Promise<SituacaoDoTeste>;
 
 /* ── a rotina de avisos ──
  * ⚠️ A TERCEIRA EXCEÇÃO À REGRA DO `ContextoTenant` PRIMEIRO, pelo mesmo motivo da rotina de

@@ -25,7 +25,7 @@
 
 import { DadoInvalido, NaoEncontrado } from "../dominio/erros";
 import {
-  acessoLiberado, avisoDoDia, creditarUmMes, ehChaveDePlano, fimDoAcesso, textoDoAviso,
+  acessoLiberado, avisoDoDia, creditarUmMes, ehChaveDePlano, fimDoAcesso, liberarTeste, textoDoAviso,
 } from "../dominio/assinatura";
 import type { Assinatura, Provedor } from "../dominio/assinatura";
 import type {
@@ -36,13 +36,17 @@ import type {
   CancelarAssinatura,
   LerAssinatura,
   LerPagamento,
+  LerSituacaoDoTeste,
+  LiberarTeste,
   RegistrarAssinatura,
   RegistrarPagamentoAvulso,
   ResultadoDosAvisos,
+  SituacaoDoTeste,
 } from "../portas/entrada/casos-de-uso";
 import type { Cobranca } from "../portas/saida/cobranca";
 import type { Correio } from "../portas/saida/correio";
 import type { RepositorioAssinaturas } from "../portas/saida/repositorio-assinaturas";
+import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 
 export function criarAbrirCheckout(deps: {
   cobranca: Cobranca;
@@ -270,5 +274,48 @@ export function criarAvisarVencimentos(deps: {
     }
 
     return r;
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O TESTE NA CONVERSA (09/10/2026) — a equipe abre o teste de quem pediu pelo WhatsApp. A regra
+ * está em `dominio/assinatura.ts`; aqui, a leitura que a tela da equipe mostra antes do clique, e
+ * o clique.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+function situacao(negocio: string, a: Assinatura | null, hoje: string): SituacaoDoTeste {
+  if (!a) return { negocio, situacao: "fechado", fim: null };
+  const fim = fimDoAcesso(a);
+  if (!acessoLiberado(a, hoje)) return { negocio, situacao: "fechado", fim };
+  return { negocio, situacao: a.status === "ativa" ? "pago" : "em_teste", fim };
+}
+
+export function criarLerSituacaoDoTeste(deps: {
+  assinaturas: RepositorioAssinaturas;
+  negocio: RepositorioNegocio;
+}): LerSituacaoDoTeste {
+  return async (t, hoje) => {
+    const [a, n] = await Promise.all([deps.assinaturas.ler(t), deps.negocio.negocio(t)]);
+    return situacao(n.nome, a, hoje);
+  };
+}
+
+export function criarLiberarTeste(deps: {
+  assinaturas: RepositorioAssinaturas;
+  negocio: RepositorioNegocio;
+}): LiberarTeste {
+  return async (t, hoje) => {
+    const [a, n] = await Promise.all([deps.assinaturas.ler(t), deps.negocio.negocio(t)]);
+    /* Todo negócio nasce com linha de assinatura. Sem ela não há o que estender, e criar uma aqui
+     * seria um segundo lugar onde assinatura nasce. */
+    if (!a) throw new NaoEncontrado("assinatura deste negócio");
+
+    const nova = liberarTeste(a, hoje);
+    if (!nova) {
+      throw new DadoInvalido(`${n.nome} já tem um mês pago valendo. Não há teste para liberar.`, "assinatura");
+    }
+
+    await deps.assinaturas.gravar(t, nova);
+    return situacao(n.nome, nova, hoje);
   };
 }

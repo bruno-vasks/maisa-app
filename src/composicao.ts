@@ -56,6 +56,8 @@ import {
   criarAbrirCheckout,
   criarAbrirPortalDeCobranca,
   criarAcessoDoNegocio,
+  criarLerSituacaoDoTeste,
+  criarLiberarTeste,
   criarAvisarVencimentos,
   criarCancelarAssinatura,
   criarLerAssinatura,
@@ -608,7 +610,7 @@ export const app = {
    * ou encenado. Sem banco, `provisionadorDemo` devolve um uuid de mentira para que o
    * fluxo inteiro seja percorrível por `curl` antes de existir tela.
    */
-  provisionarNegocio: criarProvisionarNegocio({ provisionador, assistente }),
+  provisionarNegocio: criarProvisionarNegocio({ provisionador, assistente, assinaturas }),
 
   /**
    * OS AJUSTES DA MAISA — a mesma linha que o agente lê para montar o prompt.
@@ -813,6 +815,13 @@ export const app = {
    * `dominio/assinatura.ts`. */
   registrarPagamentoAvulso: criarRegistrarPagamentoAvulso({ assinaturas, provedor: provedorDeCobranca }),
   acessoDoNegocio: criarAcessoDoNegocio({ assinaturas }),
+
+  /* ── O TESTE NA CONVERSA (09/10/2026) ──
+   * A equipe abre o teste de quem pediu pelo WhatsApp. Escreve em `assinaturas` como o webhook:
+   * com ator `sistema`, depois de o porteiro da rota conferir que o clique é da equipe e que o
+   * pedido foi assinado por nós. Ver `entrada/http/pedido-de-teste.ts`. */
+  lerSituacaoDoTeste: criarLerSituacaoDoTeste({ assinaturas, negocio }),
+  liberarTeste: criarLiberarTeste({ assinaturas, negocio }),
   /* O Pix que `/pagar` desenha (30/09/2026): o QR Code na nossa tela, sem a página deles. */
   lerPagamento: criarLerPagamento({ cobranca }),
   /* `/?tela=mais` é a tela do plano: a mesma volta do checkout, ver `VOLTA` em

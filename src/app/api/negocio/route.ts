@@ -50,8 +50,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, status: "payload_invalido", info: "Corpo não é JSON." }, { status: 400 });
   }
 
-  const { nome, vertical, profissional } = (corpo ?? {}) as {
-    nome?: unknown; vertical?: unknown; profissional?: unknown;
+  const { nome, vertical, profissional, teste } = (corpo ?? {}) as {
+    nome?: unknown; vertical?: unknown; profissional?: unknown; teste?: unknown;
   };
 
   try {
@@ -64,6 +64,8 @@ export async function POST(req: Request) {
         nome: String(nome ?? ""),
         vertical: vertical as never,
         profissional: profissional == null ? undefined : String(profissional),
+        /* O `/assinar` pede o teste fechado. Qualquer outro valor é o de sempre. */
+        teste: teste === "na_conversa" ? "na_conversa" : undefined,
       },
     );
 

@@ -15,6 +15,7 @@ import { createClient } from "@/adaptadores/saida/supabase/server";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
 import { googleFaltando, isGoogleConfigured } from "@/adaptadores/saida/google/config";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
+import { lerPedido } from "./pedido-de-teste";
 
 /** Ou o contexto, ou a resposta pronta que barra o pedido. Nunca os dois. */
 export type Porteiro = { tenant: ContextoTenant } | { barrado: NextResponse };
@@ -172,4 +173,67 @@ export async function exigirSessaoComGoogle(): Promise<Porteiro> {
 export async function sessaoOuDemo(): Promise<Porteiro> {
   if (!isSupabaseConfigured) return { tenant: TENANT_DEMO };
   return exigirSessao();
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * A EQUIPE — quem pode liberar teste (09/10/2026).
+ *
+ * A primeira ação do app que um usuário faz SOBRE OUTRO negócio. Duas portas, e as duas precisam
+ * passar: o clique é de alguém da equipe, e o negócio vem de um pedido assinado por nós
+ * (`pedido-de-teste.ts`), nunca de um id escrito no request.
+ *
+ * ⚠️ A EQUIPE É LISTA DE ID, NÃO DE E-MAIL. A confirmação de e-mail está desligada no Supabase
+ * (30/09/2026, para o funil não travar), então qualquer pessoa cria conta com qualquer e-mail que
+ * ainda não tenha dono. Uma lista de e-mails daria a equipe a quem se cadastrasse primeiro com o
+ * e-mail certo. O id não se escolhe.
+ *
+ * `MAISA_EQUIPE` = ids de usuário separados por vírgula. Vazia, ninguém libera. A tela de
+ * `/liberar` mostra o id de quem está logado quando barra, que é como se descobre o que pôr ali.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export type PorteiroDaEquipe = { equipe: Usuario } | { barrado: NextResponse };
+
+export const barrouEquipe = (p: PorteiroDaEquipe): p is { barrado: NextResponse } => "barrado" in p;
+
+const equipe = (): string[] =>
+  (process.env.MAISA_EQUIPE ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+
+export async function exigirEquipe(): Promise<PorteiroDaEquipe> {
+  if (!isSupabaseConfigured) {
+    return { barrado: json({ ok: false, status: "login_necessario" }, 401) };
+  }
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { barrado: json({ ok: false, status: "nao_autenticado" }, 401) };
+
+  const lista = equipe();
+  if (!lista.includes(user.id.toLowerCase())) {
+    return {
+      barrado: json(
+        {
+          ok: false,
+          status: lista.length === 0 ? "equipe_nao_configurada" : "fora_da_equipe",
+          /* O próprio id, para quem está montando a lista. Não é segredo de ninguém além de
+           * quem já está logado com ele. */
+          usuarioId: user.id,
+        },
+        403,
+      ),
+    };
+  }
+  return { equipe: { usuarioId: user.id } };
+}
+
+/**
+ * O negócio de um pedido de teste, como `ContextoTenant` de ator `sistema`. `null` = pedido
+ * torto, de outra chave ou vencido.
+ *
+ * Ator `sistema` porque a escrita em `assinaturas` só passa com a service role (a RLS não deixa
+ * ninguém mexer na própria assinatura). O `usuarioId` é o de quem clicou, para a auditoria.
+ * Chame SÓ depois de `exigirEquipe()`.
+ */
+export function contextoDoPedido(pedido: string | null | undefined, quem: Usuario): ContextoTenant | null {
+  const tenantId = lerPedido(pedido);
+  if (!tenantId) return null;
+  return { tenantId, usuarioId: quem.usuarioId, ator: { tipo: "sistema", rotina: "equipe:liberar-teste" } };
 }

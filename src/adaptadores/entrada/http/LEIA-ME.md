@@ -10,6 +10,7 @@ Tudo que uma rota do Next precisa para virar uma chamada de caso de uso. As rota
 | `contexto.ts` | Sessão do Supabase → `ContextoTenant`. É o **único** lugar do app onde um contexto de inquilino nasce a partir de HTTP. |
 | `respostas.ts` | Erro de domínio → status HTTP + JSON, para as rotas de agenda. |
 | `fiscal.ts` | Idem, para as rotas de nota fiscal, que têm formato de erro próprio. |
+| `pedido-de-teste.ts` | O pedido de teste assinado (09/10/2026): `tenantId` + validade + HMAC derivado da service role. É o que deixa a equipe liberar o teste de OUTRO negócio sem que o id venha cru do request. |
 
 ## `contexto.ts` — as três portas
 
@@ -18,6 +19,8 @@ Tudo que uma rota do Next precisa para virar uma chamada de caso de uso. As rota
 | `exigirSessao()` | ação que precisa de login | 401 `nao_autenticado` / `login_necessario` |
 | `exigirSessaoComGoogle()` | ação de agenda | 400 `nao_configurado` + lista do que falta, ou o 401 acima |
 | `sessaoOuDemo()` | rotas fiscais | nunca barra: sem Supabase configurado devolve `TENANT_DEMO` |
+| `exigirEquipe()` | `/api/teste/liberar` | 401, ou 403 `equipe_nao_configurada` / `fora_da_equipe` com o `usuarioId` de quem tentou. A lista é `MAISA_EQUIPE`, **ids e não e-mails**: com a confirmação de e-mail desligada, e-mail sem dono se cadastra por qualquer um |
+| `contextoDoPedido()` | depois de `exigirEquipe()` | `null` para pedido torto, de outra chave ou vencido (30 dias). Devolve ator `sistema`, porque a escrita em `assinaturas` só passa com a service role |
 
 Uso:
 

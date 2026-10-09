@@ -11,6 +11,10 @@ import { DadoInvalido } from "@/nucleo/dominio/erros";
 import type {
   IdentidadeDaSessao, NegocioCriado, PedidoDeNegocio, ProvisionadorDeNegocio,
 } from "@/nucleo/portas/saida/provisionador-negocio";
+import type { Assinatura } from "@/nucleo/dominio/assinatura";
+import type { ContextoTenant } from "@/nucleo/dominio/tenant";
+import { hojeISO } from "@/nucleo/dominio/tempo";
+import type { RepositorioAssinaturas } from "@/nucleo/portas/saida/repositorio-assinaturas";
 import { criarProvisionarNegocio } from "./provisionar";
 
 const sessao: IdentidadeDaSessao = { usuarioId: "u1" };
@@ -127,6 +131,47 @@ describe("★ a MAISA nasce ligada ou desligada", () => {
       assistente: { ...assistente, salvar: async () => { throw new Error("RLS"); } },
     });
     await expect(quebrado(sessao, { nome: "Clínica", vertical: "terapeutas" })).resolves.toMatchObject({ tenantId: "tenant-de-mentira" });
+    expect(erro).toHaveBeenCalled();
+    erro.mockRestore();
+  });
+});
+
+/* ── o teste na conversa (09/10/2026) ──
+ * O funil pago fecha o teste; o resto segue com os 14 dias da RPC. */
+describe("o teste do funil pago nasce fechado", () => {
+  const nascida: Assinatura = {
+    plano: "Profissional", preco: 149.9, moeda: "BRL", status: "trial", provedor: null,
+    clienteId: null, assinaturaId: null, periodoFim: "2099-01-14", trialFim: "2099-01-14",
+    metodo: null, cartaoMarca: null, cartaoFinal4: null,
+  };
+  const gravadas: { t: ContextoTenant; a: Assinatura }[] = [];
+  const assinaturas = {
+    ler: async () => nascida,
+    gravar: async (t: ContextoTenant, a: Assinatura) => { gravadas.push({ t, a }); },
+  } as unknown as RepositorioAssinaturas;
+  const comAssinaturas = criarProvisionarNegocio({ provisionador: fake, assinaturas });
+
+  beforeEach(() => { gravadas.length = 0; });
+
+  it("`na_conversa` grava o teste acabando hoje, como sistema", async () => {
+    await comAssinaturas(sessao, { nome: "Clínica", vertical: "terapeutas", teste: "na_conversa" });
+    expect(gravadas).toHaveLength(1);
+    expect(gravadas[0].a.trialFim).toBe(hojeISO());
+    expect(gravadas[0].t).toMatchObject({ tenantId: "tenant-de-mentira", ator: { tipo: "sistema" } });
+  });
+
+  it("sem pedido, ninguém mexe nos 14 dias", async () => {
+    await comAssinaturas(sessao, { nome: "Clínica", vertical: "terapeutas" });
+    expect(gravadas).toEqual([]);
+  });
+
+  it("se não conseguir fechar, o negócio ainda é criado, com log", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    const quebrado = criarProvisionarNegocio({
+      provisionador: fake,
+      assinaturas: { ...assinaturas, gravar: async () => { throw new Error("RLS"); } } as RepositorioAssinaturas,
+    });
+    await expect(quebrado(sessao, { nome: "Clínica", vertical: "terapeutas", teste: "na_conversa" })).resolves.toMatchObject({ tenantId: "tenant-de-mentira" });
     expect(erro).toHaveBeenCalled();
     erro.mockRestore();
   });

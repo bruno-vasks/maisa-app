@@ -20,7 +20,7 @@
  * reprova se as chaves divergirem — garantia por teste, não por boa vontade.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import { diaDoMes, diasEntre, diasNoMes, ehDataCivil, mesDe, rotuloDia, somarMeses } from "./tempo";
+import { diaDoMes, diasEntre, diasNoMes, ehDataCivil, mesDe, rotuloDia, somarDias, somarMeses } from "./tempo";
 
 /** Os três planos. Mesma chave usada em `_lib/planos.ts` e no `metadata.plano` do provedor. */
 export type ChaveDePlano = "essencial" | "profissional" | "escala";
@@ -413,4 +413,64 @@ export function textoDoAviso(
           + `Pague por Pix e ela volta na hora, sem perder nada do que você configurou:\n${p.link}${rodape}`,
       };
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ O TESTE NA CONVERSA (09/10/2026) — o teste grátis do funil pago passa por uma pessoa.
+ *
+ * Todo negócio nasce com 14 dias de teste (`005_provisionar.sql`). Até aqui isso valia também
+ * para quem vinha do anúncio, preenchia o `/assinar` e largava o Pix: a conta ficava com duas
+ * semanas de MAISA de graça, em silêncio, e ninguém sabia que havia alguém testando. Bruno
+ * decidiu que, no funil pago, o teste só existe depois de uma conversa no WhatsApp. É ali que se
+ * descobre se a pessoa conseguiu configurar, o que ela esperava e o que faltou.
+ *
+ * Então quem nasce pelo `/assinar` nasce com o teste FECHADO, e a equipe abre com
+ * `liberarTeste` quando a conversa acontece.
+ *
+ * ⚠️ NÃO É UM STATUS NOVO, DE PROPÓSITO. O `check` da coluna conhece quatro, e migração aqui roda
+ * à mão: um deploy que gravasse um quinto valor antes de alguém rodar o SQL recusaria o cadastro
+ * inteiro, e o sintoma seria zero venda. Teste fechado é um `trial` que acaba no dia do cadastro,
+ * coisa que o corte, os avisos e o pagamento já sabem tratar.
+ *
+ * O `/cadastro` NÃO passa por aqui: segue com 14 dias abertos, que é o que a tela dele promete.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+/** Quantos dias a equipe libera de uma vez. */
+export const DIAS_DO_TESTE_LIBERADO = 7;
+
+/**
+ * O teste do funil pago: acaba no dia do cadastro.
+ *
+ * Hoje, e não ontem. Ontem cortaria na hora, mas a tela do plano diria "seu teste acabou em
+ * [ontem]" para quem se cadastrou hoje. Com hoje, toda frase do app continua verdadeira, e quem
+ * paga ganha exatamente um mês contado de hoje: `creditarUmMes` só soma o teste que acaba DEPOIS
+ * de hoje.
+ *
+ * Custo aceito: quem larga o Pix e termina a configuração no mesmo dia tem a MAISA até a
+ * meia-noite. No dia seguinte sai o aviso de "pausou", com o link do Pix, e esse e-mail funciona
+ * como recuperação de quem abandonou.
+ *
+ * Só mexe em `trial`. Uma linha que já é outra coisa (alguém pagou entre o cadastro e esta
+ * chamada) passa intacta.
+ */
+export function fecharTeste(a: Assinatura, hoje: string): Assinatura {
+  if (a.status !== "trial") return a;
+  return { ...a, trialFim: hoje, periodoFim: hoje };
+}
+
+/**
+ * A equipe liberou o teste: `DIAS_DO_TESTE_LIBERADO` contados de hoje.
+ *
+ * `null` quando não há o que liberar: o negócio tem um mês pago valendo, e transformá-lo em
+ * teste trocaria o fim do que foi pago pelo fim do teste.
+ *
+ * Nunca encurta. Um teste que já vai além de sete dias (os 14 do `/cadastro`) fica como está.
+ * Liberar de novo um teste já liberado recomeça a contagem de hoje, que é como a equipe estende.
+ */
+export function liberarTeste(a: Assinatura, hoje: string): Assinatura | null {
+  if (a.status === "ativa" && acessoLiberado(a, hoje)) return null;
+  const novo = somarDias(hoje, DIAS_DO_TESTE_LIBERADO);
+  const atual = a.status === "trial" && a.trialFim && ehDataCivil(a.trialFim) ? a.trialFim : null;
+  const fim = atual && atual > novo ? atual : novo;
+  return { ...a, status: "trial", trialFim: fim, periodoFim: fim };
 }

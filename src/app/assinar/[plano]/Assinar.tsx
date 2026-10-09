@@ -179,7 +179,10 @@ function AssinarInner({ plano }: { plano: Plano }) {
          * tudo. Medido no log de produção. O nome do negócio já passou pelo mínimo daqui de
          * cima, e é o que a pessoa escreveu ("Clínica ou o seu nome"); a equipe se ajusta no
          * `/comecar`. */
-        body: JSON.stringify({ nome: nomeLimpo, vertical, profissional: nomeLimpo }),
+        /* `teste: "na_conversa"` (09/10/2026): quem vem do anúncio não ganha os 14 dias abertos.
+         * O teste existe, mas passa por uma conversa no WhatsApp, pedida na `/pagar`. Ver
+         * "O TESTE NA CONVERSA" em `dominio/assinatura.ts`. */
+        body: JSON.stringify({ nome: nomeLimpo, vertical, profissional: nomeLimpo, teste: "na_conversa" }),
       }).then((r) => r.json()).catch(() => null);
 
       if (!neg?.ok) {

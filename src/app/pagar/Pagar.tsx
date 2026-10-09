@@ -22,6 +22,16 @@
  * ⚠️ "POLI JUNIOR" NO BANCO. O recebedor que o app do banco mostra é o titular da conta da
  * AbacatePay, que é a Poli Júnior (medido no Pix de R$ 1 de 29/09/2026). A pessoa espera ler
  * "maisa". Sem avisar antes, é a hora em que ela desiste achando que é golpe.
+ *
+ * ── O TESTE NA CONVERSA (09/10/2026) ──
+ *
+ * Quem veio do funil (a volta é o `/comecar`) e não quer pagar ainda pode pedir um teste. Pedir é
+ * mandar uma mensagem pronta no WhatsApp, com o link que a equipe abre para liberar (ver
+ * `api/teste/pedido`). É SECUNDÁRIO de propósito, um link e não um botão: com o mesmo peso do
+ * Pix, ele roubaria a compra. Quem paga de dentro do app não vê a opção: já teve o teste dele.
+ *
+ * O link do WhatsApp é montado ANTES do clique. Um `window.open` depois de um `await` é bloqueado
+ * pelo Safari do iPhone, que é onde o anúncio abre.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -140,6 +150,27 @@ function PagarInner() {
   }, [gerando, volta]);
 
   const zap = whatsappUrl("Oi! Estou tentando pagar a maisa por Pix e tenho uma dúvida.");
+
+  /* O teste na conversa: só para quem veio do funil. Ver o cabeçalho. */
+  const doFunil = destinoDaVolta(volta) === "onboarding";
+  const [pedido, setPedido] = useState<{ negocio: string; link: string } | null>(null);
+  const [pediuTeste, setPediuTeste] = useState(false);
+  const temPix = leitura.fase === "ok";
+  useEffect(() => {
+    if (!doFunil || !temPix) return;
+    fetch("/api/teste/pedido", { method: "POST", cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { ok?: boolean; negocio?: string; link?: string }) => {
+        if (d?.ok && d.link) setPedido({ negocio: d.negocio ?? "", link: d.link });
+      })
+      /* Sem o link, a mensagem sai sem ele: a equipe acha a pessoa pelo `npm run leads`. */
+      .catch(() => {});
+  }, [doFunil, temPix]);
+  const zapTeste = whatsappUrl(
+    pedido
+      ? `Oi! Quero testar a maisa antes de assinar.\nNegócio: ${pedido.negocio}\nLiberar o teste: ${pedido.link}`
+      : "Oi! Acabei de criar minha conta e quero testar a maisa antes de assinar.",
+  );
 
   return (
     <div style={{ position: "relative", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -266,9 +297,27 @@ function PagarInner() {
           );
         })()}
 
-        <a href={zap} target="_blank" rel="noopener noreferrer" className="m-focus" style={s("text-align:center;font-size:var(--t-label);color:var(--muted);text-decoration:none")}>
-          Alguma dúvida? <span style={s("color:var(--primary);font-weight:var(--w-title)")}>Chama no WhatsApp</span>
-        </a>
+        {doFunil && leitura.fase === "ok" && leitura.p.status !== "pago" ? (
+          pediuTeste ? (
+            <div role="status" style={s(`${cartao};display:flex;flex-direction:column;gap:10px`)}>
+              <span style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>Pedido enviado no WhatsApp</span>
+              <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
+                A gente libera seus 7 dias por lá. Enquanto isso, já dá para deixar a sua maisa pronta.
+              </span>
+              <a href="/comecar" className="m-focus" style={s("font-size:var(--t-sm);color:var(--primary);font-weight:var(--w-title);text-decoration:none")}>
+                Configurar agora →
+              </a>
+            </div>
+          ) : (
+            <a href={zapTeste} target="_blank" rel="noopener noreferrer" onClick={() => setPediuTeste(true)} className="m-focus" style={s("text-align:center;font-size:var(--t-label);color:var(--muted);text-decoration:none;line-height:1.5")}>
+              Quer testar antes de pagar? <span style={s("color:var(--primary);font-weight:var(--w-title)")}>Peça 7 dias grátis no WhatsApp</span>
+            </a>
+          )
+        ) : (
+          <a href={zap} target="_blank" rel="noopener noreferrer" className="m-focus" style={s("text-align:center;font-size:var(--t-label);color:var(--muted);text-decoration:none")}>
+            Alguma dúvida? <span style={s("color:var(--primary);font-weight:var(--w-title)")}>Chama no WhatsApp</span>
+          </a>
+        )}
 
         <LinhaLegal />
       </div>

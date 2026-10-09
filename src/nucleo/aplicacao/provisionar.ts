@@ -31,6 +31,9 @@ import { colapsarEspaco, SEM_CONTEUDO } from "../dominio/texto";
 import { DadoInvalido } from "../dominio/erros";
 import { atendeNoWhatsAppPorPadrao } from "../dominio/assistente";
 import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
+import type { RepositorioAssinaturas } from "../portas/saida/repositorio-assinaturas";
+import { fecharTeste } from "../dominio/assinatura";
+import { hojeISO } from "../dominio/tempo";
 
 /** Nome de negócio cabe numa tela e vira slug. Fora disso é engano ou abuso. */
 const NOME_MIN = 2;
@@ -45,6 +48,8 @@ export function criarProvisionarNegocio(deps: {
   provisionador: ProvisionadorDeNegocio;
   /** Para desligar a MAISA de quem nasce com ela desligada. Ver `atendeNoWhatsAppPorPadrao`. */
   assistente?: RepositorioAssistente;
+  /** Para fechar o teste de quem nasce pelo funil pago. Ver `fecharTeste`. */
+  assinaturas?: RepositorioAssinaturas;
 }): ProvisionarNegocio {
   return async (sessao, p): Promise<NegocioProvisionado> => {
     const nome = normalizar(p.nome ?? "");
@@ -97,6 +102,25 @@ export function criarProvisionarNegocio(deps: {
         console.error(
           `[aplicacao/provisionar] o negócio ${r.tenantId} (${p.vertical}) nasceu com a MAISA LIGADA — `
           + `não consegui desligar: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+
+    /* O teste do funil pago nasce fechado (09/10/2026, ver `fecharTeste`). Ator `sistema`
+     * porque a RLS não deixa ninguém escrever na própria assinatura (senão bastava gravar
+     * `ativa`), e o inquilino é o que a RPC acabou de criar para `auth.uid()`, não um id de fora.
+     *
+     * ⚠️ Falha para a frente, pelo mesmo motivo da assistente acima: o negócio já existe. Quem
+     * escapar daqui fica com os 14 dias de sempre, que é o que o `/cadastro` dá a todo mundo. */
+    if (p.teste === "na_conversa" && deps.assinaturas) {
+      const t = { tenantId: r.tenantId, usuarioId: sessao.usuarioId, ator: { tipo: "sistema" as const, rotina: "teste-na-conversa" } };
+      try {
+        const a = await deps.assinaturas.ler(t);
+        if (a) await deps.assinaturas.gravar(t, fecharTeste(a, hojeISO()));
+      } catch (e) {
+        console.error(
+          `[aplicacao/provisionar] o negócio ${r.tenantId} veio do funil pago e nasceu com o teste ABERTO — `
+          + `não consegui fechar: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
     }
