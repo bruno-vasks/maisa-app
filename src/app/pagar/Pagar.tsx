@@ -12,7 +12,9 @@
  * ⚠️ POUCO TEXTO É REQUISITO, NÃO GOSTO. Bruno cortou, um por um: a instrução de como pagar Pix
  * ("espera-se que o usuário saiba"), o subtítulo das abas, o "a tela confirma sozinha", a frase
  * sobre a Poli Júnior (virou só "Recebedor: Poli Júnior", ao lado do preço) e a validade do
- * código. Antes de acrescentar uma frase aqui, a pergunta é se ela muda o que a pessoa faz.
+ * código. Depois pediu de volta UMA instrução, que diz como pagar e não o passo a passo: "Pague
+ * com o QR Code ou com o Pix Copia e Cola". Antes de acrescentar outra frase aqui, a pergunta é se
+ * ela muda o que a pessoa faz.
  *
  * Layout por media query, e não por `useIsMobile`: o hook devolve "desktop" no primeiro render, e
  * o split piscaria no celular, que é onde o anúncio abre.
@@ -82,6 +84,9 @@ const secundario =
 const reais = (v: number) =>
   `R$ ${Number.isInteger(v) ? v : v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** A largura do toggle, e do que vem embaixo dele: o QR fica sob "Pix", o botão sob "Cartão". */
+const COLUNA = 580;
+
 /* O layout por media query. Ver o cabeçalho: o hook piscaria. */
 const CSS = `
 .pg{min-height:100dvh;display:grid;grid-template-columns:5fr 6fr;background:var(--surface)}
@@ -89,12 +94,13 @@ const CSS = `
 .pg-pag{padding:48px clamp(28px,5vw,80px);display:flex;flex-direction:column;gap:20px;max-width:640px;width:100%}
 .pg-specs{display:grid;gap:9px}
 .pg-desk{display:flex}
+.pg-duas{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:0 4px;align-items:center}
 .pg-cel{display:none}
 @media (max-width:900px){
   .pg{grid-template-columns:1fr;align-content:start}
   .pg-navy{padding:20px 20px 22px;gap:14px}
   .pg-pag{padding:20px;gap:16px}
-  .pg-specs,.pg-desk{display:none}
+  .pg-specs,.pg-desk,.pg-duas{display:none}
   .pg-cel{display:flex}
 }`;
 
@@ -312,15 +318,20 @@ function PagarInner() {
         {copiado ? "Código copiado" : "Copiar código Pix"}
       </button>
     );
-    const img = (tam: number) => p.qrCode && (
+    const img = (tam: number | "metade") => p.qrCode && (
       // eslint-disable-next-line @next/next/no-img-element -- é um data URL do provedor, não um arquivo nosso
-      <img src={p.qrCode} alt="QR Code do Pix" width={tam} height={tam} style={s("border:1px solid var(--border);border-radius:var(--r-painel);background:#fff;padding:8px;flex:none")} />
+      <img src={p.qrCode} alt="QR Code do Pix" width={tam === "metade" ? 270 : tam} height={tam === "metade" ? 270 : tam}
+        style={s(`border:1px solid var(--border);border-radius:var(--r-painel);background:#fff;padding:8px;flex:none;box-sizing:border-box${tam === "metade" ? ";width:100%;height:auto;aspect-ratio:1" : ""}`)} />
+    );
+    /* A única instrução que ficou (09/10/2026, Bruno): COMO pagar, não o passo a passo. */
+    const instrucao = (texto: string, classe: string) => (
+      <p className={classe} style={s("margin:0;font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>{texto}</p>
     );
 
     pagamento = (
       <>
         {aceitaCartao && (
-          <div role="tablist" aria-label="Forma de pagamento" style={s("display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);max-width:420px")}>
+          <div role="tablist" aria-label="Forma de pagamento" style={s(`display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);max-width:${COLUNA}px`)}>
             {(["pix", "cartao"] as const).map((m) => (
               <button key={m} type="button" role="tab" aria-selected={metodo === m} onClick={() => setMetodo(m)} className="m-focus" style={s(`height:42px;border:none;border-radius:var(--r-painel);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;background:${metodo === m ? "var(--surface)" : "transparent"};color:${metodo === m ? "var(--ink)" : "var(--muted)"};box-shadow:${metodo === m ? "0 0 0 1px var(--border)" : "none"}`)}>
                 {m === "pix" ? "Pix" : "Cartão"}
@@ -330,7 +341,7 @@ function PagarInner() {
         )}
 
         {metodo === "cartao" && aceitaCartao ? (
-          <div style={s("display:flex;flex-direction:column;gap:10px;max-width:420px")}>
+          <div style={s(`display:flex;flex-direction:column;gap:10px;max-width:${COLUNA}px`)}>
             <button type="button" onClick={() => pagarNoCartao(p.plano)} disabled={indoCartao} className="m-hov-primary m-press m-focus" style={s(primario(indoCartao))}>
               {indoCartao ? "Abrindo…" : `Pagar ${reais(p.valor)} no cartão`}
             </button>
@@ -338,13 +349,16 @@ function PagarInner() {
           </div>
         ) : (
           <>
-            {/* Desktop: o QR é o protagonista, o celular do lado é a câmera. */}
-            <div className="pg-desk" style={{ alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-              {img(232)}
-              <div style={{ flex: "1 1 200px", maxWidth: 280 }}>{botaoCopiar(secundario)}</div>
+            {/* Desktop: o QR é o protagonista, o celular do lado é a câmera. QR sob "Pix", botão sob
+                "Cartão": as duas metades do toggle continuam embaixo dele. */}
+            {instrucao("Pague com o QR Code ou com o Pix Copia e Cola", "pg-desk")}
+            <div className="pg-duas" style={{ maxWidth: COLUNA }}>
+              {img("metade")}
+              <div style={{ padding: "0 0 0 18px" }}>{botaoCopiar(secundario)}</div>
             </div>
             {/* Celular: ninguém escaneia a própria tela. Copiar primeiro; o QR, para outro aparelho. */}
             <div className="pg-cel" style={{ flexDirection: "column", gap: 12 }}>
+              {instrucao("Pague com Pix Copia e Cola ou QR\u00a0Code", "")}
               {botaoCopiar(primario(false))}
               {p.qrCode && (
                 <details>
