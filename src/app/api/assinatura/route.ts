@@ -107,9 +107,9 @@ export async function POST(req: Request) {
   const porteiro = await sessaoOuDemo();
   if (barrou(porteiro)) return porteiro.barrado;
 
-  let corpo: { plano?: unknown; destino?: unknown };
+  let corpo: { plano?: unknown; destino?: unknown; metodo?: unknown };
   try {
-    corpo = (await req.json()) as { plano?: unknown; destino?: unknown };
+    corpo = (await req.json()) as { plano?: unknown; destino?: unknown; metodo?: unknown };
   } catch {
     return NextResponse.json(
       { ok: false, status: "payload_invalido", info: "Corpo não é JSON." },
@@ -129,6 +129,9 @@ export async function POST(req: Request) {
   try {
     const { url, pagamento } = await app.abrirCheckout(porteiro.tenant, {
       plano: corpo.plano as never,
+      /* Só `cartao` muda alguma coisa; o resto é o padrão do provedor. Quem confere se o
+       * provedor aceita cartão é o caso de uso. */
+      ...(corpo.metodo === "cartao" ? { metodo: "cartao" as const } : {}),
       voltarPara: `${origem}${volta.ok}`,
       cancelarPara: `${origem}${volta.cancelado}`,
     });

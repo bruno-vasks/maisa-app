@@ -2,6 +2,27 @@
 /* ─────────────────────────────────────────────────────────────────────────────
  * A TELA DO PIX — QR Code, copia-e-cola, e o pagamento acompanhado sem a pessoa sair daqui.
  *
+ * ── O DESENHO: SPLIT NAVY (09/10/2026) ──
+ *
+ * Escolhido por Bruno entre três variações (`01 App — Telas e Features/(C) 2026-10-09 — Checkout
+ * — 3 variações.html`). À esquerda, em navy, o que está sendo comprado: plano, preço e os números
+ * do plano, que vêm de `_lib/planos.ts`. À direita, só o pagamento. No celular, o navy vira um
+ * cabeçalho curto e o pagamento vem logo abaixo.
+ *
+ * ⚠️ POUCO TEXTO É REQUISITO, NÃO GOSTO. Bruno cortou, um por um: a instrução de como pagar Pix
+ * ("espera-se que o usuário saiba"), o subtítulo das abas, o "a tela confirma sozinha", a frase
+ * sobre a Poli Júnior (virou só "Recebedor: Poli Júnior", ao lado do preço) e a validade do
+ * código. Antes de acrescentar uma frase aqui, a pergunta é se ela muda o que a pessoa faz.
+ *
+ * Layout por media query, e não por `useIsMobile`: o hook devolve "desktop" no primeiro render, e
+ * o split piscaria no celular, que é onde o anúncio abre.
+ *
+ * ── PIX | CARTÃO ──
+ *
+ * A aba "Cartão" só existe quando `GET /api/assinatura` diz `capacidades.cartao`. O cartão é uma
+ * compra avulsa de um mês na página da AbacatePay (`abrirCartao` em `cobranca-avulsa.ts`), e NÃO
+ * renova sozinho: a recorrência da loja está bloqueada. Por isso a aba não promete renovação.
+ *
  * ── A ORDEM DOS DOIS CÓDIGOS MUDA COM A TELA, E É A DECISÃO QUE MAIS IMPORTA AQUI ──
  *
  * No celular, ninguém escaneia o QR Code da própria tela: o caminho é copiar o código e colar
@@ -21,7 +42,7 @@
  *
  * ⚠️ "POLI JUNIOR" NO BANCO. O recebedor que o app do banco mostra é o titular da conta da
  * AbacatePay, que é a Poli Júnior (medido no Pix de R$ 1 de 29/09/2026). A pessoa espera ler
- * "maisa". Sem avisar antes, é a hora em que ela desiste achando que é golpe.
+ * "maisa". O nome tem de estar na tela antes de ela abrir o banco; uma frase explicando, não.
  *
  * ── O TESTE NA CONVERSA (09/10/2026) ──
  *
@@ -36,19 +57,14 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { s, Icon, fmt } from "@/ui/primitivos";
-import { useIsMobile } from "@/ui/useIsMobile";
+import { s, Icon } from "@/ui/primitivos";
 import { whatsappUrl } from "@/app/(marketing)/_lib/icp";
 import { LinhaLegal } from "@/app/(marketing)/_lib/LinhaLegal";
+import { PLANOS } from "@/app/(marketing)/_lib/planos";
 import type { PagamentoPix } from "@/nucleo/portas/saida/cobranca";
-import { destinoDaVolta, horaQueVence, voltaSegura } from "./regras";
+import { destinoDaVolta, voltaSegura } from "./regras";
 import { guardarPix, pixGuardado } from "@/ui/estado/pix";
 
-const NOME_DO_PLANO: Record<string, string> = {
-  essencial: "Essencial",
-  profissional: "Profissional",
-  escala: "Escala",
-};
 
 type Leitura =
   | { fase: "carregando" }
@@ -58,16 +74,40 @@ type Leitura =
 
 const cartao = "background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px";
 const primario = (ocupado: boolean) =>
-  `display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:50px;border:none;border-radius:var(--r-controle);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${ocupado ? "not-allowed" : "pointer"};opacity:${ocupado ? ".6" : "1"};font-family:inherit`;
+  `display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:52px;border:none;border-radius:var(--r-controle);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${ocupado ? "not-allowed" : "pointer"};opacity:${ocupado ? ".6" : "1"};font-family:inherit`;
+const secundario =
+  "display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:48px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--ink);font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;font-family:inherit";
+
+/** "R$ 197", ou "R$ 197,50" quando há centavos. O preço é o do Pix, que é o cobrado. */
+const reais = (v: number) =>
+  `R$ ${Number.isInteger(v) ? v : v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/* O layout por media query. Ver o cabeçalho: o hook piscaria. */
+const CSS = `
+.pg{min-height:100dvh;display:grid;grid-template-columns:5fr 6fr;background:var(--surface)}
+.pg-navy{background:var(--nav);color:#fff;padding:48px clamp(32px,5vw,72px);display:flex;flex-direction:column;gap:28px}
+.pg-pag{padding:48px clamp(28px,5vw,80px);display:flex;flex-direction:column;gap:20px;max-width:640px;width:100%}
+.pg-specs{display:grid;gap:9px}
+.pg-desk{display:flex}
+.pg-cel{display:none}
+@media (max-width:900px){
+  .pg{grid-template-columns:1fr;align-content:start}
+  .pg-navy{padding:20px 20px 22px;gap:14px}
+  .pg-pag{padding:20px;gap:16px}
+  .pg-specs,.pg-desk{display:none}
+  .pg-cel{display:flex}
+}`;
 
 function PagarInner() {
   const q = useSearchParams();
   const id = q.get("id") ?? "";
   const volta = voltaSegura(q.get("volta"));
-  const celular = useIsMobile();
 
   const [leitura, setLeitura] = useState<Leitura>({ fase: "carregando" });
   const [copiado, setCopiado] = useState(false);
+  /* O código cru só aparece se a área de transferência falhar: é o único caso em que a pessoa
+   * precisa vê-lo. */
+  const [semClipboard, setSemClipboard] = useState(false);
   const [gerando, setGerando] = useState(false);
   const emVoo = useRef(false);
 
@@ -123,8 +163,8 @@ function PagarInner() {
     } catch {
       /* Navegador sem permissão de área de transferência: seleciona o texto do campo, e o
        * "copiar" do próprio sistema resolve. */
-      const el = document.getElementById("pix-codigo") as HTMLTextAreaElement | null;
-      el?.select();
+      setSemClipboard(true);
+      return;
     }
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2_500);
@@ -149,7 +189,36 @@ function PagarInner() {
     }
   }, [gerando, volta]);
 
-  const zap = whatsappUrl("Oi! Estou tentando pagar a maisa por Pix e tenho uma dúvida.");
+  const zap = whatsappUrl("Oi! Estou tentando pagar a maisa e tenho uma dúvida.");
+
+  /* Pix | Cartão. A aba só aparece quando o provedor aceita cartão; ver o cabeçalho. */
+  const [aceitaCartao, setAceitaCartao] = useState(false);
+  const [metodo, setMetodo] = useState<"pix" | "cartao">("pix");
+  const [indoCartao, setIndoCartao] = useState(false);
+  const [falhaCartao, setFalhaCartao] = useState(false);
+  useEffect(() => {
+    fetch("/api/assinatura", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { capacidades?: { cartao?: boolean } }) => setAceitaCartao(d?.capacidades?.cartao === true))
+      .catch(() => {});
+  }, []);
+  const pagarNoCartao = useCallback(async (plano: string | null) => {
+    if (!plano || indoCartao) return;
+    setIndoCartao(true);
+    setFalhaCartao(false);
+    try {
+      const r = (await fetch("/api/assinatura", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ plano, destino: destinoDaVolta(volta), metodo: "cartao" }),
+      }).then((x) => x.json())) as { ok?: boolean; url?: string } | null;
+      if (!r?.ok || !r.url) throw new Error("sem url");
+      window.location.href = r.url;
+    } catch {
+      setIndoCartao(false);
+      setFalhaCartao(true);
+    }
+  }, [indoCartao, volta]);
 
   /* O teste na conversa: só para quem veio do funil. Ver o cabeçalho. */
   const doFunil = destinoDaVolta(volta) === "onboarding";
@@ -172,156 +241,168 @@ function PagarInner() {
       : "Oi! Acabei de criar minha conta e quero testar a maisa antes de assinar.",
   );
 
-  return (
-    <div style={{ position: "relative", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "radial-gradient(60% 55% at 25% 12%, var(--primary-soft) 0%, transparent 60%), radial-gradient(55% 55% at 88% 92%, var(--warm-soft) 0%, transparent 58%)" }} />
+  const plano = leitura.fase === "ok" ? PLANOS.find((x) => x.chave === leitura.p.plano) ?? null : null;
 
-      <div className="m-enter" style={{ width: "100%", maxWidth: 430, display: "flex", flexDirection: "column", gap: 18 }}>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel);box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
-            <span style={{ ...s("font-size:var(--t-data);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line), 0 3px 5px rgba(0,0,0,.22)" }}>maisa</span>
-          </div>
+  /* O "testar antes", ou a dúvida de sempre para quem paga de dentro do app. */
+  const saida = doFunil && leitura.fase === "ok" && leitura.p.status !== "pago"
+    ? pediuTeste
+      ? (
+        <div role="status" style={s("display:flex;flex-direction:column;gap:6px;font-size:var(--t-sm);line-height:1.5")}>
+          <strong style={s("font-weight:var(--w-title)")}>Pedido enviado no WhatsApp</strong>
+          <a href="/comecar" className="m-focus" style={s("color:inherit;font-weight:var(--w-title)")}>Configurar a maisa enquanto isso →</a>
         </div>
+      )
+      : (
+        <a href={zapTeste} target="_blank" rel="noopener noreferrer" onClick={() => setPediuTeste(true)} className="m-focus" style={s("display:block;font-size:var(--t-sm);line-height:1.5;color:inherit;text-decoration:none")}>
+          Quer testar antes? <strong style={s("font-weight:var(--w-title);text-decoration:underline")}>7 dias grátis no WhatsApp</strong>
+        </a>
+      )
+    : (
+      <a href={zap} target="_blank" rel="noopener noreferrer" className="m-focus" style={s("font-size:var(--t-sm);color:inherit;text-decoration:none")}>
+        Alguma dúvida? <strong style={s("font-weight:var(--w-title);text-decoration:underline")}>Chama no WhatsApp</strong>
+      </a>
+    );
 
-        {leitura.fase === "carregando" && (
-          <div style={s(`${cartao};display:flex;align-items:center;gap:10px;color:var(--muted);font-size:var(--t-sm)`)}>
-            <Icon name="clock" size={18} /> Gerando o seu Pix…
-          </div>
-        )}
-
-        {(leitura.fase === "nao_encontrado" || leitura.fase === "erro") && (
-          <div style={s(`${cartao};display:flex;flex-direction:column;gap:12px`)}>
-            <h1 style={s("margin:0;font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>
-              {leitura.fase === "nao_encontrado" ? "Não achamos este Pix" : "Não conseguimos carregar o Pix"}
-            </h1>
-            <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
-              {leitura.fase === "nao_encontrado"
-                ? "O link pode ser de outra conta, ou ter sido copiado pela metade. Gere um novo pelo seu plano."
-                : "Nada foi cobrado por isso. Tente de novo em instantes."}
-            </p>
-            <a href="/?tela=mais" className="m-hov-primary m-press m-focus" style={s(`${primario(false)};text-decoration:none`)}>Ir para o meu plano</a>
-          </div>
-        )}
-
-        {leitura.fase === "ok" && (() => {
-          const p = leitura.p;
-          const plano = p.plano ? NOME_DO_PLANO[p.plano] ?? p.plano : "maisa";
-          const vence = horaQueVence(p.expiraEm);
-
-          const resumo = (
-            <div style={s(cartao)}>
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-                <span style={s("font-size:var(--t-lg);font-weight:var(--w-title);color:var(--ink)")}>{plano}</span>
-                <span style={s("font-variant-numeric:tabular-nums;font-size:var(--t-body);font-weight:var(--w-data);color:var(--ink);white-space:nowrap")}>{fmt(p.valor)}</span>
-              </div>
-              <p style={s("margin:6px 0 0;font-size:var(--t-label);color:var(--muted)")}>Um mês de maisa. Sem fidelidade: você paga o próximo quando quiser continuar.</p>
-            </div>
-          );
-
-          if (p.status === "pago") {
-            return (
-              <>
-                {resumo}
-                <div role="status" style={s(`${cartao};display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center`)}>
-                  <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:var(--success-soft);color:var(--success)")}>
-                    <Icon name="check" size={30} />
-                  </div>
-                  <h1 style={s("margin:0;font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>Pix recebido</h1>
-                  <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>Em instantes o seu plano aparece como ativo. Estamos te levando de volta.</p>
-                  <a href={volta} className="m-hov-primary m-press m-focus" style={s(`${primario(false)};text-decoration:none`)}>Continuar</a>
-                </div>
-              </>
-            );
-          }
-
-          if (p.status !== "pendente") {
-            return (
-              <>
-                {resumo}
-                <div style={s(`${cartao};display:flex;flex-direction:column;gap:12px`)}>
-                  <h1 style={s("margin:0;font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>
-                    {p.status === "expirado" ? "Este Pix venceu" : "Este Pix foi cancelado"}
-                  </h1>
-                  <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>Nada foi cobrado. Gere um novo e pague em seguida.</p>
-                  <button type="button" onClick={() => gerarOutro(p.plano)} disabled={gerando || !p.plano} className="m-hov-primary m-press m-focus" style={s(primario(gerando))}>
-                    {gerando ? "Gerando…" : "Gerar um novo Pix"}
-                  </button>
-                </div>
-              </>
-            );
-          }
-
-          const qr = p.qrCode && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- é um data URL do provedor, não um arquivo nosso */}
-              <img src={p.qrCode} alt="QR Code do Pix" width={celular ? 168 : 232} height={celular ? 168 : 232} style={s("border:1px solid var(--border);border-radius:var(--r-painel);background:#fff;padding:8px")} />
-              <span style={s("font-size:var(--t-micro);color:var(--muted)")}>{celular ? "Ou escaneie de outro aparelho" : "Aponte a câmera do app do banco"}</span>
-            </div>
-          );
-
-          const copia = p.copiaECola && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button type="button" onClick={() => copiar(p.copiaECola!)} className="m-hov-primary m-press m-focus" style={s(primario(false))}>
-                <Icon name={copiado ? "check" : "copy"} size={18} />
-                {copiado ? "Código copiado" : "Copiar código Pix"}
-              </button>
-              <textarea id="pix-codigo" readOnly value={p.copiaECola} rows={2} onFocus={(e) => e.currentTarget.select()} aria-label="Código Pix copia e cola" style={s("width:100%;resize:none;border:1px solid var(--border);border-radius:var(--r-controle);padding:10px 12px;font-variant-numeric:tabular-nums;font-size:var(--t-micro);color:var(--muted);background:var(--bg);line-height:1.4")} />
-            </div>
-          );
-
-          return (
-            <>
-              {resumo}
-              <div style={s(`${cartao};display:flex;flex-direction:column;gap:16px`)}>
-                <div>
-                  <h1 style={s("margin:0;font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>Pague com Pix</h1>
-                  <p style={s("margin:4px 0 0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
-                    {celular ? "Copie o código e cole no app do seu banco, em Pix Copia e Cola." : "Escaneie o QR Code com o app do seu banco."}
-                  </p>
-                </div>
-
-                {celular ? <>{copia}{qr}</> : <>{qr}{copia}</>}
-
-                <div style={s("display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px solid var(--border)")}>
-                  <span aria-live="polite" style={s("display:flex;align-items:center;gap:8px;font-size:var(--t-label);color:var(--ink-800);font-weight:var(--w-title)")}>
-                    <span aria-hidden style={{ ...s("width:8px;height:8px;border-radius:50%;background:var(--primary)"), animation: "mpulse 1.4s ease-in-out infinite" }} />
-                    Esperando o pagamento. Esta tela atualiza sozinha.
-                  </span>
-                  <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
-                    No banco, o recebedor aparece como <strong style={s("color:var(--ink-800)")}>Poli Júnior</strong>, a empresa que faz a maisa.
-                    {vence ? ` O código vale até ${vence}.` : ""}
-                  </span>
-                </div>
-              </div>
-            </>
-          );
-        })()}
-
-        {doFunil && leitura.fase === "ok" && leitura.p.status !== "pago" ? (
-          pediuTeste ? (
-            <div role="status" style={s(`${cartao};display:flex;flex-direction:column;gap:10px`)}>
-              <span style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>Pedido enviado no WhatsApp</span>
-              <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
-                A gente libera seus 7 dias por lá. Enquanto isso, já dá para deixar a sua maisa pronta.
-              </span>
-              <a href="/comecar" className="m-focus" style={s("font-size:var(--t-sm);color:var(--primary);font-weight:var(--w-title);text-decoration:none")}>
-                Configurar agora →
-              </a>
-            </div>
-          ) : (
-            <a href={zapTeste} target="_blank" rel="noopener noreferrer" onClick={() => setPediuTeste(true)} className="m-focus" style={s("text-align:center;font-size:var(--t-label);color:var(--muted);text-decoration:none;line-height:1.5")}>
-              Quer testar antes de pagar? <span style={s("color:var(--primary);font-weight:var(--w-title)")}>Peça 7 dias grátis no WhatsApp</span>
-            </a>
-          )
-        ) : (
-          <a href={zap} target="_blank" rel="noopener noreferrer" className="m-focus" style={s("text-align:center;font-size:var(--t-label);color:var(--muted);text-decoration:none")}>
-            Alguma dúvida? <span style={s("color:var(--primary);font-weight:var(--w-title)")}>Chama no WhatsApp</span>
-          </a>
-        )}
-
-        <LinhaLegal />
-      </div>
+  /* Os estados sem Pix para mostrar ocupam o lugar do pagamento. */
+  const semPix = (titulo: string, texto: string, acao: React.ReactNode) => (
+    <div style={s(`${cartao};display:flex;flex-direction:column;gap:12px`)}>
+      <h1 style={s("margin:0;font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>{titulo}</h1>
+      <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>{texto}</p>
+      {acao}
     </div>
+  );
+
+  let pagamento: React.ReactNode;
+  if (leitura.fase === "carregando") {
+    pagamento = (
+      <div style={s("display:flex;align-items:center;gap:10px;color:var(--muted);font-size:var(--t-sm)")}>
+        <Icon name="clock" size={18} /> Gerando o seu Pix…
+      </div>
+    );
+  } else if (leitura.fase !== "ok") {
+    pagamento = semPix(
+      leitura.fase === "nao_encontrado" ? "Não achamos este Pix" : "Não conseguimos carregar o Pix",
+      leitura.fase === "nao_encontrado" ? "Gere um novo pelo seu plano." : "Nada foi cobrado. Tente de novo em instantes.",
+      <a href="/?tela=mais" className="m-hov-primary m-press m-focus" style={s(`${primario(false)};text-decoration:none`)}>Ir para o meu plano</a>,
+    );
+  } else if (leitura.p.status === "pago") {
+    pagamento = (
+      <div role="status" style={s("display:flex;flex-direction:column;align-items:flex-start;gap:14px")}>
+        <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:var(--success-soft);color:var(--success)")}>
+          <Icon name="check" size={30} />
+        </div>
+        <h1 style={s("margin:0;font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>Pix recebido</h1>
+        <a href={volta} className="m-hov-primary m-press m-focus" style={s(`${primario(false)};text-decoration:none`)}>Continuar</a>
+      </div>
+    );
+  } else if (leitura.p.status !== "pendente") {
+    const p = leitura.p;
+    pagamento = semPix(
+      p.status === "expirado" ? "Este Pix venceu" : "Este Pix foi cancelado",
+      "Nada foi cobrado.",
+      <button type="button" onClick={() => gerarOutro(p.plano)} disabled={gerando || !p.plano} className="m-hov-primary m-press m-focus" style={s(primario(gerando))}>
+        {gerando ? "Gerando…" : "Gerar um novo Pix"}
+      </button>,
+    );
+  } else {
+    const p = leitura.p;
+    const botaoCopiar = (estilo: string) => p.copiaECola && (
+      <button type="button" onClick={() => copiar(p.copiaECola!)} className="m-hov-primary m-press m-focus" style={s(estilo)}>
+        <Icon name={copiado ? "check" : "copy"} size={18} />
+        {copiado ? "Código copiado" : "Copiar código Pix"}
+      </button>
+    );
+    const img = (tam: number) => p.qrCode && (
+      // eslint-disable-next-line @next/next/no-img-element -- é um data URL do provedor, não um arquivo nosso
+      <img src={p.qrCode} alt="QR Code do Pix" width={tam} height={tam} style={s("border:1px solid var(--border);border-radius:var(--r-painel);background:#fff;padding:8px;flex:none")} />
+    );
+
+    pagamento = (
+      <>
+        {aceitaCartao && (
+          <div role="tablist" aria-label="Forma de pagamento" style={s("display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--bg);max-width:420px")}>
+            {(["pix", "cartao"] as const).map((m) => (
+              <button key={m} type="button" role="tab" aria-selected={metodo === m} onClick={() => setMetodo(m)} className="m-focus" style={s(`height:42px;border:none;border-radius:var(--r-painel);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;background:${metodo === m ? "var(--surface)" : "transparent"};color:${metodo === m ? "var(--ink)" : "var(--muted)"};box-shadow:${metodo === m ? "0 0 0 1px var(--border)" : "none"}`)}>
+                {m === "pix" ? "Pix" : "Cartão"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {metodo === "cartao" && aceitaCartao ? (
+          <div style={s("display:flex;flex-direction:column;gap:10px;max-width:420px")}>
+            <button type="button" onClick={() => pagarNoCartao(p.plano)} disabled={indoCartao} className="m-hov-primary m-press m-focus" style={s(primario(indoCartao))}>
+              {indoCartao ? "Abrindo…" : `Pagar ${reais(p.valor)} no cartão`}
+            </button>
+            {falhaCartao && <p role="alert" style={s("margin:0;font-size:var(--t-label);color:var(--danger)")}>O cartão não abriu agora. Tente de novo, ou pague por Pix.</p>}
+          </div>
+        ) : (
+          <>
+            {/* Desktop: o QR é o protagonista, o celular do lado é a câmera. */}
+            <div className="pg-desk" style={{ alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+              {img(232)}
+              <div style={{ flex: "1 1 200px", maxWidth: 280 }}>{botaoCopiar(secundario)}</div>
+            </div>
+            {/* Celular: ninguém escaneia a própria tela. Copiar primeiro; o QR, para outro aparelho. */}
+            <div className="pg-cel" style={{ flexDirection: "column", gap: 12 }}>
+              {botaoCopiar(primario(false))}
+              {p.qrCode && (
+                <details>
+                  <summary className="m-focus" style={s("cursor:pointer;font-size:var(--t-sm);color:var(--primary);font-weight:var(--w-title)")}>Mostrar QR Code</summary>
+                  <div style={{ display: "flex", justifyContent: "center", paddingTop: 12 }}>{img(180)}</div>
+                </details>
+              )}
+            </div>
+            {semClipboard && p.copiaECola && (
+              <textarea readOnly value={p.copiaECola} rows={3} autoFocus onFocus={(e) => e.currentTarget.select()} aria-label="Código Pix" style={s("width:100%;max-width:520px;resize:none;border:1px solid var(--border);border-radius:var(--r-controle);padding:10px 12px;font-size:var(--t-micro);color:var(--muted);background:var(--bg);line-height:1.4")} />
+            )}
+            <span aria-live="polite" style={s("display:flex;align-items:center;gap:9px;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink-800)")}>
+              <span aria-hidden style={{ ...s("width:9px;height:9px;border-radius:50%;background:var(--primary);flex:none"), animation: "mpulse 1.4s ease-in-out infinite" }} />
+              Esperando o pagamento
+            </span>
+          </>
+        )}
+      </>
+    );
+  }
+
+  const cinza = "oklch(0.82 0.03 262)";
+  return (
+    <main className="pg">
+      <style>{CSS}</style>
+
+      <section className="pg-navy">
+        <span style={s("font-size:var(--t-lg);font-weight:var(--w-emph);color:var(--warm);line-height:1")}>maisa</span>
+        {leitura.fase === "ok" && (
+          <div>
+            <div style={{ ...s("font-size:var(--t-sm)"), color: cinza }}>Plano {plano?.nome ?? "maisa"}</div>
+            <div style={s("margin-top:8px;font-size:var(--t-data);font-weight:var(--w-emph);line-height:1;font-variant-numeric:tabular-nums")}>
+              {reais(leitura.p.valor)}<span style={{ ...s("font-size:var(--t-sm);font-weight:var(--w-data)"), color: cinza }}> /mês</span>
+            </div>
+            <div style={{ ...s("margin-top:10px;font-size:var(--t-label)"), color: cinza }}>Recebedor: <strong style={s("color:#fff;font-weight:var(--w-title)")}>Poli Júnior</strong></div>
+          </div>
+        )}
+        {plano && (
+          <div className="pg-specs" style={{ ...s("padding-top:20px;border-top:1px solid var(--nav-line);font-size:var(--t-sm)"), color: "oklch(0.86 0.02 262)" }}>
+            {[...plano.specs, { rotulo: "Fidelidade", valor: "nenhuma" }].map((sp) => (
+              <div key={sp.rotulo} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                <span>{sp.rotulo}</span>
+                <strong style={s("color:#fff;font-weight:var(--w-data);font-variant-numeric:tabular-nums;white-space:nowrap")}>{sp.valor}</strong>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* No desktop, o teste mora no navy, longe do botão de pagar. */}
+        <div className="pg-desk" style={s("margin-top:auto;padding:16px 18px;border:1px solid var(--nav-line);border-radius:var(--r-painel);color:var(--warm)")}>{saida}</div>
+      </section>
+
+      <section className="pg-pag m-enter">
+        {pendente && <h1 className="pg-desk" style={s("margin:0;font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>Pagamento</h1>}
+        {pagamento}
+        <div className="pg-cel" style={s("color:var(--muted);padding-top:12px;border-top:1px solid var(--line)")}>{saida}</div>
+        <div style={{ marginTop: "auto", paddingTop: 12 }}><LinhaLegal /></div>
+      </section>
+    </main>
   );
 }
 

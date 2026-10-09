@@ -39,11 +39,11 @@ import type {
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { carimbo, lerCarimbo } from "./carimbo";
 import { chamar } from "./cliente";
-import { CATALOGO_AVULSO, faltando } from "./config";
+import { CATALOGO_AVULSO, METODOS, faltando } from "./config";
 
 type Produto = { id: string; externalId: string; name?: string; price?: number; status?: string; cycle?: string | null };
 
-const cache = new Map<string, { preco: number; nome: string }>();
+const cache = new Map<string, { id: string; preco: number; nome: string }>();
 
 /**
  * O preço e o nome do mês avulso deste plano, lidos do produto na conta.
@@ -59,7 +59,7 @@ const cache = new Map<string, { preco: number; nome: string }>();
  * ⚠️ POR `products/get?externalId=`, E NÃO POR `products/list`: logo depois de criar, a lista
  * sem parâmetro voltou VAZIA por minutos (cache deles, 29/09/2026).
  */
-async function doProdutoAvulso(plano: ChaveDePlano): Promise<{ preco: number; nome: string }> {
+async function doProdutoAvulso(plano: ChaveDePlano): Promise<{ id: string; preco: number; nome: string }> {
   const externo = CATALOGO_AVULSO[plano];
   const guardado = cache.get(externo);
   if (guardado) return guardado;
@@ -77,7 +77,7 @@ async function doProdutoAvulso(plano: ChaveDePlano): Promise<{ preco: number; no
     );
   }
 
-  const r = { preco: achado.price, nome: achado.name ?? `MAISA ${plano}` };
+  const r = { id: achado.id, preco: achado.price, nome: achado.name ?? `MAISA ${plano}` };
   cache.set(externo, r);
   return r;
 }
@@ -138,9 +138,47 @@ export function descricaoDoPix(nome: string): string {
   return limpo || "MAISA";
 }
 
+/**
+ * ★ O MÊS NO CARTÃO (09/10/2026) — compra avulsa na página hospedada deles.
+ *
+ * Cartão não tem tela transparente: o número do cartão não pode passar por nós. Então é o
+ * `checkouts/create` de um produto SEM ciclo, com `["CARD"]` só, e a pessoa vai para a página
+ * deles e volta. O webhook `checkout.completed` já sabia somar um mês por esse caminho
+ * (`entrada/abacatepay/eventos.ts`, que relê o checkout e marca `cartao`).
+ *
+ * ⚠️ SÓ `["CARD"]`, NUNCA `["PIX","CARD"]`. `methods` é conjunção na AbacatePay: um método que a
+ * loja não tem derruba o checkout inteiro. O Pix já tem o caminho dele, o transparente.
+ *
+ * O carimbo vai no `externalId`, que volta no `GET /checkouts/get`. Ele leva o dia, e o
+ * `externalId` é chave de idempotência deles: o segundo clique no mesmo dia reabre o MESMO
+ * checkout, em vez de criar outro (medido em 29/09/2026).
+ *
+ * Medido em 09/10/2026 na loja de teste: `CARD is not available for this store`, inclusive
+ * avulso. Por isso a porta só abre com `ABACATEPAY_METODOS` contendo `CARD`.
+ */
+async function abrirCartao(t: ContextoTenant, p: PedidoDeCheckout, produto: string): Promise<CheckoutAberto> {
+  if (!METODOS.includes("CARD")) throw new NaoSuportado("pagamento com cartão", "AbacatePay");
+
+  const c = await chamar<{ id?: string; url?: string }>("/checkouts/create", {
+    corpo: {
+      items: [{ id: produto, quantity: 1 }],
+      methods: ["CARD"],
+      externalId: carimbo(t.tenantId, p.plano, hojeISO()),
+      metadata: { tenant_id: t.tenantId, plano: p.plano },
+      returnUrl: p.cancelarPara,
+      completionUrl: p.voltarPara,
+    },
+  });
+
+  if (!c.url) throw new FalhaDoProvedor("AbacatePay: o checkout de cartão voltou sem endereço.");
+  return { url: c.url, clienteId: null };
+}
+
 export const cobrancaAbacatePayAvulsa: Cobranca = {
   async abrirCheckout(t: ContextoTenant, p: PedidoDeCheckout): Promise<CheckoutAberto> {
     const produto = await doProdutoAvulso(p.plano);
+
+    if (p.metodo === "cartao") return abrirCartao(t, p, produto.id);
 
     const pix = await chamar<PixBruto>("/transparents/create", {
       corpo: {
@@ -199,7 +237,7 @@ export const cobrancaAbacatePayAvulsa: Cobranca = {
   },
 
   capacidades(): CapacidadesDeCobranca {
-    return { portal: false, cancelamento: false, pix: true, prepago: true };
+    return { portal: false, cancelamento: false, pix: true, prepago: true, cartao: METODOS.includes("CARD") };
   },
 
   faltando,

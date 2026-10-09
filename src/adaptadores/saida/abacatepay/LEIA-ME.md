@@ -20,6 +20,13 @@ trilhos**, medido na conta de produção depois de o fundador deles ativar o car
 | `checkouts/create` `["PIX"]` com produto **sem** `cycle` | ✅ `bill_…`, `frequency: ONE_TIME` |
 | `transparents/create` Pix de R$ 1 | ✅ **pago** — a primeira transação real da loja |
 
+**09/10/2026, cartão avulso:** `checkouts/create` `["CARD"]` com produto **sem** `cycle` voltou
+❌ `CARD is not available for this store` (loja de teste; em 29/09 teste e produção recusaram igual).
+O código já tem o caminho (`abrirCartao` em `cobranca-avulsa.ts`: um mês no cartão, na página
+deles, somado pelo mesmo `checkout.completed`), e ele só abre com `ABACATEPAY_METODOS=PIX,CARD`
+na Vercel. Pôr `CARD` ali **antes** de a loja aceitar mostra uma aba que quebra no clique: confira
+com `checkouts/create` `["CARD"]` primeiro.
+
 Então o padrão virou o **pré-pago** (`ABACATEPAY_COBRANCA=avulsa`, que é o default):
 `cobranca-avulsa.ts` cria um **Pix transparente** do mês e manda a pessoa para a NOSSA tela,
 `/pagar`, que desenha o QR Code e o copia-e-cola (desde 30/09/2026 — ver abaixo); o webhook

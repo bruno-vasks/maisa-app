@@ -23,7 +23,7 @@
  * verdade quando entra.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import { DadoInvalido, NaoEncontrado } from "../dominio/erros";
+import { DadoInvalido, NaoEncontrado, NaoSuportado } from "../dominio/erros";
 import {
   acessoLiberado, avisoDoDia, creditarUmMes, ehChaveDePlano, fimDoAcesso, liberarTeste, textoDoAviso,
 } from "../dominio/assinatura";
@@ -67,6 +67,12 @@ export function criarAbrirCheckout(deps: {
      * e voltou vira duas fichas no provedor — e duas fichas podem carregar duas
      * assinaturas ativas do MESMO negócio, cobrando duas vezes. A leitura é barata
      * (uma linha por chave primária) e acontece uma vez por clique em "assinar". */
+    /* Cartão pedido a um provedor que não aceita é recusado aqui, com nome: lá ele derrubaria o
+     * checkout inteiro (ver `CapacidadesDeCobranca.cartao`). */
+    if (p.metodo === "cartao" && !deps.cobranca.capacidades().cartao) {
+      throw new NaoSuportado("Pagamento com cartão", deps.provedor === "stripe" ? "Stripe" : "AbacatePay");
+    }
+
     const atual = await deps.assinaturas.ler(t);
     const aberto = await deps.cobranca.abrirCheckout(t, {
       ...p,

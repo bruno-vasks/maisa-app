@@ -119,7 +119,8 @@ export const cobrancaDemo: Cobranca = {
     /* Espelha a AbacatePay no PRÉ-PAGO, pelo mesmo motivo do `metodo: "pix"` acima: é o
      * conjunto de capacidades que a tela ainda não sabia desenhar. Sem cancelamento porque não
      * há assinatura para cancelar — quem não quer mais, não paga o mês seguinte. */
-    return { portal: false, cancelamento: false, pix: true, prepago: true };
+    /* Cartão ligado no demo para a aba poder ser desenhada sem provedor. */
+    return { portal: false, cancelamento: false, pix: true, prepago: true, cartao: true };
   },
   faltando: () => [],
 };

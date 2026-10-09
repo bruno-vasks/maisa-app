@@ -174,7 +174,7 @@ não é falha de requisição, é o app dizendo ao dono o que falta. Ver
 
 | Rota | Métodos | Porteiro | Caso de uso |
 |---|---|---|---|
-| `/api/assinatura` | GET · POST | `sessaoOuDemo` | `LerAssinatura` — plano, status, próxima cobrança, cartão · `AbrirCheckout` (`{plano}`) — devolve `{url}`, **não cobra nada** |
+| `/api/assinatura` | GET · POST | `sessaoOuDemo` | `LerAssinatura` — plano, status, próxima cobrança, cartão · `AbrirCheckout` (`{plano, metodo?}`) — devolve `{url}`, **não cobra nada**. `metodo: "cartao"` (09/10/2026) abre a compra avulsa de um mês no cartão, e só passa quando `capacidades.cartao` |
 | `/api/assinatura/portal` | POST | `sessaoOuDemo` | `AbrirPortalDeCobranca` — trocar cartão, baixar fatura, cancelar. Separada da irmã porque é a operação destrutiva. **Só provedor com portal** (Stripe); na AbacatePay devolve **501** |
 | `/api/assinatura/cancelar` | POST | `sessaoOuDemo` | `CancelarAssinatura` — o caminho de quem **não** tem portal (AbacatePay). ⚠️ **imediato e irreversível**; na Stripe devolve **501** |
 | `/api/stripe/webhook` | POST | **assinatura HMAC** (`STRIPE_WEBHOOK_SECRET`) | `RegistrarAssinatura` — escrita em `assinaturas`. Continua no ar por quem assinou pela Stripe |
