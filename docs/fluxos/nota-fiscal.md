@@ -38,7 +38,7 @@ código seria assinar manutenção de legislação de 5.500 municípios.
 
 | Situação | O que acontece | Por quê |
 |---|---|---|
-| **sem token** | modo `simulado` | o fluxo inteiro roda, inclusive o polling, sem emitir nada. É como se testa local |
+| **sem token** | modo `simulado` | o fluxo inteiro roda, inclusive o polling, sem emitir nada. Em homologação a simulada sai com número e PDF (15/10/2026, ver abaixo); em produção, sem documento |
 | **token, faltando dado fiscal** | `NaoConfigurado` → `config_incompleta` **com a lista** | não arrisca emitir errado; a tela diz exatamente quais variáveis faltam |
 | **token + dados completos** | emissão real | ambiente por `FOCUS_NFE_AMBIENTE`, padrão **homologação** |
 
@@ -62,6 +62,24 @@ inválido vai para a prefeitura.
 
 **CPF de teste tem que ser real.** A prefeitura valida a existência do documento; um CPF
 inventado é rejeitado **antes** de a integração ser exercitada, e o erro parece de código.
+
+## O PDF vai para o WhatsApp de quem emite (15/10/2026)
+
+Quando a nota sai com PDF — autorizada pela Focus, ou simulada em homologação —, `avisarDono`
+(`aplicacao/notas.ts`) manda o arquivo para o WhatsApp do dono, com nº, tomador e valor na
+legenda, para ele conferir e encaminhar. O número é o mesmo `numeroDaDona` do recibo
+(`telefoneDono`, senão o número conectado), e o envio sai pela instância do próprio negócio:
+**sem WhatsApp conectado, não há aviso.**
+
+- **Vai para o dono, nunca para o cliente.** Nota sai no CNPJ dele; quem decide se e quando ela
+  chega ao cliente é ele.
+- **Uma vez só.** Na consulta, só na virada para `emitida` — a tela consulta a cada poucos
+  segundos.
+- **Nunca lança.** A nota está gravada; mensagem que falha vai para o log e não vira erro.
+- **Lote = uma mensagem por nota.** "Emitir as 33 pendentes" manda 33 PDFs.
+
+Até esta data não existia envio nenhum da nota: o `enviar_email_destinatario: false` de
+`conta.ts` assumia que a MAISA mandaria, e ninguém mandava.
 
 ## Formato de erro diferente do resto do app
 

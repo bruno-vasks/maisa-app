@@ -30,7 +30,24 @@ conclui que está lento. Quem decide é `nucleo/dominio/fiscal.caminhoDaNota`, e
 | `prestador.ts` | O tipo `Prestador` (quem emite, por inquilino) e os helpers comuns aos dois clientes. |
 | `nfsen.ts` | Cliente do **DPS nacional** (`/v2/nfsen`). O caminho do MEI. |
 | `focus.ts` | Cliente da **NFS-e municipal** (`/v2/nfse`). Recebe o prestador como argumento — não lê mais env. |
+| `nota-simulada.ts` | O documento da nota **simulada em homologação** (15/10/2026): número, PDF escrito à mão e o link assinado (`/api/nf/pdf/[ref]?a=`). Ver abaixo. |
 | `config.ts` | Só o que é da conta: `FOCUS_NFE_TOKEN` e o ambiente padrão. Os dados do prestador saíram daqui em 17/08/2026 — ver abaixo. |
+
+## A simulada em homologação tem número e PDF (15/10/2026)
+
+Sem `FOCUS_NFE_TOKEN`, a nota em **homologação** sai `simulado` com número (seis dígitos, crescente
+no tempo) e um link de PDF gerado por nós — o mesmo par que a Focus devolve. Pedido do Bruno para a
+conta demo do marketing, com a Focus desligada por não haver cliente emitindo nota.
+
+- **Em produção sem token, nada mudou:** sai sem documento. PDF com cara de nota num negócio que
+  acha que está faturando de verdade é o erro que não se desfaz.
+- **O link é uma capacidade.** Quem baixa é a Evolution, sem sessão: o `?a=` é um HMAC da `ref` com
+  a `SUPABASE_SERVICE_ROLE_KEY` (rótulo `maisa-nf-pdf-v1:`), e a rota acha o inquilino pela nota.
+  Sem `MAISA_PUBLIC_URL` não há link, e a nota sai sem PDF, como antes.
+- **O PDF é escrito à mão** (Helvetica + WinAnsi, uma página): uma dependência de PDF para isto
+  pesaria no bundle de todas as rotas. O CPF do tomador sai mascarado — o documento circula por
+  WhatsApp.
+- **A consulta da simulada não apaga o número:** `criarConsultarNota` mantém o que está no banco.
 
 ## ⚠️ Nem o token de emissão nem o certificado ficam com a gente
 

@@ -724,8 +724,15 @@ export const app = {
   /* Os três recebem `fiscal` porque o prestador vem do BANCO, por inquilino — antes vinha
    * de variável de ambiente, e uma resposta global num produto multi-inquilino é a nota de
    * um cliente saindo no CNPJ do outro. */
-  emitirNota: criarEmitirNota({ emissor, fiscal: fiscalRepo, notas: notasRepo, novoId: randomUUID }),
-  consultarNota: criarConsultarNota({ emissor, fiscal: fiscalRepo, notas: notasRepo }),
+  /* `aviso` desde 15/10/2026: a nota que sai vai em PDF para o WhatsApp do dono, pelo mesmo canal
+   * e o mesmo `numeroDaDona` do recibo. Ver `aplicacao/notas.ts#avisarDono`. */
+  emitirNota: criarEmitirNota({
+    emissor, fiscal: fiscalRepo, notas: notasRepo, novoId: randomUUID,
+    aviso: { canal, canalDoNegocio: canalRepo },
+  }),
+  consultarNota: criarConsultarNota({
+    emissor, fiscal: fiscalRepo, notas: notasRepo, aviso: { canal, canalDoNegocio: canalRepo },
+  }),
   cancelarNota: criarCancelarNota({ emissor, fiscal: fiscalRepo, notas: notasRepo }),
   lerFaturamento: criarLerFaturamento({ notas: notasRepo, fiscal: fiscalRepo }),
 

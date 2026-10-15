@@ -47,7 +47,7 @@ const atendimentos = (n: number) => `${n} ${n === 1 ? "atendimento" : "atendimen
 
 /** A frase que explica o estado da nota. Uma só, para cartão e tabela não divergirem. */
 function resumoNota(n: D.Nota): string {
-  if (n.status === "emitida") return `Nota ${n.numero} emitida em ${n.data}${n.simulada ? " (modo simulado)" : ""}`;
+  if (n.status === "emitida") return `Nota ${n.numero} emitida em ${n.data}${n.simulada && !n.pdf ? " (modo simulado)" : ""}`;
   if (n.status === "processando") return "Enviada à prefeitura — o número sai em alguns minutos.";
   if (n.status === "cancelada") return "Nota cancelada. O valor do mês continua fechado.";
   if (n.status === "erro") return n.erro ?? "A emissão falhou.";

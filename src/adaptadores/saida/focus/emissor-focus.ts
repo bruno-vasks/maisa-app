@@ -42,6 +42,7 @@ import { tokenDaEmpresa } from "./conta";
 import { cancelarNfse, consultarNfse, emitirNfse, normalizarStatus } from "./focus";
 import { cancelarDps, consultarDps, emitirDps } from "./nfsen";
 import type { EmissaoInput, Prestador } from "./prestador";
+import { numeroSimulado, urlDoPdfSimulado } from "./nota-simulada";
 
 const JUSTIFICATIVA_PADRAO =
   "Cancelamento automatico de nota emitida para teste de integracao MAISA.";
@@ -102,7 +103,17 @@ const marca = (r: Omit<ResultadoDeNota, "ambiente" | "simulado">, config: Config
 
 export const emissorFocus: EmissorFiscal = {
   async emitir(_t, config, p): Promise<ResultadoDeNota> {
-    if (semEmissor()) return { status: "simulado", ref: p.ref, ambiente: config.ambiente, simulado: true };
+    if (semEmissor()) {
+      /* Em homologação a simulada sai com número e PDF, como a de verdade — ver
+       * `nota-simulada.ts`. Em produção, sem documento: PDF com cara de nota num negócio que
+       * acha que está faturando é o erro que não se desfaz. */
+      const comDocumento = config.ambiente === "homologacao";
+      const pdf = comDocumento ? urlDoPdfSimulado(p.ref) : null;
+      return {
+        status: "simulado", ref: p.ref, ambiente: config.ambiente, simulado: true,
+        ...(pdf ? { numero: numeroSimulado(), pdf } : {}),
+      };
+    }
 
     const prestador = await prestadorDe(config);
     const nacional = caminhoDaNota(config, hojeISO()) === "nacional";

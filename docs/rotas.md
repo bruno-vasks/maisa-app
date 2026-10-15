@@ -108,9 +108,10 @@ muda o comportamento da tela — procure o nome no store antes.
 |---|---|---|---|
 | `/api/fiscal` | GET · POST · PUT · PATCH · DELETE | `exigirSessao` | `LerEstadoFiscal` · `ConsultarCnpj` (`?cnpj=`) · `LigarNotaFiscal` · `LigarReciboSaude` (`{cpf}`) · `EnviarCertificado` · `LiberarProducaoFiscal` · `DesligarReciboSaude` (DELETE) |
 | `/api/faturamento` | GET | `exigirSessao` | `LerFaturamento` — o que falta emitir, o que já saiu, e o que impede |
-| `/api/nf/emitir` | POST | `sessaoOuDemo` | `EmitirNota` |
+| `/api/nf/emitir` | POST | `sessaoOuDemo` | `EmitirNota` — desde 15/10/2026, a nota que sai com PDF vai para o WhatsApp do dono (`aviso` em `aplicacao/notas.ts`) |
 | `/api/nf/status` | GET | `sessaoOuDemo` | `ConsultarNota` |
 | `/api/nf/cancelar` | POST | `sessaoOuDemo` | `CancelarNota` |
+| `/api/nf/pdf/[ref]` | GET | **capacidade** (`?a=`, HMAC da `ref`) | sem caso de uso: o PDF da nota que o modo simulado emite em homologação (15/10/2026). Sem sessão — quem baixa é a Evolution, para o aviso no WhatsApp. O inquilino sai da própria nota, nunca do request. Ver `saida/focus/nota-simulada.ts` |
 | `/api/recibos/lote` | POST · PATCH | `exigirSessao` | `GerarLoteDeRecibos` · `FecharLoteDeRecibos` — o CSV do Receita Saúde, para quem atende como pessoa física. `PATCH { avisar: true }` manda a notícia do recibo aos pacientes no WhatsApp |
 | `/api/recibos` | GET · POST · DELETE | `exigirSessao` | `LerRecibosPendentes` · `LancarPagamentoAvulso` · `ExcluirPagamentoAvulso` — o que vai no arquivo, e o pagamento que a agenda não pegou |
 | `/api/recibos/emitir` | POST | `exigirSessao` | `EmitirRecibo` — UM pagamento, pelo canal programático (Rebots, ou o demo quando não há credencial). Recebe só `{fonte, id}`: valor, CPF e data saem do banco. ⚠️ 200 quer dizer "o canal aceitou", **não** "emitido" — o desfecho chega no callback Desde 01/10/2026 também `{ itens: [{fonte, id}, …] }`: várias sessões da mesma pessoa e mês num recibo só (um recibo por mês); de cada item só `fonte` e `id` chegam ao núcleo. |
