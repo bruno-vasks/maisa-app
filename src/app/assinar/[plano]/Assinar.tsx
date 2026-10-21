@@ -52,19 +52,17 @@ import { LinhaLegal } from "@/app/(marketing)/_lib/LinhaLegal";
 import { ehVertical, NOME_NEGOCIO_MIN, type Vertical } from "@/nucleo/dominio/negocio";
 import { soDigitos, TELEFONE_MIN_DIGITOS } from "@/nucleo/dominio/clientes";
 import { guardarPix } from "@/ui/estado/pix";
+import { CAMPANHA, empurrar, empurrarEEsperar } from "@/ui/medicao";
 
 const inputCss =
   "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
-/** Os parâmetros de campanha que viajam do anúncio para o `metadata` da assinatura.
+/* `CAMPANHA` (de `ui/medicao.ts`) são os parâmetros que viajam do anúncio para o
+ * `metadata` da assinatura.
  *
- *  ⚠️ SEM ISSO, TRÁFEGO PAGO É ORÇAMENTO NO ESCURO. É a parte que se deixa para depois e
- *  nunca volta — e ela tem que nascer com a página, porque campanha que já rodou sem
- *  marcação não se remarca retroativamente. */
-const CAMPANHA = [
-  "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-  "gclid", "fbclid",
-] as const;
+ * ⚠️ SEM ISSO, TRÁFEGO PAGO É ORÇAMENTO NO ESCURO. É a parte que se deixa para depois e
+ * nunca volta — e ela tem que nascer com a página, porque campanha que já rodou sem
+ * marcação não se remarca retroativamente. */
 
 /** Senha descartável. Ver o ⚠️ sobre não ter campo de senha. */
 function senhaAleatoria(): string {
@@ -160,6 +158,9 @@ function AssinarInner({ plano }: { plano: Plano }) {
         return;
       }
 
+      /* A conta nasceu: é a conversão, com ou sem a confirmação de e-mail adiante. */
+      empurrar({ event: "maisa_sign_up", maisa_method: "email", maisa_origem: "assinar", maisa_icp: vertical, maisa_plano: plano.chave });
+
       /* Sem sessão = "Confirm email" ligado no projeto. Ver o ⚠️ do cabeçalho. */
       if (!data.session) {
         setEstado({ fase: "confirme", email: email.trim() });
@@ -208,6 +209,9 @@ function AssinarInner({ plano }: { plano: Plano }) {
       }
 
       guardarPix(ass.pagamento);
+      /* Espera o GTM enviar antes de sair da página, até 1,5 s: o redirecionamento cortava
+       * o envio. Ver `empurrarEEsperar`. */
+      await empurrarEEsperar({ event: "maisa_begin_checkout", maisa_plano: plano.chave, maisa_icp: vertical });
       window.location.href = ass.url;
     },
     [nome, telefone, email, plano.chave, vertical, campanha],
