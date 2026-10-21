@@ -95,15 +95,34 @@ const mx = async (nome) => {
 
 titulo("DNS — o que a Resend pede (via 8.8.8.8 / 1.1.1.1)");
 
-const spfEnvio = await txt(`send.${DOMINIO}`);
-spfEnvio.some((v) => v.includes("amazonses.com"))
-  ? ok(`send.${DOMINIO} SPF → amazonses`)
-  : nao(`send.${DOMINIO} sem SPF da Amazon SES`);
+/* ⚠️ A RESEND TROCOU DE ESQUEMA (anotado no cofre em 22/09/2026, corrigido aqui em
+ * 21/10/2026): o caminho de retorno deixou de ser SPF + MX da Amazon SES direto em `send.`
+ * e passou a ser CNAME para `*.forge.rmta.net`, em `send.` e em `rsend.`. Até esta data o
+ * script só conhecia o esquema velho e acusava "sem SPF" e "sem MX" com o DNS certo, porque
+ * o resolvedor segue o CNAME e devolve o SPF do destino, que não cita `amazonses`. */
+const cname = async (nome) => {
+  try { return await resolvedor.resolveCname(nome); }
+  catch { return []; }
+};
 
-const mxEnvio = await mx(`send.${DOMINIO}`);
-mxEnvio.some((r) => r.exchange.includes("feedback-smtp"))
-  ? ok(`send.${DOMINIO} MX → ${mxEnvio[0].exchange}`)
-  : nao(`send.${DOMINIO} sem MX de feedback (bounces somem)`);
+for (const sub of ["send", "rsend"]) {
+  const nome = `${sub}.${DOMINIO}`;
+  const alvo = await cname(nome);
+  if (alvo.length) {
+    alvo.some((a) => a.endsWith("rmta.net"))
+      ? ok(`${nome} CNAME → ${alvo[0]} (esquema novo da Resend)`)
+      : nao(`${nome} CNAME para ${alvo[0]}, que não é da Resend`);
+    continue;
+  }
+  if (sub === "rsend") { nao(`${nome} sem CNAME da Resend`); continue; }
+  /* Esquema velho: ainda vale se a conta da Resend for anterior à troca. */
+  (await txt(nome)).some((v) => v.includes("amazonses.com"))
+    ? ok(`${nome} SPF → amazonses (esquema velho)`)
+    : nao(`${nome} sem CNAME da Resend e sem SPF da Amazon SES`);
+  (await mx(nome)).some((r) => r.exchange.includes("feedback-smtp"))
+    ? ok(`${nome} MX de feedback (esquema velho)`)
+    : nao(`${nome} sem MX de feedback (bounces somem)`);
+}
 
 const dkim = await txt(`resend._domainkey.${DOMINIO}`);
 dkim.some((v) => v.includes("p="))
