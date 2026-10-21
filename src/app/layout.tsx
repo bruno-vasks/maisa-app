@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, Plus_Jakarta_Sans, Alegreya_Sans } from "next/font/google";
 import "./globals.css";
 import { BASE_DE_METADATA } from "@/config/endereco";
+import Medicao from "@/ui/componentes/Medicao";
 
 // A face de UI. Escolhida por métrica, não por gosto: os dez dígitos da IBM Plex Sans têm o MESMO
 // avanço (600/1000) e os da Plex Mono também — então um valor alinha em coluna no cartão, na
@@ -101,7 +102,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           globals.css. Antes havia um literal 'Plus Jakarta Sans' no CSS que NUNCA resolvia (o
           next/font ofusca o nome da família) e só não quebrava porque o className vencia por
           especificidade — duas fontes de verdade, uma delas morta. */}
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* O GTM da MAISA, só nas rotas do funil. Ver `ui/medicao.ts`. */}
+        <Medicao />
+      </body>
     </html>
   );
 }
