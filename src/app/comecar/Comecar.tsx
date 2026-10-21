@@ -66,6 +66,7 @@ import {
 import { useIsMobile } from "@/ui/useIsMobile";
 import { OpcoesDoNumero, useCaderno } from "@/ui/componentes/EscolhaDoNumero";
 import type { ModoDoNumero } from "@/nucleo/dominio/contatos";
+import { ajustesDosModos, alternarModo, type Modo } from "./modos";
 
 /* ───────────────────────────── as etapas ───────────────────────────── */
 
@@ -109,14 +110,13 @@ const VERTICAIS: { id: Vertical; rotulo: string; desc: string; icone: string }[]
  * perguntas, e não um `if (vertical === "terapeutas")`.
  *
  * ⚠️ A ESCOLHA TEM CONSEQUÊNCIA IMEDIATA, e é ela que justifica perguntar aqui em vez de
- * enterrar num ajuste do painel: quem escolhe `avisos` NÃO passa pela etapa "Ver
+ * enterrar num ajuste do painel: quem não marca `conversa` NÃO passa pela etapa "Ver
  * funcionando", que é a única que exige a agenda do Google. Sem isto, um consultório de
  * agenda fixa empaca numa etapa que existe para demonstrar um agente que ele desligou.
  *
- * O par de campos que cada modo grava está em `aplicarModo`.
+ * Os modos se somam desde 21/10/2026. O que cada um grava está em `./modos.ts`.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-type Modo = "conversa" | "avisos" | "recibos";
 
 const MODOS: { id: Modo; rotulo: string; desc: string; icone: string }[] = [
   {
@@ -126,19 +126,22 @@ const MODOS: { id: Modo; rotulo: string; desc: string; icone: string }[] = [
     icone: "chat",
   },
   {
+    /* Até 21/10/2026 o rótulo era "Minha agenda é fixa" e a descrição dizia "ela não
+     * responde ninguém". Fazia sentido com escolha única; marcando junto com "ela conversa",
+     * as duas frases se contradiziam. Agora cada cartão diz só o que ele LIGA. */
     id: "avisos",
-    /* "Minha agenda é fixa" e não "não quero o agente": a pessoa se reconhece pela
-     * própria rotina, não por uma feature que ela ainda não viu funcionando. */
-    rotulo: "Minha agenda é fixa",
-    desc: "Ela não responde ninguém — só manda o lembrete e avisa quando o recibo sai",
+    rotulo: "Ela manda lembretes",
+    desc: "Lembra o cliente da sessão e avisa quando o recibo sai",
     icone: "bell",
   },
   {
     /* ★ 24/09/2026. Quem só quer o documento fiscal não precisa de WhatsApp nenhum, e
-     * obrigar a conectar um número é o maior gargalo do wizard para essa pessoa. */
+     * obrigar a conectar um número é o maior gargalo do wizard para essa pessoa. Este cartão
+     * não grava nada: a emissão vale para todo negócio. Marcado SOZINHO, ele é o que tira o
+     * WhatsApp da trilha, porque os outros dois ficam desligados. */
     id: "recibos",
-    rotulo: "Só quero emitir recibo ou nota",
-    desc: "Sem WhatsApp: ela não conversa nem manda lembrete. Dá para ligar depois",
+    rotulo: "Ela emite recibo ou nota",
+    desc: "O documento de cada atendimento. Sozinho, não precisa de WhatsApp",
     icone: "receipt",
   },
 ];
@@ -305,47 +308,29 @@ function Botao({
 /* ───────────────────────────── etapa 1 · o negócio ───────────────────────────── */
 
 /**
- * O que cada modo grava na assistente.
- *
- * `ativa` liga ou cala o agente (`entrada/whatsapp/agente.ts`). No modo `conversa` ele é
- * gravado EXPLICITAMENTE: desde 24/09/2026 terapeuta nasce com a MAISA desligada
- * (`atendeNoWhatsAppPorPadrao`), então "ela conversa" precisa ligar, não herdar.
- *
- * `avisarRecibo: true` no modo `avisos`: o padrão dele no banco é `false` de propósito — é o
- * único toggle que dispara sem ninguém por perto, do número pessoal do dono. Quem escolhe
- * este modo pediu, com todas as letras, no texto do cartão.
- *
- * `recibos` desliga as TRÊS coisas que saem pelo WhatsApp (agente, lembrete, aviso). É isso
- * que faz o WhatsApp sumir da trilha e do cartão de jornada — `usoDoWhatsApp` deriva dos
- * mesmos três campos, e não de um "modo" guardado à parte.
- */
-const AJUSTES_DO_MODO: Record<Modo, { assistente: { ativa: boolean }; cfg?: Record<string, boolean> }> = {
-  conversa: { assistente: { ativa: true } },
-  avisos: { assistente: { ativa: false }, cfg: { avisarRecibo: true } },
-  recibos: { assistente: { ativa: false }, cfg: { lembrete: false, avisarRecibo: false } },
-};
-
-/**
- * Grava o modo e devolve o uso do WhatsApp que FICOU no servidor — lido da resposta, não
+ * Grava os modos e devolve o uso do WhatsApp que FICOU no servidor — lido da resposta, não
  * suposto da escolha. `undefined` quando o PATCH não passa: valem todos os passos, o lado
  * que mostra uma etapa a mais em vez de esconder uma.
  */
-const aplicarModo = async (modo: Modo): Promise<UsoDoWhatsApp | undefined> => {
+const aplicarModos = async (modos: readonly Modo[]): Promise<UsoDoWhatsApp | undefined> => {
   const r = await fetch("/api/assistente", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(AJUSTES_DO_MODO[modo]),
+    body: JSON.stringify(ajustesDosModos(modos)),
   }).then((x) => x.json()).catch(() => null);
   if (!r?.ok || !r.assistente || !r.cfg) return undefined;
   return usoDoWhatsApp({ ativa: r.assistente.ativa, lembrete: r.cfg.lembrete, avisarRecibo: r.cfg.avisarRecibo });
 };
 
-/** Um cartão de escolha — o mesmo desenho para a vertical e para o modo. */
+/** Um cartão de escolha — o mesmo desenho para a vertical (uma só, `radio`) e para os modos
+ *  (vários, `checkbox`). O papel é o que o leitor de tela anuncia: sem ele, os dois grupos
+ *  soavam iguais e ninguém sabia que os modos se somam. */
 function Escolha({
-  on, icone, rotulo, desc, onClick,
-}: { on: boolean; icone: string; rotulo: string; desc: string; onClick: () => void }) {
+  on, icone, rotulo, desc, onClick, papel,
+}: { on: boolean; icone: string; rotulo: string; desc: string; onClick: () => void; papel: "radio" | "checkbox" }) {
   return (
     <button
+      type="button" role={papel} aria-checked={on}
       onClick={onClick} className="m-press m-focus"
       style={s(`display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--r-painel);cursor:pointer;text-align:left;font-family:inherit;border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"}`)}
     >
@@ -362,13 +347,13 @@ function Escolha({
 function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) => void }) {
   const [nome, setNome] = useState("");
   const [vertical, setVertical] = useState<Vertical | null>(null);
-  const [modo, setModo] = useState<Modo | null>(null);
+  const [modos, setModos] = useState<Modo[]>([]);
   const [recado, setRecado] = useState<Recado>(null);
   const [ocupado, setOcupado] = useState(false);
 
   const criar = useCallback(async () => {
     if (!vertical) { setRecado(falhou("Escolha o tipo do seu negócio.")); return; }
-    if (!modo) { setRecado(falhou("Escolha como a MAISA vai trabalhar.")); return; }
+    if (!modos.length) { setRecado(falhou("Marque pelo menos uma coisa que a MAISA vai fazer.")); return; }
     setRecado(null);
     setOcupado(true);
     try {
@@ -392,7 +377,7 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
        * criar — e a segunda tentativa bateria em "você já tem um negócio". Então o wizard
        * segue com a trilha completa e diz o que não pegou; os mesmos toggles estão na tela
        * "A MAISA", que é onde ela conserta em dois cliques. */
-      const uso = await aplicarModo(modo);
+      const uso = await aplicarModos(modos);
       if (!uso) {
         toast("Criei seu negócio, mas não consegui gravar como a MAISA vai trabalhar — ajuste em “A MAISA”.");
       }
@@ -401,7 +386,7 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
       setRecado(falhou("Sem conexão com o servidor. Tente de novo."));
       setOcupado(false);
     }
-  }, [nome, vertical, modo, aoCriar]);
+  }, [nome, vertical, modos, aoCriar]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -412,7 +397,7 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
         <input
           autoFocus value={nome} onChange={(e) => setNome(e.target.value)}
           placeholder="Escreva o nome do seu negócio…" className="m-focus" style={s(CAMPO)}
-          onKeyDown={(e) => { if (e.key === "Enter" && nome.trim() && vertical && modo) void criar(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && nome.trim() && vertical && modos.length) void criar(); }}
         />
         {/* Diz a CONSEQUÊNCIA, não a regra. Este campo entra no prompt do agente a cada
             mensagem e no texto de todo lembrete — foi assim que um negócio de teste passou
@@ -431,7 +416,7 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
         </span>
         {VERTICAIS.map((v) => (
           <Escolha
-            key={v.id} on={vertical === v.id} icone={v.icone} rotulo={v.rotulo} desc={v.desc}
+            key={v.id} on={vertical === v.id} icone={v.icone} rotulo={v.rotulo} desc={v.desc} papel="radio"
             onClick={() => { setVertical(v.id); setRecado(null); }}
           />
         ))}
@@ -439,18 +424,18 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-          Como a MAISA vai trabalhar?
+          O que a MAISA vai fazer?
         </span>
         {/* Diz que dá para mudar depois pela mesma razão do bloco de cima: a escolha tem
             consequência grande (ela fala ou não fala com seus clientes) e ninguém decide bem
             uma coisa dessas achando que é definitiva. */}
         <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45;margin-bottom:2px")}>
-          Dá para trocar quando quiser, na tela “A MAISA”.
+          Marque tudo o que quiser. Dá para trocar depois, na tela “A MAISA”.
         </span>
         {modosPara(vertical).map((m) => (
           <Escolha
-            key={m.id} on={modo === m.id} icone={m.icone} rotulo={m.rotulo} desc={m.desc}
-            onClick={() => { setModo(m.id); setRecado(null); }}
+            key={m.id} on={modos.includes(m.id)} icone={m.icone} rotulo={m.rotulo} desc={m.desc} papel="checkbox"
+            onClick={() => { setModos((atual) => alternarModo(atual, m.id)); setRecado(null); }}
           />
         ))}
       </div>

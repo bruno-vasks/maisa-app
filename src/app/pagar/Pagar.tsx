@@ -66,6 +66,7 @@ import { PLANOS } from "@/app/(marketing)/_lib/planos";
 import type { PagamentoPix } from "@/nucleo/portas/saida/cobranca";
 import { destinoDaVolta, voltaSegura } from "./regras";
 import { guardarPix, pixGuardado } from "@/ui/estado/pix";
+import { empurrar } from "@/ui/medicao";
 
 
 type Leitura =
@@ -259,7 +260,12 @@ function PagarInner() {
         </div>
       )
       : (
-        <a href={zapTeste} target="_blank" rel="noopener noreferrer" onClick={() => setPediuTeste(true)} className="m-focus" style={s("display:block;font-size:var(--t-sm);line-height:1.5;color:inherit;text-decoration:none")}>
+        <a href={zapTeste} target="_blank" rel="noopener noreferrer" onClick={() => {
+          setPediuTeste(true);
+          /* O pedido de teste é conversão também: quem clica aqui não pagou, mas é um lead
+           * quente que a equipe atende no WhatsApp. O nome é contrato com o marketing. */
+          empurrar({ event: "maisa_pedido_teste", maisa_plano: plano?.chave ?? null });
+        }} className="m-focus" style={s("display:block;font-size:var(--t-sm);line-height:1.5;color:inherit;text-decoration:none")}>
           Quer testar antes? <strong style={s("font-weight:var(--w-title);text-decoration:underline")}>7 dias grátis no WhatsApp</strong>
         </a>
       )
