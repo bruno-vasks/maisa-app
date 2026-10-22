@@ -69,6 +69,36 @@ $$;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- 1b · plano_do_cadastro — o plano que a pessoa escolheu no `/assinar` (034, 22/10/2026)
+--
+-- Entrou com a `034_plano_do_teste.sql`, que a cria em produção; está repetida aqui, idêntica,
+-- porque o `provisionar_negocio` abaixo a chama e o `008` provisiona logo depois desta 005 —
+-- num banco novo, sem ela aqui, o primeiro negócio não nasceria. Mudou uma, mude a outra.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create or replace function public.plano_do_cadastro(p_user uuid)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select case lower(btrim(u.raw_user_meta_data ->> 'plano'))
+           when 'essencial'    then 'Essencial'
+           when 'profissional' then 'Profissional'
+           when 'escala'       then 'Escala'
+         end
+  from auth.users u
+  where u.id = p_user
+$$;
+
+comment on function public.plano_do_cadastro(uuid) is
+  'O plano que a pessoa escolheu no /assinar (user_metadata.plano), com o nome que a tabela '
+  'assinaturas guarda. Nulo quando não escolheu ou escreveu outra coisa. Ver 034_plano_do_teste.sql.';
+
+revoke all on function public.plano_do_cadastro(uuid) from public, anon, authenticated;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- 2 · provisionar_negocio — o corpo
 --
 -- ⚠️ NÃO é chamável por usuário logado (ver o revoke no fim da seção). Ela aceita
@@ -140,10 +170,22 @@ begin
 
   /* ── a assinatura ──
    * Nasce em trial de 14 dias. Sem esta linha, `v_negocio` devolve plano nulo e a tela
-   * de cobrança abre vazia — o que parece bug de código e é só linha que não existe. */
+   * de cobrança abre vazia — o que parece bug de código e é só linha que não existe.
+   *
+   * ★ O PLANO É O QUE A PESSOA ESCOLHEU, E O PREÇO É NULO (034, 22/10/2026). Até a 034 esta
+   * linha gravava 'Profissional' a 149.90 para todo mundo: quem escolheu o Essencial no
+   * `/assinar` via "Assinar Profissional" como botão principal no fim do teste, e 149,90 não
+   * é preço de plano nenhum. O plano vem do `user_metadata` que o `/assinar` grava
+   * (`plano_do_cadastro`); sem escolha, 'Profissional', o plano em destaque das LPs. O preço
+   * fica nulo porque ninguém pagou nada — quem grava preço é o webhook, com o que o provedor
+   * cobrou (`dominio/assinatura.ts`: "o núcleo nunca afirma quanto custa").
+   *
+   * ⚠️ OS 14 DIAS SÃO PROMESSA DE LANDING PAGE ("teste grátis de 14 dias"). A tela os repete
+   * em `DIAS_DE_TESTE` (`dominio/assinatura.ts`), e o `funil.test.ts` do `/assinar` lê este
+   * arquivo e reprova se divergirem. */
   insert into public.assinaturas (tenant_id, plano, preco, status, trial_fim, periodo_fim)
   values (
-    v_tenant, 'Profissional', 149.90, 'trial',
+    v_tenant, coalesce(public.plano_do_cadastro(p_user), 'Profissional'), null, 'trial',
     (now() + interval '14 days')::date,
     (now() + interval '14 days')::date
   );

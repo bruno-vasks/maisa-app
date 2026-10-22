@@ -1226,9 +1226,11 @@ const SITUACAO: Record<StatusAssinatura, string> = {
  * `"Profissional"` → `"profissional"`, para o corpo do POST.
  *
  * ⚠️ DEVOLVE `null` EM VEZ DE CHUTAR, e é a linha mais importante deste arquivo.
- * `assinaturas.plano` é texto livre, e o `005_provisionar.sql` semeia `'Profissional'`
- * com `preco = 149.90` — valor que não é de plano nenhum da tabela atual. Um
- * `?? "profissional"` aqui transformaria dado torto em R$ 197 no cartão de alguém.
+ * `assinaturas.plano` é texto livre. Até a `034_plano_do_teste.sql` o `005_provisionar.sql`
+ * semeava `'Profissional'` com `preco = 149.90` em todo trial — valor que não é de plano
+ * nenhum; desde a 034 o trial nasce com o plano escolhido no `/assinar` e preço nulo, mas
+ * linha velha e linha escrita à mão continuam existindo. Um `?? "profissional"` aqui
+ * transformaria dado torto em R$ 197 no cartão de alguém.
  * Devolvendo `null`, o botão desaparece e a conversa acontece antes da cobrança.
  */
 export function chaveDoPlano(nome: string | null | undefined): ChaveDePlano | null {
@@ -1253,8 +1255,8 @@ export type ResumoDaAssinatura = {
    * Os planos que vão para o bloco de lista. Vazio = a gaveta não oferece troca nenhuma.
    *
    * ★ É AQUI QUE OS TRÊS PREÇOS DA LP ENTRAM NO APP. O botão primário é o plano da linha
-   * da tabela — `'Profissional'` para todo trial, por causa do `005_provisionar.sql`, o
-   * que faz R$ 197 ser a base. Os outros dois ficam disponíveis, com nome e preço à vista,
+   * da tabela — desde a `034_plano_do_teste.sql`, o que a pessoa escolheu no `/assinar`
+   * (antes dela, `'Profissional'` para todo trial). Os outros dois ficam disponíveis, com nome e preço à vista,
    * em vez de exigirem uma conversa. Decisão do Bruno em 21/09/2026.
    */
   outras: Oferta[];

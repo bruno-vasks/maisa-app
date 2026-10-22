@@ -43,7 +43,7 @@ function ambiente() {
 }
 
 /* O marcador de cada migração. `coluna: null` = basta a tabela (ou view) existir. Quem
- * escrever a 033 acrescenta uma linha aqui na mesma mudança. */
+ * escrever a próxima acrescenta uma linha aqui na mesma mudança. */
 export const MARCADORES = [
   { migracao: "009_conversas_painel", tabela: "conversas_estado", coluna: null },
   { migracao: "010_lembretes", tabela: "atendimentos", coluna: "lembrete_em" },
@@ -68,6 +68,9 @@ export const MARCADORES = [
   { migracao: "031_foto_do_negocio", tabela: "negocios", coluna: "foto" },
   { migracao: "032_recibo_automatico", tabela: "assistente", coluna: "recibo_primeiro_para_mim" },
   { migracao: "033_recibo_por_mes", tabela: "v_clientes", coluna: "recibos_por_mes" },
+  /* Só recria uma função e conserta linhas: não há coluna nem tabela para perguntar. A
+   * consulta para conferir à mão está no cabeçalho do arquivo. */
+  { migracao: "034_plano_do_teste", tabela: null, coluna: null },
 ];
 
 const FALTA = new Set(["42703", "PGRST204", "42P01", "PGRST205", "PGRST200"]);

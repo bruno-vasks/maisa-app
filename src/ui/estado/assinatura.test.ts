@@ -7,8 +7,8 @@
  * cobrar o plano errado no cartão de alguém.
  *
  * ★ **PLANO QUE NÃO ESTÁ NA TABELA NÃO VIRA BOTÃO PRIMÁRIO.** `assinaturas.plano` é texto
- * livre, e o `005_provisionar.sql` semeia o trial com `preco = 149.90` — valor que não é de
- * plano nenhum. Chutar "profissional" ali cobraria R$ 197 de quem contratou outra coisa. As
+ * livre, e até a `034_plano_do_teste.sql` o `005_provisionar.sql` semeava o trial com
+ * `preco = 149.90` — valor que não é de plano nenhum. Chutar "profissional" ali cobraria R$ 197 de quem contratou outra coisa. As
  * três ofertas continuam na lista, cada uma com preço à vista: aí a escolha é informada.
  *
  * ★ **TODO BOTÃO DE COBRAR DIZ QUANTO CUSTA.** "Assinar" sozinho cobra sem dizer o valor, e
