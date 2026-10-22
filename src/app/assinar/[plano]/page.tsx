@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { PLANOS, type ChavePlano } from "@/app/(marketing)/_lib/planos";
 import Assinar from "./Assinar";
+import { textosDoFunil } from "./funil";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // O PRÉ-CADASTRO — a página que o anúncio aponta.
@@ -20,6 +21,13 @@ import Assinar from "./Assinar";
 //
 // O pré-cadastro conserta isso por construção: a conta e o negócio nascem ANTES, então o
 // checkout sai com o inquilino carimbado e o webhook sabe de quem é o pagamento.
+//
+// ── ★ `?teste=1`: O TESTE GRÁTIS, SEM PIX (22/10/2026) ──
+//
+// A mesma página, sem a última etapa: conta, plano, campanha e negócio nascem igual, e a
+// pessoa vai direto ao `/comecar`, usando o teste de 14 dias que todo negócio já ganha no
+// banco. É o link da landing page tradicional, que promete "teste grátis, sem cartão". As
+// regras e os textos dos dois funis estão em `./funil.ts`.
 //
 // ── ⚠️ SÓ OS PLANOS AUTOATENDIDOS TÊM PÁGINA ──
 //
@@ -41,12 +49,16 @@ const AUTOATENDIDOS: readonly ChavePlano[] = ["essencial", "profissional"] as co
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: { plano: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<Metadata> {
   const plano = PLANOS.find((p) => p.chave === params.plano);
+  /* `?teste=1` é o funil de teste grátis (ver `./funil.ts`); o título diz isso na aba. */
+  const teste = searchParams?.teste === "1";
   return {
-    title: plano ? `Assinar o ${plano.nome} · maisa` : "Assinar · maisa",
+    title: plano ? textosDoFunil(teste ? "teste" : "pix", plano).titulo : "Assinar · maisa",
     /* `noindex` porque o tráfego aqui é pago e dirigido: quem chega vem de um anúncio com
      * o plano já escolhido. Indexada, ela competiria com a própria landing page na busca
      * e apareceria fora de contexto — um formulário de compra sem a página que o explica. */

@@ -29,6 +29,13 @@
  * desaparece. Vai para o metadata do usuário no Supabase junto com o plano e a campanha —
  * lugar durável e sem migração, que é para isso que `raw_user_meta_data` existe.
  *
+ * ── ★ COM `?teste=1`, O MESMO CADASTRO SEM O PIX (22/10/2026) ──
+ *
+ * Conta, plano, campanha e negócio nascem igual; a última etapa é que muda: em vez de gerar o
+ * Pix, a pessoa vai direto ao `/comecar` e usa o teste de 14 dias que TODO negócio já ganha
+ * no banco. Os textos dos dois funis e o porquê de cada promessa estão em `./funil.ts`. Sem
+ * `?teste=1` nada mudou: é o funil com Pix de sempre.
+ *
  * ── ⚠️ A CONFIRMAÇÃO DE E-MAIL DO SUPABASE QUEBRA O FUNIL, E ISSO É CONFIGURAÇÃO ──
  *
  * Com "Confirm email" ligado, o `signUp` devolve usuário SEM sessão — e aí não há como
@@ -46,25 +53,24 @@ import { useSearchParams } from "next/navigation";
 import { s, Icon } from "@/ui/primitivos";
 import { createClient } from "@/adaptadores/saida/supabase/client";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
-import { specsDoPlano, type Plano } from "@/app/(marketing)/_lib/planos";
+import { campanhaDaBusca, specsDoPlano, type Plano } from "@/app/(marketing)/_lib/planos";
 import { whatsappUrl } from "@/app/(marketing)/_lib/icp";
 import { LinhaLegal } from "@/app/(marketing)/_lib/LinhaLegal";
 import { ehVertical, NOME_NEGOCIO_MIN, type Vertical } from "@/nucleo/dominio/negocio";
 import { soDigitos, TELEFONE_MIN_DIGITOS } from "@/nucleo/dominio/clientes";
 import { guardarPix } from "@/ui/estado/pix";
+import { depoisDoNegocio, marcaDoFunil, modoDoFunil, publicoDoCartao, textosDoFunil } from "./funil";
 
 const inputCss =
   "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
-/** Os parâmetros de campanha que viajam do anúncio para o `metadata` da assinatura.
+/* Os parâmetros de campanha que viajam do anúncio para o `metadata` do usuário moram em
+ * `_lib/planos.ts` (`CAMPANHA`, `campanhaDaBusca`) desde 22/10/2026: as LPs precisam da mesma
+ * lista para repassá-los até aqui, e duas listas divergem.
  *
- *  ⚠️ SEM ISSO, TRÁFEGO PAGO É ORÇAMENTO NO ESCURO. É a parte que se deixa para depois e
- *  nunca volta — e ela tem que nascer com a página, porque campanha que já rodou sem
- *  marcação não se remarca retroativamente. */
-const CAMPANHA = [
-  "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-  "gclid", "fbclid",
-] as const;
+ * ⚠️ SEM ISSO, TRÁFEGO PAGO É ORÇAMENTO NO ESCURO. É a parte que se deixa para depois e
+ * nunca volta — e ela tem que nascer com a página, porque campanha que já rodou sem
+ * marcação não se remarca retroativamente. */
 
 /** Senha descartável. Ver o ⚠️ sobre não ter campo de senha. */
 function senhaAleatoria(): string {
@@ -95,16 +101,13 @@ function AssinarInner({ plano }: { plano: Plano }) {
    * endereço, e vertical inventada seria recusada lá no fim, depois do formulário. */
   const bruto = q.get("icp") ?? "";
   const vertical: Vertical = ehVertical(bruto) ? bruto : "generico";
-  const icpCopy = vertical === "barbeiros" ? "barbeiros" : "terapeutas";
+  const publico = publicoDoCartao(vertical);
 
-  const campanha = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const k of CAMPANHA) {
-      const v = q.get(k);
-      if (v) m[k] = v.slice(0, 120);
-    }
-    return m;
-  }, [q]);
+  /* `?teste=1` é o funil de teste grátis, sem Pix. Ver `./funil.ts`. */
+  const modo = modoDoFunil(q);
+  const textos = textosDoFunil(modo, plano);
+
+  const campanha = useMemo(() => campanhaDaBusca(q), [q]);
 
   const travado = estado.fase === "indo";
 
@@ -137,7 +140,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
         email: email.trim(),
         password: senhaAleatoria(),
         options: {
-          data: { telefone: soDigitos(telefone), plano: plano.chave, icp: vertical, ...campanha },
+          data: { telefone: soDigitos(telefone), plano: plano.chave, icp: vertical, ...marcaDoFunil(modo), ...campanha },
           emailRedirectTo: `${window.location.origin}/auth/callback?next=%2Fcomecar`,
         },
       });
@@ -155,7 +158,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
        * Supabase contra usar o cadastro para descobrir quem tem conta. Sem tratar, a tela
        * seguiria como se tivesse criado e falharia adiante, sem explicação. */
       if (data.user && (data.user.identities?.length ?? 0) === 0) {
-        setErro("Este e-mail já tem uma conta. Entre e assine de dentro do app.");
+        setErro(textos.jaTemConta);
         setEstado({ fase: "entre_e_pague" });
         return;
       }
@@ -183,15 +186,24 @@ function AssinarInner({ plano }: { plano: Plano }) {
       }).then((r) => r.json()).catch(() => null);
 
       if (!neg?.ok) {
-        setErro("Sua conta foi criada, mas não conseguimos montar o negócio. Entre para continuar.");
+        setErro(textos.semNegocio);
         setEstado({ fase: "entre_e_pague" });
+        return;
+      }
+
+      /* 3a. O TESTE GRÁTIS para aqui: o negócio já nasceu em `trial` (`005_provisionar.sql`), e
+       *     o próximo passo é a configuração. Navegação dura, como a do Pix abaixo: o `/comecar`
+       *     lê a sessão no servidor, e o cookie acabou de nascer. */
+      if (depoisDoNegocio(modo) === "comecar") {
+        setEtapa(textos.ultimaEtapa);
+        window.location.href = "/comecar";
         return;
       }
 
       /* 3. O checkout, com `destino: "onboarding"` — quem vem do funil pagou e nunca usou
        *    o produto, então a volta é o wizard, não a gaveta de cobrança. O destino é um
        *    NOME, não uma URL: ver o comentário de `VOLTA` em `api/assinatura/route.ts`. */
-      setEtapa("Gerando o seu Pix…");
+      setEtapa(textos.ultimaEtapa);
       const ass = await fetch("/api/assinatura", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -207,12 +219,10 @@ function AssinarInner({ plano }: { plano: Plano }) {
       guardarPix(ass.pagamento);
       window.location.href = ass.url;
     },
-    [nome, telefone, email, plano.chave, vertical, campanha],
+    [nome, telefone, email, plano.chave, vertical, campanha, modo, textos],
   );
 
-  const zap = whatsappUrl(
-    `Oi! Quero assinar a maisa no plano ${plano.nome} (${plano.preco}/mês), mas tenho uma dúvida antes.`,
-  );
+  const zap = whatsappUrl(textos.whatsapp);
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflow: "hidden" }}>
@@ -231,10 +241,19 @@ function AssinarInner({ plano }: { plano: Plano }) {
             <span style={s("font-size:var(--t-lg);font-weight:var(--w-title);color:var(--ink)")}>{plano.nome}</span>
             <span style={s("font-variant-numeric:tabular-nums;font-size:var(--t-body);font-weight:var(--w-data);color:var(--ink);white-space:nowrap")}>
               {plano.preco}<span style={s("color:var(--muted)")}>{plano.periodo}</span>
+              {textos.depoisDoPreco && <span style={s("color:var(--muted);font-weight:var(--w-body)")}> {textos.depoisDoPreco}</span>}
             </span>
           </div>
+          {/* A promessa do teste, no cartão do que está sendo "comprado": quem chega da LP
+              tradicional leu "teste grátis, sem cartão" e precisa reler isso aqui, antes do
+              formulário, e não descobrir depois. */}
+          {textos.faixa && (
+            <p style={s("margin-top:10px;padding:8px 10px;border-radius:var(--r-controle);background:var(--primary-soft);color:var(--primary-dark);font-size:var(--t-label);font-weight:var(--w-title)")}>
+              {textos.faixa}
+            </p>
+          )}
           <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
-            {specsDoPlano(plano, icpCopy).map((sp) => (
+            {specsDoPlano(plano, publico).map((sp) => (
               <div key={sp.rotulo} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span style={s("font-size:var(--t-label);color:var(--muted)")}>{sp.rotulo}</span>
                 <span style={s("font-variant-numeric:tabular-nums;font-size:var(--t-label);font-weight:var(--w-data);color:var(--ink-800);white-space:nowrap")}>{sp.valor}</span>
@@ -247,8 +266,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
           <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:18px;display:flex;flex-direction:column;gap:10px")}>
             <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>Confirme seu e-mail</h1>
             <p style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
-              Mandamos um link para <strong>{estado.email}</strong>. Clique nele e você cai direto
-              no começo da configuração — o plano que você escolheu está guardado.
+              Mandamos um link para <strong>{estado.email}</strong>. {textos.confirme}
             </p>
           </div>
         ) : estado.fase === "entre_e_pague" ? (
@@ -262,7 +280,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
           <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: 13 }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--ink-800)")}>Nome do seu negócio</span>
-              <input value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={60} placeholder={vertical === "barbeiros" ? "Escreva o nome da barbearia…" : "Escreva o nome da clínica ou o seu…"} className="m-focus" style={s(inputCss)} disabled={travado} />
+              <input value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={60} placeholder={vertical === "barbeiros" ? "Escreva o nome da barbearia…" : vertical === "terapeutas" ? "Escreva o nome da clínica ou o seu…" : "Escreva o nome do seu negócio…"} className="m-focus" style={s(inputCss)} disabled={travado} />
               <span style={s("font-size:var(--t-micro);color:var(--muted)")}>É o nome que a maisa usa ao falar com seus clientes.</span>
             </label>
 
@@ -281,9 +299,13 @@ function AssinarInner({ plano }: { plano: Plano }) {
             )}
 
             <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:50px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
-              {travado ? etapa : "Ir para o pagamento"}
+              {travado ? etapa : textos.botao}
               {!travado && <Icon name="chevron-right" size={18} />}
             </button>
+
+            {textos.explicacao && (
+              <p style={s("font-size:var(--t-micro);color:var(--muted);line-height:1.5;text-align:center")}>{textos.explicacao}</p>
+            )}
 
             {/* ⚠️ SECUNDÁRIO, E NUNCA PRIMÁRIO. A gente quer parecer acessível — e é — mas
                 um CTA de conversa com o mesmo peso do de compra rouba a compra. */}

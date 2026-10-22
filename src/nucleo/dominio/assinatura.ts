@@ -237,6 +237,17 @@ export function diasDoCiclo(frequency: string): number | null {
  * que dia é hoje é quem chama; é o que torna o corte testável sem mexer no relógio.
  * ────────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Quantos dias dura o teste grátis. É o `interval '14 days'` com que `provisionar_negocio`
+ * (`005_provisionar.sql`, e a `034_plano_do_teste.sql` que a substitui) grava `trial_fim`.
+ *
+ * ⚠️ QUEM MANDA É O BANCO, e esta constante é a cópia que a tela usa para PROMETER. Mudar o
+ * prazo é mudar os dois: a tela do `/assinar?teste=1` diria "14 dias" para um teste de 7, e é
+ * exatamente a promessa que a landing page faz. O `funil.test.ts` do `/assinar` lê a 034 e
+ * reprova se divergirem.
+ */
+export const DIAS_DE_TESTE = 14;
+
 type Vigencia = Pick<Assinatura, "status" | "trialFim" | "periodoFim">;
 
 /**
@@ -378,10 +389,11 @@ export function avisoDoDia(a: Assinatura, hoje: string): AvisoDeVencimento | nul
 /**
  * O e-mail do aviso, em texto. Puro, para o texto ser testado sem rede.
  *
- * ⚠️ NÃO DIZ O PREÇO. `assinaturas.preco` de quem está em teste é o `149.90` que o
- * `005_provisionar.sql` semeou, valor de plano nenhum. O preço certo aparece na página de
- * pagamento, que lê a fonte única. Um número errado num e-mail de cobrança é pior que número
- * nenhum.
+ * ⚠️ NÃO DIZ O PREÇO. `assinaturas.preco` de quem está em teste era o `149.90` que o
+ * `005_provisionar.sql` semeava, valor de plano nenhum; desde a `034_plano_do_teste.sql` ele
+ * nasce nulo, e quem ainda não rodou a 034 continua com o valor torto. O preço certo aparece
+ * na página de pagamento, que lê a fonte única. Um número errado num e-mail de cobrança é
+ * pior que número nenhum.
  */
 export function textoDoAviso(
   aviso: AvisoDeVencimento,
