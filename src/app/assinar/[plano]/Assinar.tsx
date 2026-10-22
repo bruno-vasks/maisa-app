@@ -105,7 +105,7 @@ function AssinarInner({ plano }: { plano: Plano }) {
 
   /* `?teste=1` é o funil de teste grátis, sem Pix. Ver `./funil.ts`. */
   const modo = modoDoFunil(q);
-  const textos = textosDoFunil(modo, plano);
+  const textos = useMemo(() => textosDoFunil(modo, plano), [modo, plano]);
 
   const campanha = useMemo(() => campanhaDaBusca(q), [q]);
 
