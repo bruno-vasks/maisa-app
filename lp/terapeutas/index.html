@@ -565,5 +565,35 @@
   </footer>
 
 </div>
+
+<!-- A CAMPANHA DO ANÚNCIO VIAJA PARA O PRÉ-CADASTRO (22/10/2026).
+     O anúncio cai aqui com ?utm_source=…&gclid=…, e os botões dos planos apontam para
+     /assinar/<plano>?icp=terapeutas — sem nada disso. O /assinar grava a campanha que acha
+     na PRÓPRIA URL, então o lead chegava sem origem. Este script, na carga, acrescenta a
+     campanha desta página a todo link do /assinar (o que o link já traz não é sobrescrito).
+     É o irmão estático do <RepassaCampanha> das LPs do Next: a lista de CHAVES e o teto de
+     120 são os de CAMPANHA/CAMPANHA_MAX em src/app/(marketing)/_lib/planos.ts, e o
+     planos.test.ts executa este script e reprova se divergir. Sem campanha na URL, não toca
+     em link nenhum. -->
+<script>
+(function () {
+  var CHAVES = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"];
+  var q = new URLSearchParams(window.location.search);
+  var campanha = [];
+  CHAVES.forEach(function (k) { var v = q.get(k); if (v) campanha.push([k, v.slice(0, 120)]); });
+  if (!campanha.length) return;
+  document.querySelectorAll('a[href^="/assinar/"]').forEach(function (a) {
+    var href = a.getAttribute("href") || "";
+    var i = href.indexOf("#");
+    var ancora = i === -1 ? "" : href.slice(i);
+    var base = i === -1 ? href : href.slice(0, i);
+    var j = base.indexOf("?");
+    var caminho = j === -1 ? base : base.slice(0, j);
+    var p = new URLSearchParams(j === -1 ? "" : base.slice(j + 1));
+    campanha.forEach(function (c) { if (!p.has(c[0])) p.set(c[0], c[1]); });
+    a.setAttribute("href", caminho + "?" + p.toString() + ancora);
+  });
+})();
+</script>
 </body>
 </html>

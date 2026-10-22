@@ -40,6 +40,12 @@ ruim para quem indexa e para quem tem JS lento. Então aqui:
 Os 7 `.js` e o `_ds/` são **cópia byte a byte** do projeto de design. Mudança de
 comportamento se faz lá e se traz de volta, não se remenda aqui.
 
+O único JavaScript que **não** veio do projeto de design é o `<script>` inline no fim do
+`index.html` (22/10/2026): ele acrescenta a campanha do anúncio (`utm_*`, `gclid`, `fbclid`)
+da URL desta página aos links do `/assinar`, para o lead não chegar ao pré-cadastro sem
+origem. A lista de chaves é a `CAMPANHA` de `src/app/(marketing)/_lib/planos.ts`, e o
+`planos.test.ts` executa o script e reprova se divergir.
+
 ## As fotos
 
 Nove vagas, nove fotos em `assets/*.webp`, nomeadas pela vaga. São as imagens que o

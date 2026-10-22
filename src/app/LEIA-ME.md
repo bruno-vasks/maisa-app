@@ -50,6 +50,16 @@ importa só `@/ui/primitivos` e os componentes de `_lib/`, nada do núcleo.
 Ver a tabela "Onde está cada LP no código" no `CLAUDE.md` do projeto (uma pasta acima
 do repo) e o script `scripts/espelha-lp.mjs` para a LP estática de terapeutas.
 
+⚠️ **A campanha do anúncio viaja da LP para o `/assinar`** (22/10/2026). O anúncio cai na LP
+com `?utm_source=…&gclid=…&fbclid=…`, e o botão do plano aponta para `/assinar/<plano>?icp=…`,
+montado no servidor por `linkPlano()` sem ver a URL do visitante. O lead chegava ao
+pré-cadastro sem origem. Agora o `<World>` monta `<RepassaCampanha>` (`_lib/RepassaCampanha.tsx`),
+que na carga reescreve todo `<a href="/assinar/…">` com `comCampanha()` (`_lib/planos.ts`, que
+também guarda a lista `CAMPANHA`). A LP estática de terapeutas não roda React: ela tem um
+`<script>` irmão no fim do `lp/terapeutas/index.html`, e o `planos.test.ts` **executa** esse
+script e reprova se ele divergir de `comCampanha` ou da lista. O que o link já traz não é
+sobrescrito, e link para fora (WhatsApp do Escala) não é tocado.
+
 ### Nem tudo aqui é LP
 
 Três rotas do grupo são **documento**, não venda: `/privacidade`, `/termos` e — desde
