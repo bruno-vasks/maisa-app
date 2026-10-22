@@ -18,6 +18,9 @@ import { describe, expect, it } from "vitest";
 import { DIAS_DE_TESTE } from "@/nucleo/dominio/assinatura";
 import { PLANOS } from "@/app/(marketing)/_lib/planos";
 import { depoisDoNegocio, marcaDoFunil, modoDoFunil, publicoDoCartao, textosDoFunil } from "./funil";
+/* O `npm run leads` é script de Node, fora do `src/`; a regra do estado é exportada dele para
+   ser provada aqui, ao lado do funil que grava o `funil` que ela lê. */
+import { estadoDoLead } from "../../../../scripts/leads.mjs";
 
 const RAIZ = join(fileURLToPath(new URL(".", import.meta.url)), "..", "..", "..", "..");
 const essencial = PLANOS.find((p) => p.chave === "essencial")!;
@@ -95,5 +98,40 @@ describe("o trial nasce com o plano escolhido e sem preço", () => {
     expect(insert).toContain("coalesce(public.plano_do_cadastro(p_user), 'Profissional'), null, 'trial'");
     expect(insert).not.toContain("149.90");
     expect(sql).toContain("create or replace function public.plano_do_cadastro(p_user uuid)");
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O `npm run leads` NÃO CONFUNDE TESTE COM ABANDONO. Todo negócio nasce em `trial`, inclusive
+ * o do funil com Pix, então só o `funil` do metadata separa quem está testando de quem
+ * desistiu do Pix.
+ * ────────────────────────────────────────────────────────────────────────────── */
+describe("estadoDoLead", () => {
+  const HOJE = "2026-10-22";
+  const trial = (trial_fim: string) => ({ status: "trial", provedor: null, periodo_fim: trial_fim, trial_fim });
+  const base = { temNegocio: true, emailConfirmado: true, hoje: HOJE };
+
+  it("quem entrou pelo teste grátis e o teste vale está em teste, até o último dia", () => {
+    expect(estadoDoLead({ ...base, funil: "teste", assinatura: trial("2026-11-05") })).toBe("em teste (até 2026-11-05)");
+    expect(estadoDoLead({ ...base, funil: "teste", assinatura: trial(HOJE) })).toBe(`em teste (até ${HOJE})`);
+  });
+
+  it("o teste que acabou sem pagamento tem nome próprio", () => {
+    expect(estadoDoLead({ ...base, funil: "teste", assinatura: trial("2026-10-21") })).toBe("teste acabou");
+  });
+
+  it("o mesmo trial vindo do funil com Pix continua sendo \"não pagou\"", () => {
+    expect(estadoDoLead({ ...base, funil: "pix", assinatura: trial("2026-11-05") })).toBe("não pagou");
+  });
+
+  it("pagou é pagou, pelos dois funis", () => {
+    const ativa = { status: "ativa", provedor: "abacatepay", periodo_fim: "2026-12-05", trial_fim: "2026-11-05" };
+    expect(estadoDoLead({ ...base, funil: "teste", assinatura: ativa })).toBe("pagou (até 2026-12-05)");
+    expect(estadoDoLead({ ...base, funil: "pix", assinatura: ativa })).toBe("pagou (até 2026-12-05)");
+  });
+
+  it("sem negócio, o estado é onde a pessoa parou", () => {
+    expect(estadoDoLead({ ...base, temNegocio: false, funil: "teste", assinatura: null })).toBe("sem negócio");
+    expect(estadoDoLead({ ...base, temNegocio: false, emailConfirmado: false, funil: "teste", assinatura: null })).toBe("travou no e-mail");
   });
 });
