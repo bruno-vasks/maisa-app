@@ -23,7 +23,7 @@ import React, { useEffect, useState } from "react";
 import { s, Icon, Monogram, Toaster, ConfirmDialog, fmt } from "@/ui/primitivos";
 import { useLayout } from "@/ui/useIsMobile";
 import * as D from "@/adaptadores/saida/demo";
-import { useStore, type TelaId } from "@/ui/estado/store";
+import { avisoDoPlanoNaCasca, useStore, type TelaId } from "@/ui/estado/store";
 import UserMenu from "./UserMenu";
 import Gaveta from "./Gaveta";
 import Paleta from "./Paleta";
@@ -410,6 +410,47 @@ function MaisDoCelular() {
   );
 }
 
+/**
+ * O fim do teste grátis (ou do mês pago), em todas as telas. A regra — quando aparece, o que
+ * diz, por que só no pré-pago — é `avisoDoPlanoNaCasca`, no store, e tem teste.
+ *
+ * Mesmo lugar e mesmo desenho do `AvisoCadastro`: fora do `key={st.tela}`, para não remontar a
+ * cada troca de tela. O botão abre a gaveta "Meu plano", onde está o pagamento com plano e
+ * preço; a faixa sozinha não cobra nada.
+ */
+const COR_DO_AVISO = {
+  warn: "background:var(--warn-soft);color:var(--warn);border-bottom:1px solid var(--warn)",
+  danger: "background:var(--danger-soft);color:var(--danger);border-bottom:1px solid var(--danger)",
+} as const;
+const BORDA_DO_BOTAO = {
+  warn: "border:1px solid var(--warn);color:var(--warn)",
+  danger: "border:1px solid var(--danger);color:var(--danger)",
+} as const;
+
+function AvisoDoPlano({ celular }: { celular?: boolean }) {
+  const st = useStore();
+  const aviso = avisoDoPlanoNaCasca(st.assinatura);
+  if (!aviso) return null;
+
+  return (
+    <div
+      role="status"
+      style={s(`flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px ${celular ? 16 : 24}px;${COR_DO_AVISO[aviso.tone]}`)}
+    >
+      <Icon name="alert" size={15} style={s("flex-shrink:0")} />
+      <span style={s("flex:1;min-width:0;font-size:var(--t-label);font-weight:var(--w-title)")}>{aviso.texto}</span>
+      <button
+        type="button"
+        onClick={() => st.abrir("plano")}
+        className="m-press m-focus"
+        style={s(`flex-shrink:0;min-height:44px;padding:0 12px;border-radius:var(--r-controle);background:var(--surface);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer;${BORDA_DO_BOTAO[aviso.tone]}`)}
+      >
+        {aviso.botao}
+      </button>
+    </div>
+  );
+}
+
 /* ───────────────────────────── topbar (desktop) ───────────────────────────── */
 
 /**
@@ -639,6 +680,7 @@ export default function AppShell() {
             o celular mostrava o fixture como dado do negócio sem uma palavra. */}
         <AvisoCadastro celular />
         <AvisoAjustes celular />
+        <AvisoDoPlano celular />
         <main key={st.tela} style={s("flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden")}>
           <Ativa />
         </main>
@@ -666,6 +708,7 @@ export default function AppShell() {
               não deve remontar (nem piscar) a cada troca de tela. */}
           <AvisoCadastro />
           <AvisoAjustes />
+          <AvisoDoPlano />
           <div key={st.tela} style={s("flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden")}>
             <Ativa />
           </div>

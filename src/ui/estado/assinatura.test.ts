@@ -23,7 +23,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { chaveDoPlano, resumoDaAssinatura as resumoNoDia, type EstadoAssinatura, type Oferta } from "./store";
+import { avisoDoPlanoNaCasca, chaveDoPlano, resumoDaAssinatura as resumoNoDia, type EstadoAssinatura, type Oferta } from "./store";
 import type { Assinatura } from "@/nucleo/dominio/assinatura";
 import { telaDoEndereco } from "./endereco";
 
@@ -282,5 +282,64 @@ describe("resumoDaAssinatura — o pré-pago", () => {
 
   it("Pix não aparece mais como \"nenhuma ainda\"", () => {
     expect(linha(resumoDaAssinatura(ok(pago({ assinaturaId: "subs_1" }))), "Forma de pagamento")).toBe("Pix");
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * A FAIXA DO FIM DO TESTE (22/10/2026). Com o teste grátis sem Pix, muita gente entra sem ter
+ * pago, e o pagamento morava só na gaveta "Meu plano". A faixa aparece em todas as telas nos
+ * três últimos dias e depois do fim, e abre a gaveta. As regras: só no pré-pago, nada sobre
+ * dúvida, e nunca antes dos três dias.
+ * ────────────────────────────────────────────────────────────────────────────── */
+describe("avisoDoPlanoNaCasca", () => {
+  const pre = (a: Assinatura): EstadoAssinatura => ({ ...ok(a), prepago: true });
+  /* `trial()` vai até 05/10. */
+  it("no meio do teste, nada: a linha \"Em teste até\" do Mais já diz", () => {
+    expect(avisoDoPlanoNaCasca(ok(trial()), "2026-09-29")).toBeNull();
+    expect(avisoDoPlanoNaCasca(ok(trial()), "2026-10-01")).toBeNull();
+  });
+
+  it("nos três últimos dias, amarela, com quando", () => {
+    expect(avisoDoPlanoNaCasca(ok(trial()), "2026-10-02")).toMatchObject({ tone: "warn", botao: "Ver planos" });
+    expect(avisoDoPlanoNaCasca(ok(trial()), "2026-10-02")?.texto).toMatch(/teste grátis acaba em 3 dias/);
+    expect(avisoDoPlanoNaCasca(ok(trial()), "2026-10-04")?.texto).toMatch(/acaba amanhã/);
+    expect(avisoDoPlanoNaCasca(ok(trial()), "2026-10-05")?.texto).toMatch(/acaba hoje/);
+  });
+
+  it("depois do fim, vermelha, dizendo que a MAISA parou", () => {
+    const a = avisoDoPlanoNaCasca(ok(trial()), "2026-10-06");
+    expect(a?.tone).toBe("danger");
+    expect(a?.texto).toMatch(/parou de responder/);
+  });
+
+  it("o botão não promete cobrar: a faixa só abre a gaveta", () => {
+    for (const dia of ["2026-10-03", "2026-10-09"]) {
+      expect(avisoDoPlanoNaCasca(ok(trial()), dia)?.botao).not.toMatch(/assinar|pagar/i);
+    }
+  });
+
+  it("o mês pago do pré-pago também avisa, com o texto dele", () => {
+    const pago = trial({ status: "ativa", provedor: "abacatepay", metodo: "pix", preco: 197, periodoFim: "2026-10-30" });
+    expect(avisoDoPlanoNaCasca(pre(pago), "2026-10-29")).toMatchObject({ tone: "warn", botao: "Ver meu plano" });
+    expect(avisoDoPlanoNaCasca(pre(pago), "2026-10-31")?.texto).toMatch(/mês pago acabou/);
+  });
+
+  it("assinatura recorrente no provedor nunca vê faixa — ela é cobrada sem pedir", () => {
+    const rec = trial({ status: "ativa", assinaturaId: "sub_1", periodoFim: "2026-10-30" });
+    expect(avisoDoPlanoNaCasca(pre(rec), "2026-10-31")).toBeNull();
+    /* Sem `prepago` do provedor, `ativa` sem id também não: é a mesma regra da gaveta. */
+    expect(avisoDoPlanoNaCasca(ok(trial({ status: "ativa", periodoFim: "2026-10-30" })), "2026-10-31")).toBeNull();
+  });
+
+  it("sobre dúvida não desenha: carregando, erro, sem linha, sem data", () => {
+    expect(avisoDoPlanoNaCasca({ status: "carregando", assinatura: null, ofertas: [] }, "2026-10-06")).toBeNull();
+    expect(avisoDoPlanoNaCasca({ status: "erro", assinatura: null, ofertas: [] }, "2026-10-06")).toBeNull();
+    expect(avisoDoPlanoNaCasca(ok(null), "2026-10-06")).toBeNull();
+    expect(avisoDoPlanoNaCasca(ok(trial({ trialFim: null })), "2026-10-06")).toBeNull();
+  });
+
+  it("inadimplente e cancelada não são o fim do teste: a gaveta cuida delas", () => {
+    expect(avisoDoPlanoNaCasca(ok(trial({ status: "inadimplente" })), "2026-10-06")).toBeNull();
+    expect(avisoDoPlanoNaCasca(ok(trial({ status: "cancelada" })), "2026-10-06")).toBeNull();
   });
 });

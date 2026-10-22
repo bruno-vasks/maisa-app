@@ -820,7 +820,9 @@ export const app = {
   avisarVencimentos: criarAvisarVencimentos({
     assinaturas,
     correio,
-    linkDePagamento: `${URL_CANONICA || "https://app.maisasecretary.com.br"}/?tela=mais`,
+    /* `abrir=plano` abre a gaveta "Meu plano", onde está o botão de pagar (22/10/2026). Era só
+     * `?tela=mais`, e quem clicava no e-mail caía numa lista de atalhos procurando o pagamento. */
+    linkDePagamento: `${URL_CANONICA || "https://app.maisasecretary.com.br"}/?tela=mais&abrir=plano`,
   }),
 };
 

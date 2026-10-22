@@ -1408,6 +1408,56 @@ export function resumoDaAssinatura(e: EstadoAssinatura, hoje: string = hojeISO()
   }
 }
 
+/**
+ * A faixa do fim do teste (e do fim do mês pago), no topo de TODAS as telas. Puro, testável.
+ *
+ * ── POR QUE ELA EXISTE (22/10/2026) ──
+ *
+ * Com o teste grátis sem Pix (`/assinar/<plano>?teste=1`), muita gente entra sem ter pago
+ * nada, e o caminho de pagar morava só na gaveta "Meu plano", dentro da aba "Mais". Quando o
+ * teste acabava, a MAISA parava de responder no WhatsApp (o corte é `acessoLiberado`, na hora
+ * em que a mensagem chega) e o painel não dizia nada fora daquela gaveta — o status da topbar
+ * olha o interruptor e o canal, não a cobrança. O e-mail de aviso existe, mas e-mail se perde.
+ *
+ * Então: nos três últimos dias, faixa amarela; depois do fim, faixa vermelha dizendo que a
+ * MAISA parou. O botão abre a gaveta "Meu plano", que já tem o botão de pagar com plano e
+ * preço (`resumoDaAssinatura`). A faixa não cobra nada sozinha, e por isso o botão não diz
+ * "Assinar": diz para onde leva.
+ *
+ * ⚠️ SÓ NO PRÉ-PAGO. Quem tem assinatura recorrente no provedor é cobrado sem pedir, e uma faixa
+ * de "pague até sexta" para quem tem débito automático é o caminho do pagamento em dobro — a
+ * mesma regra de `ehPrePaga`. `ativa` só conta como pré-paga quando o provedor diz que vende o
+ * mês como pacote (`prepago`), igual à gaveta.
+ *
+ * ⚠️ NADA ENQUANTO NÃO SE SABE. `carregando`, `erro` e linha ausente não desenham faixa: uma
+ * faixa vermelha de "a MAISA parou" piscando antes da resposta é alarme falso.
+ */
+export type AvisoDoPlano = { texto: string; tone: "warn" | "danger"; botao: string };
+
+export function avisoDoPlanoNaCasca(e: EstadoAssinatura, hoje: string = hojeISO()): AvisoDoPlano | null {
+  if (e.status !== "ok" || !e.assinatura) return null;
+  const a = e.assinatura;
+  const teste = a.status === "trial";
+  const prePaga = teste || (a.status === "ativa" && !a.assinaturaId && e.prepago === true);
+  if (!prePaga) return null;
+
+  /* `null` = sem data para cortar (linha semeada à mão), e aí a MAISA não para: sem faixa. */
+  const dias = diasParaVencer(a, hoje);
+  if (dias === null) return null;
+
+  if (dias < 0) {
+    return teste
+      ? { tone: "danger", botao: "Ver planos", texto: "Seu teste grátis acabou e a MAISA parou de responder seus clientes. Assine por Pix e ela volta na hora." }
+      : { tone: "danger", botao: "Ver meu plano", texto: "Seu mês pago acabou e a MAISA parou de responder seus clientes. Pague por Pix e ela volta na hora." };
+  }
+  if (dias > 3) return null;
+
+  const quando = dias === 0 ? "hoje" : dias === 1 ? "amanhã" : `em ${dias} dias`;
+  return teste
+    ? { tone: "warn", botao: "Ver planos", texto: `Seu teste grátis acaba ${quando}. Assine agora e o mês pago só começa quando o teste terminar.` }
+    : { tone: "warn", botao: "Ver meu plano", texto: `Seu mês pago acaba ${quando}. Pague agora e o novo mês começa quando este terminar.` };
+}
+
 const Ctx = createContext<StoreValue | null>(null);
 
 export function useStore(): StoreValue {

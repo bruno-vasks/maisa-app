@@ -193,6 +193,13 @@ fica em silêncio até o próximo Pix entrar. A pergunta é refeita a cada mensa
 pagamento religa sozinho. Se a leitura da assinatura falhar, ela **responde** — falha aberta,
 de propósito: defeito nosso não cala o cliente de quem pagou.
 
+★ **O teste grátis não passa por aqui** (22/10/2026). O `/assinar/<plano>?teste=1` cria a conta
+e o negócio (`POST /api/negocio`) e vai direto ao `/comecar`, sem `POST /api/assinatura`: o
+negócio já nasce em `trial` de 14 dias no `provisionar_negocio`, com o plano escolhido (034). O
+primeiro `POST /api/assinatura` dessa pessoa vem de dentro do app — a gaveta "Meu plano", que a
+faixa do fim do teste abre (`AvisoDoPlano`, `ui/componentes/AppShell.tsx`) — e o Pix pago
+durante o teste soma o mês a partir do fim dele (`creditarUmMes`).
+
 ⚠️ **200 no `POST /api/assinatura` significa "a página de pagamento existe", e nada mais.**
 Quem pagou, se pagou e quando pagou é assunto do webhook. Boleto leva um dia; a volta do
 navegador não é confirmação, e a tela de retorno não pode dizer "assinatura ativa".
