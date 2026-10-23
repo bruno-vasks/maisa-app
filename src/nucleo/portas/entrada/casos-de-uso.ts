@@ -1080,3 +1080,29 @@ export type ResultadoDosRecibosAutomaticos = {
 };
 
 export type EmitirRecibosAutomaticos = (hoje: string) => Promise<ResultadoDosRecibosAutomaticos>;
+
+/* ── o aviso de cadastro novo (22/10/2026) ──
+ * ⚠️ A QUINTA EXCEÇÃO À REGRA DO `ContextoTenant` PRIMEIRO. Quem chama é um trigger do banco
+ * (`after insert on auth.users`, `supabase/035_aviso_de_cadastro.sql`), no instante em que uma
+ * conta nasce — antes de existir negócio. Não há sessão, nem dono, nem inquilino para dizer: a
+ * conta acabou de ser criada e o `/assinar` ainda vai chamar o `criar_negocio()` depois.
+ *
+ * O LIMITE, escrito como as outras quatro pediram:
+ *   · a entrada é só o id de UMA conta de `auth.users`, e nada mais do pedido é usado. O que vai
+ *     no e-mail é relido pelo servidor (`ContasNovas.ler`), com a service role;
+ *   · o e-mail vai SEMPRE para os destinatários fixos da configuração (`AVISO_CADASTRO_PARA`, ou o
+ *     Bruno), nunca para um endereço vindo do pedido ou da conta. Quem tiver o segredo da rota
+ *     consegue, no máximo, reenviar ao Bruno o aviso de uma conta que já existe — e nem isso,
+ *     porque a conta avisada fica marcada;
+ *   · a única escrita é essa marca (`ContasNovas.marcarAvisada`), que não é dado de negócio. */
+
+export type ResultadoDoAvisoDeCadastro = {
+  /** `enviado` · `ja_avisado` (a marca já existia: nada saiu) · `conta_inexistente`. */
+  status: "enviado" | "ja_avisado" | "conta_inexistente";
+  /** Quantos destinatários receberam. */
+  enviados: number;
+  /** O motivo de cada destinatário que falhou, quando pelo menos um recebeu. */
+  falhas: string[];
+};
+
+export type AvisarNovoCadastro = (contaId: string, agora: Date) => Promise<ResultadoDoAvisoDeCadastro>;

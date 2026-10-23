@@ -72,7 +72,7 @@ code/
     │       ├── evolution/      ..... WhatsApp: por onde a MAISA FALA
     │       ├── gemini/         ..... o modelo que responde HOJE (chave de teste)
     │       ├── anthropic/      ..... o outro modelo — troca em 1 linha
-    │       ├── resend/         ..... e-mail: o aviso de vencimento do pré-pago
+    │       ├── resend/         ..... e-mail: o aviso de vencimento e o de cadastro novo
     │       ├── supabase/       ..... auth, sessão, cliente do banco
     │       └── demo/           ..... fixtures em memória (cadastro, agenda, memória)
     │

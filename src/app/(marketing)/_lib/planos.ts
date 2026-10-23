@@ -58,6 +58,7 @@
  * -------------------------------------------------------------------------- */
 
 import { whatsappUrl, type ICP } from "./icp";
+import { CHAVES_DE_CAMPANHA } from "@/nucleo/dominio/aviso-de-cadastro";
 
 /* ─────────────────────────── para onde o botão vai ───────────────────────────
  *
@@ -291,11 +292,12 @@ export function mensagemPlano(plano: Plano, icp: ICP): string {
  * como "orgânico", e tráfego pago sem atribuição é orçamento no escuro.
  *
  * ⚠️ A LISTA É ESTA E SÓ ESTA. O HTML estático de terapeutas a redigita no script que
- * reescreve os links, e o `planos.test.ts` reprova se uma chave daqui faltar lá. */
-export const CAMPANHA = [
-  "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-  "gclid", "fbclid",
-] as const;
+ * reescreve os links, e o `planos.test.ts` reprova se uma chave daqui faltar lá.
+ *
+ * A lista mora no domínio (`CHAVES_DE_CAMPANHA`, `dominio/aviso-de-cadastro.ts`) desde
+ * 22/10/2026: o e-mail de aviso de cadastro novo lê as mesmas chaves do metadata, e duas
+ * listas divergiriam no primeiro parâmetro novo. */
+export const CAMPANHA = CHAVES_DE_CAMPANHA;
 
 /** Teto de cada valor de campanha. É texto que qualquer um escreve na barra de endereço, e
  *  vai parar no metadata do usuário: sem teto, um `?utm_content=` de 50 mil caracteres. */

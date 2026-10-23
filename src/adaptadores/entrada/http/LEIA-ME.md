@@ -10,6 +10,7 @@ Tudo que uma rota do Next precisa para virar uma chamada de caso de uso. As rota
 | `contexto.ts` | Sessão do Supabase → `ContextoTenant`. É o **único** lugar do app onde um contexto de inquilino nasce a partir de HTTP. |
 | `respostas.ts` | Erro de domínio → status HTTP + JSON, para as rotas de agenda. |
 | `fiscal.ts` | Idem, para as rotas de nota fiscal, que têm formato de erro próprio. |
+| `segredo.ts` | O porteiro de rota chamada por máquina (22/10/2026): `segredoConfere(request, aceitos)` lê `apikey` ou `Authorization: Bearer` e compara em **tempo constante** (SHA-256 dos dois lados + `timingSafeEqual`, então tamanho diferente não lança nem vaza). Falha fechada: lista vazia ou header vazio é `false`. Usado por `/api/interno/novo-cadastro`; as rotinas e o callback de recibos ainda comparam com `===` (funcionam e têm teste; trocar é mudança à parte). |
 
 ## `contexto.ts` — as três portas
 

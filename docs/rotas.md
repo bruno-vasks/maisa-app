@@ -17,6 +17,7 @@ Definidos em [`src/adaptadores/entrada/http/contexto.ts`](../src/adaptadores/ent
 | `exigirSessaoComGoogle()` | não logado → 401; sem credencial Google → 400 `nao_configurado` | ação de agenda |
 | `sessaoOuDemo()` | ninguém — sem Supabase devolve `TENANT_DEMO` | rotas que a UI de demonstração precisa exercitar |
 | `SEGREDO` | header/query sem `WHATSAPP_WEBHOOK_SECRET` | o que é chamado por máquina, não por navegador |
+| `segredoConfere()` | header sem um dos segredos aceitos, comparado em tempo constante ([`segredo.ts`](../src/adaptadores/entrada/http/segredo.ts)) | `/api/interno/*` |
 
 > **A regra que não se negocia:** `tenantId` nasce do cookie de sessão, **nunca** da query
 > string nem do corpo. Foi esse descuido que abriu o pior furo da integração de onde este
@@ -282,6 +283,31 @@ mesma sessão do Baileys. Um disparo automático na primeira seria perigoso; nes
 `codigo: null` volta com **`ok: true`** — significa "não emiti outro agora", não falha da
 requisição: a instância segue de pé e o QR segue válido. A tela oferece o QR em vez de
 acender erro.
+
+## Interno — o banco avisando o app
+
+| Rota | Métodos | Porteiro | Caso de uso |
+|---|---|---|---|
+| `/api/interno/novo-cadastro` | POST | `segredoConfere` com `ROTINAS_SECRET` (ou `WHATSAPP_WEBHOOK_SECRET`) | `AvisarNovoCadastro` — uma conta nasceu em `auth.users`; e-mail ao Bruno com e-mail, negócio, WhatsApp, plano, funil e campanha (22/10/2026) |
+
+**Quem chama é o banco, não o navegador.** O trigger `after insert on auth.users` da
+[`035_aviso_de_cadastro.sql`](../supabase/035_aviso_de_cadastro.sql) faz um `net.http_post` com
+`{ "id": "<uuid>" }` e o mesmo segredo do Vault (`maisa_rotinas_secret`) que o cron dos lembretes
+usa. Assim o aviso pega **todo** caminho de cadastro — `/assinar?teste=1`, `/assinar` com Pix,
+`/cadastro`, Google, conta criada no painel, e o `signUp` que volta sem sessão quando a confirmação
+de e-mail está ligada — sem abrir uma rota que qualquer um chame para encher a caixa do Bruno.
+
+⚠️ **Do corpo, só o `id`.** E-mail, metadata e nome do negócio são relidos pelo servidor; o
+destinatário é fixo da configuração (`AVISO_CADASTRO_PARA`, lista por vírgula; sem ela,
+`bruno.vaskevicius@polijunior.com.br`). Não há `tenantId`: a conta ainda não tem negócio — é a
+quinta exceção ao `ContextoTenant` primeiro, com o limite em
+[`casos-de-uso.ts`](../src/nucleo/portas/entrada/casos-de-uso.ts).
+
+`ja_avisado` e `conta_inexistente` saem com **200** (a rota funcionou e decidiu); só "nenhum
+e-mail saiu" vira erro (502), e é o único caso em que vale disparar de novo à mão
+(`select public.avisar_novo_cadastro('<id>')`). A marca de "avisado" fica no `app_metadata` da
+conta, então a segunda chamada para a mesma conta não manda outro e-mail. O `pg_net` não reentrega
+sozinho: status de erro aqui não cria loop.
 
 ## Conversar com a MAISA fora do WhatsApp
 

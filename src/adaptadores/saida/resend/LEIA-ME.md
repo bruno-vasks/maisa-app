@@ -7,6 +7,11 @@ compra um mês, ninguém cobra sozinho, e alguém tem de avisar o dono antes de 
 A rotina é `/api/rotinas/cobranca`, uma vez por dia; as regras de quem recebe e quando estão
 em `avisoDoDia`, no domínio.
 
+Desde 22/10/2026 o mesmo correio leva também o **aviso de cadastro novo**: uma conta nasce em
+`auth.users`, o trigger da `035` chama `/api/interno/novo-cadastro`, e sai um e-mail para o Bruno
+(ou para `AVISO_CADASTRO_PARA`, lista por vírgula). Mesmo remetente, texto puro. ⚠️ Com a chave no
+`.env.local`, disparar essa rota à mão no local manda e-mail de verdade ao Bruno.
+
 ## Arquivos
 
 | Arquivo | O que faz |

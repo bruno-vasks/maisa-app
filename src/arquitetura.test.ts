@@ -224,9 +224,16 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
    *     saída `agenda-de-recibos.ts`: a leitura cross-tenant traz só negócio, pessoa e dia, e
    *     cada emissão é o MESMO `EmitirRecibo` da tela, num `ContextoTenant` de ator `sistema`.
    *
-   * Uma quinta exceção não é impossível, mas é decisão de arquitetura: não a acrescente
-   * aqui sem escrever o limite no arquivo da porta, como estas quatro fizeram. */
-  it("toda porta de entrada recebe ContextoTenant primeiro, menos o provisionamento e as rotinas", () => {
+   *   `AvisarNovoCadastro` (22/10/2026) A QUINTA, pedida pelo Bruno: o e-mail para ele quando uma
+   *     conta nasce. Quem chama é o trigger `after insert on auth.users` (035), no instante em que
+   *     a conta existe e o negócio ainda não — não há inquilino para dizer. O limite está escrito
+   *     em `portas/entrada/casos-de-uso.ts` e na porta de saída `contas-novas.ts`: a entrada é só
+   *     o id de uma conta, o resto é relido no banco, o destinatário é fixo da configuração, e a
+   *     única escrita é a marca de "avisado" da própria conta.
+   *
+   * Uma sexta exceção não é impossível, mas é decisão de arquitetura: não a acrescente
+   * aqui sem escrever o limite no arquivo da porta, como estas cinco fizeram. */
+  it("toda porta de entrada recebe ContextoTenant primeiro, menos o provisionamento, as rotinas e o aviso de cadastro", () => {
     const fonte = readFileSync(join(SRC, "nucleo", "portas", "entrada", "casos-de-uso.ts"), "utf8");
 
     /** O primeiro parâmetro de cada `export type X = (…)`, respeitando aninhamento. */
@@ -253,7 +260,9 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
       if (!primeiroParametro(abre).includes("ContextoTenant")) semContexto.push(m[1]);
     }
 
-    expect(semContexto.sort()).toEqual(["AvisarVencimentos", "EmitirRecibosAutomaticos", "EnviarLembretes", "ProvisionarNegocio"]);
+    expect(semContexto.sort()).toEqual([
+      "AvisarNovoCadastro", "AvisarVencimentos", "EmitirRecibosAutomaticos", "EnviarLembretes", "ProvisionarNegocio",
+    ]);
   });
 });
 

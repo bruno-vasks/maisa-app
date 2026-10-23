@@ -52,6 +52,10 @@ import {
 import { correioResend } from "@/adaptadores/saida/resend/correio-resend";
 import { estaConfigurado as isResendConfigured } from "@/adaptadores/saida/resend/config";
 import { correioDemo } from "@/adaptadores/saida/demo/correio";
+import { contasNovasSupabase } from "@/adaptadores/saida/supabase/contas-novas";
+import { contasNovasDemo } from "@/adaptadores/saida/demo/contas-novas";
+import { criarAvisarNovoCadastro } from "@/nucleo/aplicacao/aviso-de-cadastro";
+import { destinatariosDoAviso } from "@/nucleo/dominio/aviso-de-cadastro";
 import {
   criarAbrirCheckout,
   criarAbrirPortalDeCobranca,
@@ -823,6 +827,23 @@ export const app = {
     /* `abrir=plano` abre a gaveta "Meu plano", onde está o botão de pagar (22/10/2026). Era só
      * `?tela=mais`, e quem clicava no e-mail caía numa lista de atalhos procurando o pagamento. */
     linkDePagamento: `${URL_CANONICA || "https://app.maisasecretary.com.br"}/?tela=mais&abrir=plano`,
+  }),
+
+  /* ── O AVISO DE CADASTRO NOVO (22/10/2026) ──
+   * Uma conta nasceu em `auth.users` → o trigger da 035 chama `/api/interno/novo-cadastro` → este
+   * caso de uso manda um e-mail ao Bruno, pelo MESMO correio dos avisos de vencimento.
+   *
+   * As contas seguem `isSupabaseConfigured`, e não `isAdminConfigured`: com banco e sem service
+   * role, o adaptador do Supabase lança `NaoConfigurado` com o nome da variável, a rota responde
+   * 400 e o `net._http_response` diz o que falta. O demo ali responderia "conta inexistente" e
+   * esconderia a causa.
+   *
+   * O destinatário é `AVISO_CADASTRO_PARA` (lista por vírgula), e sem ela o Bruno: funciona sem
+   * ninguém mexer na Vercel. Ver `destinatariosDoAviso`. */
+  avisarNovoCadastro: criarAvisarNovoCadastro({
+    contas: isSupabaseConfigured ? contasNovasSupabase : contasNovasDemo,
+    correio,
+    destinatarios: destinatariosDoAviso(process.env.AVISO_CADASTRO_PARA),
   }),
 };
 

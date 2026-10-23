@@ -135,12 +135,19 @@ function AssinarInner({ plano }: { plano: Plano }) {
       const supabase = createClient();
 
       /* 1. A conta. O metadata leva tudo que precisamos depois e que não tem coluna:
-       *    telefone (contato), plano (o que ela escolheu) e a campanha (de onde veio). */
+       *    telefone (contato), plano (o que ela escolheu) e a campanha (de onde veio).
+       *    `negocio` (22/10/2026) é o nome que ela digitou: o aviso de cadastro novo sai no
+       *    instante em que a conta nasce, ANTES do `criar_negocio()` abaixo, e é daqui que ele
+       *    tira o nome. Também é o único lugar onde o nome fica quando o negócio não nasce
+       *    (confirmação de e-mail ligada, ou a etapa 2 falhando). */
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: senhaAleatoria(),
         options: {
-          data: { telefone: soDigitos(telefone), plano: plano.chave, icp: vertical, ...marcaDoFunil(modo), ...campanha },
+          data: {
+            telefone: soDigitos(telefone), negocio: nomeLimpo, plano: plano.chave, icp: vertical,
+            ...marcaDoFunil(modo), ...campanha,
+          },
           emailRedirectTo: `${window.location.origin}/auth/callback?next=%2Fcomecar`,
         },
       });
