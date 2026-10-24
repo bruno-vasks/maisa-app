@@ -335,6 +335,17 @@ do próprio inquilino já tem; sem ele, era a chave de IA aberta para quem achas
 A **página** `/laboratorio` continua fechada em produção: ela é a versão de depuração, com a
 trilha crua em JSON ao lado. O que o cliente vê é a etapa 4 do wizard.
 
+## O domínio raiz — `maisasecretary.com.br` (24/10/2026)
+
+Não é rota de API, mas decide para onde vai um pedido antes de qualquer porteiro: o
+middleware chama `rotaDoSite` ([`config/site.ts`](../src/config/site.ts)) logo depois do 301
+de domínio. Nos hosts do site (`maisasecretary.com.br` e `www.`; `MAISA_HOSTS_SITE`
+sobrescreve), `/` é **reescrita** para a LP tradicional (`/lp/maisa/index.html`, bundle
+estático de `lp/maisa/`), `/lp/maisa/*`, `/api` e `/auth` seguem como estão, `/signup` do Skip
+vai para `/assinar/profissional?teste=1&icp=generico` com a campanha, `/dashboard*` vai para
+a raiz do app e o resto vai para o mesmo caminho no host do app (302). Inerte enquanto o DNS
+do domínio raiz apontar para o Skip.
+
 ## O que NÃO fazer numa rota
 
 - ❌ Ler `tenantId` do corpo ou da query. Ele vem do cookie, sempre.

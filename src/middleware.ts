@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/adaptadores/saida/supabase/sessao";
 import { destinoCanonico } from "@/config/endereco";
+import { rotaDoSite } from "@/config/site";
 
 // Porta de entrada: toda requisição passa aqui. Renova a sessão e barra quem não
 // está logado (quando o Supabase está configurado). Ver adaptadores/saida/supabase/sessao.ts.
@@ -23,6 +24,19 @@ export async function middleware(request: NextRequest) {
     metodo: request.method,
   });
   if (destino) return NextResponse.redirect(destino, 301);
+
+  /* O domínio raiz (`maisasecretary.com.br`) é o site: `/` mostra a LP tradicional e o
+   * resto vai para o app. Também antes da sessão, pelo mesmo motivo do 301 acima. Ver
+   * `config/site.ts`. 302, não 301: o domínio acabou de mudar de dono, e um 301 em cache
+   * no navegador não se desfaz se a decisão mudar. */
+  const site = rotaDoSite({
+    host: request.headers.get("host"),
+    caminho: request.nextUrl.pathname,
+    busca: request.nextUrl.search,
+    metodo: request.method,
+  });
+  if (site?.tipo === "reescrever") return NextResponse.rewrite(new URL(site.destino, request.url));
+  if (site?.tipo === "redirecionar") return NextResponse.redirect(site.destino, 302);
 
   return await updateSession(request);
 }

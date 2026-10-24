@@ -24,6 +24,11 @@ describe("o funil é público", () => {
     "/lp/terapeutas",
     "/lp/terapeutas/",
     "/lp/terapeutas/index.html",
+    /* A LP tradicional, a do domínio raiz (24/10/2026). O `.js` e o `.css` dela passam
+     * pelo middleware (o matcher só pula imagem), então também têm de ser públicos. */
+    "/lp/maisa",
+    "/lp/maisa/index.html",
+    "/lp/maisa/assets/index.js",
     /* `/terapeutas` não tem mais página desde 14/08/2026 — só redirect para
      * `/lp/terapeutas`. Continua tendo que ser pública: se o middleware barrar antes, o
      * visitante que chegar por um link antigo cai no login em vez de na LP, e o redirect

@@ -37,6 +37,8 @@ const nextConfig = {
       // (ver scripts/espelha-lp.mjs). O Next casa arquivo de public por caminho
       // exato, então /lp/terapeutas sem o "/index.html" daria 404 — daí o rewrite.
       { source: "/lp/terapeutas", destination: "/lp/terapeutas/index.html" },
+      // A LP tradicional (a do domínio raiz), mesmo esquema. Ver src/config/site.ts.
+      { source: "/lp/maisa", destination: "/lp/maisa/index.html" },
     ];
   },
 
