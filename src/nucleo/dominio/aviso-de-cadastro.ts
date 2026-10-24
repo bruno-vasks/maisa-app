@@ -28,7 +28,7 @@ export const DESTINATARIO_PADRAO_DO_AVISO = "bruno.vaskevicius@polijunior.com.br
 
 /**
  * Os parâmetros de campanha que o `/assinar` grava no metadata, nesta ordem. É a mesma lista de
- * `CAMPANHA` em `app/(marketing)/_lib/planos.ts`, que passou a vir daqui: uma lista só, para o
+ * `CAMPANHA` em `ui/medicao.ts` (a que o `/assinar` lê e as LPs repassam), que passou a vir daqui: uma lista só, para o
  * e-mail nunca deixar de mostrar um parâmetro que a página grava.
  */
 export const CHAVES_DE_CAMPANHA = [

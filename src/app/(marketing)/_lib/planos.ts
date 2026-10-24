@@ -58,7 +58,6 @@
  * -------------------------------------------------------------------------- */
 
 import { whatsappUrl, type ICP } from "./icp";
-import { CHAVES_DE_CAMPANHA } from "@/nucleo/dominio/aviso-de-cadastro";
 
 /* ─────────────────────────── para onde o botão vai ───────────────────────────
  *
@@ -281,66 +280,6 @@ export function mensagemPlano(plano: Plano, icp: ICP): string {
   );
 }
 
-/* ─────────────────────────── a campanha viaja junto ───────────────────────────
- *
- * Os parâmetros de campanha que o anúncio põe na URL da LP e que o `/assinar` grava no
- * metadata do usuário (`app/assinar/[plano]/Assinar.tsx`), de onde `npm run leads` lê.
- *
- * ⚠️ O BURACO QUE ISTO FECHA (22/10/2026). O anúncio cai na LP com `?utm_source=…&gclid=…`,
- * e o botão do plano montava `/assinar/<plano>?icp=…` — sem nada disso. O `/assinar` lia a
- * própria URL, achava vazio e gravava o lead sem campanha. Todo cadastro vindo de LP chegava
- * como "orgânico", e tráfego pago sem atribuição é orçamento no escuro.
- *
- * ⚠️ A LISTA É ESTA E SÓ ESTA. O HTML estático de terapeutas a redigita no script que
- * reescreve os links, e o `planos.test.ts` reprova se uma chave daqui faltar lá.
- *
- * A lista mora no domínio (`CHAVES_DE_CAMPANHA`, `dominio/aviso-de-cadastro.ts`) desde
- * 22/10/2026: o e-mail de aviso de cadastro novo lê as mesmas chaves do metadata, e duas
- * listas divergiriam no primeiro parâmetro novo. */
-export const CAMPANHA = CHAVES_DE_CAMPANHA;
-
-/** Teto de cada valor de campanha. É texto que qualquer um escreve na barra de endereço, e
- *  vai parar no metadata do usuário: sem teto, um `?utm_content=` de 50 mil caracteres. */
-export const CAMPANHA_MAX = 120;
-
-/**
- * Os parâmetros de campanha de uma busca (`?…`), já com teto. Vazio quando não há nenhum.
- *
- * Função pura e não `useSearchParams` porque três lugares a usam: o `/assinar`, o componente
- * que reescreve os links das LPs do Next e o `linkPlano` abaixo.
- */
-export function campanhaDaBusca(busca: string | URLSearchParams): Record<string, string> {
-  const q = typeof busca === "string" ? new URLSearchParams(busca) : busca;
-  const m: Record<string, string> = {};
-  for (const k of CAMPANHA) {
-    const v = q.get(k);
-    if (v) m[k] = v.slice(0, CAMPANHA_MAX);
-  }
-  return m;
-}
-
-/**
- * O mesmo `href`, com a campanha da página acrescentada. O que o link já traz não é
- * sobrescrito: um link que alguém montou com `utm_source` próprio sabe o que está dizendo.
- *
- * Só mexe em link relativo (`/assinar/…`). Link para fora (o WhatsApp do Escala) não leva a
- * campanha: não há quem a leia do outro lado, e o texto da mensagem não é lugar para ela.
- */
-export function comCampanha(href: string, busca: string | URLSearchParams): string {
-  if (!href.startsWith("/")) return href;
-  const campanha = campanhaDaBusca(busca);
-  const chaves = Object.keys(campanha);
-  if (!chaves.length) return href;
-  const i = href.indexOf("#");
-  const ancora = i === -1 ? "" : href.slice(i);
-  const semAncora = i === -1 ? href : href.slice(0, i);
-  const j = semAncora.indexOf("?");
-  const caminho = j === -1 ? semAncora : semAncora.slice(0, j);
-  const q = new URLSearchParams(j === -1 ? "" : semAncora.slice(j + 1));
-  for (const k of chaves) if (!q.has(k)) q.set(k, campanha[k]);
-  return `${caminho}?${q.toString()}${ancora}`;
-}
-
 /** Para onde o botão de um plano aponta: o pré-cadastro nos planos autoatendidos, o
  *  WhatsApp no `escala`. Ver a nota "para onde o botão vai", acima.
  *
@@ -351,17 +290,12 @@ export function comCampanha(href: string, busca: string | URLSearchParams): stri
  *  formulário de compra num `_blank` perde o histórico de navegação — e com ele o
  *  "voltar" que a pessoa usa quando quer reler a página de preço antes de decidir.
  *
- *  ⚠️ A CAMPANHA (`busca`) É OPCIONAL AQUI PORQUE AS LPs SÃO RENDERIZADAS NO SERVIDOR SEM A
- *  URL DO VISITANTE: as de barbeiros são estáticas, e ler a query no servidor as tornaria
- *  dinâmicas. Quem repassa a campanha nelas é o `<RepassaCampanha>` do `<World>`, que
- *  reescreve os links no navegador com `comCampanha`. Quem tiver a busca em mãos passa aqui. */
-export function linkPlano(
-  plano: Plano,
-  icp: ICP,
-  busca: string | URLSearchParams = "",
-): { href: string; externo: boolean } {
+ *  A campanha do anúncio (`utm_*`, `gclid`, `fbclid`) não entra aqui: a LP é renderizada no
+ *  servidor sem a URL do visitante, e quem a soma ao link, no clique, é o `Medicao.tsx`
+ *  (`levarCampanha`, em `ui/medicao.ts`). */
+export function linkPlano(plano: Plano, icp: ICP): { href: string; externo: boolean } {
   const autoatendido = (AUTOATENDIDOS as readonly string[]).includes(plano.chave);
   return autoatendido
-    ? { href: comCampanha(`/assinar/${plano.chave}?icp=${icp}`, busca), externo: false }
+    ? { href: `/assinar/${plano.chave}?icp=${icp}`, externo: false }
     : { href: mensagemPlano(plano, icp), externo: true };
 }

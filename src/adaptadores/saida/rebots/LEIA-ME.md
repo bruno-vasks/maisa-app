@@ -217,18 +217,35 @@ entregue num túnel `cloudflared` para o dev local, linha fechada como `emitido`
 - **Emissores:** não passam de um ambiente para o outro. A rede em `criarEmitirRecibo` recadastra
   cada profissional no primeiro recibo.
 
-★ **`REBOTS_PRODUCAO=true` na Vercel Production desde 08/10/2026**, por decisão do Bruno no dia em
-que a Regina assinou: recibo emitido em produção vai à Receita. A pergunta do código 255 ficou sem
-resposta do suporte, e ele decidiu manter o 255 (o código oficial de Psicólogo). Conferir no
-primeiro PDF que a ocupação saiu "Psicólogo"; se não, cancelar em até 10 dias e reabrir com eles.
+⚠️ **`REBOTS_PRODUCAO` está AUSENTE na Vercel Production: todo recibo sai `test: true`.** Ficou
+ligada por uma hora em 08/10/2026 e foi desligada no mesmo dia: a Regina autorizou a PJ e liberou
+testar tudo, mas ainda não quer recibo de verdade. O 255 fica (decisão do Bruno, sem resposta do
+suporte). **Ligar é o último passo:** `printf true | npx vercel env add REBOTS_PRODUCAO production`
+e redeploy a partir do último deploy pronto (`vercel redeploy <url> --target production`; nunca
+`vercel --prod` de um checkout local). Conferir no primeiro PDF real que a ocupação saiu "Psicólogo".
 
-O que segura um recibo falso agora é a autorização, não a variável: `faltaParaEmitirRecibo` recusa
-quem não autorizou a PJ ou ainda espera o nosso aceite (`9af8531`). Até 08/10 a variável estava
-ausente de propósito, e todo recibo saía `test: true` (*"o recibo não é enviado à Receita
-Federal"*).
+O que segura um recibo falso não é mais só a variável: `faltaParaEmitirRecibo` recusa quem não
+autorizou a PJ ou ainda espera o nosso aceite (`9af8531`).
 
-⚠️ A variável é `Sensitive` na Vercel, então não se lê de volta. Desligar é apagá-la e fazer
-redeploy.
+### ★ O ciclo inteiro rodou na conta de PRODUÇÃO, em modo teste (08/10/2026)
+
+Recibo nº 99, avulso de R$ 1, emitente Regina (CPF real, 255, CRP `06/68997`), pelos mesmos casos
+de uso da tela, rodados como `sistema`:
+
+| Passo | Medido |
+|---|---|
+| `POST /issuers` (enable) | aceito, sem erro: a emitente existe na conta de produção |
+| `POST /receipts`, `test: true` | aceito, `pendente`, protocolo gravado antes |
+| callback de emissão | chegou em produção em **16 s**; linha `emitido`, `chave` nula |
+| PDF | copiado para `comprovantes-recibo`; é o **arquivo de exemplo deles**, não um recibo com os dados dela |
+| aviso "Primeiro para mim" | `enviado_ao_dono`: duas bolhas no WhatsApp dela, a linha e o PDF |
+| `cancel`, `test: true` | aceito; callback em **16 s**; linha `emitido` → `cancelado` |
+
+⚠️ Em produção a `file_url` veio com `X-Amz-Expires=3600` (uma hora), não os 300 s do OpenAPI e do
+sandbox. O código segue assumindo 5 minutos, o que só erra para o lado seguro.
+
+⚠️ Cancelar não tem botão nem caso de uso: só o `cancelar` deste adaptador. E o cancelado deixa o
+pagamento trancado (dívida declarada em `recibo-unitario.ts`).
 
 **Localmente, as `REBOTS_*` do `.env.local` seguem no sandbox.** Os valores de produção moram em
 `REBOTS_PROD_BASE_URL` e `REBOTS_PROD_MASTER_KEY`, com nomes diferentes de propósito: `npm run dev`

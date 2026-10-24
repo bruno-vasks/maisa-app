@@ -36,6 +36,7 @@ import { CampoSenha } from "@/ui/componentes/CampoSenha";
 import { createClient } from "@/adaptadores/saida/supabase/client";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
 import { BotaoGoogle } from "@/ui/componentes/BotaoGoogle";
+import { empurrar } from "@/ui/medicao";
 
 /**
  * Piso da senha.
@@ -257,6 +258,7 @@ function CadastroInner() {
       return;
     }
 
+    empurrar({ event: "maisa_sign_up", maisa_method: "email", maisa_origem: "cadastro" });
     setEnviadoPara(alvo);
     setCarregando(false);
   };

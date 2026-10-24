@@ -19,7 +19,5 @@ export { StickyMobileCta } from "./StickyMobileCta";
 export { EntrarNoApp } from "./EntrarNoApp";
 /* Idem — montado pelo <World>. Exigência externa, não escolha de design: ver o cabeçalho. */
 export { RodapeLegal } from "./RodapeLegal";
-/* Idem — montado pelo <World>. Repassa a campanha da URL aos links do `/assinar`. */
-export { RepassaCampanha } from "./RepassaCampanha";
 export { Footer } from "./Footer";
 export { CTASection } from "./CTASection";

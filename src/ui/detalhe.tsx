@@ -363,9 +363,12 @@ export function useDetalhe(id: string | null): Detalhe | null {
           recibo,
           {
             tipo: "texto", key: "st", label: "Situação",
-            texto: nota.simulada
+            /* A simulada COM PDF é a de homologação (`nota-simulada.ts`): ela tem número e documento
+               como a de verdade, e o PDF foi para o WhatsApp do dono igual. O texto de "sem
+               credencial" fica para a que saiu sem nada — produção sem token. */
+            texto: nota.simulada && !nota.pdf
               ? "Emitida em modo simulado — o servidor de notas está sem credencial da prefeitura, então o número foi gerado aqui. Assim que a credencial entrar, a emissão é real sem mudar nada nesta tela."
-              : "Nota autorizada pela prefeitura e enviada ao cliente pelo WhatsApp. Para corrigir algo, cancele e emita de novo.",
+              : "Nota emitida. O PDF foi para o seu WhatsApp, pronto para encaminhar ao cliente. Para corrigir algo, cancele e emita de novo.",
           },
           ...(nota.erro ? [{ tipo: "aviso", key: "er", texto: nota.erro, tone: "danger" } as Bloco] : []),
         ],

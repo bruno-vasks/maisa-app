@@ -41,10 +41,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  AUTOATENDIDOS, CAMPANHA, CAMPANHA_MAX, COPIA, PLANOS, campanhaDaBusca, comCampanha, linkPlano,
-  specsDoPlano,
-} from "./_lib/planos";
+import { AUTOATENDIDOS, COPIA, PLANOS, specsDoPlano } from "./_lib/planos";
+import { CAMPANHA, levarCampanha } from "@/ui/medicao";
 import { WHATSAPP_NUMERO } from "./_lib/icp";
 
 const MARKETING = fileURLToPath(new URL(".", import.meta.url));
@@ -179,54 +177,25 @@ describe("o CTA de cada plano vai para onde ele se vende", () => {
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * A CAMPANHA VIAJA DA LP PARA O PRÉ-CADASTRO (22/10/2026).
+ * A CAMPANHA VIAJA DA LP ESTÁTICA PARA O PRÉ-CADASTRO (21/10/2026).
  *
- * O anúncio cai na LP com `?utm_source=…&gclid=…`, e o botão do plano montava
- * `/assinar/<plano>?icp=…` sem nada disso — o lead chegava ao `/assinar` sem origem. Agora as
- * LPs do Next reescrevem os links no navegador (`<RepassaCampanha>`, com `comCampanha`) e a
- * LP estática tem um `<script>` irmão. Os testes abaixo prendem as duas metades, e a segunda
- * EXECUTA o script do HTML: comparar texto aprovaria um script que não roda.
+ * As LPs do Next somam a campanha no clique (`Medicao.tsx`, com `levarCampanha`, testada em
+ * `ui/medicao.test.ts`). A LP estática de terapeutas não roda React e tem um `<script>` irmão
+ * com a lista redigitada. O teste abaixo EXECUTA esse script: comparar texto aprovaria um
+ * script que não roda.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-describe("a campanha da LP chega ao /assinar", () => {
+describe("a campanha da LP estática chega ao /assinar", () => {
   const BUSCA = "?utm_source=google&utm_campaign=teste-gratis&gclid=abc123&fbclid=&outro=x";
 
-  it("campanhaDaBusca pega só as chaves de campanha, sem vazio e com teto", () => {
-    expect(campanhaDaBusca(BUSCA)).toEqual({ utm_source: "google", utm_campaign: "teste-gratis", gclid: "abc123" });
-    expect(campanhaDaBusca(`?utm_content=${"x".repeat(500)}`).utm_content).toHaveLength(CAMPANHA_MAX);
-    expect(campanhaDaBusca("")).toEqual({});
-  });
-
-  it("comCampanha acrescenta ao link do /assinar sem sobrescrever o que ele já traz", () => {
-    expect(comCampanha("/assinar/essencial?icp=barbeiros", BUSCA))
-      .toBe("/assinar/essencial?icp=barbeiros&utm_source=google&utm_campaign=teste-gratis&gclid=abc123");
-    expect(comCampanha("/assinar/essencial?utm_source=lp", "?utm_source=google"))
-      .toBe("/assinar/essencial?utm_source=lp");
-    expect(comCampanha("/assinar/profissional#topo", "?gclid=g1")).toBe("/assinar/profissional?gclid=g1#topo");
-  });
-
-  it("comCampanha não mexe em link sem campanha na página, nem em link para fora", () => {
-    expect(comCampanha("/assinar/essencial?icp=terapeutas", "?outro=1")).toBe("/assinar/essencial?icp=terapeutas");
-    const zap = "https://wa.me/5511994294906?text=oi";
-    expect(comCampanha(zap, BUSCA)).toBe(zap);
-  });
-
-  it("linkPlano repassa a campanha quando recebe a busca, e só nos autoatendidos", () => {
-    const [essencial, , escala] = PLANOS;
-    expect(linkPlano(essencial, "barbeiros", BUSCA).href)
-      .toBe("/assinar/essencial?icp=barbeiros&utm_source=google&utm_campaign=teste-gratis&gclid=abc123");
-    expect(linkPlano(essencial, "barbeiros").href).toBe("/assinar/essencial?icp=barbeiros");
-    expect(linkPlano(escala, "barbeiros", BUSCA).href).not.toContain("utm_source");
-  });
-
-  /* Roda o `<script>` da LP estática com um `window` e um `document` de mentira, e confere
-     que ele faz exatamente o que `comCampanha` faz. */
   const scriptDaLp = () => {
     const html = readFileSync(HTML_TERAPEUTAS, "utf8");
-    const bloco = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((t) => t.includes("CHAVES"));
+    const bloco = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((t) => t.includes("CAMPANHA"));
     expect(bloco, "a LP estática perdeu o script que repassa a campanha").toBeDefined();
     return bloco!;
   };
+
+  /* Roda o script com `location` e `document` de mentira. */
   const rodar = (busca: string, hrefs: string[]) => {
     const links = hrefs.map((h) => {
       let href = h;
@@ -235,20 +204,21 @@ describe("a campanha da LP chega ao /assinar", () => {
     const documento = {
       querySelectorAll: (sel: string) => (sel === 'a[href^="/assinar/"]' ? links.filter((l) => l.href.startsWith("/assinar/")) : []),
     };
-    new Function("window", "document", "URLSearchParams", scriptDaLp())({ location: { search: busca } }, documento, URLSearchParams);
+    const local = { search: busca, origin: "https://maisasecretary.com.br" };
+    new Function("location", "document", "URLSearchParams", "URL", scriptDaLp())(local, documento, URLSearchParams, URL);
     return links.map((l) => l.href);
   };
 
-  it("o script da LP estática usa a mesma lista de chaves de CAMPANHA", () => {
-    const m = scriptDaLp().match(/CHAVES\s*=\s*\[([^\]]*)\]/);
+  it("o script usa a mesma lista de chaves de CAMPANHA", () => {
+    const m = scriptDaLp().match(/CAMPANHA\s*=\s*\[([^\]]*)\]/);
     const chaves = (m?.[1] ?? "").split(",").map((c) => c.trim().replace(/^"|"$/g, "")).filter(Boolean);
     expect(chaves).toEqual([...CAMPANHA]);
-    expect(scriptDaLp()).toContain(`slice(0, ${CAMPANHA_MAX})`);
   });
 
-  it("o script da LP estática reescreve os links do /assinar como comCampanha", () => {
-    const hrefs = AUTOATENDIDOS.map((c) => `/assinar/${c}?icp=terapeutas`);
-    expect(rodar(BUSCA, hrefs)).toEqual(hrefs.map((h) => comCampanha(h, BUSCA)));
+  it("o script reescreve os links do /assinar como levarCampanha, sem sobrescrever o que o link traz", () => {
+    const hrefs = [...AUTOATENDIDOS.map((c) => `/assinar/${c}?icp=terapeutas`), "/assinar/essencial?utm_source=lp"];
+    expect(rodar(BUSCA, hrefs)).toEqual(hrefs.map((h) => levarCampanha(h, BUSCA)));
+    expect(rodar(BUSCA, hrefs)[0]).toBe("/assinar/essencial?icp=terapeutas&utm_source=google&utm_campaign=teste-gratis&gclid=abc123");
     expect(rodar("?outro=1", hrefs)).toEqual(hrefs);
   });
 });

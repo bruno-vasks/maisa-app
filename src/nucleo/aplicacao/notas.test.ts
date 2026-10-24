@@ -273,3 +273,73 @@ describe("ler o faturamento", () => {
     expect((await ler(t)).falta).toContain("cadastrar o CNPJ no emissor");
   });
 });
+
+/* ── O PDF NO WHATSAPP DE QUEM EMITE (15/10/2026) ──
+ *
+ * A nota que sai vai em PDF para o dono conferir e encaminhar. Três coisas que não podem mudar:
+ * vai para o DONO e nunca para o cliente; não vai de novo a cada consulta da tela; e uma
+ * mensagem que falha não desfaz a nota nem vira erro. */
+describe("aviso da nota no WhatsApp do dono", () => {
+  function avisoCom(canalDoDono: { telefoneDono: string | null; numero: string | null } | null, falha = false) {
+    const enviarDocumento = vi.fn(async () => { if (falha) throw new Error("canal fora do ar"); });
+    return {
+      enviarDocumento,
+      aviso: {
+        canal: { enviar: vi.fn(), enviarDocumento, escalar: vi.fn() },
+        canalDoNegocio: { ler: async () => canalDoDono },
+      } as any,
+    };
+  }
+
+  it("nota que sai com PDF vai para o número do dono, com nº, tomador e valor na legenda", async () => {
+    const notas = repoNotas();
+    const { aviso, enviarDocumento } = avisoCom({ telefoneDono: "5511999990000", numero: "5511888880000" });
+    const emissor = emissorQue({ status: "simulado", simulado: true, numero: "000123", pdf: "https://app/api/nf/pdf/x?a=y" });
+    await criarEmitirNota({ emissor, fiscal: repoFiscal(), notas: notas.r, novoId: ids(), aviso })(t, { clienteId: "cl-1" });
+
+    expect(enviarDocumento).toHaveBeenCalledTimes(1);
+    const [, para, doc] = enviarDocumento.mock.calls[0] as any[];
+    expect(para).toBe("5511999990000");
+    expect(doc.url).toBe("https://app/api/nf/pdf/x?a=y");
+    expect(doc.legenda).toContain("nº 000123");
+    expect(doc.legenda).toContain("Fernanda");
+    expect(doc.legenda).toContain("R$ 210,00");
+  });
+
+  it("sem PDF, ou ainda processando, não manda nada", async () => {
+    for (const resposta of [{ status: "simulado", simulado: true }, { status: "processando", pdf: "https://x" }]) {
+      const { aviso, enviarDocumento } = avisoCom({ telefoneDono: "5511999990000", numero: null });
+      await criarEmitirNota({ emissor: emissorQue(resposta), fiscal: repoFiscal(), notas: repoNotas().r, novoId: ids(), aviso })(t, { clienteId: "cl-1" });
+      expect(enviarDocumento).not.toHaveBeenCalled();
+    }
+  });
+
+  it("o canal falhar não desfaz a nota nem vira erro", async () => {
+    const notas = repoNotas();
+    const { aviso } = avisoCom({ telefoneDono: "5511999990000", numero: null }, true);
+    const emissor = emissorQue({ status: "autorizado", numero: "9", pdf: "https://x" });
+    const r = await criarEmitirNota({ emissor, fiscal: repoFiscal(), notas: notas.r, novoId: ids(), aviso })(t, { clienteId: "cl-1" });
+    expect(r.status).toBe("autorizado");
+    expect(notas.concluidas).toHaveLength(1);
+  });
+
+  it("consultar uma nota que JÁ estava emitida não manda o PDF de novo", async () => {
+    const notas = repoNotas();
+    notas.gravadas.push({ id: "n-1", ref: "ref-1", status: "emitida", clienteId: "cl-1", tomadorNome: "Fernanda", valor: 210, competencia: null, ambiente: "homologacao", pdf: "https://x" } as any);
+    const { aviso, enviarDocumento } = avisoCom({ telefoneDono: "5511999990000", numero: null });
+    const emissor = emissorQue();
+    emissor.consultar.mockResolvedValue({ status: "autorizado", ref: "ref-1", numero: "42", pdf: "https://x" });
+    await criarConsultarNota({ emissor, fiscal: repoFiscal(), notas: notas.r, aviso })(t, "ref-1");
+    expect(enviarDocumento).not.toHaveBeenCalled();
+  });
+
+  it("a consulta da simulada não apaga o número e o PDF que ela ganhou na emissão", async () => {
+    const notas = repoNotas();
+    notas.gravadas.push({ id: "n-1", ref: "ref-1", status: "emitida", numero: "000123", pdf: "https://x", clienteId: "cl-1", tomadorNome: "Fernanda", valor: 210, competencia: null, ambiente: "homologacao" } as any);
+    const emissor = emissorQue();
+    emissor.consultar.mockResolvedValue({ status: "simulado", ref: "ref-1", simulado: true });
+    const r = await criarConsultarNota({ emissor, fiscal: repoFiscal(), notas: notas.r })(t, "ref-1");
+    expect(r.numero).toBe("000123");
+    expect(r.pdf).toBe("https://x");
+  });
+});

@@ -496,7 +496,7 @@ com ponto de interrogação, usando **o corpo do `chat`** (copie o path) com a i
 das linhas: arco de r 2 + haste curta + pingo `r=0.25`. · *Evitar:* livro aberto (o antigo),
 "?" solto.
 
-**bell** · *Onde:* modo "Minha agenda é fixa" (ela só manda lembrete e avisa quando o recibo sai).
+**bell** · *Onde:* modo "Ela manda lembretes" do onboarding (lembrete e aviso de recibo).
 Significa lembrete. · *Metáfora:* sino. · *Base:* retrato. O corpo é simétrico em x=12, com o
 ombro em arco e as laterais retas ou levemente abertas até uma aba horizontal. O badalo é um arco
 curto abaixo, com 1.5 limpo. Suba 0.5. · *Evitar:* ondas de vibração, ponto de notificação.

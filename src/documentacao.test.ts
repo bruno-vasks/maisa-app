@@ -65,7 +65,9 @@ describe("docs/rotas.md acompanha o código", () => {
   const rotasDoDoc = () => {
     const texto = ler(doc);
     const achadas = new Set<string>();
-    const re = /`(\/api\/[A-Za-z0-9/_-]+)`/g;
+    /* Colchetes desde 15/10/2026: `/api/nf/pdf/[ref]` é a primeira rota de API com segmento
+     * dinâmico, e o documento a escreve como a pasta se chama. */
+    const re = /`(\/api\/[A-Za-z0-9/_\[\]-]+)`/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(texto)) !== null) achadas.add(m[1]);
     return [...achadas].sort();

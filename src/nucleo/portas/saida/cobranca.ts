@@ -49,6 +49,14 @@ export type PedidoDeCheckout = {
    * e repassa; o adaptador nunca vai buscar sozinho.
    */
   clienteId?: string | null;
+  /**
+   * Como pagar. Ausente = o padrão do provedor (Pix, na AbacatePay).
+   *
+   * `cartao` no pré-pago (09/10/2026) é uma compra avulsa de um mês na página hospedada do
+   * provedor, e só existe quando `capacidades().cartao` diz que sim. Pedir sem ter é recusado
+   * antes de chegar ao provedor, porque lá a recusa derruba o checkout inteiro.
+   */
+  metodo?: "pix" | "cartao";
 };
 
 /**
@@ -128,6 +136,16 @@ export type CapacidadesDeCobranca = {
    *   · o "Próxima cobrança" vira "Pago até": ninguém vai cobrar sozinho.
    */
   prepago: boolean;
+  /**
+   * O checkout aceita cartão (09/10/2026). É o que faz a tela de pagamento mostrar a aba
+   * "Cartão".
+   *
+   * Na AbacatePay é CONFIGURAÇÃO, não medição: `ABACATEPAY_METODOS` com `CARD`. Não há endpoint
+   * que diga se a loja aceita cartão, e em 09/10/2026 ela ainda recusava (`CARD is not available
+   * for this store`), inclusive avulso. Ligar a variável antes de a loja aceitar mostraria uma
+   * aba que quebra no clique.
+   */
+  cartao: boolean;
 };
 
 /**

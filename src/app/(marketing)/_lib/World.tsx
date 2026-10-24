@@ -3,7 +3,6 @@ import { ICPS, type ICP } from "./icp";
 import { StickyMobileCta } from "./StickyMobileCta";
 import { EntrarNoApp } from "./EntrarNoApp";
 import { RodapeLegal } from "./RodapeLegal";
-import { RepassaCampanha } from "./RepassaCampanha";
 
 /* ----------------------------------------------------------------------------
  * <World> — wrapper que cada page.tsx usa em volta de TODO o conteúdo (nav +
@@ -22,8 +21,6 @@ import { RepassaCampanha } from "./RepassaCampanha";
  *     Google confere que a página pública do app linka a política antes de verificar o
  *     escopo `calendar.events`). Pendurada no <World>, uma LP nova não pode nascer sem
  *     ela — e foi exatamente assim que `/barbeiros` e `/barbeiro` passaram meses sem.
- *   • a campanha do anúncio (`utm_*`, `gclid`, `fbclid`) repassada aos links do `/assinar`
- *     (RepassaCampanha, 22/10/2026). Sem ela o lead chegava ao pré-cadastro sem origem.
  *
  * ⚠️ O "de graça" acima é o motivo de o "Entrar" morar AQUI e não numa nav: nem a
  * <MarketingNav> nem o <Footer> são renderizados por página nenhuma de barbearia —
@@ -48,7 +45,6 @@ export function World({
       {children}
       <RodapeLegal />
       <StickyMobileCta icp={icp} />
-      <RepassaCampanha />
     </div>
   );
 }

@@ -19,6 +19,8 @@
  *   sem negócio .......... confirmou e não chegou a criar o negócio
  *   em teste ............. entrou pelo TESTE GRÁTIS (`/assinar?teste=1`) e o teste ainda vale
  *   teste acabou ......... entrou pelo teste grátis, o teste acabou e não pagou
+ *   em teste liberado .... entrou pelo funil com Pix, não pagou, e a equipe liberou os 7 dias
+ *                          pelo WhatsApp (`/liberar/<pedido>`), que ainda valem
  *   não pagou ............ entrou pelo funil com Pix, tem negócio e nunca pagou nada
  *   pagou ................ tem mês pago (e até quando)
  *
@@ -27,6 +29,11 @@
  * onde a pessoa entrou: o `/assinar` grava `funil: "teste" | "pix"` no metadata. Quem está em
  * teste não abandonou nada; quem não pagou o Pix, sim. Lead antigo, sem `funil`, é do funil
  * com Pix (era o único que existia).
+ *
+ * ⚠️ O FUNIL COM PIX NASCE COM O TESTE FECHADO (09/10/2026): o trial acaba no dia do cadastro.
+ * Um trial dele que vai ALÉM do dia do cadastro e ainda vale é teste que a equipe liberou na
+ * conversa do WhatsApp, e também não é abandono. Vencido, volta a ser "não pagou": as contas de
+ * antes de 09/10 tinham 14 dias abertos, e não dá para separá-las de um teste liberado que acabou.
  *
  * ⚠️ SÓ LEITURA, MAS É DADO PESSOAL DE VERDADE (e-mail e WhatsApp de quem não é cliente). O
  * padrão é imprimir no terminal. O CSV só sai com `--csv`, no caminho que você der — e não o
@@ -48,15 +55,18 @@ const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
  * `hoje` e `trialFim` são datas civis `YYYY-MM-DD` (São Paulo), comparadas como texto — o
  * mesmo critério do `acessoLiberado` do app: o último dia do teste ainda é teste.
  */
-export function estadoDoLead({ temNegocio, emailConfirmado, assinatura, funil, hoje }) {
+/** @param {{ temNegocio: boolean, emailConfirmado: boolean, assinatura: any, funil: string, hoje: string, cadastro?: string | null }} p */
+export function estadoDoLead({ temNegocio, emailConfirmado, assinatura, funil, hoje, cadastro }) {
   if (!temNegocio) return emailConfirmado ? "sem negócio" : "travou no e-mail";
   const a = assinatura;
   if (a && a.provedor && a.status === "ativa") return `pagou (até ${a.periodo_fim ?? "?"})`;
+  const fim = a && a.status === "trial" ? a.trial_fim : null;
   if (funil === "teste") {
-    const fim = a && a.status === "trial" ? a.trial_fim : null;
     if (fim && hoje <= fim) return `em teste (até ${fim})`;
     return "teste acabou";
   }
+  /* `cadastro` é o dia (São Paulo) em que a conta nasceu. Ver o ⚠️ do teste fechado acima. */
+  if (fim && cadastro && fim > cadastro && hoje <= fim) return `em teste liberado (até ${fim})`;
   return "não pagou";
 }
 
@@ -129,6 +139,7 @@ async function principal() {
       const funil = m.funil === "teste" ? "teste" : "pix";
       const estado = estadoDoLead({
         temNegocio: !!t, emailConfirmado: !!u.email_confirmed_at, assinatura: a, funil, hoje,
+        cadastro: u.created_at ? new Date(u.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" }) : null,
       });
       return {
         quando: dia(u.created_at),

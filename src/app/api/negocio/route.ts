@@ -50,8 +50,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, status: "payload_invalido", info: "Corpo não é JSON." }, { status: 400 });
   }
 
-  const { nome, vertical, profissional } = (corpo ?? {}) as {
-    nome?: unknown; vertical?: unknown; profissional?: unknown;
+  const { nome, vertical, profissional, teste } = (corpo ?? {}) as {
+    nome?: unknown; vertical?: unknown; profissional?: unknown; teste?: unknown;
   };
 
   try {
@@ -64,6 +64,9 @@ export async function POST(req: Request) {
         nome: String(nome ?? ""),
         vertical: vertical as never,
         profissional: profissional == null ? undefined : String(profissional),
+        /* O `/assinar` sem `?teste=1` pede o teste fechado. Qualquer outro valor (o `"aberto"` do
+         * `/assinar?teste=1`, ou nada, no `/cadastro`) são os 14 dias de sempre. */
+        teste: teste === "na_conversa" ? "na_conversa" : undefined,
       },
     );
 

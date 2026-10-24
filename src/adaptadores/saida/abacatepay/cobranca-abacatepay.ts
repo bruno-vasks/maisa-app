@@ -253,6 +253,7 @@ export const cobrancaAbacatePay: Cobranca = {
       /* Este é o modo RECORRENTE: a AbacatePay cobra sozinha a cada ciclo. O pré-pago é o
        * irmão ao lado, `cobranca-avulsa.ts`. */
       prepago: false,
+      cartao: METODOS.includes("CARD"),
     };
   },
 

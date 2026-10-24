@@ -31,10 +31,11 @@
  *
  * ── ★ COM `?teste=1`, O MESMO CADASTRO SEM O PIX (22/10/2026) ──
  *
- * Conta, plano, campanha e negócio nascem igual; a última etapa é que muda: em vez de gerar o
- * Pix, a pessoa vai direto ao `/comecar` e usa o teste de 14 dias que TODO negócio já ganha
- * no banco. Os textos dos dois funis e o porquê de cada promessa estão em `./funil.ts`. Sem
- * `?teste=1` nada mudou: é o funil com Pix de sempre.
+ * Conta, plano, campanha e negócio nascem igual; o que muda é o teste e a última etapa: o
+ * negócio fica com os 14 dias ABERTOS que a RPC dá (`teste: "aberto"`), e em vez de gerar o Pix
+ * a pessoa vai direto ao `/comecar`. Sem `?teste=1` é o funil com Pix de sempre, com o teste
+ * FECHADO (`teste: "na_conversa"`, 09/10/2026) e a opção de pedir 7 dias pelo WhatsApp na
+ * `/pagar`. Os textos dos dois funis e o porquê de cada promessa estão em `./funil.ts`.
  *
  * ── ⚠️ A CONFIRMAÇÃO DE E-MAIL DO SUPABASE QUEBRA O FUNIL, E ISSO É CONFIGURAÇÃO ──
  *
@@ -53,20 +54,22 @@ import { useSearchParams } from "next/navigation";
 import { s, Icon } from "@/ui/primitivos";
 import { createClient } from "@/adaptadores/saida/supabase/client";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
-import { campanhaDaBusca, specsDoPlano, type Plano } from "@/app/(marketing)/_lib/planos";
+import { specsDoPlano, type Plano } from "@/app/(marketing)/_lib/planos";
 import { whatsappUrl } from "@/app/(marketing)/_lib/icp";
 import { LinhaLegal } from "@/app/(marketing)/_lib/LinhaLegal";
 import { ehVertical, NOME_NEGOCIO_MIN, type Vertical } from "@/nucleo/dominio/negocio";
 import { soDigitos, TELEFONE_MIN_DIGITOS } from "@/nucleo/dominio/clientes";
 import { guardarPix } from "@/ui/estado/pix";
-import { depoisDoNegocio, marcaDoFunil, modoDoFunil, publicoDoCartao, textosDoFunil } from "./funil";
+import { campanhaDaBusca, empurrar, empurrarEEsperar } from "@/ui/medicao";
+import { depoisDoNegocio, marcaDoFunil, modoDoFunil, publicoDoCartao, testeDoNegocio, textosDoFunil } from "./funil";
 
 const inputCss =
   "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
 
-/* Os parâmetros de campanha que viajam do anúncio para o `metadata` do usuário moram em
- * `_lib/planos.ts` (`CAMPANHA`, `campanhaDaBusca`) desde 22/10/2026: as LPs precisam da mesma
- * lista para repassá-los até aqui, e duas listas divergem.
+/* `CAMPANHA` (de `ui/medicao.ts`, que a tira de `CHAVES_DE_CAMPANHA` no domínio) são os
+ * parâmetros que viajam do anúncio para o `metadata` do usuário; `campanhaDaBusca` os lê da URL
+ * com teto. A mesma lista é a que as LPs repassam no clique (`levarCampanha`) e a que o aviso de
+ * cadastro novo lê do metadata: uma lista só.
  *
  * ⚠️ SEM ISSO, TRÁFEGO PAGO É ORÇAMENTO NO ESCURO. É a parte que se deixa para depois e
  * nunca volta — e ela tem que nascer com a página, porque campanha que já rodou sem
@@ -170,6 +173,9 @@ function AssinarInner({ plano }: { plano: Plano }) {
         return;
       }
 
+      /* A conta nasceu: é a conversão, com ou sem a confirmação de e-mail adiante. */
+      empurrar({ event: "maisa_sign_up", maisa_method: "email", maisa_origem: "assinar", maisa_icp: vertical, maisa_plano: plano.chave });
+
       /* Sem sessão = "Confirm email" ligado no projeto. Ver o ⚠️ do cabeçalho. */
       if (!data.session) {
         setEstado({ fase: "confirme", email: email.trim() });
@@ -189,7 +195,13 @@ function AssinarInner({ plano }: { plano: Plano }) {
          * tudo. Medido no log de produção. O nome do negócio já passou pelo mínimo daqui de
          * cima, e é o que a pessoa escreveu ("Clínica ou o seu nome"); a equipe se ajusta no
          * `/comecar`. */
-        body: JSON.stringify({ nome: nomeLimpo, vertical, profissional: nomeLimpo }),
+        /* O TESTE É DECIDIDO PELA URL (`testeDoNegocio`, em `./funil.ts`):
+         *   · sem `?teste=1`, `"na_conversa"` (09/10/2026): quem vem do anúncio não ganha os 14
+         *     dias abertos. O teste existe, mas passa por uma conversa no WhatsApp, pedida na
+         *     `/pagar`. Ver "O TESTE NA CONVERSA" em `dominio/assinatura.ts`;
+         *   · com `?teste=1`, `"aberto"` (22/10/2026): é a promessa da LP tradicional ("14 dias
+         *     grátis, sem cartão"), e o negócio fica com os 14 dias da RPC. */
+        body: JSON.stringify({ nome: nomeLimpo, vertical, profissional: nomeLimpo, teste: testeDoNegocio(modo) }),
       }).then((r) => r.json()).catch(() => null);
 
       if (!neg?.ok) {
@@ -224,6 +236,9 @@ function AssinarInner({ plano }: { plano: Plano }) {
       }
 
       guardarPix(ass.pagamento);
+      /* Espera o GTM enviar antes de sair da página, até 1,5 s: o redirecionamento cortava
+       * o envio. Ver `empurrarEEsperar`. */
+      await empurrarEEsperar({ event: "maisa_begin_checkout", maisa_plano: plano.chave, maisa_icp: vertical });
       window.location.href = ass.url;
     },
     [nome, telefone, email, plano.chave, vertical, campanha, modo, textos],

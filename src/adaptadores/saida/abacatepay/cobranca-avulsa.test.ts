@@ -64,6 +64,39 @@ describe("abrirCheckout — o Pix na nossa tela", () => {
   });
 });
 
+/* ── o mês no cartão (09/10/2026) ── */
+describe("abrirCheckout — o mês no cartão", () => {
+  const pedido = {
+    plano: "profissional" as const, metodo: "cartao" as const,
+    voltarPara: "https://app.maisasecretary.com.br/comecar?pagamento=recebido",
+    cancelarPara: "https://app.maisasecretary.com.br/comecar?pagamento=cancelado",
+  };
+
+  it("sem CARD em ABACATEPAY_METODOS, recusa antes de chegar ao provedor", async () => {
+    const { m, pedidos } = await carregar(() => ({ data: PRODUTO }));
+    expect(m.cobrancaAbacatePayAvulsa.capacidades().cartao).toBe(false);
+    await expect(m.cobrancaAbacatePayAvulsa.abrirCheckout(ctx(T), pedido)).rejects.toThrow(/cartão/);
+    expect(pedidos.some((p) => p.url.includes("/checkouts/create"))).toBe(false);
+  });
+
+  it("com CARD, abre o checkout avulso SÓ de cartão, carimbado, e devolve a página deles", async () => {
+    vi.stubEnv("ABACATEPAY_METODOS", "PIX,CARD");
+    const { m, pedidos } = await carregar((url) =>
+      url.includes("/products/get") ? { data: PRODUTO } : { data: { id: "bill_1", url: "https://app.abacatepay.com/pay/bill_1" } });
+    expect(m.cobrancaAbacatePayAvulsa.capacidades().cartao).toBe(true);
+
+    const r = await m.cobrancaAbacatePayAvulsa.abrirCheckout(ctx(T), pedido);
+
+    const c = pedidos.find((p) => p.url.includes("/checkouts/create"))!.corpo as Record<string, unknown>;
+    expect(c.methods).toEqual(["CARD"]);
+    expect(c.items).toEqual([{ id: "prod_x", quantity: 1 }]);
+    expect(String(c.externalId)).toMatch(new RegExp(`^maisa:${T}:profissional:`));
+    expect(c.completionUrl).toBe(pedido.voltarPara);
+    expect(r.url).toBe("https://app.abacatepay.com/pay/bill_1");
+    expect(pedidos.some((p) => p.url.includes("/transparents/create"))).toBe(false);
+  });
+});
+
 describe("lerPagamento", () => {
   const pix = (tenant: string, status = "PENDING") => ({
     id: "pix_char_1", status, amount: 19700, brCode: "000201…", brCodeBase64: "data:image/png;base64,AAA",

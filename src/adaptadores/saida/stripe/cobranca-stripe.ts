@@ -138,6 +138,8 @@ export const cobrancaStripe: Cobranca = {
       pix: false,
       /* Assinatura de verdade: a Stripe cobra sozinha todo mês. */
       prepago: false,
+      /* A Stripe É cartão. */
+      cartao: true,
     };
   },
 

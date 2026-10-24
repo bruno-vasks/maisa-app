@@ -33,6 +33,12 @@ import type { RepositorioNotas } from "../portas/saida/repositorio-notas";
 import { discriminacaoDaNota, fiscalFaltando } from "../dominio/fiscal";
 import { DadoInvalido, NaoConfigurado, NaoEncontrado } from "../dominio/erros";
 import { hojeISO } from "../dominio/tempo";
+import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
+import type { RepositorioCanal } from "../portas/saida/repositorio-canal";
+import type { ContextoTenant } from "../dominio/tenant";
+import type { ResultadoDeNota } from "../dominio/fiscal";
+import { numeroDaDona } from "../dominio/recibo-automatico";
+import { avisoDeNotaAoDono, nomeDoPdfDaNota, type NotaAvisavel } from "../dominio/aviso-de-nota";
 
 export type DepsNota = {
   emissor: EmissorFiscal;
@@ -46,7 +52,40 @@ export type DepsNota = {
   notas: RepositorioNotas;
   /** Injetado para o núcleo não depender de `crypto` — e para dar teste determinístico. */
   novoId: () => string;
+  /**
+   * O PDF da nota no WhatsApp de quem emite (15/10/2026). Opcional: sem ele, nada muda. Ver
+   * `avisarDono` e `dominio/aviso-de-nota.ts`.
+   */
+  aviso?: DepsDeAvisoDaNota;
 };
+
+export type DepsDeAvisoDaNota = {
+  canal: CanalDeMensagens;
+  /** Só para achar o número do dono — o mesmo `numeroDaDona` do recibo. */
+  canalDoNegocio: RepositorioCanal;
+};
+
+/**
+ * Manda o PDF da nota que acabou de sair para o WhatsApp do dono.
+ *
+ * ⚠️ NUNCA LANÇA, e quem chama não espera desfecho. A nota já está gravada; uma mensagem que não
+ * sai (WhatsApp desconectado, canal fora do ar) não desemite nada nem vira erro na rota.
+ *
+ * Só com PDF: a mensagem existe para levar o documento. Nota sem PDF (produção sem token, ou
+ * provedor que ainda não devolveu) não gera aviso.
+ */
+async function avisarDono(aviso: DepsDeAvisoDaNota | undefined, t: ContextoTenant, r: ResultadoDeNota, nota: NotaAvisavel) {
+  if (!aviso || !r.pdf) return;
+  if (r.status !== "autorizado" && r.status !== "simulado") return;
+  try {
+    const dono = numeroDaDona(await aviso.canalDoNegocio.ler(t));
+    if (!dono) return;
+    const n = { ...nota, numero: r.numero ?? nota.numero };
+    await aviso.canal.enviarDocumento(t, dono, { url: r.pdf, nomeDoArquivo: nomeDoPdfDaNota(n), legenda: avisoDeNotaAoDono(n) });
+  } catch (e) {
+    console.error(`[aplicacao/notas] a nota ${r.ref} saiu, mas o PDF não chegou ao WhatsApp do dono: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
 
 /**
  * A `ref` da nota no provedor, cunhada AQUI — nunca recebida de fora.
@@ -76,7 +115,7 @@ export function criarLerFaturamento({ notas, fiscal }: Pick<DepsNota, "notas" | 
   };
 }
 
-export function criarEmitirNota({ emissor, fiscal, notas, novoId }: DepsNota): EmitirNota {
+export function criarEmitirNota({ emissor, fiscal, notas, novoId, aviso }: DepsNota): EmitirNota {
   return async (t, p) => {
     if (!p.clienteId?.trim()) throw new DadoInvalido("Diga de quem é a nota.", "clienteId");
 
@@ -140,11 +179,12 @@ export function criarEmitirNota({ emissor, fiscal, notas, novoId }: DepsNota): E
     /* Grava o desfecho aconteça o que acontecer — inclusive erro. A nota fica no histórico com
      * os atendimentos presos, que é o estado retentável. */
     await notas.concluir(t, aberta.id, r);
+    await avisarDono(aviso, t, r, { numero: r.numero ?? null, tomadorNome: aberta.tomador.nome, valor: aberta.valor });
     return r;
   };
 }
 
-export function criarConsultarNota({ emissor, fiscal, notas }: Pick<DepsNota, "emissor" | "fiscal" | "notas">): ConsultarNota {
+export function criarConsultarNota({ emissor, fiscal, notas, aviso }: Pick<DepsNota, "emissor" | "fiscal" | "notas" | "aviso">): ConsultarNota {
   return async (t, ref) => {
     if (!ref) throw new DadoInvalido("ref ausente.", "ref");
 
@@ -156,8 +196,18 @@ export function criarConsultarNota({ emissor, fiscal, notas }: Pick<DepsNota, "e
     if (!nossa) throw new NaoEncontrado("Essa nota não é deste negócio.");
 
     const config = await fiscal.ler(t);
-    const r = await emissor.consultar(t, config, ref);
+    const consulta = await emissor.consultar(t, config, ref);
+    /* A simulada não tem a quem perguntar: o número e o PDF que ela ganhou na emissão estão só
+     * no nosso banco, e `concluir` gravaria `null` por cima deles. */
+    const r = consulta.status === "simulado"
+      ? { ...consulta, numero: consulta.numero ?? nossa.numero, pdf: consulta.pdf ?? nossa.pdf }
+      : consulta;
     await notas.concluir(t, nossa.id, r);
+    /* Só na VIRADA para autorizada: a tela consulta de novo a cada poucos segundos, e cada
+     * consulta de uma nota já emitida mandaria o PDF outra vez. */
+    if (nossa.status !== "emitida") {
+      await avisarDono(aviso, t, r, { numero: nossa.numero ?? null, tomadorNome: nossa.tomadorNome, valor: nossa.valor });
+    }
     return r;
   };
 }

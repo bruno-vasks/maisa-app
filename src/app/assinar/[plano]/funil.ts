@@ -8,11 +8,20 @@
  *
  * O segundo existe para a landing page tradicional (maisasecretary.com.br) poder prometer
  * "teste grátis, sem cartão" e ser verdade. Não há trial novo a construir: TODO negócio já
- * nasce em `trial` de 14 dias (`005_provisionar.sql`), inclusive o do funil com Pix — quem
- * paga durante o teste ganha o mês a partir do fim dele (`creditarUmMes`). O funil de teste é
- * o mesmo cadastro sem a última etapa. Quando o teste acaba, o corte vem da data
- * (`acessoLiberado`), o e-mail de aviso sai três dias antes (`avisoDoDia`), e o pagamento é o
- * mesmo Pix de `/pagar`, de dentro do app (gaveta "Meu plano").
+ * nasce em `trial` de 14 dias (`005_provisionar.sql`). O funil de teste é o mesmo cadastro
+ * sem a última etapa, e deixa esses 14 dias ABERTOS. Quando o teste acaba, o corte vem da data
+ * (`acessoLiberado`), o e-mail de aviso sai três dias antes (`avisoDoDia`), a faixa do painel
+ * aparece nos três últimos dias (`avisoDoPlanoNaCasca`), e o pagamento é o mesmo Pix de
+ * `/pagar`, de dentro do app (gaveta "Meu plano"); quem paga durante o teste ganha o mês a
+ * partir do fim dele (`creditarUmMes`).
+ *
+ * ── ⚠️ O FUNIL COM PIX FECHA O TESTE, O DE TESTE NÃO (`testeDoNegocio`) ──
+ *
+ * Desde 09/10/2026 o funil com Pix pede ao `POST /api/negocio` o teste FECHADO
+ * (`"na_conversa"`: o trial acaba no dia do cadastro, ver "O TESTE NA CONVERSA" em
+ * `dominio/assinatura.ts`), e quem largar o Pix pede 7 dias pelo WhatsApp na `/pagar`. O funil
+ * de teste NÃO pode cair ali: a LP prometeu 14 dias sem conversa nenhuma. Por isso o pedido do
+ * negócio também sai daqui, junto com o resto do que muda entre os dois.
  *
  * ⚠️ O NOME DO PARÂMETRO É `teste`, E O VALOR É `1`, SÓ. É o que a LP tradicional vai colar
  * no link, e link publicado não se edita. `?teste=true`, `?teste=sim` e `?gratis=1` caem no
@@ -110,6 +119,12 @@ export function textosDoFunil(modo: ModoDoFunil, plano: PlanoExibido): TextosDoF
     semNegocio: "Sua conta foi criada, mas não conseguimos montar o negócio. Entre para continuar.",
     whatsapp: `Oi! Quero assinar a maisa no plano ${plano.nome} (${plano.preco}/mês), mas tenho uma dúvida antes.`,
   };
+}
+
+/** O teste que o `POST /api/negocio` pede. `aberto` = os 14 dias da RPC, intactos (a rota trata
+ *  como ausente, igual ao `/cadastro`); `na_conversa` = o teste fechado do funil com Pix. */
+export function testeDoNegocio(modo: ModoDoFunil): "aberto" | "na_conversa" {
+  return modo === "teste" ? "aberto" : "na_conversa";
 }
 
 /** Para onde a pessoa vai quando conta e negócio estão de pé. No teste, direto para a

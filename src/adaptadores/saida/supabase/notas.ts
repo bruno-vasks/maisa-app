@@ -258,3 +258,64 @@ export const notasSupabase: RepositorioNotas = {
     return data ? paraNota(data) : null;
   },
 };
+
+/**
+ * Tudo o que o PDF de uma nota mostra, achado pela `ref` — SEM inquilino na entrada (15/10/2026).
+ *
+ * Quem chama é `GET /api/nf/pdf/[ref]`, que a Evolution baixa sem sessão para mandar o PDF no
+ * WhatsApp. A rota confere o HMAC da `ref` antes; o inquilino sai da própria linha da nota, nunca
+ * do request — mesma mecânica de `tenantDoProtocolo` nos recibos. Por isso `service_role`.
+ *
+ * `null` quando a nota não existe, não está emitida ou o banco falhou: a rota responde 404 em
+ * todos, e não há diferença que valha contar a quem não tem sessão.
+ */
+export async function documentoDaNota(ref: string): Promise<{
+  numero: string | null;
+  emitidaEm: string | null;
+  competencia: string | null;
+  valor: number;
+  discriminacao: string;
+  tomador: { nome: string | null; cpf: string | null };
+  prestador: {
+    razaoSocial: string | null; cnpj: string | null; inscricaoMunicipal: string | null;
+    codigoMunicipio: string | null; itemListaServico: string | null; aliquotaIss: number | null;
+  };
+  nomeDoNegocio: string | null;
+} | null> {
+  const { createAdminClient, isAdminConfigured } = await import("./admin");
+  if (!isAdminConfigured || !ref.trim()) return null;
+  const supabase = createAdminClient();
+
+  const { data: n, error } = await supabase
+    .from(TABELA)
+    .select("tenant_id, status, numero, emitida_em, competencia, valor, discriminacao, tomador_nome, tomador_cpf")
+    .eq("ref", ref)
+    .eq("status", "emitida")
+    .maybeSingle();
+  if (error || !n) return null;
+
+  const [{ data: cfg }, { data: neg }] = await Promise.all([
+    supabase.from("config_fiscal")
+      .select("prestador_nome, prestador_cnpj, inscricao_municipal, codigo_municipio, item_lista_servico, aliquota_iss")
+      .eq("tenant_id", n.tenant_id).maybeSingle(),
+    supabase.from("negocios").select("nome").eq("id", n.tenant_id).maybeSingle(),
+  ]);
+
+  return {
+    numero: n.numero ?? null,
+    emitidaEm: n.emitida_em ?? null,
+    competencia: n.competencia ?? null,
+    valor: Number(n.valor),
+    discriminacao: n.discriminacao,
+    tomador: { nome: n.tomador_nome ?? null, cpf: n.tomador_cpf ?? null },
+    prestador: {
+      razaoSocial: cfg?.prestador_nome ?? null,
+      cnpj: cfg?.prestador_cnpj ?? null,
+      inscricaoMunicipal: cfg?.inscricao_municipal ?? null,
+      codigoMunicipio: cfg?.codigo_municipio ?? null,
+      itemListaServico: cfg?.item_lista_servico ?? null,
+      aliquotaIss: cfg?.aliquota_iss == null ? null : Number(cfg.aliquota_iss),
+    },
+    nomeDoNegocio: neg?.nome ?? null,
+  };
+}

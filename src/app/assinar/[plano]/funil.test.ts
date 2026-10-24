@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { DIAS_DE_TESTE } from "@/nucleo/dominio/assinatura";
 import { PLANOS } from "@/app/(marketing)/_lib/planos";
-import { depoisDoNegocio, marcaDoFunil, modoDoFunil, publicoDoCartao, textosDoFunil } from "./funil";
+import { depoisDoNegocio, marcaDoFunil, modoDoFunil, publicoDoCartao, testeDoNegocio, textosDoFunil } from "./funil";
 /* O `npm run leads` é script de Node, fora do `src/`; a regra do estado é exportada dele para
    ser provada aqui, ao lado do funil que grava o `funil` que ela lê. */
 import { estadoDoLead } from "../../../../scripts/leads.mjs";
@@ -43,6 +43,18 @@ describe("o que muda entre os dois funis", () => {
   it("o teste vai direto para a configuração; o Pix, para o Pix", () => {
     expect(depoisDoNegocio("teste")).toBe("comecar");
     expect(depoisDoNegocio("pix")).toBe("pix");
+  });
+
+  /* ★ OS DOIS MODELOS DE TESTE CONVIVEM, DECIDIDOS PELA URL. O funil com Pix fecha o teste
+     (09/10/2026, a equipe libera 7 dias pelo WhatsApp); o de teste deixa os 14 dias abertos, que
+     é o que a LP tradicional promete. Se o `/assinar` voltar a mandar `na_conversa` fixo, quem
+     veio do "14 dias grátis" ganharia um teste que acaba no dia do cadastro. */
+  it("o funil com Pix pede o teste fechado; o de teste, os 14 dias abertos", () => {
+    expect(testeDoNegocio("pix")).toBe("na_conversa");
+    expect(testeDoNegocio("teste")).toBe("aberto");
+    const tela = readFileSync(join(RAIZ, "src", "app", "assinar", "[plano]", "Assinar.tsx"), "utf8");
+    expect(tela).toContain("teste: testeDoNegocio(modo)");
+    expect(tela).not.toMatch(/JSON\.stringify\([^)]*teste:\s*"na_conversa"/);
   });
 
   it("o metadata diz por qual funil a pessoa entrou — é o que o `npm run leads` lê", () => {
@@ -120,7 +132,16 @@ describe("estadoDoLead", () => {
     expect(estadoDoLead({ ...base, funil: "teste", assinatura: trial("2026-10-21") })).toBe("teste acabou");
   });
 
-  it("o mesmo trial vindo do funil com Pix continua sendo \"não pagou\"", () => {
+  /* O funil com Pix nasce com o teste fechado (acaba no dia do cadastro, 09/10/2026). */
+  it("o teste fechado do funil com Pix é \"não pagou\", inclusive no dia do cadastro", () => {
+    expect(estadoDoLead({ ...base, funil: "pix", cadastro: HOJE, assinatura: trial(HOJE) })).toBe("não pagou");
+    expect(estadoDoLead({ ...base, funil: "pix", cadastro: "2026-10-20", assinatura: trial("2026-10-20") })).toBe("não pagou");
+  });
+
+  it("o teste que a equipe liberou no WhatsApp é \"em teste liberado\" enquanto vale", () => {
+    expect(estadoDoLead({ ...base, funil: "pix", cadastro: "2026-10-20", assinatura: trial("2026-10-27") }))
+      .toBe("em teste liberado (até 2026-10-27)");
+    expect(estadoDoLead({ ...base, funil: "pix", cadastro: "2026-10-01", assinatura: trial("2026-10-15") })).toBe("não pagou");
     expect(estadoDoLead({ ...base, funil: "pix", assinatura: trial("2026-11-05") })).toBe("não pagou");
   });
 

@@ -28,7 +28,7 @@ Definidos em [`src/adaptadores/entrada/http/contexto.ts`](../src/adaptadores/ent
 | Rota | Métodos | Porteiro | Caso de uso |
 |---|---|---|---|
 | `/api/cadastro` | GET | `exigirSessao` | `LerCadastro` — negócio, profissionais, serviços, clientes |
-| `/api/negocio` | POST · PATCH | `exigirUsuario` (POST) · `exigirSessao` (PATCH) | `ProvisionarNegocio` — cria `negocios` + `membros` no primeiro acesso · `AjustarNegocio` — troca o nome |
+| `/api/negocio` | POST · PATCH | `exigirUsuario` (POST) · `exigirSessao` (PATCH) | `ProvisionarNegocio` — cria `negocios` + `membros` no primeiro acesso; `teste: "na_conversa"` fecha o trial no dia do cadastro (o `/assinar` sem `?teste=1`), qualquer outro valor deixa os 14 dias · `AjustarNegocio` — troca o nome |
 | `/api/ativacao` | GET | `sessaoOuDemo` | `LerAtivacao` — quantos dos 5 passos estão feitos. **Derivado do banco a cada leitura**, nunca de uma flag de progresso |
 | `/api/servicos` | PUT · DELETE | `sessaoOuDemo` | `AjustarServico` — cria ou edita pelo `id` · `RemoverServico` |
 | `/api/equipe` | PUT | `sessaoOuDemo` | `AjustarProfissional` — cria ou edita quem atende. **Não mexe em expediente**: aquilo manda na grade inteira e pede caso de uso próprio |
@@ -109,9 +109,10 @@ muda o comportamento da tela — procure o nome no store antes.
 |---|---|---|---|
 | `/api/fiscal` | GET · POST · PUT · PATCH · DELETE | `exigirSessao` | `LerEstadoFiscal` · `ConsultarCnpj` (`?cnpj=`) · `LigarNotaFiscal` · `LigarReciboSaude` (`{cpf}`) · `EnviarCertificado` · `LiberarProducaoFiscal` · `DesligarReciboSaude` (DELETE) |
 | `/api/faturamento` | GET | `exigirSessao` | `LerFaturamento` — o que falta emitir, o que já saiu, e o que impede |
-| `/api/nf/emitir` | POST | `sessaoOuDemo` | `EmitirNota` |
+| `/api/nf/emitir` | POST | `sessaoOuDemo` | `EmitirNota` — desde 15/10/2026, a nota que sai com PDF vai para o WhatsApp do dono (`aviso` em `aplicacao/notas.ts`) |
 | `/api/nf/status` | GET | `sessaoOuDemo` | `ConsultarNota` |
 | `/api/nf/cancelar` | POST | `sessaoOuDemo` | `CancelarNota` |
+| `/api/nf/pdf/[ref]` | GET | **capacidade** (`?a=`, HMAC da `ref`) | sem caso de uso: o PDF da nota que o modo simulado emite em homologação (15/10/2026). Sem sessão — quem baixa é a Evolution, para o aviso no WhatsApp. O inquilino sai da própria nota, nunca do request. Ver `saida/focus/nota-simulada.ts` |
 | `/api/recibos/lote` | POST · PATCH | `exigirSessao` | `GerarLoteDeRecibos` · `FecharLoteDeRecibos` — o CSV do Receita Saúde, para quem atende como pessoa física. `PATCH { avisar: true }` manda a notícia do recibo aos pacientes no WhatsApp |
 | `/api/recibos` | GET · POST · DELETE | `exigirSessao` | `LerRecibosPendentes` · `LancarPagamentoAvulso` · `ExcluirPagamentoAvulso` — o que vai no arquivo, e o pagamento que a agenda não pegou |
 | `/api/recibos/emitir` | POST | `exigirSessao` | `EmitirRecibo` — UM pagamento, pelo canal programático (Rebots, ou o demo quando não há credencial). Recebe só `{fonte, id}`: valor, CPF e data saem do banco. ⚠️ 200 quer dizer "o canal aceitou", **não** "emitido" — o desfecho chega no callback Desde 01/10/2026 também `{ itens: [{fonte, id}, …] }`: várias sessões da mesma pessoa e mês num recibo só (um recibo por mês); de cada item só `fonte` e `id` chegam ao núcleo. |
@@ -175,12 +176,14 @@ não é falha de requisição, é o app dizendo ao dono o que falta. Ver
 
 | Rota | Métodos | Porteiro | Caso de uso |
 |---|---|---|---|
-| `/api/assinatura` | GET · POST | `sessaoOuDemo` | `LerAssinatura` — plano, status, próxima cobrança, cartão · `AbrirCheckout` (`{plano}`) — devolve `{url}`, **não cobra nada** |
+| `/api/assinatura` | GET · POST | `sessaoOuDemo` | `LerAssinatura` — plano, status, próxima cobrança, cartão · `AbrirCheckout` (`{plano, metodo?}`) — devolve `{url}`, **não cobra nada**. `metodo: "cartao"` (09/10/2026) abre a compra avulsa de um mês no cartão, e só passa quando `capacidades.cartao` |
 | `/api/assinatura/portal` | POST | `sessaoOuDemo` | `AbrirPortalDeCobranca` — trocar cartão, baixar fatura, cancelar. Separada da irmã porque é a operação destrutiva. **Só provedor com portal** (Stripe); na AbacatePay devolve **501** |
 | `/api/assinatura/cancelar` | POST | `sessaoOuDemo` | `CancelarAssinatura` — o caminho de quem **não** tem portal (AbacatePay). ⚠️ **imediato e irreversível**; na Stripe devolve **501** |
 | `/api/stripe/webhook` | POST | **assinatura HMAC** (`STRIPE_WEBHOOK_SECRET`) | `RegistrarAssinatura` — escrita em `assinaturas`. Continua no ar por quem assinou pela Stripe |
 | `/api/abacatepay/webhook` | POST | **segredo na query** (`ABACATEPAY_WEBHOOK_SECRET`) + HMAC | `RegistrarAssinatura` — o caminho do **Pix**. Ver o ⚠️ do HMAC abaixo · `transparent.completed` (o Pix de `/pagar`) e `checkout.completed` → `RegistrarPagamentoAvulso`: **relê o pagamento na fonte** e soma um mês (pré-pago, 29–30/09/2026) |
 | `/api/pagamento` | GET | `sessaoOuDemo` | `LerPagamento` — o Pix que a tela `/pagar` desenha (`?id=pix_char_…`): QR Code, copia-e-cola e status, **relidos na AbacatePay**. 404 se o Pix não existe **ou é de outro negócio** (o carimbo é conferido). **Não credita nada** — quem soma o mês é o webhook |
+| `/api/teste/pedido` | POST | `exigirSessao` | `LerSituacaoDoTeste` — o link `/liberar/<pedido>` que a `/pagar` põe na mensagem do WhatsApp de quem quer testar antes (09/10/2026). O pedido é **assinado pelo servidor** a partir da sessão (`entrada/http/pedido-de-teste.ts`), e é por isso que a equipe não recebe um id de negócio cru. **Não libera nada** |
+| `/api/teste/liberar` | GET · POST | `exigirEquipe` (`MAISA_EQUIPE`, ids de usuário) + pedido assinado | `LerSituacaoDoTeste` · `LiberarTeste` — a equipe abre 7 dias de teste. ⚠️ **liberar é só POST**: o WhatsApp abre o link sozinho para a pré-visualização, e um GET que liberasse liberaria sem conversa. Recusa quem tem mês pago valendo |
 | `/api/rotinas/cobranca` | GET · POST | `CRON_SECRET` ou `ROTINAS_SECRET` | `AvisarVencimentos` — o cron da Vercel, 1×/dia às 9h. E-mail ao dono 3 dias antes, 1 dia antes, no dia e no dia seguinte ao vencimento. **Não corta ninguém**: o corte é do webhook do WhatsApp |
 
 ⚠️ **`/portal` e `/cancelar` são exclusivas entre si** — cada provedor tem UMA das duas. O
@@ -195,8 +198,10 @@ pagamento religa sozinho. Se a leitura da assinatura falhar, ela **responde** �
 de propósito: defeito nosso não cala o cliente de quem pagou.
 
 ★ **O teste grátis não passa por aqui** (22/10/2026). O `/assinar/<plano>?teste=1` cria a conta
-e o negócio (`POST /api/negocio`) e vai direto ao `/comecar`, sem `POST /api/assinatura`: o
-negócio já nasce em `trial` de 14 dias no `provisionar_negocio`, com o plano escolhido (034). O
+e o negócio (`POST /api/negocio` com `teste: "aberto"`) e vai direto ao `/comecar`, sem
+`POST /api/assinatura`: o negócio já nasce em `trial` de 14 dias no `provisionar_negocio`, com o
+plano escolhido (034). Sem `?teste=1`, o `/assinar` manda `teste: "na_conversa"` e o trial acaba
+no dia do cadastro (o teste fechado de 09/10/2026; 7 dias só pela equipe, em `/api/teste/liberar`). O
 primeiro `POST /api/assinatura` dessa pessoa vem de dentro do app — a gaveta "Meu plano", que a
 faixa do fim do teste abre (`AvisoDoPlano`, `ui/componentes/AppShell.tsx`) — e o Pix pago
 durante o teste soma o mês a partir do fim dele (`creditarUmMes`).
