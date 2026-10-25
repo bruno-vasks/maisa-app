@@ -99,9 +99,9 @@ function CampoDeTexto({ c, avisoAoSair }: { c: CampoT; avisoAoSair?: string }) {
   );
 }
 
-function Campos({ campos, avisoAoSair }: { campos: CampoT[]; avisoAoSair?: string }) {
+function Campos({ campos, avisoAoSair, emColunas }: { campos: CampoT[]; avisoAoSair?: string; emColunas?: boolean }) {
   return (
-    <div style={s("display:flex;flex-direction:column;gap:14px")}>
+    <div style={s(emColunas ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px" : "display:flex;flex-direction:column;gap:14px")}>
       {campos.map((c) => (
         <Field key={c.id} label={c.label} hint={c.hint}>
           {c.tipo === "select" ? (
@@ -233,6 +233,34 @@ function Toggles({ toggles }: { toggles: { titulo: string; desc: string; on: boo
   );
 }
 
+/* Os dias da semana como botões que se ligam e desligam, com os campos de hora embaixo (o
+ * "Quando atende" da ficha do profissional, 24/10/2026). `aria-pressed` e não `role="switch"`: são
+ * seis botões de um mesmo grupo, e o leitor de tela diz "Segunda, botão, ativado". `m-filtro` dá os
+ * 44px de dedo no celular, como as abas de filtro. */
+function Dias({ b }: { b: Extract<Bloco, { tipo: "dias" }> }) {
+  return (
+    <div style={s("display:flex;flex-direction:column;gap:14px")}>
+      <div role="group" aria-label={b.label} style={s("display:flex;flex-wrap:wrap;gap:8px")}>
+        {b.dias.map((d) => (
+          <button
+            key={d.rotulo}
+            type="button"
+            onClick={d.alternar}
+            aria-pressed={d.on}
+            aria-label={d.nome}
+            className="m-press m-focus m-hov-prim-border m-filtro"
+            style={s(`min-width:56px;height:44px;padding:0 12px;border-radius:999px;font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;border:1px solid ${d.on ? "var(--primary)" : "var(--border)"};background:${d.on ? "var(--primary-soft)" : "var(--surface)"};color:${d.on ? "var(--primary-dark)" : "var(--muted)"}`)}
+          >
+            {d.rotulo}
+          </button>
+        ))}
+      </div>
+      <Campos campos={b.campos} emColunas />
+      {b.nota && <Nota texto={b.nota} />}
+    </div>
+  );
+}
+
 function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed?: string; icone?: string; feito?: boolean; onClick?: () => void }[] }) {
   return (
     <div style={s("display:flex;flex-direction:column;gap:2px")}>
@@ -314,6 +342,7 @@ function RenderBloco({ b }: { b: Bloco }) {
       case "texto": return <Texto texto={b.texto} />;
       case "nota": return <Nota texto={b.texto} />;
       case "toggles": return <Toggles toggles={b.toggles} />;
+      case "dias": return <Dias b={b} />;
       case "msgs": return <Msgs msgs={b.msgs} />;
       case "aviso": return <Aviso texto={b.texto} tone={b.tone} />;
       case "recibo": return <Recibo r={b.recibo} />;

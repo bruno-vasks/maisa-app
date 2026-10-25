@@ -61,6 +61,16 @@ describe("G12 · estadoDaFila", () => {
   it("fila vazia com a MAISA parada não é 'tudo resolvido'", () => {
     expect(estadoDaFila({ ...base, status: "pausada" })).toBe("sem_maisa");
     expect(estadoDaFila({ ...base, status: "sem_whatsapp" })).toBe("sem_maisa");
+    expect(estadoDaFila({ ...base, status: "sem_whatsapp", usaWhatsApp: true })).toBe("sem_maisa");
+  });
+  it("quem não usa o WhatsApp (só emite recibo) não é cobrado por ele: sem_whatsapp vira vazio", () => {
+    expect(estadoDaFila({ ...base, status: "sem_whatsapp", usaWhatsApp: false })).toBe("vazio");
+  });
+  it("o corte vale só para sem_whatsapp: pausada continua sem_maisa", () => {
+    expect(estadoDaFila({ ...base, status: "pausada", usaWhatsApp: false })).toBe("sem_maisa");
+  });
+  it("sem usaWhatsApp a resposta é a de quem usa", () => {
+    expect(estadoDaFila({ ...base, status: "sem_whatsapp" })).toBe(estadoDaFila({ ...base, status: "sem_whatsapp", usaWhatsApp: true }));
   });
   it("com item, mostra o item, qualquer que seja o resto", () => {
     expect(estadoDaFila({ ...base, itens: 2, status: "sem_whatsapp", agenda: AGENDA.erro })).toBe("cheio");
@@ -68,10 +78,10 @@ describe("G12 · estadoDaFila", () => {
   it("nenhuma combinação em voo ou com erro devolve vazio", () => {
     const conversas = [{ carregadas: false, erro: null }, { carregadas: false, erro: "x" }, { carregadas: true, erro: "x" }, { carregadas: true, erro: null }];
     const status: StatusDaMaisa[] = ["conferindo", "atendendo", "pausada", "sem_whatsapp"];
-    for (const c of conversas) for (const a of Object.values(AGENDA)) for (const s of status) {
-      const r = estadoDaFila({ itens: 0, conversas: c, agenda: a, status: s });
-      const tudoLido = c.carregadas && a.jaLeu && s === "atendendo";
-      if (r === "vazio") expect(tudoLido, JSON.stringify({ c, a, s })).toBe(true);
+    for (const c of conversas) for (const a of Object.values(AGENDA)) for (const s of status) for (const usa of [true, false]) {
+      const r = estadoDaFila({ itens: 0, conversas: c, agenda: a, status: s, usaWhatsApp: usa });
+      const tudoLido = c.carregadas && a.jaLeu && (s === "atendendo" || (s === "sem_whatsapp" && !usa));
+      if (r === "vazio") expect(tudoLido, JSON.stringify({ c, a, s, usa })).toBe(true);
     }
   });
 });
@@ -165,5 +175,42 @@ describe("partesDoDia · o Fluxo lê o relógio", () => {
     const p = partesDoDia(dia.map((a) => ({ ...a, data: "2026-09-26" })), as16);
     expect(p.passaram).toEqual([]);
     expect(p.proximo?.inicio).toBe(8);
+  });
+});
+
+/* 24/10/2026: os compromissos do Google entram no Fluxo, em "A seguir". */
+import { aSeguir, compromissosDoFluxo } from "../estado/leitura";
+
+describe("compromissosDoFluxo · o Google entra no Fluxo", () => {
+  const hoje = "2026-09-25";
+  const as16 = Date.parse(`${hoje}T16:00:00-03:00`);
+  const comp = (titulo: string, inicio: number, fim: number, data = hoje) => ({ titulo, data, inicio, fim });
+  const academia = comp("Academia", 18, 19);
+  const almoco = comp("Almoço", 12, 13);
+  const supervisao = comp("Supervisão", 15.5, 16.5);
+
+  it("às 16h, o que terminou sai e o que está em curso ou vem fica, por hora", () => {
+    expect(compromissosDoFluxo([academia, almoco, supervisao], as16).map((b) => b.titulo)).toEqual(["Supervisão", "Academia"]);
+  });
+
+  it("termina às 16:00 em ponto: sai", () => {
+    expect(compromissosDoFluxo([comp("Reunião", 15, 16)], as16)).toEqual([]);
+  });
+
+  it("dia que não é hoje: nenhum é descartado, por hora", () => {
+    const outroDia = [academia, almoco, supervisao].map((b) => ({ ...b, data: "2026-09-26" }));
+    expect(compromissosDoFluxo(outroDia, as16).map((b) => b.titulo)).toEqual(["Almoço", "Supervisão", "Academia"]);
+  });
+
+  it("aSeguir intercala por hora e, no empate, o atendimento vem antes", () => {
+    const linhas = aSeguir([{ inicio: 17 }, { inicio: 15 }], [{ inicio: 15 }, { inicio: 16 }]);
+    expect(linhas.map((l) => l.tipo)).toEqual(["ag", "bloq", "bloq", "ag"]);
+    expect(linhas.map((l) => l.inicio)).toEqual([15, 15, 16, 17]);
+  });
+
+  it("dia só com compromisso do Google não é vazio", () => {
+    expect(estadoDoDia(AGENDA.ok, 0 + compromissosDoFluxo([supervisao], as16).length)).toBe("cheio");
+    expect(estadoDoDia(AGENDA.ok, 0 + compromissosDoFluxo([almoco], as16).length)).toBe("vazio");
+    expect(estadoDoDia(AGENDA.carregando, 0 + compromissosDoFluxo([], as16).length)).toBe("carregando");
   });
 });

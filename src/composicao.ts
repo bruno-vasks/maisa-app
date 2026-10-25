@@ -36,6 +36,7 @@ import {
   criarLerCadastro,
   criarRemoverServico,
 } from "@/nucleo/aplicacao/cadastro";
+import { criarAjustarExpediente } from "@/nucleo/aplicacao/expediente";
 import { criarLerAtivacao } from "@/nucleo/aplicacao/ativacao";
 import { ativacaoSupabase } from "@/adaptadores/saida/supabase/ativacao";
 import { assinaturasSupabase } from "@/adaptadores/saida/supabase/assinaturas";
@@ -577,6 +578,11 @@ export const app = {
   ajustarServico: criarAjustarServico({ negocio }),
   removerServico: criarRemoverServico({ negocio }),
   ajustarProfissional: criarAjustarProfissional({ negocio }),
+  /**
+   * O EXPEDIENTE de quem atende (24/10/2026) — o que `ajustarProfissional` não grava de propósito.
+   * Mesma dependência, porque é o mesmo agregado; caso de uso e rota próprios.
+   */
+  ajustarExpediente: criarAjustarExpediente({ negocio }),
 
   /**
    * EDITAR CLIENTE — o par de escrita que faltou nove dias depois dos outros dois.

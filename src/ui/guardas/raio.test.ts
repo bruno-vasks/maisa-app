@@ -57,7 +57,6 @@ function varrer(): Achado[] {
 
 const FORMA: Divida = {
   "src/ui/primitivos.tsx": [1, "28/09/2026 · o trilho do interruptor (Toggle): a pílula é o objeto"],
-  "src/ui/componentes/EmitirRecibos.tsx": [2, "28/09/2026 · a barra de passos, trilho e preenchimento"],
   "src/ui/componentes/ProgressoDeEmissao.tsx": [2, "28/09/2026 · a barra de progresso da emissão, trilho e preenchimento"],
   "src/ui/telas/AMaisa.tsx": [4, "28/09/2026 · o preview desenha um CELULAR: moldura, tela e as duas bolhas"],
 };

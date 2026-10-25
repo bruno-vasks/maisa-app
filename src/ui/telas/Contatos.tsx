@@ -147,6 +147,10 @@ export default function Contatos() {
   }, [importando, ler]);
   const semWhatsApp = st.statusMaisa === "sem_whatsapp";
 
+  /** O que havia antes do último gesto (um "marcar todos" ou um toque numa linha), para o Desfazer
+   *  devolver o certo. */
+  const [desfazer, setDesfazer] = React.useState<{ antes: Contato[]; rotulo: string } | null>(null);
+
   /**
    * Marca um contato, otimista.
    *
@@ -154,11 +158,27 @@ export default function Contatos() {
    * esperar um round-trip entre cliques transforma dez minutos de trabalho em vinte. A
    * reversão é o próprio valor anterior, guardado antes de escrever — e não uma releitura
    * da lista inteira, que jogaria fora as outras marcações em voo.
+   *
+   * DESFAZER DA LINHA (24/10/2026). Na aba padrão "Falta decidir" a linha sai da lista no mesmo
+   * instante, então "tocar de novo no botão ativo" (ver `Linha`) não dá tempo de acontecer, e um
+   * "Atende" na linha da mãe faz a MAISA responder a ela sem ninguém ver. O Desfazer é o da barra
+   * do lote, que já mostra o rótulo e grava de volta o valor anterior. Ele é guardado NO TOQUE, junto
+   * com a troca da linha, e não depois do PATCH: aparece junto com o sumiço da linha, e em toques
+   * seguidos o rótulo fica no último (a resposta do primeiro pode chegar depois). Um lote ainda
+   * pendente (mais de um contato) não é trocado por um toque solto: o Desfazer dele é a trava de
+   * 17/08/2026, e perdê-lo deixaria 1.840 marcações sem volta. Um toque não usa toast com ação
+   * porque cada um empilharia um aviso de 7s sobre a lista, na marcação em série.
    */
   const marcar = React.useCallback(async (c: Contato, cliente: boolean | null) => {
     const anterior = c.cliente;
     setContatos((lista) => lista?.map((x) => (x.chave === c.chave ? { ...x, cliente } : x)) ?? lista);
     setSalvando((s0) => new Set(s0).add(c.chave));
+    setDesfazer((d) => (d && d.antes.length > 1 ? d : {
+      antes: [{ ...c, cliente: anterior }],
+      rotulo: `${c.nome?.trim() || telefoneBonito(c.chave)}: ${
+        cliente === true ? "atende" : cliente === false ? "não atende" : "falta decidir"
+      }`,
+    }));
 
     try {
       const r = await fetch("/api/contatos", {
@@ -172,14 +192,14 @@ export default function Contatos() {
       if (!r?.ok) throw new Error(r?.info ?? "recusado");
     } catch {
       setContatos((lista) => lista?.map((x) => (x.chave === c.chave ? { ...x, cliente: anterior } : x)) ?? lista);
+      // Marcação que voltou atrás não deixa "Mãe: atende" na barra. Só some se ainda for a desta pessoa.
+      setDesfazer((d) => (d && d.antes.length === 1 && d.antes[0].chave === c.chave ? null : d));
       toast("Não consegui salvar essa marcação");
     } finally {
       setSalvando((s0) => { const n = new Set(s0); n.delete(c.chave); return n; });
     }
   }, []);
 
-  /** O que havia antes do último "marcar todos", para o Desfazer devolver o certo. */
-  const [desfazer, setDesfazer] = React.useState<{ antes: Contato[]; rotulo: string } | null>(null);
   /** Confirmação em dois toques do lote grande. Guarda qual valor está sendo confirmado. */
   const [confirmando, setConfirmando] = React.useState<boolean | null | undefined>(undefined);
   const [emLote, setEmLote] = React.useState(false);
@@ -364,24 +384,38 @@ export default function Contatos() {
                 Acima da lista e depois dos filtros de propósito: nessa ordem ele lê como
                 "isto age no que você está vendo", que é literalmente o que ele faz. Em cima
                 dos filtros leria como "isto age em tudo". */}
-            {filtrados.length > 0 && (
+            {/* Com a lista vazia a barra só continua se há Desfazer: marcar o último da aba "Falta
+                decidir" esvazia a lista, e é justo aí que o dono precisa dele. Sem lista, o rótulo
+                "Os 0 desta lista" e os botões do lote não agiriam sobre ninguém, então saem. */}
+            {(filtrados.length > 0 || desfazer) && (
               <div style={s("display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:11px 13px;margin-bottom:14px;border-radius:var(--r-painel);background:var(--surface-2);border:1px solid var(--border)")}>
-                <span style={s("font-size:var(--t-label);color:var(--muted);font-weight:var(--w-title)")}>
-                  {/* Diz o TAMANHO e o RECORTE. "Marcar todos" sem número é o botão que o
-                      dono clica achando que são 12 quando são 1.840. */}
-                  {busca.trim() || filtro !== "Todos"
-                    ? `Os ${filtrados.length} desta lista:`
-                    : `Seus ${filtrados.length} contatos:`}
-                </span>
+                {filtrados.length > 0 && (
+                  <span style={s("font-size:var(--t-label);color:var(--muted);font-weight:var(--w-title)")}>
+                    {/* Diz o TAMANHO e o RECORTE. "Marcar todos" sem número é o botão que o
+                        dono clica achando que são 12 quando são 1.840. */}
+                    {busca.trim() || filtro !== "Todos"
+                      ? `Os ${filtrados.length} desta lista:`
+                      : `Seus ${filtrados.length} contatos:`}
+                  </span>
+                )}
 
-                {confirmando === undefined ? (
+                {filtrados.length === 0 ? null : confirmando === undefined ? (
                   <>
-                    <Escolha rotulo="Atende" ativo={false} cor="var(--success)" fundo="var(--success-soft)"
-                      onClick={() => (filtrados.length > 20 ? setConfirmando(true) : void marcarLote(true, filtrados))} />
-                    <Escolha rotulo="Não" ativo={false} cor="var(--muted)" fundo="var(--surface-2)"
-                      onClick={() => (filtrados.length > 20 ? setConfirmando(false) : void marcarLote(false, filtrados))} />
-                    <Escolha rotulo="Desmarcar" ativo={false} cor="var(--muted)" fundo="var(--surface-2)"
-                      onClick={() => (filtrados.length > 20 ? setConfirmando(null) : void marcarLote(null, filtrados))} />
+                    {/* Cada botão que repete a aba aberta fica de fora (24/10/2026): em "Falta decidir"
+                        "Desmarcar" gravava "sem resposta" em quem já estava assim e confirmava, com
+                        Desfazer e tudo, uma mudança que não houve. Em "Todos" os três ficam. */}
+                    {filtro !== "Atende" && (
+                      <Escolha rotulo="Atende" ativo={false} cor="var(--success)" fundo="var(--success-soft)"
+                        onClick={() => (filtrados.length > 20 ? setConfirmando(true) : void marcarLote(true, filtrados))} />
+                    )}
+                    {filtro !== "Não atende" && (
+                      <Escolha rotulo="Não" ativo={false} cor="var(--muted)" fundo="var(--surface-2)"
+                        onClick={() => (filtrados.length > 20 ? setConfirmando(false) : void marcarLote(false, filtrados))} />
+                    )}
+                    {filtro !== "Falta decidir" && (
+                      <Escolha rotulo="Desmarcar" ativo={false} cor="var(--muted)" fundo="var(--surface-2)"
+                        onClick={() => (filtrados.length > 20 ? setConfirmando(null) : void marcarLote(null, filtrados))} />
+                    )}
                   </>
                 ) : (
                   /* O segundo toque REPETE O NÚMERO em vez de dizer "sim". Confirmação que
@@ -397,9 +431,10 @@ export default function Contatos() {
                 )}
 
                 {/* A trava que realmente importa. Fica até o dono mudar o recorte — sem
-                    cronômetro, porque um desfazer que some sozinho não é desfazer. */}
+                    cronômetro, porque um desfazer que some sozinho não é desfazer. Vale para o
+                    último gesto: um lote ou, desde 24/10/2026, um toque numa linha. */}
                 {desfazer && confirmando === undefined && (
-                  <span style={s("display:flex;align-items:center;gap:8px;margin-left:auto;font-size:var(--t-label);color:var(--muted)")}>
+                  <span style={s(`display:flex;align-items:center;gap:8px;margin-left:${filtrados.length > 0 ? "auto" : "0"};font-size:var(--t-label);color:var(--muted)`)}>
                     {desfazer.rotulo}
                     <Btn variant="secondary" size="sm" onClick={() => void aplicarDesfazer()}>
                       {emLote ? "…" : "Desfazer"}
@@ -474,7 +509,8 @@ function Linha(
 
       {/* Dois botões e não um switch: ver o cabeçalho — "não decidi" e "decidi que não" são
           estados diferentes, e um switch só tem dois. Clicar no que já está ativo DESFAZ,
-          voltando para "falta decidir"; sem isso, marcar errado não teria volta. */}
+          voltando para "falta decidir"; sem isso, marcar errado não teria volta. Na aba "Falta
+          decidir" a linha sai ao marcar e esse segundo toque não existe: lá o Desfazer é o da barra. */}
       <span style={s("display:flex;gap:6px;flex-shrink:0")}>
         <Escolha
           rotulo="Atende"

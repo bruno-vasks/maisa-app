@@ -61,7 +61,8 @@ export function agendaComErro(agenda: LeituraDaAgenda): boolean {
  *
  * ⚠️ "Nada pendente" só com as duas leituras de volta, sem erro, e a MAISA atendendo. Fila
  * vazia com a MAISA pausada ou sem WhatsApp não é "tudo resolvido": é ninguém respondendo, e a
- * tela diz isso (`sem_maisa`).
+ * tela diz isso (`sem_maisa`). A exceção é a conta que não usa o WhatsApp (só emite recibo,
+ * `usaWhatsApp` falso): sem WhatsApp não há quem responder, e a fila vazia é "Nada pendente".
  */
 export type EstadoDaFila = EstadoDaLista | "sem_maisa";
 
@@ -70,12 +71,19 @@ export function estadoDaFila(p: {
   conversas: { carregadas: boolean; erro: string | null };
   agenda: LeituraDaAgenda;
   status: StatusDaMaisa;
+  /** `false` = a conta não usa o WhatsApp (`st.usaWhatsApp`). Sem informação, `true`: o lado que
+   *  continua avisando em vez de esconder. */
+  usaWhatsApp?: boolean;
 }): EstadoDaFila {
+  const { usaWhatsApp = true } = p;
   if (p.itens > 0) return "cheio";
   if (p.conversas.erro && !p.conversas.carregadas) return "erro";
   const dia = estadoDoDia(p.agenda, 0);
   if (dia === "erro") return "erro";
   if (!p.conversas.carregadas || dia === "carregando" || p.status === "conferindo") return "carregando";
+  /* Quem só emite recibo não usa WhatsApp (24/10/2026): sem WhatsApp, a fila vazia é "Nada
+   * pendente", e não "ninguém respondendo". Só o `sem_whatsapp`: pausada continua `sem_maisa`. */
+  if (p.status === "sem_whatsapp" && !usaWhatsApp) return "vazio";
   if (p.status !== "atendendo") return "sem_maisa";
   return "vazio";
 }
@@ -178,4 +186,50 @@ export function partesDoDia<T extends { etapa: string; data: string; inicio: num
     depois: vem.slice(1),
     feitos: porHora.filter((a) => a.etapa === "feito"),
   };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O GOOGLE NO FLUXO (24/10/2026, pedido do Bruno).
+ *
+ * Até 24/10/2026 o Fluxo só desenhava os atendimentos da tabela, e os compromissos lidos da
+ * agenda do Google (dentista, almoço, reunião) ficavam na Agenda, com o vazio dizendo quantos
+ * eram. Agora eles entram na lista do dia, em "A seguir". Compromisso não tem etapa, então ele
+ * nunca entra em `partesDoDia`: não é Agora, não é Passaram, não é Feitos. Fica enquanto não
+ * terminou (o que está em curso aparece) e sai quando termina, porque não pede ação.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+/** Os compromissos de hoje que ainda não terminaram, por hora. Em dia que não é hoje, ou com o
+ *  relógio ilegível, nenhum é descartado (igual a `partesDoDia`: nada passou, tudo vem).
+ *  `fim === agora` já terminou. */
+export function compromissosDoFluxo<T extends { data: string; inicio: number; fim: number }>(
+  doDia: readonly T[],
+  agora = Date.now(),
+): T[] {
+  const c = civilSP(new Date(agora).toISOString());
+  return [...doDia]
+    .filter((b) => !c || b.data !== c.data || b.fim > c.hora)
+    .sort((a, b) => a.inicio - b.inicio);
+}
+
+export type ASeguir<A, B> =
+  | { tipo: "ag"; inicio: number; ag: A }
+  | { tipo: "bloq"; inicio: number; b: B };
+
+/**
+ * "A seguir" do Fluxo: os atendimentos que vêm depois do próximo e os compromissos do Google,
+ * intercalados por hora. Mesmo formato de `Linha` da `LinhaDoTempo` (`telas/Agenda.tsx`).
+ *
+ * ⚠️ No empate de hora, o ATENDIMENTO vem antes do compromisso, de propósito. É o contrário da
+ * `LinhaDoTempo` da Agenda (lá o compromisso entra primeiro no array e ganha o empate): no
+ * Fluxo a linha com ação, "Chegou", vem primeiro. O `sort` é estável, então a ordem do array
+ * (atendimentos antes) é o que decide. Não "corrija" para igualar à Agenda.
+ */
+export function aSeguir<A extends { inicio: number }, B extends { inicio: number }>(
+  depois: readonly A[],
+  compromissos: readonly B[],
+): ASeguir<A, B>[] {
+  return [
+    ...depois.map((ag) => ({ tipo: "ag" as const, inicio: ag.inicio, ag })),
+    ...compromissos.map((b) => ({ tipo: "bloq" as const, inicio: b.inicio, b })),
+  ].sort((x, y) => x.inicio - y.inicio);
 }

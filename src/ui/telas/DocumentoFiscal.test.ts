@@ -34,8 +34,21 @@ describe("DocumentoFiscal", () => {
 
   /* ⚠️ Enquanto ninguém escolheu, nenhuma das duas se marca. Marcar uma por padrão faria a tela
    * afirmar um regime tributário que o dono não escolheu — e o regime decide qual documento sai. */
-  it("sem escolha feita, diz que falta escolher", () => {
-    expect(html()).toContain("ainda n\u00e3o escolheu");
+  it("sem escolha feita, nenhuma das duas vem marcada", () => {
+    const s = html();
+    expect(s).not.toContain('aria-pressed="true"');
+    expect(s.match(/aria-pressed="false"/g)).toHaveLength(2);
+  });
+
+  /* 24/10/2026, pedido do Bruno: a tela não explica que nota e recibo são documentos diferentes.
+   * O subtítulo já diz "Escolha uma vez" e os dois cartões são a escolha. Antes havia aqui uma
+   * frase "você ainda não escolheu — e são documentos diferentes…", e este teste exigia o trecho
+   * "ainda não escolheu". */
+  it("sem escolha feita, não há frase explicando a diferença nem pedindo para escolher de novo", () => {
+    const s = html();
+    expect(s).not.toContain("ainda n\u00e3o escolheu");
+    expect(s).not.toContain("documentos diferentes");
+    expect(s).not.toContain("n\u00e3o gravado");
   });
 });
 

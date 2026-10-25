@@ -110,15 +110,23 @@ export type PosseDaConversa = {
  *   1. ASSUMIDA vence tudo — é a única que muda o comportamento do AGENTE (ele se cala). Se
  *      "resolvida" viesse antes, uma conversa assumida e marcada como resolvida apareceria
  *      como `ok`, e o dono não veria que ainda está com ele.
- *   2. Depois quem falou por último. `cliente` é `espera` sem exceção: a MAISA responde em
- *      segundos, então uma fala do cliente que continua sendo a última significa que ela
- *      NÃO respondeu — escalou, está desligada, ou quebrou. É a conversa mais urgente que
- *      existe no painel, e o fixture antigo não tinha como representá-la.
- *   3. `resolvida` VENCE enquanto nada novo chegou depois dela — e é por isso que a função
+ *   2. RESOLVIDA vence enquanto nada novo chegou depois dela, e é por isso que a função
  *      recebe `atualizadaEm`. A alternativa era o adaptador apagar `resolvida_em` a cada
  *      mensagem nova, o que faria gravar uma fala mexer em duas tabelas por causa de uma
  *      regra que ninguém veria no código. Comparando as duas datas, "resolvi e o cliente
  *      voltou a escrever" desfaz o resolvido sozinho, sem escrita nenhuma.
+ *
+ *      ⚠️ Vem ANTES de "quem falou por último" desde 24/10/2026. Antes o item de baixo
+ *      rodava primeiro e `cliente` era `espera` sem exceção, então "Já resolvi" na fila
+ *      "Precisa de você" gravava `resolvida_em`, mostrava "Conversa resolvida" e a conversa
+ *      continuava em `espera`: o botão dizia que resolveu e não resolvia, e a aba
+ *      "Resolvidas" nunca tinha nada. Resolver não muda quem conduz: a MAISA decide se
+ *      responde por `assumida_em` (ver `agente.ts`), não por este estado.
+ *   3. Depois quem falou por último. `cliente` é `espera`: a MAISA responde em segundos,
+ *      então uma fala do cliente que continua sendo a última significa que ela NÃO
+ *      respondeu — escalou, está desligada, ou quebrou. É a conversa mais urgente que
+ *      existe no painel, e o fixture antigo não tinha como representá-la. A única exceção é
+ *      o item 2: o dono olhou essa fala e marcou como resolvida depois dela.
  */
 export function estadoDaConversa(p: {
   ultimoAutor?: Msg["de"];
@@ -127,8 +135,8 @@ export function estadoDaConversa(p: {
   posse?: PosseDaConversa;
 }): EstadoConversa {
   if (p.posse?.assumidaEm) return "voce";
-  if (p.ultimoAutor === "cliente") return "espera";
   if (p.posse?.resolvidaEm && depoisOuIgual(p.posse.resolvidaEm, p.atualizadaEm)) return "ok";
+  if (p.ultimoAutor === "cliente") return "espera";
 
   /* Não é `ultimoAutor === "voce" ? "voce" : "maisa"`, e a diferença é um bug de verdade:
    * "quem falou por último" NÃO é "quem conduz". Depois de o dono responder à mão e DEVOLVER a

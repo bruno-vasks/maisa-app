@@ -223,7 +223,10 @@ export function resumoDosDados(
   const falta = itens
     .filter((i) => i.estado === "falta")
     .map((i) => i.titulo.charAt(0).toLowerCase() + i.titulo.slice(1));
-  if (falta.length) return `Falta ${juntar(falta)} — é o que vai em todas as linhas do arquivo.`;
+  /* Sem cauda desde 24/10/2026: era "— é o que vai em todas as linhas do arquivo", do tempo do
+   * arquivo do e-CAC (saiu em 26/08/2026), e o subtítulo do cartão já diz "É o que vai em todo
+   * recibo". */
+  if (falta.length) return `Falta ${juntar(falta)}.`;
 
   const cpf = String(c.prestadorCpf ?? "").replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
   const profissao = c.ocupacaoSaude ? NOME_DA_OCUPACAO[c.ocupacaoSaude as OcupacaoSaude] : null;
@@ -603,11 +606,10 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
             </div>
           ) : (
             <div style={s("display:grid;gap:9px")}>
-              <span style={s("font-size:var(--t-label);color:var(--muted)")}>
-                É o que vai no arquivo em todas as linhas. Muda quando você quiser — não
-                mexe nos recibos que já saíram.
-              </span>
-
+              {/* Sem frase de abertura (24/10/2026): dizia "é o que vai no arquivo em todas as
+                  linhas, muda quando você quiser". O arquivo saiu da tela, e o subtítulo do cartão
+                  continua visível durante a edição e já diz "É o que vai em todo recibo. Corrigir
+                  aqui não mexe no que já saiu". */}
               <label style={s("display:grid;gap:5px;font-size:var(--t-label);color:var(--muted)")}>
                 Seu CPF — o mesmo com que você entra no gov.br
                 <input
@@ -652,7 +654,11 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
                   Dois campos e um sim/não, e os três só existem porque a Receita exige que
                   a autorização venha DELA e o aceite venha de NÓS. O terceiro é operado
                   pela MAISA, não pela cliente — está escrito no rótulo, porque campo que
-                  parece do usuário e não é vira dado errado. */}
+                  parece do usuário e não é vira dado errado.
+
+                  ⚠️ 24/10/2026: o campo vazio dizia "se você mesma emite". Desde 08/10/2026 vazio
+                  não é emitir sozinha: é não ter autorizado ninguém, e isso bloqueia a emissão
+                  (`faltaParaEmitirRecibo`). */}
               <div style={s("display:grid;gap:9px;padding-top:9px;border-top:1px solid var(--border)")}>
                 <strong style={s("font-size:var(--t-sm);color:var(--ink)")}>Quem emite por você</strong>
 
@@ -662,7 +668,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
                     value={fProc}
                     onChange={(e) => setFProc(e.target.value)}
                     inputMode="numeric"
-                    placeholder="Deixe vazio se você mesma emite…"
+                    placeholder="Deixe vazio se ainda não autorizou ninguém…"
                     className="n m-focus"
                     style={s(CAMPO)}
                   />

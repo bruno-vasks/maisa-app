@@ -37,7 +37,7 @@ npm run build && npm start
 
 Rail à esquerda, gaveta de detalhe à direita. Cinco telas (ver [`src/ui/LEIA-ME.md`](src/ui/LEIA-ME.md)):
 
-- **Fluxo de hoje** — o kanban do dia: chegando → atendendo → feito.
+- **Fluxo de hoje** — o dia pelo relógio: quem está em atendimento, o próximo, a lista do dia (com os compromissos do Google) e o que precisa de você.
 - **Agenda** — dia/semana/mês, com a agenda REAL do Google dentro da grade.
 - **Conversas** — as conversas de WhatsApp (demonstração).
 - **Grades** — clientes, equipe, catálogo, faturamento (emissão de NFS-e), "Mais".

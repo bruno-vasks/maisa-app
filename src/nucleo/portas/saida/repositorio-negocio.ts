@@ -53,6 +53,22 @@ export type RascunhoDeProfissional = {
   ativo?: boolean;
 };
 
+/**
+ * O expediente novo de UM profissional, com as duas frases que andam junto dele.
+ *
+ * `horario` e `folga` são o texto da tabela de Equipe ("Seg–Sáb 09–19", "domingo"), e a leitura
+ * prefere o texto gravado ao montado a partir do número. Quem grava o número sem regravar o
+ * texto deixa a Equipe dizendo o horário velho. O caso de uso monta as duas frases (a partir de
+ * `expediente`, em `dominio/expediente.ts`) e o adaptador grava os cinco campos de uma vez.
+ */
+export type RascunhoDeExpediente = {
+  /** Obrigatório: esta porta só EDITA quem já existe. */
+  id: string;
+  expediente: Expediente;
+  horario: string;
+  folga: string;
+};
+
 /* ─────────────────────────────────────────────────────────────────────────────
  * O RASCUNHO DE CLIENTE — e por que ele é o único com `id` OBRIGATÓRIO.
  *
@@ -240,9 +256,33 @@ export interface RepositorioNegocio {
    * ⚠️ Não mexe em expediente. `expediente_folga`/`de`/`ate` mandam na grade inteira e
    * merecem caso de uso próprio, com a mesma seriedade que `AjustarHorarios` já tem para
    * o horário anunciado. Deixá-los aqui num campo opcional convidaria a tela de cadastro
-   * a fechar a agenda de alguém sem querer.
+   * a fechar a agenda de alguém sem querer. O caminho próprio existe desde 24/10/2026:
+   * `salvarExpediente`, logo abaixo.
    */
   salvarProfissional(t: ContextoTenant, rascunho: RascunhoDeProfissional): Promise<Profissional>;
+
+  /**
+   * Grava o expediente de um profissional e devolve a linha como ficou (24/10/2026).
+   *
+   * ── POR QUE PRECISOU EXISTIR ──
+   * O expediente decide o que a Agenda deixa marcar e o que a MAISA oferece no WhatsApp, e
+   * nenhuma tela o escrevia: terapeuta nascia com Seg–Sex 09–19 e quem atendia às 19h ou 20h
+   * não tinha onde corrigir. Ficou fora do `salvarProfissional` de propósito (ver acima), e
+   * este é o caminho próprio, chamado só por `AjustarExpediente`.
+   *
+   * ── O CONTRATO ──
+   * Grava `expediente_folga`, `expediente_de`, `expediente_ate`, `horario` e `folga` NUMA
+   * escrita só. Número e frase não podem divergir nem por um instante: a leitura prefere o
+   * texto gravado, e a Equipe leria o horário velho.
+   *
+   * ⚠️ O ADAPTADOR TEM QUE DISTINGUIR "não era deste inquilino" DE "gravou". Um `update` com
+   * o id de outro negócio não dá erro: dá sucesso com zero linhas. Mesma disciplina do
+   * `salvarProfissional` e do `salvarServico`.
+   *
+   * Não recusa domingo nem faixa fora da janela da Agenda: quem decide isso é o caso de uso.
+   * O `check` do banco só garante `ate > de` e o passo de meia hora.
+   */
+  salvarExpediente(t: ContextoTenant, rascunho: RascunhoDeExpediente): Promise<Profissional>;
 
   /**
    * Atualiza um cliente e devolve a linha como ficou.

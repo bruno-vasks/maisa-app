@@ -5,10 +5,12 @@ import { s } from "@/ui/primitivos";
 import { createClient } from "@/adaptadores/saida/supabase/client";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
 
-// Chip do usuário logado + botão Sair, no rodapé da sidebar.
-// Não renderiza nada quando o auth está desligado ou ninguém está logado
-// → o app como demo aberta fica idêntico.
-export default function UserMenu() {
+/* A sessão de quem está logado: o e-mail, "saindo" e o `sair`. Existe separada do chip porque o
+ * desktop e o celular a mostram em lugares diferentes — o chip no rodapé do rail, e a linha
+ * "Sair da conta" no Mais, onde o celular não tem rail (24/10/2026). A guarda é a mesma nos dois:
+ * sem Supabase configurado ou sem ninguém logado, `email` é null e quem usa não desenha nada → o
+ * app como demo aberta fica idêntico. */
+export function useSessao() {
   const [email, setEmail] = useState<string | null>(null);
   const [saindo, setSaindo] = useState(false);
   const router = useRouter();
@@ -21,14 +23,44 @@ export default function UserMenu() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  if (!isSupabaseConfigured || !email) return null;
-
   const sair = async () => {
     setSaindo(true);
     await createClient().auth.signOut();
     router.push("/login");
     router.refresh();
   };
+
+  return { email: isSupabaseConfigured ? email : null, saindo, sair };
+}
+
+/** "Sair da conta" para o Mais do celular: o e-mail logado e um botão de texto, neutro, de 44px, sem
+ *  confirmação (o do rail também não pede). Não renderiza nada sem sessão. */
+export function SairDaConta() {
+  const { email, saindo, sair } = useSessao();
+  if (!email) return null;
+  return (
+    <div style={s("display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0 4px")}>
+      <span style={s("flex:1;min-width:0;font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")} title={email}>{email}</span>
+      <button
+        type="button"
+        onClick={sair}
+        disabled={saindo}
+        className="m-hov-bg m-press m-focus"
+        style={s(`min-height:44px;padding:0 14px;border:none;border-radius:var(--r-controle);background:transparent;color:var(--ink);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${saindo ? "default" : "pointer"}`)}
+      >
+        {saindo ? "Saindo…" : "Sair da conta"}
+      </button>
+    </div>
+  );
+}
+
+// Chip do usuário logado + botão Sair, no rodapé da sidebar.
+// Não renderiza nada quando o auth está desligado ou ninguém está logado
+// → o app como demo aberta fica idêntico.
+export default function UserMenu() {
+  const { email, saindo, sair } = useSessao();
+
+  if (!email) return null;
 
   const inicial = email[0]?.toUpperCase() || "?";
 

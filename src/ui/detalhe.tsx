@@ -23,6 +23,7 @@ import { resumoDaJornada } from "@/ui/componentes/JornadaDeAtivacao";
 import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 import { cpfMascarado, cpfValido } from "@/nucleo/dominio/clientes";
+import { faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
 import { ULTIMO_DIA_DO_MES, mesQueOReciboFecha, proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
 import { OPCOES_RECIBOS_POR_MES, rotuloRecibosPorMes } from "@/nucleo/dominio/recibos-do-mes";
 import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
@@ -70,6 +71,10 @@ export type Bloco =
   /** Nota de rodapé: pequena e apagada, sem caixa nem rótulo (ver `Nota` na Gaveta). */
   | { tipo: "nota"; key: string; texto: string }
   | { tipo: "toggles"; key: string; label?: string; toggles: { titulo: string; desc: string; on: boolean; alternar: () => void }[] }
+  /** Dias da semana que se liga e desliga (`rotulo` é a sigla, `nome` o que o leitor de tela diz) e,
+   *  embaixo, campos lado a lado. É o expediente do profissional (24/10/2026): uma faixa de horas só,
+   *  que vale para todos os dias marcados. `nota` é a frase pequena no pé do bloco. */
+  | { tipo: "dias"; key: string; label?: string; dias: { rotulo: string; nome: string; on: boolean; alternar: () => void }[]; campos: Campo[]; nota?: string }
   /** Trecho de conversa de WhatsApp. */
   | { tipo: "msgs"; key: string; label?: string; msgs: D.Msg[] }
   | { tipo: "aviso"; key: string; texto: string; tone?: "warn" | "danger" }
@@ -165,11 +170,30 @@ function cnpjFormatado(v?: string | null): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
+/** Quantos dias, a partir de hoje, o campo "Dia" do Novo atendimento e do Remarcar oferece: 12
+ *  semanas (24/10/2026; eram 21 dias, o alcance de `proximoVago`, que não é limite de marcação).
+ *  O servidor aceita até `D.DIAS_DE_ALCANCE` (366): o limite é só desta tela. */
+const DIAS_A_FRENTE = 84;
+
 /* ───────────────────────────── hook ───────────────────────────── */
 
 export function useDetalhe(id: string | null): Detalhe | null {
   const st = useStore();
   if (!id) return null;
+
+  /**
+   * Que documento ESTE negócio emite, para a ficha falar dele (28/09/2026, regressão 6).
+   *
+   * `recibo` é o Receita Saúde, `nota` é a nota fiscal da prefeitura e `null` é "ainda não
+   * escolheu" (a regra de `escolhaFeita`, nunca o `caminho`: config vazia cai no caminho
+   * municipal de propósito). Sem escolha, a ficha não fala de documento nenhum, como a tela
+   * Fiscal (`mostraNota`, em Grades.tsx).
+   */
+  const documentoDoNegocio: "recibo" | "nota" | null = st.fiscal.caminho === "recibo_saude"
+    ? "recibo"
+    : st.fiscal.status === "ok" && escolhaFeita(st.fiscal.config ?? null) !== null
+      ? "nota"
+      : null;
 
   /**
    * O que dizer embaixo do campo de CPF.
@@ -178,15 +202,17 @@ export function useDetalhe(id: string | null): Detalhe | null {
    * calado precisa dizer que ainda não gravou — senão o dono digita metade, sai da gaveta e
    * acha que salvou. A frase conta os dígitos que faltam em vez de dizer "incompleto":
    * quem colou um CPF truncado não sabe quanto falta.
+   *
+   * `completo` é a frase do CPF inteiro, e `undefined` deixa o campo sem dica.
    */
-  const dicaDeCpf = (cpf: string, completo: string): string => {
+  const dicaDeCpf = (cpf: string, completo: string | undefined): string | undefined => {
     const d = D.soDigitos(cpf);
     /* A frase do documento que ESTE negócio emite (28/09/2026, regressão 6): a da prefeitura
      * aparecia também para quem emite recibo do Receita Saúde, que não passa por prefeitura. */
     if (d.length === 0) {
-      return st.fiscal.caminho === "recibo_saude"
-        ? "Sem CPF o recibo do Receita Saúde não sai, e este cliente fica fora do arquivo."
-        : st.fiscal.status === "ok" && escolhaFeita(st.fiscal.config ?? null) !== null
+      return documentoDoNegocio === "recibo"
+        ? "Sem CPF o recibo do Receita Saúde não sai."
+        : documentoDoNegocio === "nota"
           ? "A prefeitura recusa a nota sem CPF, e sem ele este cliente fica fora do lote."
           : "Sem CPF este cliente fica fora da emissão do mês.";
     }
@@ -496,31 +522,43 @@ export function useDetalhe(id: string | null): Detalhe | null {
     /* O RODAPÉ É O QUE SE FAZ COM A PESSOA (25/09/2026, T6 e 05 F3). Era "Abrir conversa" e
      * "Ver a nota do mês", e para quem ainda não escreveu, "Fechar": a ficha só deixava editar.
      * Marcar horário é o primário (abre o rascunho com ela escolhida, no próximo vago); tirar de
-     * atendimento saiu do cartão com chave e foi para o menu, em dois toques (contradição C18). */
+     * atendimento saiu do cartão com chave e foi para o menu, em dois toques (contradição C18).
+     * Para quem está fora de atendimento o primário é "Voltar a atender" (24/10/2026), e o menu
+     * guarda só o que apaga: "Voltar a atender" tinha ido para lá por simetria, e não apaga nada. */
     const emiteRecibo = st.fiscal.status === "ok" && st.fiscal.caminho === "recibo_saude";
+    /* A nota do cliente só existe para quem emite nota E já escolheu o documento (24/10/2026,
+     * a regra de `mostraNota` da tela Fiscal, regressão 5 de 28/09/2026). Quem emite recibo do
+     * Receita Saúde não emite nota, e `st.notaDe` responde `pendente` para sempre nesse caminho;
+     * quem ainda não escolheu cai no caminho municipal, e "a emitir" seria dizer o que não se sabe. */
+    const mostraNota = documentoDoNegocio === "nota";
+    /* Falta a dona autorizar a MAISA no site da Receita (nunca autorizou ou venceu): sem isso a
+     * rotina do Dia do recibo não emite. Só com a config lida, e só para quem emite recibo. */
+    const semAutorizacao = emiteRecibo && !!st.fiscal.config
+      && faltaParaEmitirRecibo(st.fiscal.config, D.HOJE.iso).some((f) => f.id === "autorizacao" && f.quem === "voce");
     const verFiscal: Acao | null = cli.valor > 0
       ? {
-        label: emiteRecibo ? "Ver no Fiscal" : "Ver a nota do mês",
-        onClick: () => { st.irPara("faturamento"); if (!emiteRecibo) st.abrir(`nf-${cli.id}`); },
+        label: mostraNota ? "Ver a nota do mês" : "Ver no Fiscal",
+        onClick: () => { st.irPara("faturamento"); if (mostraNota) st.abrir(`nf-${cli.id}`); },
       }
       : null;
     const acoes = rodape(
-      ativo && { label: "Marcar horário", primaria: true, onClick: () => st.novoAgendamento(null, { clienteId: cli.id }) },
-      cv ? { label: "Abrir conversa", primaria: !ativo, onClick: irParaConversa(cv.id) } : !ativo && verFiscal,
+      ativo
+        ? { label: "Marcar horário", primaria: true, onClick: () => st.novoAgendamento(null, { clienteId: cli.id }) }
+        : { label: "Voltar a atender", primaria: true, onClick: () => st.alternarCli(cli.id) },
+      cv ? { label: "Abrir conversa", onClick: irParaConversa(cv.id) } : !ativo && verFiscal,
     );
+    const tirar: AcaoDestrutiva = {
+      label: "Tirar de atendimento", tone: "danger",
+      confirmar: {
+        chave: `tirar:${cli.id}`,
+        rotulo: "Tirar de atendimento",
+        aviso: `${D.primeiroNome(cli.nome)} sai da agenda e do fechamento do mês. Dá para voltar a atender por esta ficha.`,
+      },
+      onClick: () => { st.alternarCli(cli.id); st.pedirCancelamento(null); },
+    };
     const mais: (Acao | AcaoDestrutiva)[] = [
       ...(verFiscal && (ativo || cv) ? [verFiscal] : []),
-      ativo
-        ? {
-          label: "Tirar de atendimento", tone: "danger",
-          confirmar: {
-            chave: `tirar:${cli.id}`,
-            rotulo: "Tirar de atendimento",
-            aviso: `${D.primeiroNome(cli.nome)} sai da agenda e do fechamento do mês. Dá para voltar a atender por esta ficha.`,
-          },
-          onClick: () => { st.alternarCli(cli.id); st.pedirCancelamento(null); },
-        }
-        : { label: "Voltar a atender", onClick: () => st.alternarCli(cli.id) },
+      ...(ativo ? [tirar] : []),
     ];
 
     /* Só os serviços ATIVOS na lista, mais o que este cliente já tem — mesmo arranjo do
@@ -595,7 +633,14 @@ export function useDetalhe(id: string | null): Detalhe | null {
             },
             {
               id: "cpf", label: "CPF", valor: cli.cpf,
-              hint: dicaDeCpf(cli.cpf, "Vai no tomador da nota fiscal."),
+              /* Para onde o CPF vai, conforme o documento do negócio (24/10/2026): "tomador da nota
+                 fiscal" aparecia também para quem emite recibo do Receita Saúde. Sem escolha, sem dica. */
+              hint: dicaDeCpf(
+                cli.cpf,
+                documentoDoNegocio === "recibo" ? "Vai no recibo do Receita Saúde."
+                  : documentoDoNegocio === "nota" ? "Vai no tomador da nota fiscal."
+                    : undefined,
+              ),
               onChange: (v) => st.editarCliente(cli.id, { cpf: v }),
             },
             {
@@ -645,6 +690,11 @@ export function useDetalhe(id: string | null): Detalhe | null {
                     )(cli.diaRecibo, proximoDiaDoRecibo(cli.diaRecibo, D.HOJE.iso)),
                     cli.diaRecibo > 28 && cli.diaRecibo < ULTIMO_DIA_DO_MES ? "Em mês mais curto, sai no último dia." : "",
                     !cpfValido(cli.cpf) ? `Sem o CPF de ${primeiro}, o recibo não sai.` : "",
+                    /* A rotina pula o negócio inteiro sem a autorização da MAISA no site da Receita, e
+                       a falha só vai para o log (24/10/2026). `faltaParaEmitirRecibo` é a regra que a
+                       tela Fiscal usa. `quem: "nos"` (autorização aceita pela dona, esperando a MAISA
+                       confirmar) fica de fora: aí não falta nada a ela, e a frase seria falsa. */
+                    semAutorizacao ? "Sem a sua autorização no site da Receita, o recibo não sai." : "",
                     !st.cfg.avisarRecibo
                       ? "Ninguém recebe mensagem: a escolha fica no Fiscal."
                       : st.cfg.reciboPrimeiroParaMim
@@ -696,11 +746,16 @@ export function useDetalhe(id: string | null): Detalhe | null {
           linhas: [
             ["Atendimentos", String(cli.atendimentos)],
             ["Valor fechado", fmt(cli.valor)],
-            ["Nota fiscal", cli.valor > 0 ? rotuloNota[nota.status] : "sem valor no mês"],
+            /* ⚠️ A linha "Nota fiscal" só entra com `mostraNota` (24/10/2026). Para quem emite
+               recibo ela dizia "a emitir" todo mês, para sempre. */
+            ...(mostraNota
+              ? [["Nota fiscal", cli.valor > 0 ? rotuloNota[nota.status] : "sem valor no mês"] as [string, string]]
+              : []),
           ],
         },
         /* Só quem está fora ganha a linha: "em atendimento" é o normal, e o cartão com chave
-           que dizia isso para todo mundo saiu (o gesto está em "Mais ações"). */
+           que dizia isso para todo mundo saiu (o gesto de voltar a atender está no rodapé, e o de
+           tirar de atendimento em "Mais ações"). */
         ...(ativo ? [] : [{ tipo: "aviso" as const, key: "fora", tone: "warn" as const, texto: "Fora de atendimento: não aparece na agenda nem no fechamento do mês." }]),
       ],
       acoes,
@@ -746,6 +801,46 @@ export function useDetalhe(id: string | null): Detalhe | null {
       ? { label: ocupado ? "Desconectando…" : "Desconectar do Google", desabilitada: ocupado, onClick: () => st.desconectarGoogle(pr.id) }
       : null;
 
+    /* ── QUANDO ATENDE (24/10/2026) ──
+     * Os seis dias de segunda a sábado, e o horário que vale para todos os marcados: o modelo é uma
+     * faixa só (`Expediente`), então não há horário por dia. Domingo não aparece: a Agenda o trata
+     * como sempre fechado. Cada toque manda o expediente inteiro (`st.ajustarExpediente`).
+     *
+     * "Das" só lista horas antes do "até" atual, e "até" só depois do "das": assim não existe
+     * combinação inválida para o servidor recusar. A hora que já está gravada fica na lista mesmo
+     * fora da janela (um expediente posto por SQL), senão o select mostraria outra hora. */
+    const exp = pr.expediente;
+    const diasMarcados = D.diasQueAtende(exp);
+    const comHoraAtual = (horas: number[], atual: number) =>
+      (horas.includes(atual) ? horas : [...horas, atual].sort((a, b) => a - b)).map(String);
+    const quandoAtende: Bloco = {
+      tipo: "dias", key: "expediente", label: "Quando atende",
+      dias: D.DIAS_DE_ATENDIMENTO.map((d) => ({
+        rotulo: D.DIAS_DA_SEMANA[d].slice(0, 3),
+        nome: D.DIAS_DA_SEMANA[d],
+        on: diasMarcados.includes(d),
+        alternar: () => st.ajustarExpediente(pr.id, {
+          dias: diasMarcados.includes(d) ? diasMarcados.filter((x) => x !== d) : [...diasMarcados, d],
+          de: exp.de, ate: exp.ate,
+        }),
+      })),
+      campos: [
+        {
+          id: "de", label: "Das", valor: String(exp.de), tipo: "select",
+          opcoes: comHoraAtual(D.HORAS_DO_EXPEDIENTE.filter((h) => h < exp.ate), exp.de),
+          rotuloOpcao: (v) => D.hhmm(Number(v)),
+          onChange: (v) => st.ajustarExpediente(pr.id, { dias: diasMarcados, de: Number(v), ate: exp.ate }),
+        },
+        {
+          id: "ate", label: "Até", valor: String(exp.ate), tipo: "select",
+          opcoes: comHoraAtual(D.HORAS_DO_EXPEDIENTE.filter((h) => h > exp.de), exp.ate),
+          rotuloOpcao: (v) => D.hhmm(Number(v)),
+          onChange: (v) => st.ajustarExpediente(pr.id, { dias: diasMarcados, de: exp.de, ate: Number(v) }),
+        },
+      ],
+      nota: "O mesmo horário vale para todos os dias marcados. Domingo fica fechado. Fora desse período a Agenda não deixa marcar e a MAISA não oferece horário.",
+    };
+
     return {
       titulo: pr.nome, seed: pr.id, sub: `${pr.papel} · na equipe desde ${pr.desde}`,
       blocos: [
@@ -758,6 +853,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
             alternar: () => st.alternarProf(pr.id),
           }],
         },
+        quandoAtende,
         blocoGoogle,
         /* Nome e papel EDITÁVEIS (1B.12, 08 P0-2): o nome é o que a MAISA diz quando confirma
            "com quem?", e corrigir o que o cadastro adivinhou pelo e-mail pedia SQL. Grava ao
@@ -777,7 +873,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
             },
           ],
         },
-        { tipo: "stats", key: "desde", linhas: [["Na equipe desde", pr.desde]] },
+        /* Sem o bloco "Na equipe desde" (24/10/2026): a data já está no subtítulo do cabeçalho. */
         {
           tipo: "stats", key: "mes", label: "No mês",
           linhas: [["Atendimentos", String(pr.atendimentosMes)]],
@@ -834,7 +930,9 @@ export function useDetalhe(id: string | null): Detalhe | null {
      * horas são as vagas daquela pessoa naquele dia (`st.vagasDe`, a conta do agente), mais a
      * escolhida. Depois da primeira tentativa, travam: ver `rascunhoEstado.tentou` no store. */
     const duracaoR = svEscolhido?.duracao ?? reusado?.duracao ?? D.duracaoPadrao(st.servicos);
-    const dias = Array.from({ length: 21 }, (_, i) => D.somarDias(D.HOJE.iso, i)).filter((d) => !D.fechado(d));
+    /* 12 semanas à frente, e não 21 dias (24/10/2026): o servidor aceita até 366 dias, e quem limitava
+       era só esta lista. Ver `DIAS_A_FRENTE`. */
+    const dias = Array.from({ length: DIAS_A_FRENTE }, (_, i) => D.somarDias(D.HOJE.iso, i)).filter((d) => !D.fechado(d));
     if (!dias.includes(r.data)) dias.unshift(r.data);
     const horas = st.vagasDe(r.profissionalId, r.data, duracaoR);
     if (!horas.includes(r.inicio)) horas.push(r.inicio);
@@ -853,6 +951,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
             rotuloOpcao: (v) => (v === D.HOJE.iso ? `Hoje, ${D.rotuloDia(v)}` : D.rotuloLongo(v)),
             /* Trocar o dia leva ao primeiro vago dele, se a hora antiga não servir. */
             onChange: (v) => {
+              st.lerMesDe(v);
               const livres = st.vagasDe(r.profissionalId, v, duracaoR);
               st.editarRascunho({ data: v, ...(livres.length && !livres.includes(r.inicio) ? { inicio: livres[0] } : {}) });
             },
@@ -923,14 +1022,26 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 : avulso
                   ? `${reusado ? "Usa" : "Cria"} o serviço "${avulso}", ${duracaoR} min, até ${D.hhmm(r.inicio + duracaoR / 60)}. Ele não aparece para os clientes no WhatsApp.`
                   : "Opcional. Sem serviço, o valor acima basta.",
-              /* Trocar o serviço traz o preço dele para o campo de valor — que o dono então
-                 edita. Deixar o campo com o preço do serviço anterior cobraria errado.
+              /* Trocar o serviço traz o preço dele para o campo de valor, MAS SÓ quando o valor ainda
+                 não é do dono: campo vazio, ou com um número que entrou sozinho (o preço do serviço
+                 anterior ou o valor da ficha). Deixar o preço do serviço anterior cobraria errado;
+                 sobrescrever o que o dono digitou também (24/10/2026: quem preenche de cima para
+                 baixo digitava 150, escolhia o serviço e o campo virava 100 sem aviso). Se o valor
+                 digitado ficar diferente do serviço, a dica do campo de valor diz.
+                 Compara como número (`numeroDigitado`), e não como texto: "100,00" e "R$ 100" valem 100.
                  Voltar para "Nenhum" NÃO mexe no valor: é justamente o valor que vai marcar. */
               onChange: (v) => {
                 if (!v) { st.editarRascunho({ servicoId: "" }); return; }
                 const sv = st.servicoDe(v);
                 const daFicha = st.clienteDe(r.clienteId)?.valorSessao;
-                st.editarRascunho({ servicoId: v, valor: daFicha != null ? String(daFicha) : sv ? String(sv.preco) : "" });
+                const atual = (r.valor ?? "").trim();
+                const digitado = D.numeroDigitado(atual);
+                const entrouSozinho = atual === ""
+                  || (digitado !== null && (digitado === svEscolhido?.preco || (daFicha != null && digitado === daFicha)));
+                st.editarRascunho({
+                  servicoId: v,
+                  ...(entrouSozinho ? { valor: daFicha != null ? String(daFicha) : sv ? String(sv.preco) : "" } : {}),
+                });
               },
             },
           ],
@@ -1113,11 +1224,19 @@ export function useDetalhe(id: string | null): Detalhe | null {
     const zap: Acao | null = cv.telefone
       ? { label: "Abrir no WhatsApp", onClick: () => st.abrirNoWhatsApp(cv.id) }
       : null;
+    /* A caixa azul das falas só existe com falas (24/10/2026): enquanto a thread vem do servidor
+     * ela aparecia vazia, parecendo conversa sem mensagem. Mesmo texto de `Conversas.tsx`. */
+    const mensagens = st.threadDe(cv.id);
+    const falas: Bloco[] = mensagens.length
+      ? [{ tipo: "msgs", key: "th", label: "Conversa", msgs: mensagens }]
+      : st.threadCarregando
+        ? [{ tipo: "texto", key: "th", label: "Conversa", texto: "Carregando a conversa…" }]
+        : [];
     return {
       titulo: cv.nome, seed: cv.id,
       sub: `${cv.telefone ? D.telefoneBonito(cv.telefone) : "Número incompleto"} · última mensagem às ${D.horaDeISO(cv.atualizadaEm)}`,
       blocos: [
-        { tipo: "msgs", key: "th", label: "Conversa", msgs: st.threadDe(cv.id) },
+        ...falas,
         {
           tipo: "texto", key: "quem", label: "Quem está conduzindo",
           /* Quatro estados, quatro frases. `espera` é NOVO e é o que mais importa: significa que
@@ -1177,8 +1296,10 @@ export function useDetalhe(id: string | null): Detalhe | null {
       : null;
 
     /* ── Google Calendar + Meet ──
-     * Não há mais "criar evento": o atendimento JÁ É o evento. O que existe aqui é o que
-     * se faz com um evento que existe — mandar o link, abrir no Google, cancelar. */
+     * O atendimento é uma linha da tabela `atendimentos`, e o Google é uma camada que se soma
+     * (ADR-0009; até 24/10/2026 este comentário dizia que o atendimento JÁ É o evento, e valia só
+     * quando todo atendimento nascia no Google). Quando há evento ou link do Meet, o que existe
+     * aqui é o que se faz com ele: mandar o link, abrir no Google, cancelar. */
     const conexaoAg = st.googleDe(ag.profissionalId);
     const ocupadoAg = st.googleOcupado(ag.id);
 
@@ -1254,10 +1375,16 @@ export function useDetalhe(id: string | null): Detalhe | null {
     ];
 
     /* O novo dia e horário: as vagas daquela pessoa, sem contar este atendimento, mais o
-     * horário atual (escolher o mesmo desliga o botão). Trocar o dia cai no primeiro vago dele. */
+     * horário atual (escolher o mesmo desliga o botão). Trocar o dia cai no primeiro vago dele.
+     *
+     * ⚠️ OS DIAS VÃO ATÉ 12 SEMANAS, E ATÉ 4 SEMANAS DEPOIS DO DIA ORIGINAL (24/10/2026). Eram 21 dias, e
+     * como não se arrasta na Agenda, passar uma sessão para daqui a um mês pedia cancelar e marcar de
+     * novo. O alcance conta a partir do dia ORIGINAL (`ag.data`), e não do que está escolhido, para a
+     * lista não mudar enquanto a pessoa escolhe: uma sessão de série a 5 meses ainda anda uma semana. */
     const blocoRemarcar: Bloco | null = remarcando
       ? (() => {
-        const dias = Array.from({ length: 21 }, (_, i) => D.somarDias(D.HOJE.iso, i)).filter((d) => !D.fechado(d));
+        const alcance = Math.max(DIAS_A_FRENTE, D.diasEntre(D.HOJE.iso, ag.data) + 28);
+        const dias = Array.from({ length: alcance }, (_, i) => D.somarDias(D.HOJE.iso, i)).filter((d) => !D.fechado(d));
         if (!dias.includes(remarcando.data)) dias.unshift(remarcando.data);
         const livres = st.vagasDe(ag.profissionalId, remarcando.data, ag.duracao, ag.id);
         const horas = livres.includes(remarcando.inicio) ? [...livres] : [...livres, remarcando.inicio].sort((a, b) => a - b);
@@ -1268,6 +1395,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
               id: "dia", label: "Dia", valor: remarcando.data, tipo: "select", opcoes: dias,
               rotuloOpcao: (v: string) => (v === D.HOJE.iso ? `Hoje, ${D.rotuloDia(v)}` : D.rotuloLongo(v)),
               onChange: (v: string) => {
+                st.lerMesDe(v);
                 const l = st.vagasDe(ag.profissionalId, v, ag.duracao, ag.id);
                 st.editarRemarcacao({ data: v, ...(l.length && !l.includes(remarcando.inicio) ? { inicio: l[0] } : {}) });
               },
@@ -1296,7 +1424,13 @@ export function useDetalhe(id: string | null): Detalhe | null {
 
     /* Bloco do Google. Dia e hora saem do PRÓPRIO evento, lido na última busca — não há
      * mais previsão a conferir contra o que está lá. Se alguém remarcar direto no Google
-     * Calendar, é isto aqui que muda na leitura seguinte. */
+     * Calendar, é isto aqui que muda na leitura seguinte.
+     *
+     * ⚠️ SÓ APARECE QUANDO O GOOGLE FAZ PARTE DESTE ATENDIMENTO (24/10/2026): agenda conectada, ou
+     * um evento ou link do Meet já gravados (quem desconectou depois de marcar continua com eles).
+     * Antes aparecia sempre, e para quem usa a agenda da MAISA sem Google dizia "No Google
+     * Calendar" logo depois de a gaveta de Novo atendimento dizer que não vira evento lá. */
+    const temGoogle = !!(conexaoAg || ag.htmlLink || ag.meetLink);
     const blocoGoogle: Bloco = {
       tipo: "stats", key: "gcal", label: "No Google Calendar",
       linhas: [
@@ -1330,7 +1464,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
          * convidado, é sempre verdadeiro), nenhuma leitura diz se o lembrete saiu, e passado
          * sem etapa gravada é inferência. Sem nada a dizer, o bloco não aparece. */
         ...(situacao ? [{ tipo: "texto", key: "s", label: "Situação", texto: situacao } as Bloco] : []),
-        blocoGoogle,
+        ...(temGoogle ? [blocoGoogle] : []),
         /* Serviço ou cliente que este navegador não conhece — os dados vieram gravados no
          * próprio evento. Sem esta linha, o preço "R$ 0,00" de um serviço criado noutro
          * aparelho pareceria um erro de cadastro em vez do que é: informação que ficou do
@@ -1340,11 +1474,8 @@ export function useDetalhe(id: string | null): Detalhe | null {
              mora no banco) terminando em "Ele funciona normalmente". Nota de rodapé (28/09/2026). */
           ? [{ tipo: "nota", key: "solto", texto: "Serviço fora do catálogo: nome, duração e valor são os que ficaram gravados neste atendimento." } as Bloco]
           : []),
-        ...(semConfirmacao(ag)
-          ? [{ tipo: "aviso", key: "av", texto: ehHoje
-              ? "Sem confirmação, o horário pode furar. Vale uma ligação se estiver perto da hora."
-              : "Sem confirmação ainda. Se chegar perto do dia assim, vale uma mensagem." } as Bloco]
-          : []),
+        /* Sem o aviso "vale uma ligação" que ficava aqui (24/10/2026): era conselho sobre o ofício de
+           quem atende, e repetia a linha "Situação" acima, que já diz que o horário está sem confirmação. */
       ],
       acoes,
       mais,
@@ -1461,13 +1592,22 @@ export function useDetalhe(id: string | null): Detalhe | null {
 
   /* ── a fila inteira, no celular (1C.7, 02 P0-3) ──
    * O Fluxo do celular mostra até três pendências e "Ver todas"; a lista completa mora aqui, e
-   * não empilhada antes do dia. Cada item abre o que ele pede (a conversa, o atendimento). */
+   * não empilhada antes do dia. Cada item abre o que ele pede (a conversa, o atendimento).
+   * ⚠️ Item de conversa seleciona a conversa antes de abrir a gaveta (24/10/2026): o store só busca
+   * a thread da conversa selecionada (`convSel`), e `abrir` só troca a gaveta. Sem isto a gaveta
+   * de qualquer conversa que não fosse a da tela de Conversas abria com a caixa de falas vazia. */
   if (id === "fila") {
     return {
       titulo: "Precisa de você",
       sub: st.fila.length === 1 ? "1 pendência" : `${st.fila.length} pendências`,
       blocos: st.fila.length
-        ? [{ tipo: "lista", key: "fila", itens: st.fila.map((f) => ({ id: f.id, nome: f.titulo, sub: `${f.tag} · ${f.msg}`, onClick: () => st.abrir(f.alvo) })) }]
+        ? [{
+          tipo: "lista", key: "fila",
+          itens: st.fila.map((f) => ({
+            id: f.id, nome: f.titulo, sub: `${f.tag} · ${f.msg}`,
+            onClick: () => st.abrirItemDaFila(f),
+          })),
+        }]
         : [{ tipo: "texto", key: "nada", texto: "Nada pendente agora." }],
       acoes: [],
     };

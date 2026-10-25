@@ -345,8 +345,7 @@ function FaixaCanalLida() {
       {travado && (
         <span style={s("font-size:var(--t-label);color:var(--danger);line-height:1.5")}>
           O servidor não está pronto para conectar o WhatsApp. Falta:{" "}
-          <b>{st.canalFaltando.join(", ")}</b>. Os botões estão travados de propósito — sem isso,
-          desconectar seria definitivo.
+          <b>{st.canalFaltando.join(", ")}</b>.
         </span>
       )}
 
@@ -583,11 +582,12 @@ function Horarios() {
   return (
     <div style={s("display:flex;flex-direction:column")}>
       {/* Este é o horário do NEGÓCIO, e a frase existe porque a tela tem dois horários a
-          poucos cliques de distância: este e o expediente de cada profissional, na tela
-          de Equipe. Quem edita aqui achando que muda a agenda não muda — e vice-versa. */}
+          poucos cliques de distância: este e o expediente de cada profissional, que se edita
+          na ficha dele, em Equipe (desde 24/10/2026; antes não havia onde). Quem edita aqui
+          achando que muda a agenda não muda — e vice-versa. */}
       <p style={s("margin:0 0 12px;font-size:var(--t-label);color:var(--muted);line-height:1.55")}>
         É o que a MAISA responde quando perguntam <b>&quot;que horas vocês atendem?&quot;</b>. Quem
-        decide se cabe marcar às 15h é o expediente de cada profissional, na tela de Equipe.
+        decide se cabe marcar às 15h é o horário de cada profissional, na ficha dele em Equipe.
       </p>
 
       {st.semanaErro && (
@@ -676,10 +676,6 @@ function Antecedencia() {
     <div style={s("display:flex;align-items:center;gap:16px;padding:13px 0;border-bottom:1px solid var(--line)")}>
       <span style={s("flex:1;min-width:0")}>
         <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title)")}>Quando mandar</span>
-        <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:2px;line-height:1.45")}>
-          Sessão de terapia pede mais tempo que um corte: quem avisa em cima da hora não
-          consegue remarcar.
-        </span>
       </span>
       <select
         value={atual}
@@ -716,8 +712,29 @@ function Duvidas() {
   );
   const editando = Boolean(rascunho.id);
   const podeSalvar = rascunho.pergunta.trim().length > 0 && rascunho.resposta.trim().length > 0;
+  const perguntaRef = React.useRef<HTMLInputElement>(null);
 
   const limpar = () => setRascunho({ pergunta: "", resposta: "" });
+
+  /* O formulário fica depois da lista, e com 4 respostas (o que toda conta nasce com) ele já
+   * está atrás da barra de abas no celular: sem rolar, o lápis parecia não fazer nada
+   * (24/10/2026). `center` e não `nearest`, para a resposta e o Salvar também aparecerem. A
+   * rolagem é instantânea e o foco vai sem rolar, para o navegador (o iOS, ao abrir o teclado)
+   * não refazer por cima a rolagem que acabou de acontecer. */
+  const editar = (f: { id: string; pergunta: string; resposta: string }) => {
+    setRascunho({ id: f.id, pergunta: f.pergunta, resposta: f.resposta });
+    perguntaRef.current?.scrollIntoView({ block: "center" });
+    perguntaRef.current?.focus({ preventScroll: true });
+  };
+
+  /* Apagar a resposta que está aberta no formulário limpa o formulário (24/10/2026). Sem isso o
+   * próximo "Salvar" mandava o id de uma resposta que não existe mais, e o servidor não a
+   * achava (`NaoEncontrado`, `supabase/faqs.ts`). Se o servidor recusar o apagar, a linha volta e o texto editado se
+   * perde: é o custo aceito, a alternativa era gravar por cima de uma resposta apagada. */
+  const apagar = (id: string) => {
+    if (rascunho.id === id) limpar();
+    void st.removerFaq(id);
+  };
 
   return (
     <div style={s("display:flex;flex-direction:column;gap:16px")}>
@@ -755,7 +772,7 @@ function Duvidas() {
               )}
             </div>
             <button
-              onClick={() => setRascunho({ id: f.id, pergunta: f.pergunta, resposta: f.resposta })}
+              onClick={() => editar(f)}
               className="m-press m-focus m-alvo"
               aria-label={`Editar: ${f.pergunta}`}
               style={s("border:none;background:none;cursor:pointer;color:var(--muted);padding:3px")}
@@ -763,7 +780,7 @@ function Duvidas() {
               <Icon name="edit" size={15} />
             </button>
             <button
-              onClick={() => void st.removerFaq(f.id)}
+              onClick={() => apagar(f.id)}
               className="m-press m-focus m-alvo"
               aria-label={`Apagar: ${f.pergunta}`}
               style={s("border:none;background:none;cursor:pointer;color:var(--muted);padding:3px")}
@@ -778,6 +795,7 @@ function Duvidas() {
         <label style={s("display:flex;flex-direction:column;gap:6px")}>
           <Rotulo>{editando ? "Editando a pergunta" : "Nova pergunta"}</Rotulo>
           <input
+            ref={perguntaRef}
             value={rascunho.pergunta}
             onChange={(e) => setRascunho((r) => ({ ...r, pergunta: e.target.value }))}
             placeholder="Escreva uma pergunta que os clientes costumam fazer…"
@@ -823,8 +841,8 @@ function Duvidas() {
         </div>
 
         <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-          A MAISA procura por sentido, não por palavra exata: quem perguntar “dá pra
-          estacionar aí?” encontra a resposta acima.
+          Não precisa cadastrar cada jeito de fazer a mesma pergunta. Se você cadastrar “Vocês têm
+          estacionamento?”, a MAISA também responde quem escrever “dá pra estacionar aí?”.
         </span>
       </div>
     </div>
@@ -971,6 +989,11 @@ const tituloDe = (id: RecorteId) => RECORTES.find((r) => r.id === id)!.titulo;
 /** O que pede a mão do dono, marcado na navegação. Só pendência, nunca contagem de coisa boa. */
 function pendenciaDe(id: RecorteId, st: ReturnType<typeof useStore>): string | null {
   if (id !== "whatsapp" || !st.canal) return null;
+  /* Quem só emite recibo não usa WhatsApp (24/10/2026): "Sem WhatsApp" e "Ninguém recebe os
+   * avisos" seriam pendência permanente de algo que ela não precisa. Vem antes das duas regras
+   * porque, com o canal caído, `encaminhar` (ligado por padrão) acusaria a segunda. O recorte
+   * continua lá: é onde ela conecta se mudar de ideia. */
+  if (st.statusMaisa === "sem_whatsapp" && !st.usaWhatsApp) return null;
   if (st.canal.status !== "conectado") return "Sem WhatsApp";
   if (st.cfg.encaminhar && !st.canal.telefoneDono) return "Ninguém recebe os avisos";
   return null;

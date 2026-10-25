@@ -20,6 +20,9 @@
  *                         (desligado de verdade, com o motivo, quando não há WhatsApp).
  *   `ROTULO`, `FRASE` ... para quem precisa só do texto (vazio do Fluxo e de Conversas).
  *
+ * `sem_whatsapp` some da casca para quem não usa o WhatsApp (só emite recibo, `st.usaWhatsApp`
+ * falso): ver `StatusDaMaisa`. A linha dos Ajustes continua, e é de lá que ela conecta.
+ *
  * `conferindo` é esqueleto SEM TEXTO e sem botão (contradição C10 do backlog do front): dizer
  * "no ar" ou "Conectar" por dois segundos é a mesma mentira, mais curta.
  *
@@ -128,6 +131,13 @@ export function StatusDaMaisa({ sobre, curto }: { sobre: "nav" | "claro"; curto?
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
   }, [aberto]);
+
+  /* Quem só emite recibo não usa WhatsApp (24/10/2026): "WhatsApp desconectado" em toda tela
+   * seria cobrança permanente de algo que ela não precisa. Some SÓ o `sem_whatsapp`: "Pausada" e
+   * "Voltar a atender" continuam, porque pausar pela topbar também desliga o agente e, derivado
+   * dele, `usaWhatsApp` viraria falso e levaria o chip junto. Depois dos hooks, de propósito.
+   * Se ela ligar lembrete, aviso de recibo ou conversa, o chip volta sozinho. */
+  if (status === "sem_whatsapp" && !st.usaWhatsApp) return null;
 
   if (status === "conferindo" || !acao) return <Conferindo sobre={sobre} largura={curto ? 72 : 96} />;
 

@@ -12,15 +12,23 @@
  *
  * ── O QUE VEIO DO HANDOFF DE DESIGN, E O QUE NÃO VEIO ──
  *
- * Veio: as etapas explícitas com barra de progresso, o painel de emissão fixo à direita, o CTA
- * soberano com a contagem dentro, a prévia do documento, e o modal em duas fases (progresso →
- * resumo).
+ * Veio: o painel de emissão fixo à direita, o CTA soberano com a contagem dentro, a prévia do
+ * documento. O modal em duas fases (progresso → resumo) saiu depois: o placar da emissão mora no
+ * canto da tela (`st.emissao`).
  *
  * Não veio: a fonte do protótipo (Plus Jakarta como família de texto — este repo a aposentou,
  * ela sobrevive só no wordmark), os valores de cor crus (usamos os tokens do `globals.css`), e a
  * etapa "Emitente". Aquela etapa pedia nome, CPF e CRP **na hora de emitir** — dado que não muda
- * de mês para mês e que agora mora na configuração. Duas etapas em vez de três, e a que sobrou
- * some quando não há nada a decidir.
+ * de mês para mês e que agora mora na configuração.
+ *
+ * ── ★ UMA TELA SÓ, SEM ETAPAS (24/10/2026) ──
+ *
+ * O handoff tinha uma barra "1. Recibos, 2. Conferência" com progresso em 50% e o botão
+ * "Continuar", e a tela chegou a ter as duas etapas. A conferência mostrava Clientes, Recibos a
+ * emitir, Valor e Emitente: os mesmos números do painel "A emitir" (e do pé do celular) e o CPF
+ * da faixa de cima. Emitir nunca dependeu dela, mas a barra dizia que faltava uma etapa antes de
+ * emitir, e em mês em dia o "Continuar" levava a uma conferência de zeros. Saiu a barra, a
+ * conferência e o "Continuar"/"Voltar". Ficou a lista, o painel e o "Voltar e editar meus dados".
  *
  * ── ⚠️ O PROGRESSO É REAL, E ISSO NÃO É DETALHE ──
  *
@@ -205,39 +213,6 @@ export function reconciliar(
 
 /* ── peças da tela ────────────────────────────────────────────────────────── */
 
-const ETAPAS = ["Recibos", "Conferência"] as const;
-
-function BarraDeEtapas({ etapa, ir }: { etapa: number; ir: (n: number) => void }) {
-  return (
-    <Card pad={0} style={s("padding:13px 20px;display:flex;align-items:center;gap:14px")}>
-      {ETAPAS.map((rotulo, i) => {
-        const n = i + 1;
-        const atual = n === etapa;
-        return (
-          <React.Fragment key={rotulo}>
-            {i > 0 && <span aria-hidden style={s("width:16px;height:2px;background:var(--line);flex:none")} />}
-            <button
-              onClick={() => ir(n)}
-              className="m-focus"
-              style={s(`border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px 0;font-size:var(--t-sm);font-weight:${atual ? "var(--w-emph)" : "var(--w-title)"};color:${atual ? "var(--primary)" : "var(--muted)"};transition:color var(--dur-fast) var(--ease-out)`)}
-              aria-current={atual ? "step" : undefined}
-            >
-              {n}. {rotulo}
-            </button>
-          </React.Fragment>
-        );
-      })}
-      {/* A barra à direita não é enfeite: é a única coisa na tela que diz "falta pouco". */}
-      <span
-        aria-hidden
-        style={s("flex:1;min-width:40px;height:5px;border-radius:20px;background:var(--surface-2);overflow:hidden")}
-      >
-        <span style={s(`display:block;height:100%;border-radius:20px;background:var(--primary);width:${(etapa / ETAPAS.length) * 100}%;transition:width var(--dur-base) var(--ease-out)`)} />
-      </span>
-    </Card>
-  );
-}
-
 /**
  * Linha do emitente. Read-only de propósito — quem muda é a tela de configuração.
  *
@@ -338,7 +313,7 @@ function Emitente({ config, mobile }: { config: ConfigFiscal; mobile: boolean })
         className="m-focus"
         style={s("margin-left:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary);padding:2px 0")}
       >
-        {/* "Editar", e não "Documento fiscal" como antes: desde que a etapa 1 ganhou o botão
+        {/* "Editar", e não "Documento fiscal" como antes: desde que a tela ganhou o botão
             "Voltar e editar meus dados" no pé, dois nomes diferentes para o MESMO destino na mesma
             tela sugeririam dois lugares. Aqui, ao lado do dado, o verbo basta. */}
         Editar
@@ -376,7 +351,6 @@ export function EmitirRecibos() {
   const [fiscal, setFiscal] = useState<Fiscal | null>(null);
   const [pend, setPend] = useState<Pendentes | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [etapa, setEtapa] = useState(1);
   /** `null` = ainda não mexeram: vale "todos". Depois disso, a escolha é dela. */
   const [desmarcados, setDesmarcados] = useState<Set<string>>(new Set());
   const [previa, setPrevia] = useState(0);
@@ -455,8 +429,8 @@ export function EmitirRecibos() {
   /* ★ OS RECIBOS, E NÃO AS SESSÕES (01/10/2026, Bruno: "cada paciente só recebe um recibo por
    * mês"). As sessões escolhidas viram recibos pela escolha da ficha de cada pessoa
    * (`recibosPorMes`). Sem a 033 a ficha não tem a escolha (`undefined`), e cai em um por sessão,
-   * que é como era: juntar sem a função do banco seria recusado. A contagem do botão, a prévia e a
-   * conferência falam de recibos. */
+   * que é como era: juntar sem a função do banco seria recusado. A contagem do botão e a prévia
+   * falam de recibos. */
   const recibos = useMemo(
     () => juntarEmRecibos(aEmitir, (id) => st.clienteDe(id)?.recibosPorMes ?? 0),
     [aEmitir, st.cadastro.clientes], // eslint-disable-line react-hooks/exhaustive-deps -- `clienteDe` lê de `cadastro.clientes`
@@ -477,9 +451,6 @@ export function EmitirRecibos() {
     setDesmarcados((a) => { const n = new Set(a); n.delete(chave); return n; });
     setNovo({ id: p.id, chave });
     setSumiram([]);
-    /* A linha mora na etapa 1. Lançar da etapa 2 e continuar na conferência mostraria um número
-     * mudando sem a linha que o explica. */
-    setEtapa(1);
   }, [mudarOtimistas]);
 
   /* O destaque é temporário: ele responde "caiu aqui", não marca um estado. */
@@ -751,9 +722,9 @@ export function EmitirRecibos() {
     </Card>
   );
 
-  /* ── painel da esquerda: a etapa ─────────────────────────────────────────── */
+  /* ── painel da esquerda: a lista ─────────────────────────────────────────── */
 
-  const conteudo = etapa === 1 ? (
+  const conteudo = (
     <>
       <div style={s("display:flex;align-items:baseline;justify-content:space-between;gap:12px")}>
         <h2 style={s("font-size:var(--t-title);font-weight:var(--w-emph);letter-spacing:var(--ls-title);color:var(--ink);margin:0")}>
@@ -852,28 +823,6 @@ export function EmitirRecibos() {
         )}
       </div>
     </>
-  ) : (
-    <>
-      <h2 style={s("font-size:var(--t-title);font-weight:var(--w-emph);letter-spacing:var(--ls-title);color:var(--ink);margin:0")}>
-        Conferência
-      </h2>
-      <dl style={s("margin:0;display:flex;flex-direction:column")}>
-        {[
-          ["Clientes", String(escolhidos.length)],
-          ["Recibos a emitir", String(recibos.length)],
-          ["Valor", fmt(valor)],
-          ["Emitente", fiscal.config.prestadorCpf ?? "—"],
-        ].map(([k, v], i, arr) => (
-          <div
-            key={k}
-            style={s(`display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;${i < arr.length - 1 ? "border-bottom:1px solid var(--line)" : ""}`)}
-          >
-            <dt style={s("font-size:var(--t-sm);color:var(--muted)")}>{k}</dt>
-            <dd className={k === "Clientes" || k === "Recibos a emitir" || k === "Valor" || k === "Emitente" ? "n-mach" : ""} style={s("margin:0;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </>
   );
 
   /* ── ★ OS CARTÕES VÃO ATÉ O FIM DA FAIXA (Bruno, 26/08/2026) ──
@@ -937,36 +886,26 @@ export function EmitirRecibos() {
           </div>
         );
       })()}
-      <BarraDeEtapas etapa={etapa} ir={setEtapa} />
 
       {/* `align-items:stretch` no desktop: é o que faz os dois cartões terminarem na mesma linha,
           independente de qual tem mais conteúdo. */}
       <div style={s(`display:flex;gap:12px;align-items:${mobile ? "flex-start" : "stretch"};${mobile ? "flex-direction:column" : ""}${esticar}`)}>
         <Card style={s(`flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;${mobile ? "width:100%" : "min-height:0"}`)}>
           {conteudo}
-          {/* `margin-top:auto` na etapa 2: lá o conteúdo é curto (uma lista de conferência), e sem
-              isto o pé subiria para o meio do cartão esticado. Na etapa 1 a lista já ocupou tudo. */}
-          <div style={s(`display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:14px;border-top:1px solid var(--line);${mobile || etapa === 1 ? "" : "margin-top:auto"}`)}>
-            {/* ── ★ A VOLTA DA ETAPA 1 SAI DA TELA, e é de propósito (Bruno, 26/08/2026) ──
+          <div style={s("display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:14px;border-top:1px solid var(--line)")}>
+            {/* ── ★ A VOLTA SAI DA TELA, e é de propósito (Bruno, 26/08/2026) ──
              *
-             * Não existe etapa 0 aqui: o handoff tinha uma etapa "Emitente" pedindo nome, CPF e
-             * registro na hora de emitir, e ela virou a faixa de leitura no topo, porque é dado que
-             * não muda de mês para mês. Só que "não muda" não é "não se corrige" — e um CPF de
-             * emitente errado faz a Receita recusar TODOS os recibos, um por um.
+             * Não existe etapa de emitente aqui: o handoff tinha uma etapa "Emitente" pedindo nome,
+             * CPF e registro na hora de emitir, e ela virou a faixa de leitura no topo, porque é
+             * dado que não muda de mês para mês. Só que "não muda" não é "não se corrige" — e um
+             * CPF de emitente errado faz a Receita recusar TODOS os recibos, um por um.
              *
-             * Então a etapa 1 tem uma volta, e ela leva para onde o dado mora. A frase diz que sai
-             * da tela ("meus dados"), para não ser confundida com o Voltar da etapa 2, que é
-             * navegação interna. */}
-            {etapa === 1
-              ? (
-                <Btn variant="ghost" icon="chevron-left" onClick={() => st.irPara("fiscal")}>
-                  Voltar e editar meus dados
-                </Btn>
-              )
-              : <Btn variant="ghost" onClick={() => setEtapa(etapa - 1)}>Voltar</Btn>}
-            {etapa < ETAPAS.length && (
-              <Btn variant="secondary" onClick={() => setEtapa(etapa + 1)}>Continuar</Btn>
-            )}
+             * Então a tela tem uma volta, e ela leva para onde o dado mora. A frase diz que sai da
+             * tela ("meus dados"). Desde 24/10/2026 é o único botão de navegação do pé: o
+             * "Voltar" interno saiu junto com a conferência. */}
+            <Btn variant="ghost" icon="chevron-left" onClick={() => st.irPara("fiscal")}>
+              Voltar e editar meus dados
+            </Btn>
           </div>
 
           {/* ★ O CAMINHO QUE FALTAVA. Sessão por fora, pacote adiantado, paciente que voltou: sem
@@ -994,6 +933,11 @@ export function EmitirRecibos() {
               if (p) inserir(p);
               /* …e a leitura de verdade confirma por baixo. As duas coisas, nesta ordem. */
               void carregar();
+              /* ★ O SELO DO FISCAL NO RAIL (24/10/2026). Quem conta os recibos a emitir para ele é o
+               * store (`st.recibosAEmitir`, com a leitura dele de `/api/recibos`), e o lançamento à
+               * mão é a única mudança da lista que ele não vê: emitir e gravar a ficha ele
+               * acompanha sozinho, com esta tela aberta ou não. */
+              st.recibosMudaram();
             }}
             rotulo="Lançar um recibo à mão"
           />

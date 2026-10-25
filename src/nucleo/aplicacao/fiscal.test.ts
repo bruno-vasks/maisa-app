@@ -332,8 +332,8 @@ describe("ligar o Receita Saúde", () => {
     expect(estado.falta).toEqual([]);
   });
 
-  /* Não existe homologação neste caminho — o ensaio é o "Analisar Arquivo" do e-CAC. Deixar
-   * em homologação faria a tela estampar "modo teste" sobre o arquivo que ela vai importar. */
+  /* Não existe homologação neste caminho: quem decide se o recibo vale é o `REBOTS_PRODUCAO`.
+   * Deixar em homologação faria a tela estampar "modo teste" sobre recibo que sai de verdade. */
   it("nasce em produção", async () => {
     const { r, atual } = repo();
     await criarLigarReciboSaude({ fiscal: r, cadastro: emissor(), emissor: canal() })(t, { cpf: "12345678909", ocupacao: "psicologo" });

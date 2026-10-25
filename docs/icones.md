@@ -294,7 +294,7 @@ sólida, pessoa vazada (cabeça e ombros como furos, com o vão de 1.5 entre ele
 lombada como fenda. · *Evitar:* cartão paisagem com pessoa e linhas (lê como "cartão de
 crédito/ID"), duas pessoas (é a `equipe`), pessoa solta (é o `user`).
 
-**receipt** · *Onde:* rail "Fiscal" (recibos e notas do mês), passo "Nota fiscal", modo "Só quero
+**receipt** · *Onde:* rail "Fiscal" (recibos e notas do mês), passo "Documento fiscal", modo "Só quero
 emitir recibo ou nota", opção "Tenho CNPJ", botão "Continuar para emissão", stat "pagamentos no
 arquivo". Significa o documento que sai depois do atendimento. · *Metáfora:* recibo de papel com
 serrilha embaixo e duas linhas de texto. · *Base:* retrato 5..19 × 3..21, topo com cantos r 1.5,
@@ -473,8 +473,8 @@ de pagamento. · *Base:* paisagem 3..21 × 5..19, rx 1.5. Uma tarja horizontal (
 altura e uma linha curta embaixo à esquerda (o número). · *Evitar:* chip desenhado, "rx 3" (o
 antigo).
 
-**pin** · *Onde:* **Agenda, blocos de compromisso vindos da agenda do Google** (dentista, almoço),
-a 12px e 16px, em cinza. Não é endereço. · *Metáfora:* **alfinete de mural (tachinha)**:
+**pin** · *Onde:* **Agenda e Fluxo de hoje, compromisso vindo da agenda do Google** (dentista,
+almoço), a 12px e 16px, em cinza. Não é endereço. · *Metáfora:* **alfinete de mural (tachinha)**:
 "compromisso preso na sua agenda, não é atendimento". · *Base:* vertical, cabeça em cima (disco
 ou trapézio), agulha reta embaixo, um pouco inclinada a 45° **ou** vertical (anote). Tem de ler a
 12px: no máximo 3 primitivas. · *Evitar:* gota de mapa (o antigo, diz "local"), cadeado.

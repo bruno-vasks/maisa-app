@@ -37,8 +37,9 @@
  *
  * ── ⚠️ ESTA TELA NÃO REIMPLEMENTA OS DOIS FLUXOS ──
  *
- * `LigarNotaFiscal` (CNPJ + certificado) e `LoteReceitaSaude` (CPF, profissão, registro,
- * autorização no e-CAC e o arquivo do mês) continuam sendo os componentes que fazem o trabalho.
+ * `LigarNotaFiscal` (CNPJ + certificado) e `LoteReceitaSaude` (CPF, profissão, registro e a
+ * autorização no site da Receita; aqui ele entra só com os dados, `apenasDados`) continuam sendo
+ * os componentes que fazem o trabalho.
  * O que é novo é o **seletor**: ver em qual caminho você está, e trocar.
  *
  * ⚠️ E o seletor CONTROLA o `LigarNotaFiscal` (props `modo`/`onModo`). Sem isso são duas
@@ -217,11 +218,13 @@ export function DocumentoFiscal() {
           })}
         </div>
 
-        {feita === null && (
+        {/* Sem frase para quem ainda não escolheu (24/10/2026, pedido do Bruno): dizia "você ainda não
+            escolheu, e são documentos diferentes, não jeitos diferentes do mesmo". O subtítulo da
+            tela já diz "Escolha uma vez" e os dois cartões são a escolha; explicar que nota e
+            recibo são documentos diferentes é dizer a quem emite o que ela já sabe. */}
+        {feita === null && modo !== null && (
           <p style={s("margin:0;font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose)")}>
-            {modo === null
-              ? "Você ainda não escolheu — e são documentos diferentes, não jeitos diferentes do mesmo. Escolha acima e eu peço só o que aquele caminho precisa."
-              : "Escolhido, mas ainda não gravado: preencha abaixo para valer."}
+            Escolhido, mas ainda não gravado: preencha abaixo para valer.
           </p>
         )}
 
@@ -246,7 +249,7 @@ export function DocumentoFiscal() {
             </strong>
             <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose)")}>
               Isso apaga seu CPF de emitente, a profissão e o registro no conselho. Os recibos já
-              emitidos continuam no lugar — some a configuração, não o histórico.
+              emitidos continuam no lugar.
             </span>
             <div style={s("display:flex;gap:8px;flex-wrap:wrap")}>
               <Btn onClick={() => void sairDoRecibo()}>{trocando ? "Desligando…" : "Desligar os recibos"}</Btn>
@@ -293,7 +296,10 @@ export function DocumentoFiscal() {
               Pronto para emitir
             </span>
             <span style={s("display:block;font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose);margin-top:2px")}>
-              A MAISA junta os atendimentos pagos do mês e emite um recibo para cada um.
+              {/* Era "emite um recibo para cada um" (24/10/2026): o padrão desde a 033 é um recibo por
+                  mês por paciente, e o dia e a quantidade se escolhem na ficha de cada pessoa. */}
+              A MAISA junta os atendimentos pagos e emite os recibos. O dia e quantos por mês ficam
+              na ficha de cada paciente.
             </span>
           </span>
           <Btn icon="receipt" onClick={() => st.irPara("faturamento")}>Continuar para emissão</Btn>

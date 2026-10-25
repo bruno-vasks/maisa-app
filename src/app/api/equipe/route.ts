@@ -26,6 +26,8 @@ import { falha } from "@/adaptadores/entrada/http/respostas";
 // de uso próprio, com a mesma seriedade que `AjustarHorarios` já tem para o horário
 // anunciado. Aceitá-los aqui num campo opcional convidaria a tela de cadastro a fechar a
 // agenda de alguém sem querer, e o sintoma seria "a MAISA não oferece horário nenhum".
+// O caso de uso próprio existe desde 24/10/2026 e tem rota própria: `PUT /api/equipe/expediente`
+// (`AjustarExpediente`), chamada pela ficha do profissional. Esta continua recusando.
 //
 // Também não convida ninguém: `membros` é acesso ao painel e tem RLS própria (`dono
 // convida`, `003_rls.sql`). Profissional é QUEM ATENDE; membro é quem entra no app. Um

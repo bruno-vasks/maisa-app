@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  EMAIL_RECEITA_SAUDE, LINK_CARNE_LEAO, LINK_ECAC_SERVICO, LINK_PROCURACAO,
+  EMAIL_RECEITA_SAUDE, LINK_CARNE_LEAO, LINK_ECAC_SERVICO, LINK_PROCURACAO, PROCURADOR_PADRAO,
   passosDaProcuracao,
   AVISO_ASSINADOR,
   checklistDoRecibo, faltaNoChecklist, partesDoChecklist, seAindaRecusar,
@@ -44,9 +44,16 @@ const carla = (over: Partial<ConfigFiscal> = {}): ConfigFiscal => ({
 const item = (c: ConfigFiscal, id: string) =>
   checklistDoRecibo(c, HOJE).find((i) => i.id === id)!;
 
+const PJ = "62025689000166";
+/* Aceite preenchido: aqui o assunto é o depois. O antes tem teste próprio.
+ * ⚠️ `carla()` NÃO TEM PROCURADOR (`propria`), e desde 24/10/2026 isso já é uma pendência
+ * (`procuracao`, `falta`). Teste que quer "nada pendente" parte desta config, não de `carla()`. */
+const comProcuracao = (ate: string | null) =>
+  carla({ procuradorDocumento: PJ, procuracaoValidaAte: ate, procuracaoAceitaEm: "2026-08-20" });
+
 describe("o que a gente consegue conferir", () => {
   it("tudo preenchido: CPF, profissão e registro ficam prontos", async () => {
-    const itens = checklistDoRecibo(carla(), HOJE);
+    const itens = checklistDoRecibo(comProcuracao(null), HOJE);
     const nossos = itens.filter((i) => ["cpf", "profissao", "registro"].includes(i.id));
 
     expect(nossos.map((i) => i.estado)).toEqual(["pronto", "pronto", "pronto"]);
@@ -73,18 +80,18 @@ describe("o que a gente consegue conferir", () => {
 
 describe("★ o que está do outro lado do muro", () => {
   /* O TESTE QUE JUSTIFICA O ARQUIVO. */
-  it("Carnê-Leão e ensaio NUNCA ficam prontos, por mais que se configure", () => {
+  it("o Carnê-Leão NUNCA fica pronto, por mais que se configure", () => {
     const completa = carla({ registroProfissional: "CRP 06/123456" });
     const doOutroLado = checklistDoRecibo(completa, HOJE)
-      .filter((i) => ["carne_leao", "ensaio"].includes(i.id));
+      .filter((i) => i.id === "carne_leao");
 
-    expect(doOutroLado.map((i) => i.estado)).toEqual(["nao_da_para_saber", "nao_da_para_saber"]);
+    expect(doOutroLado.map((i) => i.estado)).toEqual(["nao_da_para_saber"]);
   });
 
   /* Aviso que nunca apaga é aviso que ninguém lê: o contador de pendências ignora o que é
    * impossível saber. */
   it("`nao_da_para_saber` não conta como pendência", () => {
-    expect(faltaNoChecklist(checklistDoRecibo(carla(), HOJE))).toBe(0);
+    expect(faltaNoChecklist(checklistDoRecibo(comProcuracao(null), HOJE))).toBe(0);
   });
 
   /* O cadastro é por ano-calendário, e é a causa nº 1 dos dois erros. A frase tem que dizer o
@@ -138,22 +145,11 @@ describe("★ o que está do outro lado do muro", () => {
     expect(passos[0]).toContain("Meu INSS");
   });
 
-  /* O ensaio também começa navegando — ele parte do mesmo lugar.
-   *
-   * ⚠️ A NAVEGAÇÃO GANHOU PASSO PRÓPRIO em 25/08/2026. Antes ela vinha pendurada no fim do passo
-   * de entrar ("Entre com o gov.br — se não cair no Carnê-Leão, …"), e condicional escondida
-   * dentro de outra instrução é onde se perde quem está seguindo a lista com o dedo. */
-  it("o ensaio começa navegando, não no botão de importar", () => {
-    const passos = (item(carla(), "ensaio").passos ?? []);
-    expect(passos[1]).toContain("Acessar Carnê-Leão");
-    expect(passos).toContain('Clique em "Importar Escrituração"');
-  });
-
   /* ⚠️ O sintoma real, visto em 24/08/2026: ela clicou, foi para o login, tentou entrar e parou
    * em `/autenticacao/Login/Logout` — a tela de SAIR. A saída alternativa existe para esse
    * beco, e o rótulo tem que descrever o beco, não um genérico "não abriu". */
   it("todo link do portal tem uma saída fora do portal", () => {
-    for (const id of ["carne_leao", "ensaio"]) {
+    for (const id of ["carne_leao"]) {
       const i = item(carla(), id);
       expect(i.link?.url).toBe(LINK_CARNE_LEAO);
       expect(i.linkAlternativo?.url).toBe(LINK_ECAC_SERVICO);
@@ -187,12 +183,6 @@ describe("★ o que está do outro lado do muro", () => {
       .filter(Boolean) as string[];
 
     for (const u of urls) expect(u).not.toMatch(/carneleao|identificacao|configuracoes|www3\./);
-  });
-
-  it("o ensaio explica que não emite nada", () => {
-    const i = item(carla(), "ensaio");
-    expect(i.detalhe).toContain("sem emitir recibo nenhum");
-    expect((i.passos ?? []).join(" | ")).toContain("Analisar Arquivo");
   });
 });
 
@@ -244,14 +234,42 @@ describe("a escada de quando recusa mesmo com tudo certo", () => {
  * ───────────────────────────────────────────────────────────────────────────── */
 
 
-const PJ = "62025689000166";
-/* Aceite preenchido: aqui o assunto é o depois. O antes tem teste próprio. */
-const comProcuracao = (ate: string | null) =>
-  carla({ procuradorDocumento: PJ, procuracaoValidaAte: ate, procuracaoAceitaEm: "2026-08-20" });
-
 describe("★ a procuração", () => {
-  it("sem outorga, o item não existe", () => {
-    expect(checklistDoRecibo(carla(), HOJE).find((i) => i.id === "procuracao")).toBeUndefined();
+  /* ★ ERA "sem outorga, o item não existe", e foi invertido em 24/10/2026. `propria` passou a
+   * bloquear a emissão em 08/10, e o botão "Autorizar a MAISA" da tela Fiscal aponta para a
+   * âncora que só este item cria. Sem ele o destino era um beco: nenhuma palavra sobre autorização. */
+  it("sem outorga, o item existe: é `falta` e traz os passos com o CNPJ da MAISA", () => {
+    const i = item(carla(), "procuracao");
+
+    expect(i.estado).toBe("falta");
+    expect(i.titulo).toBe("Autorize a MAISA no site da Receita");
+    expect(i.passos).toEqual(passosDaProcuracao(PROCURADOR_PADRAO));
+    expect(i.passos?.join(" | ")).toContain("62.025.689/0001-66");
+    expect(i.link?.url).toBe(LINK_PROCURACAO);
+    expect(faltaNoChecklist(checklistDoRecibo(carla(), HOJE))).toBe(1);
+  });
+
+  /* O assinador e o código do app valem para quem assina agora, e `propria` é exatamente quem vai
+   * assinar pela primeira vez. */
+  it("sem outorga, o item carrega a ressalva do certificado", () => {
+    expect(item(carla(), "procuracao").aviso).toBe(AVISO_ASSINADOR);
+  });
+
+  /* ⚠️ Nenhum código troca este estado sozinho (só `procuradorDocumento` gravado troca). Prometer
+   * "é só esperar" aqui deixaria a pessoa esperando um item que não muda. */
+  it("sem outorga, o detalhe não promete que o estado muda sozinho", () => {
+    const d = item(carla(), "procuracao").detalhe;
+    expect(d).toContain("não consegue emitir os recibos");
+    expect(d).toContain("Em análise");
+    expect(d).not.toMatch(/é só esperar|aguarde|vamos avisar/i);
+  });
+
+  /* Gravar o procurador e o aceite tira a pessoa de `propria`: o item de "autorize" dá lugar ao de
+   * quem já autorizou, sem passos. */
+  it("com outorga aceita, o item de `propria` some e entra o de quem já autorizou", () => {
+    const i = item(comProcuracao(null), "procuracao");
+    expect(i.estado).toBe("pronto");
+    expect(i.titulo).toBe("Sua autorização de acesso");
   });
 
   /* ★ O ESTADO QUE NÃO PODE COBRAR DELA. Ela já fez a parte dela; o botão que falta é nosso.
@@ -413,7 +431,8 @@ describe("★ o checklist parte em dois: o que é campo e o que é instrução",
   });
 
   it("o que mora no site da Receita vai para o outro lado", () => {
-    expect(partes(carla()).noEcac.map((i) => i.id)).toEqual(["carne_leao", "ensaio"]);
+    expect(partes(carla()).noEcac.map((i) => i.id)).toEqual(["procuracao", "carne_leao"]);
+    expect(partes(comProcuracao(null)).noEcac.map((i) => i.id)).toEqual(["procuracao", "carne_leao"]);
   });
 
   /* Nenhum item pode sumir na partição: um checklist que perde uma linha no caminho é pior que
@@ -440,9 +459,17 @@ describe("★ o checklist parte em dois: o que é campo e o que é instrução",
   /* O registro continua preenchido em `carla()`, então são DOIS — e o número importa: é ele que
    * pinta o bloco de âmbar e escreve "Preencher meus dados" em vez de "Corrigir". */
   it("sem CPF e sem profissão, a pendência é toda do formulário", () => {
-    const { meusDados, noEcac } = partes(carla({ prestadorCpf: null, ocupacaoSaude: null }));
+    const { meusDados, noEcac } = partes({ ...comProcuracao(null), prestadorCpf: null, ocupacaoSaude: null });
     expect(faltaNoChecklist(meusDados)).toBe(2);
     expect(faltaNoChecklist(noEcac)).toBe(0);
+  });
+
+  /* E o contrário: sem procurador, o que falta do lado do e-CAC é UM item, a autorização, e o
+   * formulário continua limpo. Quem resolve cada um é diferente, e o contador não os mistura. */
+  it("sem procurador, a pendência é toda do e-CAC", () => {
+    const { meusDados, noEcac } = partes(carla());
+    expect(faltaNoChecklist(meusDados)).toBe(0);
+    expect(noEcac.filter((i) => i.estado === "falta").map((i) => i.id)).toEqual(["procuracao"]);
   });
 });
 
@@ -484,9 +511,20 @@ describe("★ a ressalva do certificado fica fora da lista numerada", () => {
     expect(AVISO_ASSINADOR).toContain("Assinar");
   });
 
-  /* Quem não outorgou não tem item nenhum — e portanto nenhum aviso sobre assinar coisa alguma. */
-  it("sem procuração, o item não existe", () => {
-    expect(outorga(carla())).toBeUndefined();
+  /* Quem não outorgou vai assinar pela primeira vez, e é ela quem mais precisa do aviso.
+   * (Era "sem procuração, o item não existe" até 24/10/2026.) */
+  it("sem procuração, o item existe e traz os passos e o aviso", () => {
+    const i = outorga(carla());
+    expect(i?.estado).toBe("falta");
+    expect(i?.passos?.length).toBeGreaterThan(0);
+    expect(i?.aviso).toBe(AVISO_ASSINADOR);
+  });
+
+  /* Quem já autorizou e está no prazo não precisa do passo a passo: é ruído sobre algo resolvido. */
+  it("autorizada e no prazo, o item não repete os passos nem o aviso", () => {
+    const i = outorga(comProcuracao("2027-05-12"));
+    expect(i?.passos).toBeUndefined();
+    expect(i?.aviso).toBeUndefined();
   });
 });
 

@@ -1002,8 +1002,7 @@ function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
             {/* Diz o que o número FAZ e o que ele NÃO faz. Pedir telefone no meio de uma
                 conexão parece cadastro, e cadastro inesperado é onde a pessoa desconfia. */}
             <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
-              É para onde o WhatsApp manda o código de conexão. Ele não fica salvo aqui — quem
-              diz qual número conectou é o próprio WhatsApp, depois.
+              É para onde o WhatsApp manda o código de conexão. Ele não fica salvo aqui.
             </span>
           </label>
 
@@ -1314,8 +1313,8 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
     return (
       <Falta
         icone="alert"
-        titulo="A MAISA está sem cérebro configurado"
-        texto="Falta a chave do modelo de linguagem neste ambiente. Nada do que você fez se perdeu: o resto do negócio está de pé."
+        titulo="A MAISA não está respondendo agora"
+        texto="O que você preencheu está salvo. Siga para o próximo passo."
         acao={null}
         aoPainel={aoPainel}
         pular={aoSeguir}
@@ -1355,7 +1354,7 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
           {consultou && (
             <span style={s("display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--success)")}>
               <Icon name="check" size={15} stroke="var(--success)" />
-              Ela consultou sua agenda antes de responder — não chutou horário.
+              Ela consultou sua agenda antes de responder.
             </span>
           )}
           {marcou && (
@@ -1530,7 +1529,7 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <p style={s("font-size:var(--t-sm);color:var(--muted);margin:0;line-height:1.6")}>
-        A MAISA emite o seu documento fiscal depois de cada atendimento: nota fiscal ou recibo do Receita Saúde.
+        A MAISA emite o seu documento fiscal: nota fiscal ou recibo do Receita Saúde.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {caminhos.map((c) => {
@@ -1735,7 +1734,11 @@ export default function Comecar() {
          * nem o WhatsApp. Quem cai fora dos dois vai direto ao documento fiscal. */
         const depoisDoWhatsApp: EtapaId = v.includes("primeira_conversa") ? "ver" : "fiscal";
         const depoisDoCatalogo: EtapaId = v.includes("whatsapp_conectado") ? "whatsapp" : depoisDoWhatsApp;
-        if (google) { setEtapa(depoisDoWhatsApp); return; }
+        /* `?etapa=ver` é o "Ver funcionando" da jornada do painel (`JornadaDeAtivacao`), desde
+         * 24/10/2026. Sem ele a página escolhia a etapa pelo que falta e, sem WhatsApp, abria em
+         * "O que você faz": a pessoa pedia a conversa e precisava apertar "Pular por agora" duas
+         * vezes para chegar. Sinal de navegação como o `?google=`, e não estado guardado. */
+        if (google || busca.get("etapa") === "ver") { setEtapa(depoisDoWhatsApp); return; }
         setEtapa(f.includes("whatsapp_conectado") ? depoisDoWhatsApp : f.includes("catalogo_ajustado") ? depoisDoCatalogo : "catalogo");
       })
       .catch(() => vivo && setEtapa("negocio"));

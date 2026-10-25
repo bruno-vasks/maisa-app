@@ -939,7 +939,10 @@ export default function Agenda() {
       <div style={s("flex-shrink:0;display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap")}>
         <div style={s("display:flex;align-items:center;gap:4px")}>
           <IconBtn icon="chevron-left" size="sm" onClick={() => navegar(-1)} title={PASSO_ROTULO[visao][0]} />
-          <Btn variant="secondary" size="sm" onClick={() => abrirDia(D.HOJE.iso)} style={{ height: 30, padding: "0 12px", borderRadius: "var(--r-controle)" }}>Hoje</Btn>
+          {/* "Hoje" vai ao período de hoje SEM trocar a visão (24/10/2026): em Semana e em Mês o botão
+              levava para Dia, e quem avançou uma semana e voltava pelo "Hoje" tinha de clicar em
+              "Semana" de novo. `abrirDia` fica para o clique no dia, onde descer para ele é o pedido. */}
+          <Btn variant="secondary" size="sm" onClick={() => st.verDia(D.HOJE.iso)} style={{ height: 30, padding: "0 12px", borderRadius: "var(--r-controle)" }}>Hoje</Btn>
           <IconBtn icon="chevron-right" size="sm" onClick={() => navegar(1)} title={PASSO_ROTULO[visao][1]} />
         </div>
 

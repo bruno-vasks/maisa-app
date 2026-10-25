@@ -26,7 +26,7 @@ import { MAX_DIAS_VARRIDOS, PASSO_MIN, vagasDoDia } from "@/nucleo/dominio/vagas
 import { chaveDe, type ModoDoNumero } from "@/nucleo/dominio/contatos";
 import type { CaminhoFiscal, ConfigFiscal } from "@/nucleo/dominio/fiscal";
 import type { Faq } from "@/nucleo/dominio/faq";
-import type { Faturamento } from "@/nucleo/portas/entrada/casos-de-uso";
+import type { Faturamento, PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
 /* Direto do arquivo, e não do barril `@/nucleo/dominio`: o barril não reexporta
  * `assinatura` (e o `PLANOS` dele colidiria de nome com o de `_lib/planos.ts`, que é
  * outra coisa — lá são os planos exibidos na LP, aqui são as chaves). */
@@ -36,6 +36,7 @@ import {
 import { hojeISO } from "@/nucleo/dominio/tempo";
 import type { PagamentoPix } from "@/nucleo/portas/saida/cobranca";
 import { guardarPix } from "./pix";
+import { pagamentosDaResposta, recibosParaOSelo } from "./recibos";
 
 /**
  * Uma linha da tela de Faturamento.
@@ -67,7 +68,7 @@ export type LinhaDeFaturamento = {
 import { fmt, toast } from "@/ui/primitivos";
 import { escreverEndereco, lerEndereco, secaoDoEndereco, type Endereco } from "./endereco";
 import { reduzirFoto } from "./foto";
-import type { PassoDeAtivacao } from "@/nucleo/dominio/ativacao";
+import { usoDoWhatsApp, type PassoDeAtivacao } from "@/nucleo/dominio/ativacao";
 
 /* ───────────────────────────── tipos ───────────────────────────── */
 
@@ -172,10 +173,10 @@ type AtendimentoLido = {
 
 /** Um compromisso lido da agenda do Google que NÃO é um atendimento da MAISA.
  *
- *  Aparece na grade em cinza, ocupa o horário e não se arrasta. É o dentista, o
- *  almoço, a reunião — coisas que tornam o horário indisponível e que a agenda
- *  precisa mostrar para não oferecer um horário que não existe. Só leitura: um
- *  arrasto que fizesse PATCH aqui mexeria no compromisso pessoal de alguém. */
+ *  Aparece na grade em cinza e na lista do dia do Fluxo, em "A seguir", até terminar. Ocupa o
+ *  horário e não se arrasta. É o dentista, o almoço, a reunião — coisas que tornam o horário
+ *  indisponível e que a agenda precisa mostrar para não oferecer um horário que não existe.
+ *  Só leitura: um arrasto que fizesse PATCH aqui mexeria no compromisso pessoal de alguém. */
 export type Bloqueio = {
   /** "bloq:<pid>:<eventId>" — o prefixo é o que impede confundir com um agendamento; o pid
    *  entra porque duas agendas podem trazer o mesmo evento (um calendário compartilhado). */
@@ -714,6 +715,9 @@ export type StoreValue = {
 
   convSel: string;
   selecionarConversa: (id: string) => void;
+  /** Abre o item da fila ("Precisa de você") na gaveta. Item de conversa seleciona a conversa
+   *  antes, para a gaveta ter as falas. Os três lugares que listam a fila chamam esta. */
+  abrirItemDaFila: (f: D.ItemFila) => void;
   abaConv: AbaConversa;
   setAbaConv: (a: AbaConversa) => void;
   /* `estadoConversa(id)` morava aqui. Saiu: `Conversa` agora CARREGA o estado (derivado no
@@ -795,6 +799,13 @@ export type StoreValue = {
   criarProfissional: (p: { nome: string; papel: string }) => Promise<boolean>;
   /** Nome e papel, pela ficha. Grava ao sair do campo (a gaveta chama no blur). Otimista, com volta. */
   editarProfissional: (id: string, patch: { nome?: string; papel?: string }) => void;
+  /**
+   * Os dias e o horário em que atende, pela ficha (`PUT /api/equipe/expediente`, 24/10/2026).
+   * `dias` vai de 0 (segunda) a 5 (sábado); `de` e `ate` são hora decimal, uma faixa para todos os
+   * dias. Grava ao mudar, otimista, com volta. A Agenda e a tabela de Equipe leem o mesmo
+   * profissional do cadastro, então mudam na hora. Sem nenhum dia, avisa e não grava.
+   */
+  ajustarExpediente: (id: string, e: { dias: number[]; de: number; ate: number }) => void;
   svcAtivo: (id: string) => boolean;
   alternarSvc: (id: string) => void;
   /** Catálogo vivo: D.SERVICOS + edições + criados. As telas leem daqui, não de D.SERVICOS. */
@@ -864,6 +875,13 @@ export type StoreValue = {
   /** Sobe 1 a cada ficha de cliente gravada no servidor. A emissão de recibos relê
    *  `/api/recibos` quando ele muda: o CPF posto na ficha tira a pessoa do grupo "Sem CPF" (1C.10). */
   clientesGravados: number;
+  /** Quantos recibos faltam emitir: o mesmo número do "A emitir" da tela Fiscal (só quem tem CPF,
+   *  um recibo por mês pela ficha de cada pessoa), para o selo do rail. `null` fora do caminho do
+   *  recibo, antes da leitura (da lista e das fichas) e quando ela falhou: nunca vira zero. */
+  recibosAEmitir: number | null;
+  /** A tela Fiscal avisa que lançou um recibo à mão: o store relê `/api/recibos` para o selo.
+   *  Emitir e gravar ficha ele já vê sozinho. */
+  recibosMudaram: () => void;
 
   /* nota fiscal */
   notaDe: (clienteId: string) => D.Nota;
@@ -931,6 +949,13 @@ export type StoreValue = {
    * sozinho: foi assim que a topbar dizia "no ar" com o WhatsApp caído (24/09/2026).
    */
   statusMaisa: StatusDaMaisa;
+  /**
+   * Esta conta usa o WhatsApp para algo? `false` só com os ajustes lidos E o agente, o lembrete e
+   * o aviso de recibo desligados (quem só emite recibo, 24/09/2026). É o que deixa o painel
+   * parar de cobrar a conexão de quem não precisa dela. Antes da leitura, e se ela falhar, é
+   * `true`: o aviso só some com prova de que a conta não usa. Não substitui `statusMaisa`.
+   */
+  usaWhatsApp: boolean;
   /** Lê `/api/canal` de novo. É o "Tentar de novo" de quando a primeira leitura falhou. */
   recarregarCanal: () => void;
   canalErro: string | null;
@@ -1030,6 +1055,8 @@ export type StoreValue = {
   leituraAgenda: LeituraAgenda;
   /** Relê a janela atual, ignorando o cache. */
   recarregarAgenda: () => void;
+  /** Lê o mês de `dia` quando ele está fora da janela da Agenda. Ver a definição. */
+  lerMesDe: (dia: string) => void;
 
   /* rail */
   railAberto: boolean;
@@ -1835,6 +1862,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const selecionarConversa = useCallback((id: string) => setConvSel(id), []);
 
+  /* Item de conversa ("cv:") seleciona a conversa antes de abrir: a gaveta lê `threadDe(cv.id)`, e
+   * a thread só é buscada para a conversa selecionada (`convSel`). Sem isso, só a que já estava
+   * selecionada na tela de Conversas mostrava as falas, e a gaveta das outras abria com a caixa
+   * de mensagens vazia (24/10/2026). Fica aqui, depois de `selecionarConversa`, e não dentro de
+   * `abrir`, que é declarado antes. Efeito aceito: a tela de Conversas passa a abrir nessa
+   * conversa, como o "Assumir conversa" da gaveta já faz. */
+  const abrirItemDaFila = useCallback((f: D.ItemFila) => {
+    if (f.id.startsWith("cv:")) selecionarConversa(f.alvo);
+    abrir(f.alvo);
+  }, [selecionarConversa, abrir]);
+
   /**
    * As quatro mudanças de posse, num lugar só.
    *
@@ -2284,7 +2322,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * "Já resolvi" — o item some da fila.
    *
    * DOIS destinos, porque os dois tipos de item têm donos diferentes: conversa resolvida é
-   * `resolvida_em` no banco (vale em todos os aparelhos, e é o que a MAISA e a tela leem juntas);
+   * `resolvida_em` no banco (vale em todos os aparelhos, e é o que a tela lê; a MAISA não lê);
    * cobrança de confirmação continua no `localStorage`, porque ela é derivada do atendimento e
    * não existe coluna para "o dono já viu isto".
    *
@@ -2588,6 +2626,75 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         voltar();
         toast("Sem conexão com o servidor. Nada mudou.");
       }
+    })();
+  }, [profissionalDe]);
+
+  /* ── quando atende (24/10/2026) ──
+   * A ficha manda o expediente INTEIRO a cada toque (dias e horas), e a rota é um PUT que
+   * substitui. Ligar o sábado e logo mudar o "até" são dois toques seguidos, e se virassem dois
+   * pedidos soltos cada resposta traria o profissional como o servidor o viu NAQUELE pedido.
+   * Pintar essa resposta por cima do que o dono já mexeu desfaz o toque seguinte: o chip volta, e
+   * o próximo pedido, montado a partir da tela, manda o expediente sem a mudança dele.
+   *
+   * Por isso há no máximo UM pedido em voo por pessoa. Os toques que chegam enquanto ele voa só
+   * trocam o que se quer gravar (`quer`), e quando o pedido volta, se `quer` mudou, sai outro com o
+   * mais novo. Só a última resposta pinta a tela. `confirmado` é o que o servidor disse ter
+   * gravado por último (ou o que havia antes do primeiro toque), e é a ele que se volta se falhar. */
+  const expedienteDaFicha = useRef<Record<string, {
+    voando: boolean;
+    quer: { dias: number[]; de: number; ate: number };
+    confirmado: D.Profissional;
+  }>>({});
+
+  const ajustarExpediente = useCallback((id: string, e: { dias: number[]; de: number; ate: number }) => {
+    const atual = profissionalDe(id);
+    if (!atual) return;
+    if (e.dias.length === 0) { toast(D.SEM_DIA_DE_ATENDIMENTO); return; }
+
+    const expediente = D.expedienteDosDias(e.dias, e.de, e.ate);
+    const igual = expediente.de === atual.expediente.de && expediente.ate === atual.expediente.ate
+      && expediente.folga.join() === atual.expediente.folga.join();
+    if (igual) return;
+
+    /* A frase sai da mesma função que o servidor usa para regravá-la, então a tabela de Equipe
+     * não pisca o texto velho enquanto o pedido voa. */
+    const novo = { ...atual, expediente, ...D.frasesDoExpediente(expediente) };
+    setCadastro((c) => ({ ...c, profissionais: c.profissionais.map((x) => (x.id === id ? novo : x)) }));
+
+    const fila = expedienteDaFicha.current;
+    const f = fila[id] ?? (fila[id] = { voando: false, quer: e, confirmado: atual });
+    if (!f.voando) f.confirmado = atual;
+    f.quer = e;
+    if (f.voando) return;
+    f.voando = true;
+
+    void (async () => {
+      let resposta: { ok?: boolean; info?: string; profissional?: D.Profissional } | null = null;
+      let enviado = f.quer;
+      for (;;) {
+        enviado = f.quer;
+        try {
+          resposta = await fetch("/api/equipe/expediente", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profissionalId: id, ...enviado }),
+          }).then((x) => x.json());
+        } catch {
+          resposta = null;
+        }
+        if (resposta?.ok && resposta.profissional) f.confirmado = resposta.profissional;
+        /* Um toque novo chegou enquanto este voava: o que o servidor devolveu já é velho. */
+        if (f.quer === enviado) break;
+      }
+      f.voando = false;
+
+      const certo = resposta?.ok && resposta.profissional ? resposta.profissional : null;
+      if (certo) {
+        setCadastro((c) => ({ ...c, profissionais: c.profissionais.map((x) => (x.id === id ? certo : x)) }));
+        return;
+      }
+      setCadastro((c) => ({ ...c, profissionais: c.profissionais.map((x) => (x.id === id ? f.confirmado : x)) }));
+      toast(resposta ? (resposta.info ?? "Não foi possível salvar.") : "Sem conexão com o servidor. Nada mudou.");
     })();
   }, [profissionalDe]);
 
@@ -3456,6 +3563,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     canal: canal ? canal.status : canalErro ? "desconectado" : null,
   });
 
+  /* Derivado dos mesmos ajustes que a jornada usa (`usoDoWhatsApp`), e só depois de lidos: o
+   * placeholder de primeira pintura diz `ativa: true` e o lado seguro é continuar cobrando. */
+  const usaWhatsApp = !ajustesCarregados || usoDoWhatsApp({
+    ativa: ajustes.assistente.ativa,
+    lembrete: ajustes.cfg.lembrete,
+    avisarRecibo: ajustes.cfg.avisarRecibo,
+  }).whatsapp;
+
   /* `porCodigo` só existe para a FRASE do fim do prazo: "expirou sem ninguém escanear" é
    * instrução errada para quem nunca teve o que escanear, e mandar procurar a câmera é o
    * jeito mais rápido de perder alguém que estava a um passo de conectar. */
@@ -3802,15 +3917,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     /* Tira da tela primeiro e devolve se o servidor recusar: apagar é a ação em que a
      * espera mais incomoda, e o custo de errar é baixo — a linha volta. */
     const antes = faqs;
+    const apagada = antes.find((f) => f.id === id);
     setFaqs((atual) => atual.filter((f) => f.id !== id));
     try {
       const r = await fetch(`/api/faqs?id=${encodeURIComponent(id)}`, { method: "DELETE" }).then((x) => x.json());
-      if (!r?.ok) { setFaqs(antes); toast(r?.info ?? "Não foi possível apagar."); }
+      if (!r?.ok) { setFaqs(antes); toast(r?.info ?? "Não foi possível apagar."); return; }
+      /* "Desfazer" desde 24/10/2026: um toque errado na lixeira, colada no lápis, apagava o que a
+       * dona escreveu sem volta (apagar serviço pede dois toques; a resposta pronta era a única
+       * exclusão sem proteção nenhuma). Só depois do DELETE confirmado, e sem adiar o DELETE: se
+       * ele esperasse o toast acabar, sair da tela antes perderia a exclusão. Desfazer grava de
+       * novo como resposta nova, então o texto volta mas a posição e o "respondeu N×" não. É o
+       * custo aceito: não tente "consertar" guardando o id. */
+      if (apagada) {
+        toast("Resposta apagada", {
+          label: "Desfazer",
+          onClick: () => void salvarFaq({ pergunta: apagada.pergunta, resposta: apagada.resposta }),
+        });
+      }
     } catch {
       setFaqs(antes);
       toast("Sem conexão com o servidor — nada mudou.");
     }
-  }, [faqs]);
+  }, [faqs, salvarFaq]);
 
   /* ── a foto do negócio ──
    * Sem otimismo: a foto nova só aparece depois que o banco devolve. Ela é reduzida primeiro
@@ -3986,6 +4114,86 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fecharEmissao = useCallback(() => setEmissao(null), []);
+
+  /* ── quantos recibos faltam emitir, para o selo do Fiscal no rail (24/10/2026) ──
+   * Quem lê a lista para desenhar a tela é `EmitirRecibos`, que tem a dela (a otimista, a de
+   * "Sem CPF", a de marcar e desmarcar). Esta é só a contagem, e só existe no caminho do recibo:
+   * no da nota o selo é das notas. A conta é a do "A emitir" da tela (`estado/recibos.ts`).
+   *
+   * Lê no carregamento, quando o caminho passa a ser o do recibo, e de novo quando uma emissão
+   * termina ou uma ficha grava (as duas mexem na lista, e estão aqui no store: a emissão continua
+   * correndo com a tela fechada). O que ele não vê, o lançamento à mão, a tela avisa por
+   * `recibosMudaram`. Voltar para a aba relê com carência de 30s, o mesmo padrão da agenda, e é o
+   * que cobre a lista que muda por fora (um atendimento pago depois). Não há polling em loop. */
+  const [recibosLidos, setRecibosLidos] = useState<PagamentoPendente[] | null>(null);
+  const noCaminhoDoRecibo = fiscal.status === "ok" && fiscal.caminho === "recibo_saude";
+  /** Quando a última leitura começou. Começou, e não terminou: servidor fora do ar não é lido de
+   *  novo a cada alt-tab, e cada tentativa pode demorar até o prazo. */
+  const recibosLidoEm = useRef(0);
+  /** A leitura mais nova ganha: uma resposta que chega depois de outra pedida depois dela não
+   *  pode devolver o número velho (emitir e gravar ficha leem de novo em cima de uma leitura em voo). */
+  const recibosLeitura = useRef(0);
+
+  const lerRecibos = useCallback(async (emFundo: boolean) => {
+    const minha = ++recibosLeitura.current;
+    recibosLidoEm.current = Date.now();
+    let lidos: PagamentoPendente[] | null = null;
+    try {
+      /* Com `no-store` e com prazo, como a tela: o navegador servindo a resposta antiga deixaria o
+       * selo dizendo o que já foi emitido, e requisição pendurada não pode deixá-lo sem resposta. */
+      const r = await fetch("/api/recibos", { cache: "no-store", signal: AbortSignal.timeout(15_000) }).then((x) => x.json());
+      lidos = pagamentosDaResposta(r);
+    } catch {
+      lidos = null;
+    }
+    if (minha !== recibosLeitura.current) return;
+    /* Falhou: o selo não inventa zero. Numa releitura de fundo (voltar para a aba) fica o último
+     * número bom, porque piscar o selo por causa de um soluço de rede é pior que atrasá-lo; depois
+     * de uma emissão ou de uma ficha, o último número é justamente o que ficou velho, e some. */
+    if (lidos === null && emFundo) return;
+    setRecibosLidos(lidos);
+  }, []);
+
+  useEffect(() => {
+    if (!noCaminhoDoRecibo) {
+      /* Saiu do caminho do recibo (ou ainda não sabemos): solta a lista e invalida a leitura em voo. */
+      recibosLeitura.current++;
+      setRecibosLidos(null);
+      return;
+    }
+    /* Roda na primeira vez que o caminho é o do recibo, e de novo a cada emissão terminada e a cada
+     * ficha gravada. Nos contadores em zero é a leitura do carregamento. */
+    void lerRecibos(false);
+  }, [noCaminhoDoRecibo, emissoesFeitas, clientesGravados, lerRecibos]);
+
+  useEffect(() => {
+    if (!noCaminhoDoRecibo) return;
+    const talvezReler = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - recibosLidoEm.current < 30_000) return;
+      void lerRecibos(true);
+    };
+    window.addEventListener("focus", talvezReler);
+    document.addEventListener("visibilitychange", talvezReler);
+    return () => {
+      window.removeEventListener("focus", talvezReler);
+      document.removeEventListener("visibilitychange", talvezReler);
+    };
+  }, [noCaminhoDoRecibo, lerRecibos]);
+
+  const recibosMudaram = useCallback(() => {
+    if (noCaminhoDoRecibo) void lerRecibos(false);
+  }, [noCaminhoDoRecibo, lerRecibos]);
+
+  const recibosAEmitir = useMemo(
+    () => recibosParaOSelo({
+      noCaminhoDoRecibo,
+      fichasLidas: cadastroCarregado,
+      pagamentos: recibosLidos,
+      porMesDe: (id) => clienteDe(id)?.recibosPorMes ?? 0,
+    }),
+    [noCaminhoDoRecibo, cadastroCarregado, recibosLidos, clienteDe],
+  );
 
   /* ── google calendar ──
    * Duas metades bem separadas: a CONEXÃO (tokens) vive no Supabase e é consultada
@@ -4505,6 +4713,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     void lerAgenda(janela.de, janela.ate);
   }, [lerAgenda, janela.de, janela.ate]);
 
+  /* O MÊS DE UM DIA ESCOLHIDO NO NOVO ATENDIMENTO OU NO REMARCAR (24/10/2026). Os dois oferecem
+   * 12 semanas, e a leitura automática só cobre o mês do dia aberto na Agenda. Sem isto, um dia de
+   * um mês nunca lido mostraria como livre o horário que o Google ou outro atendimento ocupa: o
+   * servidor recusa o choque com atendimento, mas não com o compromisso do Google. O cache acumula
+   * por agenda e janela, então ler outro mês não apaga o que já estava na tela. Cada mês é pedido
+   * uma vez por sessão; a releitura de verdade continua sendo a da janela da Agenda. */
+  const mesesPedidos = useRef(new Set<string>());
+  const lerMesDe = useCallback((dia: string) => {
+    const mes = D.mesDe(dia);
+    if ((dia >= janela.de && dia <= janela.ate) || mesesPedidos.current.has(mes)) return;
+    mesesPedidos.current.add(mes);
+    const j = D.janelaDoMes(mes);
+    void lerAgenda(j.de, j.ate);
+  }, [lerAgenda, janela.de, janela.ate]);
+
   /* ══ MARCAR UM ATENDIMENTO ══
    *
    * Clicar num vago abre um rascunho na gaveta com dia, hora e profissional já resolvidos
@@ -4806,22 +5029,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     fila, resolverFila,
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasPrecisaEntrar, conversasCarregadas, recarregarConversas,
-    convSel, selecionarConversa, abaConv, setAbaConv, threadDe, threadCarregando,
+    convSel, selecionarConversa, abrirItemDaFila, abaConv, setAbaConv, threadDe, threadCarregando,
     enviar, enviando, assumir, devolver, abrirNoWhatsApp, caderno, recarregarCaderno, responderA,
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
-    profAtivo, alternarProf, criarProfissional, editarProfissional, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
+    profAtivo, alternarProf, criarProfissional, editarProfissional, ajustarExpediente, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
     servicos, servicoDe, nomeServico, editarServico, criarServico, excluirServico,
     filtroSvc, setFiltroSvc, filtroCli, setFiltroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     assistente: ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
-    canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
+    canal, statusMaisa, usaWhatsApp, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     cfg: ajustes.cfg, alternarCfg, definirCfg,
     salvo, salvar, gravacao,
@@ -4829,7 +5052,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
     vagasDe, proximoVago, novoEmLinha, pedirNovo,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
-    bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
+    bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda, lerMesDe,
     railAberto, setRailAberto,
   }), [
     tela, irPara, secao, telaCheia, setTelaCheia, ativacao, setAtivacao, sel, abrir, fechar,
@@ -4839,29 +5062,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     fila, resolverFila,
     arrastando, alvoSolta, iniciarArrasto, encerrarArrasto, marcarAlvo,
     conversas, conversaDe, conversasErro, conversasPrecisaEntrar, conversasCarregadas, recarregarConversas,
-    convSel, selecionarConversa, abaConv, threadDe, threadCarregando,
+    convSel, selecionarConversa, abrirItemDaFila, abaConv, threadDe, threadCarregando,
     enviar, enviando, assumir, devolver, abrirNoWhatsApp, caderno, recarregarCaderno, responderA,
     cadastro, cadastroErro, cadastroCarregado,
     profissionalDe, clienteDe, nomeDoProfissional, nomeDoCliente,
     pidAgenda, atendeNoDia, podeComecarEm,
-    profAtivo, alternarProf, criarProfissional, editarProfissional, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
+    profAtivo, alternarProf, criarProfissional, editarProfissional, ajustarExpediente, svcAtivo, alternarSvc, cliAtivo, alternarCli, editarCliente, criarCliente,
     servicos, servicoDe, nomeServico, editarServico, criarServico, excluirServico,
     filtroSvc, filtroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,
     faqs, faqsErro, faqsOcupado, salvarFaq, removerFaq,
-    canal, statusMaisa, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
+    canal, statusMaisa, usaWhatsApp, recarregarCanal, canalErro, canalOcupado, canalFaltando, qrcode, codigo, numeroPareando, conectarCanal, renovarCodigo, desconectarCanal, trocarNumero, definirDonoDoCanal,
     semana, semanaErro, semanaCarregada, alternarDia, setHorario,
     ajustes.cfg, alternarCfg, definirCfg,
     salvo, salvar, gravacao,
     diaSel, rascunho, rascunhoEstado, novoAgendamento, editarRascunho, confirmarRascunho, descartarRascunho,
     vagasDe, proximoVago, novoEmLinha, pedirNovo,
     google, googleDe, conectarGoogle, desconectarGoogle, googleOcupado,
-    bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda,
+    bloqueiosDoDia, bloqueioPorId, leituraAgenda, recarregarAgenda, lerMesDe,
     railAberto,
   ]);
 

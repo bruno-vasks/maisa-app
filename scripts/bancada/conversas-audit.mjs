@@ -66,7 +66,7 @@ async function medir(page) {
     const linhaH = linhas[0]?.getBoundingClientRect().height;
     const nome = [...document.querySelectorAll("div")].find((d) => d.textContent === "Mariana Albuquerque de Souza Figueiredo" && d.children.length === 0);
     const campo = document.querySelector('input[aria-label="Mensagem"]');
-    const btns = [...document.querySelectorAll("button")].filter((b) => /Assumir|Devolver|Reabrir/.test(b.textContent || ""));
+    const btns = [...document.querySelectorAll("button")].filter((b) => /Assumir|Devolver/.test(b.textContent || ""));
     return {
       viewport: innerHeight, documento: document.documentElement.scrollHeight, rolaveis: out,
       linhas: linhas.length, linhaH,
@@ -106,7 +106,7 @@ if (alvo === "cabecalho") {
       const page = await abrir(vp, est);
       await page.locator('button[aria-current]').first().click();
       await page.waitForTimeout(900);
-      const m = await page.evaluate(() => { const n = document.querySelector("[data-nome-da-conversa]"); const r = n?.getBoundingClientRect(); return { nome: r && Math.round(r.width), linhas: r && Math.round(r.height / 20), posse: [...document.querySelectorAll("button")].filter((b) => /^(Assumir|Devolver à MAISA|Reabrir)$/.test(b.textContent.trim())).map((b) => Math.round(b.getBoundingClientRect().top)) }; });
+      const m = await page.evaluate(() => { const n = document.querySelector("[data-nome-da-conversa]"); const r = n?.getBoundingClientRect(); return { nome: r && Math.round(r.width), linhas: r && Math.round(r.height / 20), posse: [...document.querySelectorAll("button")].filter((b) => /^(Assumir|Devolver à MAISA)$/.test(b.textContent.trim())).map((b) => Math.round(b.getBoundingClientRect().top)) }; });
       console.log(`cabecalho ${vp.width} ${est}`, JSON.stringify(m));
       if (est === "voce") await page.screenshot({ path: `${OUT}/cabecalho-${vp.width}-${est}.png` });
       await page.close();

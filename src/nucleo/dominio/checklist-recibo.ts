@@ -164,7 +164,7 @@ export type EstadoDoItem =
   | "com_a_gente";
 
 export type ItemDoChecklist = {
-  id: "cpf" | "profissao" | "registro" | "procuracao" | "carne_leao" | "ensaio";
+  id: "cpf" | "profissao" | "registro" | "procuracao" | "carne_leao";
   titulo: string;
   /** Uma frase em português de gente. Vai na tela como está. */
   detalhe: string;
@@ -323,10 +323,10 @@ export function checklistDoRecibo(c: ConfigFiscal, hoje: string): ItemDoChecklis
     titulo: "Seu CPF",
     estado: soDigitos(c.prestadorCpf ?? "").length === 11 ? "pronto" : "falta",
     detalhe: soDigitos(c.prestadorCpf ?? "").length === 11
-      /* O CPF do arquivo tem que ser o MESMO que acessa o Carnê-Leão. É o erro mais silencioso
-       * possível: tudo passa, e a Receita recusa o arquivo inteiro sem dizer por quê. */
+      /* O CPF do recibo tem que ser o MESMO que acessa o Carnê-Leão. É o erro mais silencioso
+       * possível: tudo passa, e a Receita recusa o recibo sem dizer por quê. */
       ? "Tem que ser o mesmo CPF com que você entra no gov.br."
-      : "Sem ele não há arquivo — é o CPF de quem emite o recibo.",
+      : "Sem ele o recibo não sai. É o CPF de quem emite o recibo.",
   });
 
   itens.push({
@@ -334,7 +334,7 @@ export function checklistDoRecibo(c: ConfigFiscal, hoje: string): ItemDoChecklis
     titulo: "Sua profissão",
     estado: ocupacao ? "pronto" : "falta",
     detalhe: ocupacao
-      ? `${profissao} — código ${codigo} no arquivo da Receita.`
+      ? `${profissao}, código ${codigo} na Receita.`
       : "A Receita só aceita recibo de saúde de seis profissões, e o código muda por profissão.",
   });
 
@@ -343,17 +343,24 @@ export function checklistDoRecibo(c: ConfigFiscal, hoje: string): ItemDoChecklis
     titulo: `Seu ${conselho}`,
     estado: registro ? "pronto" : "falta",
     detalhe: registro
-      ? `${registro} — vai no arquivo, e é o que a Receita cruza com a base do ${conselho}.`
+      ? `${registro}. Vai no recibo, e é o que a Receita confere com a base do ${conselho}.`
       /* ⚠️ "Obrigatório para emitir" na frase: é o que a Rebots exige para habilitar a emitente,
        * e a tela Fiscal bloqueia sem ele. Ver o cabeçalho e `faltaParaEmitirRecibo`. */
       : `O registro no conselho é obrigatório para emitir. É também o que a Receita confere contra o ${conselho}.`,
   });
 
-  /* ── ★ A PROCURAÇÃO, QUANDO EXISTE ──
+  /* ── ★ A PROCURAÇÃO, EM TODOS OS MODOS ──
    *
    * Vem antes do Carnê-Leão de propósito: para quem outorgou, este é o item que descreve o
-   * produto que ela comprou, e o de baixo vira "a MAISA cuida". Para quem não outorgou, ele
-   * não existe e nada muda. */
+   * produto que ela comprou, e o de baixo vira "a MAISA cuida".
+   *
+   * ⚠️ PARA QUEM NUNCA OUTORGOU (`propria`) ELE EXISTE DESDE 24/10/2026, como `falta` com os
+   * passos. Até aqui dizia "para quem não outorgou ele não existe", verdade quando quem não
+   * outorgava emitia sozinha pelo arquivo do e-CAC. Em 08/10/2026 `propria` passou a BLOQUEAR a
+   * emissão (ver `faltaParaEmitirRecibo`), e o botão "Autorizar a MAISA" da tela Fiscal leva a
+   * `?secao=autorizacao`, âncora que só este item cria. Sem ele o botão caía num Documento
+   * fiscal sem uma palavra sobre autorização, com "Seus dados" em verde: um beco no único
+   * bloqueio que toda terapeuta nova encontra. */
   const rep = representacao(c, hoje);
   /* As duas saídas e a ressalva andam juntas: quem mostra os passos da outorga precisa das três,
    * e esquecer uma delas num dos ramos daria instruções diferentes para o mesmo ato. */
@@ -367,7 +374,26 @@ export function checklistDoRecibo(c: ConfigFiscal, hoje: string): ItemDoChecklis
    * renomeou — o menu do e-CAC hoje diz "Autorizações de Acesso (Procurações)", com o nome velho
    * entre parênteses. O texto que a cliente lê tem que bater com o botão que ela vai clicar; o
    * nome interno não importa para ela. */
-  if (rep.modo === "vencida") {
+  if (rep.modo === "propria") {
+    itens.push({
+      id: "procuracao",
+      titulo: "Autorize a MAISA no site da Receita",
+      /* `falta`: a gente sabe, é dela, e sem isso a emissão não começa. O título já diz onde, e o
+       * cabeçalho da seção também, então o detalhe não repete.
+       *
+       * ⚠️ NÃO PROMETE "É SÓ ESPERAR" DEPOIS DE ASSINAR. Nenhum código troca este estado sozinho:
+       * ele só muda quando alguém grava `procuradorDocumento` (o campo "Quem emite por você", em
+       * Corrigir, ou direto no banco). A última frase só descreve o que a Receita mostra, que é
+       * o que faz a pessoa achar que assinou errado (ver `/autorizar`, "Depois de assinar"). */
+      estado: "falta",
+      detalhe:
+        "Sem essa autorização, a MAISA não consegue emitir os recibos no seu nome. É você quem "
+        + "faz: a Receita exige que a autorização venha de você. Depois de assinar, a Receita "
+        + "mostra a autorização como \"Em análise\", e isso é normal.",
+      ...saidas,
+      passos: passosDaProcuracao(PROCURADOR_PADRAO),
+    });
+  } else if (rep.modo === "vencida") {
     itens.push({
       id: "procuracao",
       titulo: "Sua autorização de acesso venceu",
@@ -448,26 +474,11 @@ export function checklistDoRecibo(c: ConfigFiscal, hoje: string): ItemDoChecklis
     ],
   });
 
-  itens.push({
-    id: "ensaio",
-    titulo: "Testar sem emitir nada",
-    estado: "nao_da_para_saber",
-    detalhe:
-      "O e-CAC tem uma conferência que **aponta os erros sem emitir recibo nenhum** — de graça e "
-      + "quantas vezes você quiser. Vale sempre fazer antes: se voltar sem erro, aí sim importe.",
-    link: { url: LINK_CARNE_LEAO, rotulo: "Abrir meu Carnê-Leão" },
-    linkAlternativo: { url: LINK_ECAC_SERVICO, rotulo: "Travou no login? Entre pelo gov.br" },
-    passos: [
-      "Entre com a sua conta gov.br",
-      'Se não abrir o Carnê-Leão, clique em "Declarações e Demonstrativos" e depois em "Acessar Carnê-Leão"',
-      'Clique em "Importar Escrituração"',
-      "Escolha o arquivo que a MAISA gerou",
-      'Clique em "Analisar Arquivo"',
-      /* O último passo nomeia o verbo que a tela inteira depende de não confundir: a MAISA gera,
-       * a IMPORTAÇÃO emite. "Importe de verdade" não dizia o que a importação faz. */
-      'Voltou sem erro? Aí sim clique em "Importar" — é a importação que emite os recibos',
-    ],
-  });
+  /* ── SEM "TESTAR SEM EMITIR NADA" (24/10/2026) ──
+   * Havia um item "ensaio": importar no e-CAC o arquivo que a MAISA gerava e clicar em "Analisar
+   * Arquivo" antes de "Importar". Bruno, 24/10/2026: *"nn existe isso de importar arquivo, a API
+   * da rebots existe justamente para arrumarmos isso"*. A MAISA emite pela Rebots, não há arquivo
+   * para conferir, e o passo mandava a pessoa procurar no e-CAC um arquivo que ela não tem. */
 
   return itens;
 }

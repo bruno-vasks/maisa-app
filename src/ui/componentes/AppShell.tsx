@@ -32,7 +32,7 @@ import Conversas from "../telas/Conversas";
 import Agenda from "../telas/Agenda";
 import AMaisa from "../telas/AMaisa";
 import Contatos from "../telas/Contatos";
-import { Clientes, Faturamento, Equipe, Servicos, Mais } from "../telas/Grades";
+import { Clientes, Faturamento, Equipe, Servicos, Mais, vocabulario } from "../telas/Grades";
 import { ProgressoDeEmissao } from "./ProgressoDeEmissao";
 import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { StatusDaMaisa } from "./StatusDaMaisa";
@@ -56,11 +56,17 @@ type St = ReturnType<typeof useStore>;
  * WhatsApp". "Documento fiscal" (173px), "Ajustes da MAISA" (178) e "Quem a MAISA atende" (225)
  * saíam cortados ("Quem a MA…"). O título curto é o nome da tela sem o complemento; a reticência
  * continua como rede, não como plano. Título novo no celular: medir antes de pôr aqui. */
-const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: string; icone: string; Comp: React.ComponentType; acao?: (st: St) => AcaoDaTela | null }> = {
+/* ⚠️ `comLateral` (24/10/2026): a tela monta a coluna lateral de 340px (`<Lateral>`), que tira esses
+ * 340px da topbar. Só nessas duas (o Fluxo e os Ajustes da MAISA) a topbar do desktop deixava de
+ * caber entre 901 e ~1170px: o título virava "Fl…" e o ⌘K da busca invadia o status. Medido a
+ * 920, 960, 1024, 1100 e 1200px: nas outras telas o título, a busca e o botão com rótulo cabem em
+ * toda a faixa, então elas NÃO compactam (o "Marcar atendimento", o "Novo cliente" e os outros do
+ * slot ficam com nome). Tela nova com `<Lateral>` declara `comLateral: true`. */
+const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: string; icone: string; Comp: React.ComponentType; comLateral?: boolean; acao?: (st: St) => AcaoDaTela | null }> = {
   /* "Encaixar cliente", secundário: o primário do dia é o "Chegou"/"Concluir" do próprio Fluxo
      (contradição C15). Abre o rascunho no próximo vago de verdade. */
   fluxo: {
-    rotulo: "Fluxo de hoje", titulo: "Fluxo de hoje", icone: "flow", Comp: FluxoHoje,
+    rotulo: "Fluxo de hoje", titulo: "Fluxo de hoje", icone: "flow", Comp: FluxoHoje, comLateral: true,
     acao: (st) => ({ rotulo: "Encaixar cliente", icone: "plus", peso: "secundario", onClick: () => st.novoAgendamento(null) }),
   },
   conversas: { rotulo: "Conversas", titulo: "Conversas", icone: "chat", Comp: Conversas },
@@ -92,7 +98,7 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: str
     rotulo: "Serviços", titulo: "Serviços", icone: "tag", Comp: Servicos,
     acao: (st) => ({ rotulo: "Novo serviço", icone: "plus", peso: "primario", onClick: st.criarServico }),
   },
-  assistente: { rotulo: "A MAISA", titulo: "Ajustes da MAISA", tituloCelular: "Ajustes", icone: "bot", Comp: AMaisa },
+  assistente: { rotulo: "A MAISA", titulo: "Ajustes da MAISA", tituloCelular: "Ajustes", icone: "bot", Comp: AMaisa, comLateral: true },
   // Fora do rail e das abas de propósito: é tarefa de configuração que se faz uma vez, e um
   // ícone permanente na barra competiria com as telas do dia a dia. Chega-se aqui pelo
   // cartão "De quem é esse número" (Ajustes da MAISA) e pelos atalhos do "Mais" — que é
@@ -127,11 +133,29 @@ function usePendencias() {
      pendência inventada. Agora conta conversa real esperando resposta — e o estado vem do
      servidor, o mesmo que a MAISA lê para decidir se responde. */
   const conversas = st.conversas.filter((c) => c.estado === "espera" || c.estado === "voce").length;
-  const notas = st.fechamento.filter((c) => {
-    const stt = st.notaDe(c.id).status;
-    return stt === "pendente" || stt === "processando" || stt === "erro";
-  }).length;
-  return { conversas, notas, fila: st.fila.length };
+  /* O SELO DO FISCAL CONTA O QUE FALTA EMITIR, E O QUE É DEPENDE DO DOCUMENTO DO NEGÓCIO (24/10/2026).
+     Um negócio emite nota OU emite recibo, então só uma das duas contas vale:
+     · Nota fiscal, com o documento escolhido: as notas pendentes, a mesma regra da tela
+       (`mostraNota`, em `Grades.tsx`). Para quem emite recibo `notaDe` responde `pendente` para
+       todo cliente e para sempre (o recibo grava `lote_recibo_id`, não `nota_id`), e quem ainda não
+       escolheu também lia "14", ao lado de "Mês em dia · Nada a emitir". Por isso o `notaDe` não
+       volta para o caminho do recibo.
+     · Recibo do Receita Saúde: os recibos a emitir (`st.recibosAEmitir`), que o store lê de
+       `/api/recibos`, a mesma conta do "A emitir" da `EmitirRecibos`. Essa lista só existia dentro da
+       tela, e tirar as notas daqui deixou sem selo quem emite recibo.
+     Enquanto `st.fiscal` carrega ou falha, `vocabulario` diz `emiteNota: false` e o selo some, como
+     na tela. `recibosAEmitir` é `null` (e o selo também some) antes de a lista e as fichas serem
+     lidas e quando a leitura falha: sem número certo, sem selo, e nunca zero. */
+  const voz = vocabulario(st.fiscal);
+  const notas = voz.emiteNota && voz.escolheu
+    ? st.fechamento.filter((c) => {
+        const stt = st.notaDe(c.id).status;
+        return stt === "pendente" || stt === "processando" || stt === "erro";
+      }).length
+    : 0;
+  const recibos = voz.sabemos && !voz.emiteNota ? st.recibosAEmitir ?? 0 : 0;
+  const fiscal = notas + recibos;
+  return { conversas, fiscal, fila: st.fila.length };
 }
 
 /* ───────────────────────────── rail (desktop) ───────────────────────────── */
@@ -181,7 +205,7 @@ function ItemRail({ id, badge }: { id: TelaId; badge?: number }) {
 function Rail() {
   const st = useStore();
   const p = usePendencias();
-  const badge: Partial<Record<TelaId, number>> = { conversas: p.conversas, faturamento: p.notas };
+  const badge: Partial<Record<TelaId, number>> = { conversas: p.conversas, faturamento: p.fiscal };
 
   /* O rail abre no hover (CSS) e na navegação por TECLADO (esta classe). Antes as duas intenções
      estavam num `:has(:focus-visible)` só, e o resultado era o rail preso aberto depois de um
@@ -342,8 +366,9 @@ function MenuNovo({ gatilho, alinhar = "direita" }: { gatilho: (p: { aberto: boo
   );
 }
 
-/** O slot, na topbar (clara). Primário = `--primary` cheio; secundário = contorno. */
-function AcaoDaTopbar() {
+/** O slot, na topbar (clara). Primário = `--primary` cheio; secundário = contorno. `soIcone`: só o
+ *  "＋" de 36px, com o nome em `aria-label` e `title` (a topbar apertada da tela com `<Lateral>`). */
+function AcaoDaTopbar({ soIcone = false }: { soIcone?: boolean }) {
   const st = useStore();
   const a = TELA[st.tela].acao?.(st) ?? null;
   if (!a) return null;
@@ -354,17 +379,20 @@ function AcaoDaTopbar() {
     <button
       type="button"
       onClick={a.onClick}
-      className={`${a.peso === "primario" ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
-      style={s(`height:36px;padding:0 14px;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
+      aria-label={soIcone ? a.rotulo : undefined}
+      title={soIcone ? a.rotulo : undefined}
+      className={`${a.peso === "primario" ? "m-hov-primary" : "m-hov-bg"} ${soIcone ? "m-press-icon" : "m-press"} m-focus`}
+      style={s(`height:36px;${soIcone ? "width:36px;justify-content:center;padding:0" : "padding:0 14px"};border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;${cor}`)}
     >
-      <Icon name={a.icone} size={16} />
-      {a.rotulo}
+      <Icon name={a.icone} size={soIcone ? 18 : 16} />
+      {!soIcone && a.rotulo}
     </button>
   );
 }
 
-/** O "Novo" da topbar: contorno, para não disputar com o slot. */
-function NovoDaTopbar() {
+/** O "Novo" da topbar: contorno, para não disputar com o slot. `soIcone`: só a seta, com o nome em
+ *  `aria-label` e `title`. */
+function NovoDaTopbar({ soIcone = false }: { soIcone?: boolean }) {
   return (
     <MenuNovo
       gatilho={({ aberto, alternar }) => (
@@ -373,10 +401,12 @@ function NovoDaTopbar() {
           onClick={alternar}
           aria-haspopup="menu"
           aria-expanded={aberto}
-          className="m-hov-bg m-press m-focus"
-          style={s("height:36px;padding:0 10px 0 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);color:var(--ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap")}
+          aria-label={soIcone ? "Novo" : undefined}
+          title={soIcone ? "Novo" : undefined}
+          className={`m-hov-bg ${soIcone ? "m-press-icon" : "m-press"} m-focus`}
+          style={s(`height:36px;${soIcone ? "width:36px;justify-content:center;padding:0" : "padding:0 10px 0 12px"};border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);color:var(--ink);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap`)}
         >
-          Novo
+          {!soIcone && "Novo"}
           <Icon name="chevron-down" size={15} />
         </button>
       )}
@@ -529,9 +559,26 @@ function AvisoAjustes({ celular }: { celular?: boolean }) {
   );
 }
 
-function Topbar({ onBuscar }: { onBuscar: () => void }) {
+/** A faixa da janela para a topbar. `estreita`: até 1200px; `apertada`: até 1020px, onde o botão de
+ *  ação com rótulo mal cabe ao lado da coluna lateral (a 1000px sobram 3px; com 1020, uma folga). */
+type FaixaDaTopbar = "larga" | "estreita" | "apertada";
+
+function Topbar({ onBuscar, faixa }: { onBuscar: () => void; faixa: FaixaDaTopbar }) {
   const st = useStore();
   const t = TELA[st.tela];
+  /* ⚠️ TOPBAR COMPACTA SÓ NA TELA COM COLUNA LATERAL (24/10/2026, ver `comLateral`). Com os 340px da
+     lateral, a 1024px sobram 544 para o título, a busca e um grupo da direita de 430 fixos: o h1
+     encolhia a "Fl…", a busca a uma caixa de 26px e o ⌘K caía em cima do status. Na faixa estreita:
+     a busca vira a lupa de 36px (no grupo da direita, como no celular), o status é o curto ("Sem
+     WhatsApp") e o "Novo" vira só a seta. Fluxo: "Encaixar cliente" mantém o rótulo, porque no
+     toque o `title` não aparece e um "＋" sem nome ao lado do "Novo" deixaria os dois sem dizer o
+     que fazem. Até 1020px ele mal cabe: vira o "＋" com nome em `aria-label`/`title` e o menu
+     "Novo" sai, o mesmo desenho do celular (`MaisDoCelular`). Nada fica sem porta: "Novo cliente"
+     e "Novo serviço" são a ação das próprias telas. Os Ajustes da MAISA não têm ação, então ali
+     só a lupa, o status curto e a seta. */
+  const compacta = faixa !== "larga" && !!t.comLateral;
+  const soIconeNaAcao = compacta && faixa === "apertada";
+  const temAcao = !!t.acao?.(st);
 
   return (
     /* 56px: sem o subtítulo, a topbar é uma linha só (título, busca, status, ação).
@@ -541,28 +588,43 @@ function Topbar({ onBuscar }: { onBuscar: () => void }) {
     /* O fundo é o do APP, não uma faixa branca: com o rail flutuando, uma faixa de outra cor
        encontrava o fundo em volta dele no canto de cima (28/09/2026). A linha fina embaixo é o
        que separa, e ela bate com a do `CabecalhoDaLateral`. */
-    <header style={s("height:56px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 24px;background:var(--bg);border-bottom:1px solid var(--line)")}>
+    <header style={s(`height:56px;flex-shrink:0;display:flex;align-items:center;gap:${compacta ? 12 : 18}px;padding:0 24px;background:var(--bg);border-bottom:1px solid var(--line)`)}>
       <h1 style={s("min-width:0;margin:0;font-size:var(--t-title);font-weight:var(--w-title);letter-spacing:var(--ls-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)")}>{t.titulo}</h1>
 
-      <button
-        onClick={onBuscar}
-        className="m-press m-focus"
-        style={s("flex:1;max-width:360px;min-width:0;margin-left:10px;display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:var(--r-controle);background:var(--bg);border:1px solid var(--border);color:var(--muted);cursor:pointer;text-align:left")}
-      >
-        <Icon name="search" size={17} />
-        <span style={s("flex:1;min-width:0;font-size:var(--t-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>Buscar cliente, conversa ou tela</span>
-        {/* ⌘K é string de máquina — um dos poucos lugares onde o mono sobrevive. Peso de dado (500):
-            é a tecla literal, não um título. */}
-        <span style={s("flex-shrink:0;font-variant-numeric:tabular-nums;font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:var(--r-controle);background:var(--surface);border:1px solid var(--border)")}>⌘K</span>
-      </button>
+      {/* `overflow:hidden` é a rede: se a busca encolher, o ⌘K corta junto com ela em vez de cair
+          em cima do status vizinho. */}
+      {!compacta && (
+        <button
+          onClick={onBuscar}
+          className="m-press m-focus"
+          style={s("flex:1;max-width:360px;min-width:0;margin-left:10px;display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:var(--r-controle);background:var(--bg);border:1px solid var(--border);color:var(--muted);cursor:pointer;text-align:left;overflow:hidden")}
+        >
+          <Icon name="search" size={17} />
+          <span style={s("flex:1;min-width:0;font-size:var(--t-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>Buscar cliente, conversa ou tela</span>
+          {/* ⌘K é string de máquina — um dos poucos lugares onde o mono sobrevive. Peso de dado (500):
+              é a tecla literal, não um título. */}
+          <span style={s("flex-shrink:0;font-variant-numeric:tabular-nums;font-size:var(--t-micro);font-weight:var(--w-data);padding:3px 7px;border-radius:var(--r-controle);background:var(--surface);border:1px solid var(--border)")}>⌘K</span>
+        </button>
+      )}
 
-      <div style={s("margin-left:auto;display:flex;align-items:center;gap:14px;flex-shrink:0")}>
+      <div style={s(`margin-left:auto;display:flex;align-items:center;gap:${compacta ? 10 : 14}px;flex-shrink:0`)}>
+        {compacta && (
+          <button
+            onClick={onBuscar}
+            aria-label="Buscar"
+            title="Buscar cliente, conversa ou tela"
+            className="m-hov-bg m-press-icon m-focus"
+            style={s("width:36px;height:36px;flex-shrink:0;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center")}
+          >
+            <Icon name="search" size={17} />
+          </button>
+        )}
         {/* O status vem de `statusDaMaisa` (interruptor E canal), nunca de `assistente.ativa`
             sozinho: até 24/09/2026 aqui pulsava "no ar" com o WhatsApp desconectado. Rótulos e
             cores por fundo moram em `StatusDaMaisa.tsx`. */}
-        <StatusDaMaisa sobre="claro" />
-        <NovoDaTopbar />
-        <AcaoDaTopbar />
+        <StatusDaMaisa sobre="claro" curto={compacta} />
+        {!(soIconeNaAcao && temAcao) && <NovoDaTopbar soIcone={compacta} />}
+        <AcaoDaTopbar soIcone={soIconeNaAcao} />
       </div>
     </header>
   );
@@ -618,6 +680,14 @@ export default function AppShell() {
   const st = useStore();
   const layout = useLayout();
   const mobile = layout === "celular";
+  /* A faixa da topbar do desktop, medida ANTES de pintar, como `layout`: `useEstreita` começa em
+     `false` e só vira `true` depois do efeito, e uma janela estreita pintaria um quadro da topbar
+     larga. ⚠️ `useLayout` devolve "celular" quando a consulta casa, e aqui as consultas são de
+     LARGURA da janela, não de celular. Os três efeitos rodam juntos e a casca só pinta depois
+     (`layout === null` abaixo). */
+  const ate1200 = useLayout("(max-width: 1200px)") === "celular";
+  const ate1020 = useLayout("(max-width: 1020px)") === "celular";
+  const faixa: FaixaDaTopbar = ate1020 ? "apertada" : ate1200 ? "estreita" : "larga";
   const [paleta, setPaleta] = useState(false);
   const [encaixe, setEncaixe] = useState<HTMLDivElement | null>(null);
   const Ativa = TELA[st.tela].Comp;
@@ -703,7 +773,7 @@ export default function AppShell() {
           altura. Ver o porquê em `Lateral.tsx`. */}
       <EncaixeDaLateral.Provider value={encaixe}>
         <main style={s("flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)")}>
-          <Topbar onBuscar={() => setPaleta(true)} />
+          <Topbar onBuscar={() => setPaleta(true)} faixa={faixa} />
           {/* Acima do conteúdo e FORA do `key={st.tela}`: o aviso vale para todas as telas e
               não deve remontar (nem piscar) a cada troca de tela. */}
           <AvisoCadastro />

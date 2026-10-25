@@ -127,7 +127,7 @@ const CONFIG = (over: Partial<ConfigFiscal> = {}) => ({
 describe("a linha de 'seus dados' — cheia diz o que é, vazia diz o que falta", () => {
   const itens = (c: ConfigFiscal) => partesDoChecklist(checklistDoRecibo(c, "2026-08-25")).meusDados;
 
-  it("completa, mostra o que vai em toda linha do arquivo", () => {
+  it("completa, mostra o que vai em todo recibo", () => {
     const c = CONFIG();
     expect(resumoDosDados(c, itens(c))).toBe("CPF 390.533.447-05 · Psicólogo · CRP 06/12345");
   });
@@ -135,13 +135,11 @@ describe("a linha de 'seus dados' — cheia diz o que é, vazia diz o que falta"
   /* O nome do campo que falta, e não "1 item pendente": ela vai procurar a palavra na tela. */
   it("faltando o registro, nomeia o registro", () => {
     const c = CONFIG({ registroProfissional: null });
-    expect(resumoDosDados(c, itens(c))).toBe("Falta seu CRP — é o que vai em todas as linhas do arquivo.");
+    expect(resumoDosDados(c, itens(c))).toBe("Falta seu CRP.");
   });
 
   it("faltando dois, junta com 'e'", () => {
     const c = CONFIG({ ocupacaoSaude: null, registroProfissional: null });
-    expect(resumoDosDados(c, itens(c))).toBe(
-      "Falta sua profissão e seu conselho — é o que vai em todas as linhas do arquivo.",
-    );
+    expect(resumoDosDados(c, itens(c))).toBe("Falta sua profissão e seu conselho.");
   });
 });

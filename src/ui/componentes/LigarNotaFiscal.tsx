@@ -287,8 +287,8 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
         <>
           <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.55")}>
             {soRecibo
-              ? "Você atende como pessoa física, com CPF e registro no conselho? Então seu documento é o recibo do Receita Saúde — e eu monto o arquivo do mês para você."
-              : "Como você atende? Isso decide o documento que sai depois de cada atendimento — e são documentos diferentes, não jeitos diferentes do mesmo."}
+              ? "Você atende como pessoa física, com CPF e registro no conselho? Então seu documento é o recibo do Receita Saúde, e a MAISA emite por você."
+              : "Como você atende?"}
           </p>
 
           <div style={s("display:flex;gap:10px;flex-wrap:wrap")}>
@@ -317,10 +317,14 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
       {/* ── passo 1-B · três campos, e acabou ── */}
       {!ligado && modo === "cpf" && (
         <>
+          {/* ⚠️ 24/10/2026: dizia "todo mês eu monto o arquivo e você importa no e-CAC → Carnê-Leão →
+              Escrituração". O arquivo saiu do produto em 26/08/2026 (a MAISA emite pela Rebots) e o
+              texto ficou para trás: a pessoa lia que ia importar um arquivo todo mês e não sabia do
+              passo que de fato falta, que é autorizar a MAISA no site da Receita. As palavras são as
+              de `checklistDoRecibo` e de `faltaParaEmitirRecibo`, as mesmas do cartão da tela Fiscal. */}
           <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.55")}>
-            Todo mês eu monto o arquivo com as sessões atendidas e você importa no
-            <strong style={s("color:var(--ink)")}> e-CAC → Carnê-Leão → Escrituração</strong>.
-            A Receita valida o arquivo antes de emitir qualquer coisa.
+            A MAISA emite os recibos do Receita Saúde no seu CPF. Depois de salvar, falta autorizar
+            a MAISA no site da Receita. É essa autorização que deixa a MAISA emitir em seu nome.
           </p>
 
           <label style={s("display:flex;flex-direction:column;gap:6px")}>
@@ -352,14 +356,18 @@ export function LigarNotaFiscal({ modo: modoDeFora, onModo }: Props = {}) {
               "dá para deixar em branco" (verdade só para o arquivo do e-CAC) e ela andava em
               círculo entre as duas telas. Ver `faltaParaEmitirRecibo`.
 
-              E ele importa por dois motivos que a frase precisa carregar: é o que o plano de
-              saúde exige para reembolsar o paciente, e é o número que **tem que estar também no
-              Carnê-Leão dela** — que é de onde vem o erro "Registro profissional não informado
-              pelo conselho profissional". A Receita cruza CPF ↔ base do conselho; digitar aqui
-              não substitui o cadastro lá. Ver `checklistDoRecibo`. */}
+              E o número **tem que estar também no Carnê-Leão dela** — que é de onde vem o erro
+              "Registro profissional não informado pelo conselho profissional". A Receita cruza
+              CPF ↔ base do conselho; digitar aqui não substitui o cadastro lá. Ver
+              `checklistDoRecibo`.
+
+              24/10/2026: o RÓTULO leva só o nome do campo. Até 1A.13 ele carregava dois motivos
+              ("é ele que o plano de saúde exige para reembolsar"). O do plano de saúde saiu: o campo
+              é obrigatório para emitir, e a profissional sabe para que serve o próprio registro. O
+              motivo que evita erro, o do Carnê-Leão, fica no aviso logo abaixo, que não mudou. */}
           <label style={s("display:flex;flex-direction:column;gap:6px")}>
             <span style={s("font-size:var(--t-label);color:var(--muted)")}>
-              Seu registro no conselho — é ele que o plano de saúde exige para reembolsar
+              Seu registro no conselho
             </span>
             <input
               value={registro}

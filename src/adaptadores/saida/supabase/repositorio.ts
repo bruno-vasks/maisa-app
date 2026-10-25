@@ -42,7 +42,7 @@ import type { Negocio } from "@/nucleo/dominio/negocio";
 import type { CategoriaServico, Profissional, Servico } from "@/nucleo/dominio/catalogo";
 import type { Cliente } from "@/nucleo/dominio/clientes";
 import { soDigitos } from "@/nucleo/dominio/clientes";
-import type { Expediente } from "@/nucleo/dominio/expediente";
+import { fraseDeFolga, fraseDoHorario, type Expediente } from "@/nucleo/dominio/expediente";
 import { FalhaDoProvedor, NaoEncontrado } from "@/nucleo/dominio/erros";
 import { clienteDoContexto } from "./contexto-cliente";
 
@@ -178,6 +178,15 @@ function paraNegocio(l: LinhaNegocio): Negocio {
 }
 
 function paraProfissional(l: LinhaProfissional): Profissional {
+  /* A regra, em número — é ela que a grade aplica (ver `dominio/catalogo.ts`).
+   * Os defaults 9/19 batem com os da coluna no banco; eles só entram se o `numeric`
+   * chegar ilegível, e nesse caso um expediente comercial é melhor palpite que 0–0,
+   * que fecharia a agenda inteira. */
+  const expediente: Expediente = {
+    folga: l.expediente_folga ?? [],
+    de: num(l.expediente_de, 9),
+    ate: num(l.expediente_ate, 19),
+  };
   return {
     id: l.id,
     nome: l.nome,
@@ -190,48 +199,13 @@ function paraProfissional(l: LinhaProfissional): Profissional {
     ativo: l.ativo,
     /* `horario`/`folga` são as FRASES de apresentação, e são anuláveis no banco. Quando
      * faltarem, monta a frase a partir do expediente estruturado — que é obrigatório.
-     * O 002 avisa: "quando frase e número divergirem, manda o número". */
-    horario: l.horario ?? frasePorExpediente(l),
-    folga: l.folga ?? fraseDeFolga(l.expediente_folga ?? []),
-    /* A regra, em número — é ela que a grade aplica (ver `dominio/catalogo.ts`).
-     * Os defaults 9/19 batem com os da coluna no banco; eles só entram se o `numeric`
-     * chegar ilegível, e nesse caso um expediente comercial é melhor palpite que 0–0,
-     * que fecharia a agenda inteira. */
-    expediente: {
-      folga: l.expediente_folga ?? [],
-      de: num(l.expediente_de, 9),
-      ate: num(l.expediente_ate, 19),
-    },
+     * O 002 avisa: "quando frase e número divergirem, manda o número".
+     * ⚠️ Mas o texto GRAVADO vence o montado, e é por isso que `salvarExpediente` regrava as
+     * duas frases junto do número (24/10/2026). */
+    horario: l.horario ?? fraseDoHorario(expediente),
+    folga: l.folga ?? fraseDeFolga(expediente.folga),
+    expediente,
   };
-}
-
-const DIAS_CURTOS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
-/** Hora decimal (9.5) → "09:30"; inteira (9) → "09". */
-const horaCurta = (h: number): string => {
-  const inteira = Math.floor(h);
-  const min = Math.round((h - inteira) * 60);
-  return min === 0 ? String(inteira).padStart(2, "0") : `${String(inteira).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-};
-
-function frasePorExpediente(l: Pick<LinhaProfissional, "expediente_folga" | "expediente_de" | "expediente_ate">): string {
-  const folga = new Set(l.expediente_folga ?? []);
-  const atende = [0, 1, 2, 3, 4, 5, 6].filter((d) => !folga.has(d));
-  if (atende.length === 0) return "Sem expediente";
-  const faixa = `${horaCurta(num(l.expediente_de))}–${horaCurta(num(l.expediente_ate))}`;
-  // Sequência contígua (o caso comum: Seg–Sáb) vira faixa; buraco no meio vira lista.
-  const contiguo = atende.every((d, i) => i === 0 || d === atende[i - 1] + 1);
-  const dias = contiguo && atende.length > 1
-    ? `${DIAS_CURTOS[atende[0]]}–${DIAS_CURTOS[atende[atende.length - 1]]}`
-    : atende.map((d) => DIAS_CURTOS[d]).join(", ");
-  return `${dias} ${faixa}`;
-}
-
-const NOMES_DIA = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"];
-
-function fraseDeFolga(folga: number[]): string {
-  if (folga.length === 0) return "sem folga fixa";
-  return folga.map((d) => NOMES_DIA[d] ?? "?").join(" e ");
 }
 
 function paraServico(l: LinhaServico): Servico {
@@ -615,6 +589,45 @@ export const repositorioSupabase: RepositorioNegocio = {
 
     const salvo = await repositorioSupabase.profissional(t, novoId);
     if (!salvo) throw new NaoEncontrado("Profissional recém-criado");
+    return salvo;
+  },
+
+  /* ── O EXPEDIENTE (24/10/2026) ──────────────────────────────────────────────
+   * Cinco colunas num `update` só: `expediente_folga`, `_de`, `_ate`, e as duas frases
+   * (`horario`, `folga`). Um `update` é atômico, e é o que impede número e frase de divergirem
+   * por um instante — a leitura prefere o texto gravado (ver `paraProfissional`), então um
+   * número novo com frase velha faria a tabela de Equipe mostrar o horário de antes.
+   *
+   * As colunas já existem desde o 002 (`expediente_*`, `horario`, `folga`) e a view
+   * `v_profissionais` as projeta desde o 004: nenhuma migração nova. O `check` do banco
+   * (`ate > de`, passo de meia hora, `de` e `ate` dentro de 0 a 24) é a última linha; o caso de
+   * uso já recusou o que a Agenda não desenha, e o domingo.
+   *
+   * ⚠️ `.eq("tenant_id")` NÃO é redundante com a RLS: no caminho do agente a RLS está desligada
+   * (service role). E zero linhas é `NaoEncontrado`, nunca sucesso calado: um `update` com o
+   * id de OUTRO negócio não dá erro, dá sucesso com zero linhas. */
+  async salvarExpediente(t, r): Promise<Profissional> {
+    if (!PARECE_UUID.test(r.id)) throw new NaoEncontrado("Profissional");
+    const supabase = clienteDoContexto(t);
+
+    const { data, error } = await supabase
+      .from("profissionais")
+      .update({
+        expediente_folga: r.expediente.folga,
+        expediente_de: r.expediente.de,
+        expediente_ate: r.expediente.ate,
+        horario: r.horario,
+        folga: r.folga,
+      })
+      .eq("id", r.id)
+      .eq("tenant_id", t.tenantId)
+      .select("id");
+
+    exigirSemErro("o expediente", error);
+    if (!data || data.length === 0) throw new NaoEncontrado("Profissional deste negócio");
+
+    const salvo = await repositorioSupabase.profissional(t, r.id);
+    if (!salvo) throw new NaoEncontrado("Profissional");
     return salvo;
   },
 

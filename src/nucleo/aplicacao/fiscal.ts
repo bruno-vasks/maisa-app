@@ -253,11 +253,10 @@ export function criarLiberarProducaoFiscal(deps: DepsFiscal): LiberarProducaoFis
  * `LoteReceitaSaude` salva a autorização por este mesmo caso de uso.
  *
  * ⚠️ `ambiente: "producao"`, e não o `homologacao` padrão. Não existe homologação neste
- * caminho: o ensaio é o "Analisar Arquivo" do e-CAC, que acontece fora do nosso app. Deixar
- * em homologação faria a tela de Faturamento estampar "isto é teste" sobre o arquivo que ela
- * vai realmente importar — e aqui isso é seguro, porque um CSV é inerte até alguém assiná-lo
- * no e-CAC. É o oposto da nota fiscal, onde produção significa documento irreversível e por
- * isso tem `criarLiberarProducaoFiscal` como cancela.
+ * caminho: quem decide se o recibo vale é o `REBOTS_PRODUCAO` do servidor (ver
+ * `saida/rebots/config.ts`), não a config de cada negócio. Deixar em homologação faria a tela de
+ * Faturamento estampar "isto é teste" sobre recibo que sai de verdade. Até 24/10/2026 este
+ * comentário falava do arquivo do e-CAC, que não existe mais: a MAISA emite pela Rebots.
  */
 export function criarLigarReciboSaude(deps: DepsLigarReciboSaude): LigarReciboSaude {
   return async (t, p) => {

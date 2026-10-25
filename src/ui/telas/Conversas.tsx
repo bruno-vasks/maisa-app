@@ -235,12 +235,15 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
      O `?? CONVERSAS[0]` de antes viraria um crash aqui. */
   if (!cv) {
     if (st.conversasErro) return <div style={s("flex:1;display:flex;align-items:center;justify-content:center")}><FalhaDasConversas /></div>;
+    /* O VAZIO MORA NA LISTA (24/10/2026). Lá tem o porquê e o botão ("Conectar o WhatsApp"); repetir
+       aqui "a primeira mensagem que chegar abre esta tela" contradizia a lista quando o WhatsApp está
+       desconectado, e com ele conectado as duas colunas diziam quase a mesma frase. Lida a lista e
+       sem erro, esta coluna fica sem frase. */
+    if (st.conversasCarregadas) return <div style={s("flex:1")} />;
     return (
       <div style={s("flex:1;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center")}>
         <div style={s("max-width:38ch;font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-prose)")}>
-          {st.conversasCarregadas
-            ? "Nenhuma conversa por aqui ainda. A primeira mensagem que chegar no WhatsApp do negócio abre esta tela."
-            : "Carregando as conversas…"}
+          Carregando as conversas…
         </div>
       </div>
     );
@@ -253,6 +256,11 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
      O servidor recusa esse envio (ver `criarResponderConversa`), e a tela recusa antes — botão
      que só falha quando clicado é pior que botão desabilitado com o motivo escrito. */
   const semNumero = !cv.telefone;
+  /* O botão faz `st.assumir` em tudo o que não é `voce`, e o rótulo diz isso. Em `ok` (resolvida) ele
+     se chamava "Reabrir", mas não reabria nada: assumia, a MAISA parava de responder e aparecia
+     "Conversa assumida" (24/10/2026). `ok` só aparece na tela depois de `estadoDaConversa` deixar
+     "Já resolvi" valer. */
+  const rotuloDaPosse = minha ? "Devolver à MAISA" : "Assumir";
 
   const enviar = () => {
     if (!minha || semNumero || st.enviando || !texto.trim()) return;
@@ -291,7 +299,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
             className={`${daMaisa ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
             style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--muted)"}`)}
           >
-            {daMaisa ? "Assumir" : minha ? "Devolver à MAISA" : "Reabrir"}
+            {rotuloDaPosse}
           </button>
         )}
       </div>
@@ -390,7 +398,7 @@ function Thread({ onVoltar }: { onVoltar?: () => void }) {
               className={`${daMaisa ? "m-hov-primary" : "m-hov-bg"} m-press m-focus`}
               style={s(`height:44px;padding:0 16px;flex-shrink:0;border-radius:var(--r-controle);font-size:var(--t-sm);font-weight:var(--w-title);cursor:pointer;white-space:nowrap;${daMaisa ? "border:1px solid var(--primary);background:var(--primary);color:var(--on-primary)" : "border:1px solid var(--border);background:var(--surface);color:var(--ink)"}`)}
             >
-              {daMaisa ? "Assumir" : minha ? "Devolver à MAISA" : "Reabrir"}
+              {rotuloDaPosse}
             </button>
           </div>
         )}

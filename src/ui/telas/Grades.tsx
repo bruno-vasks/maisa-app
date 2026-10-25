@@ -15,14 +15,17 @@ import { useStore, resumoDaAssinatura, type LinhaDeFaturamento, type TelaId } fr
 import { Cartao, GradeCartoes, type TomTag } from "@/ui/componentes/Cartao";
 import { EmitirRecibos } from "@/ui/componentes/EmitirRecibos";
 import { casaBusca } from "@/ui/estado/busca";
-/* ⚠️ AINDA AQUI, e só no caminho da NOTA FISCAL. Ele também aparece em `Documento fiscal`, que é
- * o endereço novo — mas o caminho do CNPJ ficou guardado como estava para a v2, e arrancar o
- * cartão dele desta tela agora tiraria o único aviso de "falta o certificado" de quem emite nota.
- * Quando a v2 reestruturar a nota fiscal, esta linha sai. */
+/* ⚠️ AINDA AQUI, e só no caminho da NOTA FISCAL com o documento já escolhido (`mostraNota`). Ele
+ * também aparece em `Documento fiscal`, que é o endereço novo — mas o caminho do CNPJ ficou
+ * guardado como estava para a v2, e arrancar o cartão dele desta tela agora tiraria o único aviso
+ * de "falta o certificado" de quem emite nota. Quando a v2 reestruturar a nota fiscal, esta linha
+ * sai. Sem escolha o cartão NÃO aparece (24/10/2026): ele refazia a pergunta "nota fiscal ou
+ * recibo?" que o pé "Escolher o documento" já faz, e a tela mostrava as duas ao mesmo tempo. */
 import { LigarNotaFiscal } from "@/ui/componentes/LigarNotaFiscal";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 import { Moldura, Contagem, PeDeAcao } from "@/ui/componentes/Moldura";
+import { SairDaConta } from "@/ui/componentes/UserMenu";
 
 /* Estado da nota → como o cartão se apresenta. Um lugar só, para as duas telas
    que mostram nota (Faturamento e a ficha do cliente) contarem a mesma coisa. */
@@ -362,7 +365,7 @@ function NovoCliente({ aoFechar }: { aoFechar: () => void }) {
         <Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="Escreva o CPF…" inputMode="numeric" onKeyDown={enter} />
       </Field>
       <span style={s("display:flex;gap:8px")}>
-        <Btn variant="primary" icon="check" onClick={() => void salvar()}>
+        <Btn variant="primary" icon="check" disabled={!pronto || enviando} onClick={() => void salvar()}>
           {enviando ? "Salvando…" : "Cadastrar"}
         </Btn>
         <Btn variant="ghost" onClick={aoFechar}>Cancelar</Btn>
@@ -373,7 +376,7 @@ function NovoCliente({ aoFechar }: { aoFechar: () => void }) {
 
 /* Adicionar alguém à equipe (1B.12, 08 P0-2). Nome e papel, e só: o expediente nasce com o
  * padrão do banco (seg a sáb, 9 às 19) e a rota não o aceita de propósito. A ficha abre logo
- * depois, para ligar a agenda do Google se quiser. */
+ * depois, para ligar a agenda do Google se quiser e ajustar o "Quando atende" (24/10/2026). */
 function NovoProfissional({ aoFechar }: { aoFechar: () => void }) {
   const st = useStore();
   const [nome, setNome] = React.useState("");
@@ -460,7 +463,6 @@ export function Faturamento() {
       <Moldura>
         <EmptyState
           title="Não deu para saber o que você emite"
-          sub="Nota fiscal e recibo têm telas diferentes, e sem essa resposta a MAISA não mostra nenhuma das duas para não prometer o documento errado."
           action={<Btn onClick={() => void st.recarregarFiscal()}>Tentar de novo</Btn>}
         />
       </Moldura>
@@ -527,10 +529,12 @@ export function Faturamento() {
       pe={pe}
     >
       {/* Acima da lista de propósito: enquanto a nota fiscal não está ligada, todo botão de
-          emitir desta tela é promessa que o emissor vai recusar. O cartão desaparece sozinho
-          quando não há nada a fazer (e quando o emissor não está configurado no ambiente,
-          que não é problema do dono). */}
-      <LigarNotaFiscal />
+          emitir desta tela é promessa que o emissor vai recusar. O cartão só existe depois da
+          escolha da nota fiscal (24/10/2026): sem escolha, quem decide é o pé, "Escolher o
+          documento", e ter o cartão também eram dois controles para a mesma pergunta. Escolhida a
+          nota, ele desaparece sozinho quando não há nada a fazer (e quando o emissor não está
+          configurado no ambiente, que não é problema do dono). */}
+      {mostraNota && <LigarNotaFiscal />}
 
       {base.length === 0 ? (
         <EmptyState title="Nada a faturar" sub="Nenhum cliente ativo com valor fechado nesta competência." semSaida="fim do caminho: sem nada a emitir, não há o que fazer aqui" />
@@ -657,13 +661,13 @@ export function Equipe() {
           valor={String(ativos.length)}
           sub={`de ${st.cadastro.profissionais.length} recebendo agendamentos`}
           /* "pausados" só aparece quando há algum. Com a equipe de uma pessoa o marco
-             ficava fixo em "0 pausados" — ocupando espaço para não dizer nada. */
-          marcos={[
-            { n: st.cadastro.profissionais.reduce((a, p) => a + p.atendimentosMes, 0), label: "atendimentos no mês", tom: "primary" },
-            ...(st.cadastro.profissionais.length - ativos.length > 0
-              ? [{ n: st.cadastro.profissionais.length - ativos.length, label: "pausados", tom: "neutral" as const }]
-              : []),
-          ]}
+             ficava fixo em "0 pausados" — ocupando espaço para não dizer nada. O total de
+             "atendimentos no mês" saiu em 24/10/2026: soma sem ação, e quem atende sozinho via o
+             mesmo número no topo e na única linha. Por pessoa ele continua na coluna
+             "Atendimentos" e na ficha ("No mês"). */
+          marcos={st.cadastro.profissionais.length - ativos.length > 0
+            ? [{ n: st.cadastro.profissionais.length - ativos.length, label: "pausados", tom: "neutral" as const }]
+            : []}
         />
       }
       /* Quem abre é o slot da casca, "Adicionar profissional" (T2, 1B.12). */
@@ -778,10 +782,12 @@ export function Servicos() {
           rotulo="No catálogo"
           valor={String(ativos.length)}
           sub={`de ${st.servicos.length} serviços`}
-          marcos={[
-            { n: fmt(Math.round(ativos.reduce((a, sv) => a + sv.preco, 0) / Math.max(ativos.length, 1))), label: "ticket médio", tom: "primary" },
-            { n: st.servicos.length - ativos.length, label: "fora do catálogo", tom: "neutral" },
-          ]}
+          /* "fora do catálogo" só aparece quando há algum, como "pausados" na Equipe. O "ticket médio"
+             saiu em 24/10/2026 (pedido do Bruno): era a média dos preços de tabela, não dos
+             atendimentos, e não leva a ação nenhuma no catálogo. */
+          marcos={st.servicos.length - ativos.length > 0
+            ? [{ n: st.servicos.length - ativos.length, label: "fora do catálogo", tom: "neutral" as const }]
+            : []}
         />
       }
       cabecalho={<Filtros opcoes={["Todos", ...D.CATEGORIAS]} ativo={st.filtroSvc} onChange={st.setFiltroSvc} />}
@@ -813,7 +819,9 @@ export function Servicos() {
       ) : (
         /* O catálogo é a tela MAIS tabular do app: nome · categoria · duração · preço · quem faz.
            As três perguntas reais ("qual o mais caro", "qual demora mais", "o que está fora do ar")
-           exigiam varredura em zigue-zague entre cartões cujos preços nem alinhavam. */
+           exigiam varredura em zigue-zague entre cartões cujos preços nem alinhavam. A coluna
+           "R$/min" saiu em 24/10/2026 (pedido do Bruno): é análise de rentabilidade, e quem atende
+           opera o catálogo com preço e duração, que já estão ao lado. */
         <Tabela
           rolarPorDentro
           linhas={lista}
@@ -836,13 +844,6 @@ export function Servicos() {
               chave: "preco", label: "Preço", num: true, largura: "120px",
               ordenar: (sv) => sv.preco,
               celula: (sv) => fmt(sv.preco),
-            },
-            {
-              // A pergunta que nenhuma das duas colunas anteriores responde sozinha, e que decide
-              // preço: quanto este serviço rende por minuto de agenda ocupada.
-              chave: "porMin", label: "R$/min", num: true, largura: "90px", secundaria: true,
-              ordenar: (sv) => sv.preco / Math.max(sv.duracao, 1),
-              celula: (sv) => (sv.preco / Math.max(sv.duracao, 1)).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             },
             {
               chave: "quem", label: "Quem faz", largura: "minmax(0,1.1fr)", secundaria: true,
@@ -1071,23 +1072,47 @@ export function Mais() {
       )}
 
       <section>
-        <SectionTitle title="Sua conta" sub="Assinatura e cobrança" />
-        {/* Linha larga, não cartão numa grade: é UM item, e um cartão de 290px numa grade de
-            quatro colunas fazia o plano parecer um entre vários. */}
-        <button
-          onClick={() => st.abrir("plano")}
-          className="m-hov-bg m-focus"
-          style={s("width:100%;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border);cursor:pointer;text-align:left;font-family:inherit;color:inherit;flex-wrap:wrap")}
-        >
-          <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
-            <Icon name="card" size={19} />
-          </span>
-          {/* ⚠️ A MESMA FONTE DA GAVETA (`resumoDaAssinatura`, 25/09/2026, T5 e 08 P0-4). A linha
-              lia `cadastro.negocio.plano`/`precoPlano` (R$ 149,90 de fixture) e desenhava "em dia"
-              fixo, e a gaveta, um clique depois, dizia "em teste · nenhuma forma de pagamento". */}
-          <LinhaDoPlano />
-          <Icon name="chevron-right" size={17} style={s("flex-shrink:0;color:var(--muted)")} />
-        </button>
+        {/* ⚠️ A CONTA NO CELULAR (24/10/2026). O rail é o único lugar do desktop com "Seu negócio" e
+            o "Sair", e o celular não tem rail: quem usa só o telefone não saía da conta nem trocava
+            a foto do negócio. No desktop esta seção segue só com o plano, e o sub só diz o que ela
+            tem. */}
+        <SectionTitle title="Sua conta" sub={mobile ? "Negócio, assinatura e cobrança" : "Assinatura e cobrança"} />
+        <div style={s("display:flex;flex-direction:column;gap:10px")}>
+          {mobile && (
+            <button
+              onClick={() => st.abrir("negocio")}
+              className="m-hov-bg m-focus"
+              style={s("width:100%;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border);cursor:pointer;text-align:left;font-family:inherit;color:inherit")}
+            >
+              <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
+                <Icon name="negocio" size={19} />
+              </span>
+              <span style={s("flex:1;min-width:0;line-height:1.3")}>
+                <span style={s("display:block;font-size:var(--t-body);font-weight:var(--w-title)")}>Seu negócio</span>
+                <span style={s("display:block;font-size:var(--t-label);color:var(--muted)")}>Foto, nome e documento</span>
+              </span>
+              <Icon name="chevron-right" size={17} style={s("flex-shrink:0;color:var(--muted)")} />
+            </button>
+          )}
+          {/* Linha larga, não cartão numa grade: é UM item, e um cartão de 290px numa grade de
+              quatro colunas fazia o plano parecer um entre vários. */}
+          <button
+            onClick={() => st.abrir("plano")}
+            className="m-hov-bg m-focus"
+            style={s("width:100%;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border);cursor:pointer;text-align:left;font-family:inherit;color:inherit;flex-wrap:wrap")}
+          >
+            <span style={s("width:38px;height:38px;flex-shrink:0;border-radius:var(--r-painel);background:var(--primary-soft);color:var(--primary-dark);display:flex;align-items:center;justify-content:center")}>
+              <Icon name="card" size={19} />
+            </span>
+            {/* ⚠️ A MESMA FONTE DA GAVETA (`resumoDaAssinatura`, 25/09/2026, T5 e 08 P0-4). A linha
+                lia `cadastro.negocio.plano`/`precoPlano` (R$ 149,90 de fixture) e desenhava "em dia"
+                fixo, e a gaveta, um clique depois, dizia "em teste · nenhuma forma de pagamento". */}
+            <LinhaDoPlano />
+            <Icon name="chevron-right" size={17} style={s("flex-shrink:0;color:var(--muted)")} />
+          </button>
+          {/* Última linha da seção, e sem nada no demo aberto (sem login `SairDaConta` não desenha). */}
+          {mobile && <SairDaConta />}
+        </div>
       </section>
 
       <Conexoes />

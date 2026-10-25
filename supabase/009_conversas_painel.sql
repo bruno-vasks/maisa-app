@@ -75,9 +75,9 @@ create table if not exists public.conversas_estado (
   assumida_em    timestamptz,
 
   -- Preenchido = o dono marcou como resolvida. Não impede a MAISA de responder — resolver
-  -- é sobre a fila de pendências do painel, não sobre quem conduz. Mensagem nova zera isto
-  -- do lado de quem escreve (ver `RepositorioConversas.marcar`), porque conversa que voltou
-  -- a andar não está resolvida.
+  -- é sobre a fila de pendências do painel, não sobre quem conduz. Mensagem nova não zera
+  -- isto: `estadoDaConversa` compara `resolvida_em` com a data da última mensagem, e a
+  -- conversa que voltou a andar deixa de contar como resolvida, sem escrita nenhuma.
   resolvida_em   timestamptz,
 
   atualizado_em  timestamptz not null default now(),

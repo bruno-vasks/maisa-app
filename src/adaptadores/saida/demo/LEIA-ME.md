@@ -11,7 +11,7 @@ Cumpre a porta `RepositorioNegocio` com fixtures em memória. É o antigo
 | Arquivo | O que tem |
 |---|---|
 | `index.ts` | O barrel. Reexporta os fixtures **e** o domínio inteiro — é o `import * as D` que a UI usa. |
-| `repositorio.ts` | A implementação da porta: assíncrona, recebe `ContextoTenant` (e o ignora, porque existe um negócio só). As escritas (`salvarServico`, `salvarProfissional`, `atualizarCliente`, `garantirCliente`) **mutam os fixtures** de propósito: aqui o fixture É o banco, e sem isso o laboratório não exercitaria o caminho de edição. |
+| `repositorio.ts` | A implementação da porta: assíncrona, recebe `ContextoTenant` (e o ignora, porque existe um negócio só). As escritas (`salvarServico`, `salvarProfissional`, `salvarExpediente`, `atualizarCliente`, `garantirCliente`) **mutam os fixtures** de propósito: aqui o fixture É o banco, e sem isso o laboratório não exercitaria o caminho de edição. ⚠️ `salvarExpediente` muda o expediente nos DOIS lugares onde ele mora (o profissional e `EXPEDIENTE`); `expediente-repo.test.ts` confere. |
 | `negocio.ts` | `NEGOCIO`, `PRESTADOR`, `PERIODO`, `NUMEROS_MES`, `FATURAS`. |
 | `equipe.ts` | `EQUIPE`, `COLUNAS_AGENDA` (a allowlist), `EXPEDIENTE`, e os atalhos `atende`/`podeComecar`. |
 | `catalogo.ts` | `SERVICOS`. |

@@ -269,6 +269,32 @@ export type AjustarProfissional = (
   p: RascunhoDeProfissional,
 ) => Promise<Profissional>;
 
+/* ───────────────────────────── o expediente de quem atende ─────────────────────────────
+ * O que `AjustarProfissional` deixou de fora de propósito: os dias e o horário em que a pessoa
+ * atende. É o expediente que decide o que a Agenda deixa marcar e o que a MAISA oferece no
+ * WhatsApp, e até 24/10/2026 nenhuma tela o escrevia.
+ *
+ * Recebe os DIAS em que atende, e não a folga: é assim que a ficha pensa, e é o que impede o
+ * domingo de entrar pela porta dos fundos. Os dias vão de 0 (segunda) a 5 (sábado) e o domingo
+ * é recusado, porque a Agenda trata domingo como sempre fechado. `de` e `ate` são hora decimal
+ * de meia em meia hora (9,5 = 09:30), uma faixa só para todos os dias marcados.
+ *
+ * Devolve o `Profissional` inteiro depois de gravado, com `horario` e `folga` já refeitos: a
+ * Agenda e a tabela de Equipe pintam dele. Escrita é substituição total, então repetir o mesmo
+ * pedido dá o mesmo resultado (é por isso que a rota é PUT). */
+export type AjusteDeExpediente = {
+  profissionalId: string;
+  /** Dias de segunda (0) a sábado (5). Ao menos um; o 6 (domingo) é recusado. */
+  dias: number[];
+  de: number;
+  ate: number;
+};
+
+export type AjustarExpediente = (
+  t: ContextoTenant,
+  p: AjusteDeExpediente,
+) => Promise<Profissional>;
+
 /**
  * Apagar serviço existe; apagar profissional não — e a assimetria vem do ESQUEMA:
  * `atendimentos.servico_id` é snapshot sem FK, mas `atendimentos.profissional_id` tem

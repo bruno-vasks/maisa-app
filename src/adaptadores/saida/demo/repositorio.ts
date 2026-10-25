@@ -184,6 +184,24 @@ export const repositorioDemo: RepositorioNegocio = {
     return novo;
   },
 
+  /* O expediente (24/10/2026). Muta o fixture como o resto da escrita acima, e nos DOIS lugares
+   * onde ele mora: no próprio profissional (é de onde a tela lê) e no `EXPEDIENTE` (é de onde
+   * `expediente()` e os atalhos `atende`/`podeComecar` leem). Mudar só um dos dois faria a Agenda
+   * e a MAISA discordarem sem erro nenhum.
+   *
+   * `NaoEncontrado` quando o id não casa, como o adaptador real com zero linhas. Cópia da folga,
+   * para quem chamou não ficar com o array que o "banco" guarda. */
+  async salvarExpediente(_t, r) {
+    const i = EQUIPE.findIndex((p) => p.id === r.id);
+    if (i < 0) throw new NaoEncontrado("Profissional");
+
+    const expediente = { folga: [...r.expediente.folga], de: r.expediente.de, ate: r.expediente.ate };
+    const novo = { ...EQUIPE[i], expediente, horario: r.horario, folga: r.folga };
+    EQUIPE[i] = novo;
+    EXPEDIENTE[r.id] = expediente;
+    return novo;
+  },
+
   async clientes() {
     /* `diaRecibo: null` e não ausente: no demo o "banco" sabe guardar o dia (ver o ⚠️ de
      * `paraCliente` no adaptador Supabase, onde ausente quer dizer "falta a 032"). */

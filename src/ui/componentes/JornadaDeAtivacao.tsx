@@ -168,14 +168,22 @@ export function passosDaJornada(st: StoreValue): PassoDaJornada[] {
       ganho: "Fale com ela como se fosse seu cliente",
       /* Manda para o wizard, e não para uma tela do painel: a etapa 4 do `/comecar` já é
        * essa conversa, com o agente real e as falas sugeridas. Duplicá-la aqui seria um
-       * segundo simulador para manter. */
-      ir: () => { window.location.href = "/comecar"; },
+       * segundo simulador para manter.
+       *
+       * ⚠️ `?etapa=ver` DESDE 24/10/2026. Sem ele o wizard escolhe a etapa pelo que falta, e quem
+       * ainda não conectou o WhatsApp caía na etapa 2 ("O que você faz"), a duas vezes de
+       * "Pular por agora" da conversa que acabou de pedir. Ver `Comecar.tsx`. */
+      ir: () => { window.location.href = "/comecar?etapa=ver"; },
     },
     {
-      id: "nota_fiscal_ligada", titulo: "Nota fiscal", icone: "receipt",
+      /* "Documento fiscal" é o nome da tela (`Grades.tsx`) e vale para os dois caminhos: a
+       * psicóloga emite recibo, e "Nota fiscal" chamava o recibo dela de nota. */
+      id: "nota_fiscal_ligada", titulo: "Documento fiscal", icone: "receipt",
       /* ★ O ganho aqui é o único que fala de DINHEIRO e de tempo do dono, porque é o único
-       * passo que não é setup: é a coisa que o produto faz e a concorrência não. */
-      ganho: "Ela emite sozinha depois de cada atendimento",
+       * passo que não é setup: é a coisa que o produto faz e a concorrência não. Sem prometer
+       * quando: a nota sai pelo botão, e o recibo só sai sozinho para quem tem dia na ficha
+       * (24/10/2026). */
+      ganho: "Ela emite seu recibo ou nota fiscal",
       ir: () => st.irPara("faturamento"),
     },
   ];

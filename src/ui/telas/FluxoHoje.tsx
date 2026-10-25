@@ -4,7 +4,8 @@
  * A tela que abre o app. Responde "quem agora?" e "o que precisa de mim?":
  *   • a faixa AGORA: quem está em atendimento e o próximo, com o único primário da tela
  *   • a lista do dia, por hora, em linhas de 56px: os que passaram sem chegada (âmbar), os que
- *     vêm, e os feitos recolhidos numa linha
+ *     vêm (junto com os compromissos do Google de hoje, em cinza), e os feitos recolhidos numa
+ *     linha
  *   • "Precisa de você": o que a MAISA NÃO resolveu sozinha
  *
  * ── POR QUE NÃO É MAIS UM QUADRO (25/09/2026, 1C.6, 02 P0-1) ──
@@ -18,10 +19,26 @@
  *
  * Um estado só para Fluxo e Agenda: o botão mexe no MESMO `st.agendamentos` que a Agenda lê.
  *
- * ⚠️ Esta lista é dos ATENDIMENTOS DE CLIENTE, e só deles. Os compromissos lidos da agenda do
- * Google (dentista, almoço, reunião) aparecem na Agenda, em cinza, e não aqui: "Chegou" não é
- * uma frase que se possa dizer sobre eles. Por isso o estado vazio menciona quantos são: sem
- * essa linha, um dia vazio com agenda cheia lê como "a MAISA não está enxergando meu calendário".
+ * ⚠️ Os compromissos do Google entram no dia desde 24/10/2026 (pedido do Bruno). Até então esta
+ * lista era só dos atendimentos de cliente (25/09/2026): "Chegou" não é uma frase que se possa
+ * dizer sobre um dentista, e o vazio dizia quantos compromissos o Google tinha. A linha nova não
+ * tem botão, então o motivo caiu. Os compromissos lidos da agenda do Google (dentista, almoço,
+ * reunião) aparecem em "A seguir", por hora, em cinza e com o alfinete; o clique abre a gaveta
+ * do compromisso, a mesma da Agenda.
+ * Regras que seguram a mudança:
+ *   • FORA da faixa Agora: ela guarda o único primário da tela ("Concluir" de quem está em
+ *     atendimento, senão o "Chegou" do próximo), e "próximo" quer dizer o próximo cliente. Um
+ *     compromisso na faixa tiraria o "Chegou" do cliente de lá, ou o empurraria para baixo no
+ *     celular. O compromisso em curso aparece no topo de "A seguir", logo abaixo da faixa.
+ *   • Fora de Passaram, Feitos e da fila "Precisa de você": os três pedem ação ou contam
+ *     cliente e valor, e um compromisso nunca pede ação.
+ *   • Sai quando termina (`compromissosDoFluxo`, `estado/leitura.ts`). Não há timer na tela: o
+ *     que terminou sai no próximo render, o mesmo atraso de `partesDoDia` com os clientes.
+ *   • Atendimento e compromisso são listas disjuntas (ADR-0009: a tabela manda e o Google soma),
+ *     então um atendimento nunca aparece duas vezes. Dois compromissos iguais podem: um evento de
+ *     calendário compartilhado na equipe vem uma vez por agenda, cada um com o seu monograma, como
+ *     na Agenda Semana. Não juntamos por `eventId` aqui. O dia só é vazio sem atendimento e sem
+ *     compromisso por vir.
  *
  * ── ENQUADRAMENTO ──
  *
@@ -36,12 +53,12 @@ import { s, Icon, Monogram, Btn, EmptyState, Estado, fmt } from "@/ui/primitivos
 import { useIsMobile } from "@/ui/useIsMobile";
 import { partesDoDia, semConfirmacao } from "@/ui/estado/leitura";
 import * as D from "@/adaptadores/saida/demo";
-import { useStore, type AgendamentoVivo } from "@/ui/estado/store";
+import { useStore, type AgendamentoVivo, type Bloqueio } from "@/ui/estado/store";
 import { JornadaDeAtivacao } from "@/ui/componentes/JornadaDeAtivacao";
 import { Moldura } from "@/ui/componentes/Moldura";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 import { FRASE, TITULO_PARADA, useAcaoDoStatus } from "@/ui/componentes/StatusDaMaisa";
-import { estadoDaFila, estadoDoDia, FRASE_ERRO_AGENDA } from "@/ui/estado/leitura";
+import { aSeguir, compromissosDoFluxo, estadoDaFila, estadoDoDia, FRASE_ERRO_AGENDA } from "@/ui/estado/leitura";
 
 /* O verbo que avança cada etapa. "Feito" não avança: é o fim. */
 const VERBO: Record<D.Etapa, string | null> = { chegando: "Chegou", atendendo: "Concluir", feito: null };
@@ -71,11 +88,16 @@ function LinhaDaFaixa({ ag, rotulo, primaria, mobile }: { ag: AgendamentoVivo; r
       >
         <span className="n" style={s("font-size:var(--t-title);font-weight:var(--w-emph);line-height:1;min-width:64px")}>{D.hhmm(ag.inicio)}</span>
         <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:3px")}>
-          <span style={s("font-size:var(--t-body);font-weight:var(--w-title);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{ag.cliente.nome}</span>
-          <span style={s("display:flex;align-items:center;gap:10px;min-width:0")}>
+          {/* ⚠️ Mesma regra da lista do dia (`LinhaDoDia`, 28/09/2026), aplicada à faixa em
+              24/10/2026: a 390px "Fernanda Albuquerque de Souz…" e "Atendimen…" saíam cortados
+              no bloco que tem o botão principal. O nome quebra em até duas linhas, e as marcas
+              ("próximo", "sem confirmação") descem inteiras para a linha de baixo sem espaço, em
+              vez de comerem o serviço. Voltar ao `nowrap` aqui desfaz isso. */}
+          <span style={s("font-size:var(--t-body);font-weight:var(--w-title);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere")}>{ag.cliente.nome}</span>
+          <span style={s("display:flex;align-items:center;flex-wrap:wrap;gap:2px 10px;min-width:0")}>
             <span style={s("font-size:var(--t-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0")}>{ag.servico.nome}</span>
-            <Estado forma={ag.etapa === "atendendo" ? "disco" : "anel"} tom={ag.etapa === "atendendo" ? "primary" : "neutral"}>{rotulo}</Estado>
-            {semConfirmacao(ag) && <Estado forma="triangulo" tom="warn">sem confirmação</Estado>}
+            <span style={s("flex-shrink:0;display:flex")}><Estado forma={ag.etapa === "atendendo" ? "disco" : "anel"} tom={ag.etapa === "atendendo" ? "primary" : "neutral"}>{rotulo}</Estado></span>
+            {semConfirmacao(ag) && <span style={s("flex-shrink:0;display:flex")}><Estado forma="triangulo" tom="warn">sem confirmação</Estado></span>}
           </span>
         </span>
         {equipe && <span title={ag.profissional.nome}><Monogram name={ag.profissional.nome} id={ag.profissionalId} size={28} radius={8} /></span>}
@@ -94,7 +116,12 @@ function LinhaDaFaixa({ ag, rotulo, primaria, mobile }: { ag: AgendamentoVivo; r
   );
 }
 
-function FaixaAgora({ atendendo, proximo, mobile }: { atendendo: AgendamentoVivo[]; proximo: AgendamentoVivo | null; mobile: boolean }) {
+function FaixaAgora({ atendendo, proximo, mobile, semAtendimento }: {
+  atendendo: AgendamentoVivo[]; proximo: AgendamentoVivo | null; mobile: boolean;
+  /** O dia não tem cliente nenhum (só compromisso do Google por vir): "Ninguém mais por hoje"
+   *  diria que houve um dia de atendimentos e acabou. */
+  semAtendimento: boolean;
+}) {
   /* Um primário só: o "Concluir" de quem está em atendimento, senão o "Chegou" do próximo. */
   const linhas = [
     ...atendendo.map((ag) => ({ ag, rotulo: "em atendimento" })),
@@ -109,7 +136,7 @@ function FaixaAgora({ atendendo, proximo, mobile }: { atendendo: AgendamentoVivo
       {linhas.length ? (
         linhas.map((l, i) => <LinhaDaFaixa key={l.ag.id} ag={l.ag} rotulo={l.rotulo} primaria={i === 0} mobile={mobile} />)
       ) : (
-        <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>Ninguém mais por hoje.</span>
+        <span style={s("font-size:var(--t-body);font-weight:var(--w-title)")}>{semAtendimento ? "Nenhum atendimento marcado para hoje." : "Ninguém mais por hoje."}</span>
       )}
     </section>
   );
@@ -161,6 +188,39 @@ function LinhaDoDia({ ag }: { ag: AgendamentoVivo }) {
   );
 }
 
+/** Um compromisso do Google na lista do dia, 56px. Só leitura: um botão só, que abre a gaveta
+ *  `bloq:` (a mesma da Agenda), e o alfinete mora onde o atendimento tem o "Chegou". Sem verbo,
+ *  sem "sem confirmação", sem hachura: numa lista plana a cor apagada e o alfinete já dizem que
+ *  veio de fora. */
+function LinhaDoCompromisso({ b }: { b: Bloqueio }) {
+  const st = useStore();
+  const equipe = useComEquipe();
+  /* Mesma regra da gaveta (`detalhe.tsx`, "Origem"): na equipe, o compromisso do Diego não é
+   * "sua agenda". Com um profissional só o texto não muda. */
+  const origem = b.profissionalId && b.profissionalId !== st.pidAgenda
+    ? `agenda do Google de ${D.primeiroNome(st.nomeDoProfissional(b.profissionalId))}`
+    : "sua agenda do Google";
+  return (
+    <div style={s("min-height:56px;display:flex;align-items:center;border-bottom:1px solid var(--line)")}>
+      <button
+        type="button"
+        onClick={() => st.abrir(b.id)}
+        aria-label={`${b.titulo}, ${D.hhmm(b.inicio)}, compromisso da ${origem}`}
+        className="m-hov-bg m-press m-focus"
+        style={s("flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:14px;border:none;background:transparent;border-radius:var(--r-controle);padding:0 8px;text-align:left;cursor:pointer;color:var(--muted)")}
+      >
+        <span className="n" style={s("font-size:var(--t-body);font-weight:var(--w-data);min-width:46px")}>{D.hhmm(b.inicio)}</span>
+        <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:1px")}>
+          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere")}>{b.titulo}</span>
+          <span style={s("min-width:0;font-size:var(--t-label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{origem}</span>
+        </span>
+        {equipe && b.profissionalId && <span title={st.nomeDoProfissional(b.profissionalId)}><Monogram name={st.nomeDoProfissional(b.profissionalId)} id={b.profissionalId} size={24} radius={6} /></span>}
+        <Icon name="pin" size={16} style={s("flex-shrink:0")} />
+      </button>
+    </div>
+  );
+}
+
 /** O título do grupo gruda no topo da região enquanto o grupo passa: a lista abre rolada até
  *  agora, e sem isso as linhas âmbar apareciam sem dizer o que são. */
 function TituloDoGrupo({ children, n, tom }: { children: React.ReactNode; n: number; tom?: "warn" }) {
@@ -174,8 +234,11 @@ function TituloDoGrupo({ children, n, tom }: { children: React.ReactNode; n: num
 }
 
 /** A lista do dia. `ancora` marca o fim do que vem, para a região abrir rolada até agora. */
-function ListaDoDia({ passaram, depois, feitos, ancora, proximosPrimeiro }: {
+function ListaDoDia({ passaram, depois, compromissos, feitos, ancora, proximosPrimeiro }: {
   passaram: AgendamentoVivo[]; depois: AgendamentoVivo[]; feitos: AgendamentoVivo[];
+  /** Os compromissos do Google de hoje que ainda não terminaram (`compromissosDoFluxo`). Entram
+   *  só em "A seguir", intercalados por hora com `depois`. */
+  compromissos: Bloqueio[];
   ancora?: React.Ref<HTMLDivElement>;
   /** No celular "A seguir" vem antes de "Passaram sem chegada": a página rola do topo, e onze
    *  linhas do que passou empurravam o que vem para a quarta tela. No desktop a ordem é a da
@@ -187,6 +250,7 @@ function ListaDoDia({ passaram, depois, feitos, ancora, proximosPrimeiro }: {
    * inventado que 1A.5 tirou da gaveta. */
   const valores = feitos.map((a) => a.valor);
   const total = valores.length && valores.every((v) => v != null) ? valores.reduce<number>((t, v) => t + (v ?? 0), 0) : null;
+  const seguintes = aSeguir(depois, compromissos);
   const blocoPassaram = passaram.length ? (
     <section aria-label="Passaram sem chegada" style={s("background:var(--warn-soft);border-radius:var(--r-painel);padding:4px 8px")}>
       <TituloDoGrupo n={passaram.length} tom="warn">Passaram sem chegada</TituloDoGrupo>
@@ -196,10 +260,12 @@ function ListaDoDia({ passaram, depois, feitos, ancora, proximosPrimeiro }: {
   return (
     <div style={s("display:flex;flex-direction:column;gap:18px")}>
       {!proximosPrimeiro && blocoPassaram}
-      {!!depois.length && (
+      {!!seguintes.length && (
         <section aria-label="A seguir">
-          <TituloDoGrupo n={depois.length}>A seguir</TituloDoGrupo>
-          {depois.map((ag) => <LinhaDoDia key={ag.id} ag={ag} />)}
+          <TituloDoGrupo n={seguintes.length}>A seguir</TituloDoGrupo>
+          {seguintes.map((l) => l.tipo === "ag"
+            ? <LinhaDoDia key={l.ag.id} ag={l.ag} />
+            : <LinhaDoCompromisso key={l.b.id} b={l.b} />)}
         </section>
       )}
       {/* Sem altura e sem gap próprio: é só o ponto "agora" da lista, para a região abrir nele. */}
@@ -241,6 +307,7 @@ function PrecisaDeVoce() {
     conversas: { carregadas: st.conversasCarregadas, erro: st.conversasErro },
     agenda: st.leituraAgenda,
     status: st.statusMaisa,
+    usaWhatsApp: st.usaWhatsApp,
   });
   const tentar = () => { st.recarregarConversas(); st.recarregarAgenda(); };
 
@@ -284,7 +351,7 @@ function PrecisaDeVoce() {
             style={s("border:1px solid var(--border);border-radius:var(--r-painel);background:var(--bg);display:flex;flex-direction:column")}
           >
             <button
-              onClick={() => st.abrir(f.alvo)}
+              onClick={() => st.abrirItemDaFila(f)}
               className="m-press m-focus m-lift"
               style={s("text-align:left;border:none;background:transparent;padding:14px 14px 10px;display:flex;flex-direction:column;gap:8px;cursor:pointer;border-radius:var(--r-painel)")}
             >
@@ -338,7 +405,7 @@ function FilaResumida() {
         <div key={f.id} style={s("min-height:64px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)")}>
           <button
             type="button"
-            onClick={() => st.abrir(f.alvo)}
+            onClick={() => st.abrirItemDaFila(f)}
             className="m-hov-bg m-press m-focus"
             style={s("flex:1;min-width:0;min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:3px;border:none;background:transparent;border-radius:var(--r-controle);padding:0 4px;text-align:left;cursor:pointer;color:var(--ink)")}
           >
@@ -374,26 +441,24 @@ export default function FluxoHoje() {
   const doDia = st.agendamentosDoDia(D.HOJE.iso);
   const partes = partesDoDia(doDia);
 
-  /* O dia sem nenhum atendimento é o estado NORMAL de um app recém-aberto, e esta é a tela de
-   * entrada. O vazio diz o que está acontecendo, quantos compromissos o Google tem hoje, e para
-   * onde ir. */
-  const bloqHoje = st.bloqueiosDoDia(D.HOJE.iso);
+  /* Os compromissos do Google de hoje que ainda não terminaram: entram em "A seguir" (ver o ⚠️
+   * do topo). */
+  const compromissos = compromissosDoFluxo(st.bloqueiosDoDia(D.HOJE.iso));
   /* ⚠️ O vazio só depois da leitura. Antes, `doDia` vazio era "Nenhum atendimento marcado" no
-   * primeiro quadro, antes de `/api/agenda` voltar, e para sempre quando ela falhava. */
-  const dia = estadoDoDia(st.leituraAgenda, doDia.length);
+   * primeiro quadro, antes de `/api/agenda` voltar, e para sempre quando ela falhava. O dia com
+   * compromisso por vir e sem cliente NÃO é vazio: a lista tem o que mostrar. */
+  const dia = estadoDoDia(st.leituraAgenda, doDia.length + compromissos.length);
   const antesDoDia = dia === "carregando"
     ? <Esqueleto linhas={5} altura={56} rotulo="Lendo a agenda de hoje" />
     : dia === "erro"
       ? <FalhaDeLeitura frase={FRASE_ERRO_AGENDA} detalhe={st.leituraAgenda.info} tentar={st.recarregarAgenda} />
       : null;
+  /* O dia sem nenhum atendimento e sem compromisso por vir é o estado NORMAL de um app recém-aberto,
+   * e esta é a tela de entrada. O vazio diz o que está acontecendo e para onde ir. */
   const vazio = (
     <EmptyState
       title="Nenhum atendimento marcado para hoje"
-      sub={
-        bloqHoje.length
-          ? `Sua agenda do Google tem ${bloqHoje.length} ${bloqHoje.length === 1 ? "compromisso" : "compromissos"} hoje, em cinza na Agenda. Aqui entram só os atendimentos de cliente.`
-          : "Marque um horário na Agenda e ele aparece aqui."
-      }
+      sub="Marque um horário na Agenda e ele aparece aqui."
       action={<Btn icon="calendar" onClick={() => st.irPara("agenda")}>Abrir a Agenda</Btn>}
     />
   );
@@ -449,9 +514,9 @@ export default function FluxoHoje() {
   }, [mobile, dia]);
 
   const lista = dia === "cheio"
-    ? <ListaDoDia passaram={partes.passaram} depois={partes.depois} feitos={partes.feitos} ancora={ancora} />
+    ? <ListaDoDia passaram={partes.passaram} depois={partes.depois} compromissos={compromissos} feitos={partes.feitos} ancora={ancora} />
     : antesDoDia ?? vazio;
-  const agora = dia === "cheio" ? <FaixaAgora atendendo={partes.atendendo} proximo={partes.proximo} mobile={mobile} /> : null;
+  const agora = dia === "cheio" ? <FaixaAgora atendendo={partes.atendendo} proximo={partes.proximo} mobile={mobile} semAtendimento={doDia.length === 0} /> : null;
 
   if (mobile) {
     return (
@@ -460,7 +525,7 @@ export default function FluxoHoje() {
         <JornadaDeAtivacao />
         {agora}
         <FilaResumida />
-        {dia === "cheio" ? <ListaDoDia passaram={partes.passaram} depois={partes.depois} feitos={partes.feitos} proximosPrimeiro /> : lista}
+        {dia === "cheio" ? <ListaDoDia passaram={partes.passaram} depois={partes.depois} compromissos={compromissos} feitos={partes.feitos} proximosPrimeiro /> : lista}
       </Moldura>
     );
   }
