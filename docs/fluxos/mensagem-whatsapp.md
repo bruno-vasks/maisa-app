@@ -11,21 +11,21 @@ cliente no WhatsApp
     ├─ 1. o segredo confere?                              route.ts:55-72   → 401
     ├─ 2. normalizar o envelope                           route.ts:86      → contexto.ts
     │     descarta eco, grupo, @lid, recibo, figurinha    → 200 "ignorado"
-    │     (áudio SEGUE: vira fala no passo 6)
+    │     (áudio SEGUE, com `ouvir` = composicao.ouvirAudio)
     ├─ 3. de quem é esta linha?                           route.ts:101     → integracoes_whatsapp
-    ├─ 6. áudio vira fala                                 route.ts:142     → composicao.ouvirAudio
-    └─ 7. rodar o agente, com a espera da rajada          route.ts:150     → whatsapp/agente.ts
-       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:241
-       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:260
-       ├─ 1b. GRAVA a fala do cliente                     agente.ts:278
-       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:296  → os outros calam
-       ├─ 1c. a assistente está ligada?                   agente.ts:326
-       ├─ 1d. o dono assumiu a conversa?                  agente.ts:334  → cala
-       ├─ 1e. é da vida pessoal do dono?                  agente.ts:351  → cala
-       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:399  → 429: tenta de novo, depois chama o dono
-       ├─ 3b. tentou marcar e não marcou?                 agente.ts:458  → descarta
-       ├─ 3c. o cliente escreveu enquanto ela pensava?    agente.ts:503  → descarta, salvo se marcou
-       └─ 4.  grava o que aconteceu                       agente.ts:516
+    └─ 6. rodar o agente, com a espera da rajada          route.ts:148     → whatsapp/agente.ts
+       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:253
+       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:272
+       ├─ 1a. áudio: só ouve quem ela vai atender         agente.ts:290  → senão grava "[áudio]"
+       ├─ 1b. GRAVA a fala do cliente                     agente.ts:311
+       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:329  → os outros calam
+       ├─ 1c. a assistente está ligada?                   agente.ts:367
+       ├─ 1d. o dono assumiu a conversa?                  agente.ts:375  → cala
+       ├─ 1e. é da vida pessoal do dono?                  agente.ts:392  → cala
+       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:440  → 429: tenta de novo, depois chama o dono
+       ├─ 3b. tentou marcar e não marcou?                 agente.ts:499  → descarta
+       ├─ 3c. o cliente escreveu enquanto ela pensava?    agente.ts:544  → descarta, salvo se marcou
+       └─ 4.  grava o que aconteceu                       agente.ts:557
           └─ canal.enviar() → saida/evolution/
 ```
 
@@ -50,7 +50,7 @@ bug nosso, só multiplica.
 | `@lid` sem telefone | cadastra cliente falso **e** a resposta não chega em ninguém |
 | evento ≠ `messages.upsert` | recibo de leitura tem a mesma forma de uma mensagem |
 | figurinha, localização, foto sem legenda | a MAISA não lê; o descarte sai com o tipo no log |
-| áudio | **não é descartado desde 26/10/2026**: a Evolution entrega, o Gemini transcreve, e a fala entra como `[áudio] …`. Se não der para ouvir, ela pede para a pessoa escrever |
+| áudio | **não é descartado desde 26/10/2026**: segue para o agente, que só o transcreve se for atender a pessoa (contato pessoal do dono não é ouvido). A fala entra como `[áudio] …`; se não der para ouvir, ela pede para a pessoa escrever |
 
 O nome do evento é comparado numa forma canônica porque a Evolution é inconsistente: a
 configuração usa `MESSAGES_UPSERT` e o corpo entregue traz `messages.upsert`.

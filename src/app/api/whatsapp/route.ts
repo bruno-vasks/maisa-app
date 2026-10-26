@@ -84,8 +84,7 @@ export async function POST(request: Request) {
    * 200 e não 4xx: para o provedor, resposta de erro significa "tente de novo", e ele
    * reentrega o mesmo evento em loop. Aceitar e ignorar é o contrato certo. */
   const envelope = normalizar(corpo);
-  /* Áudio sem texto SEGUE: é transcrito mais abaixo, depois das checagens que decidem se a
-   * MAISA responde (transcrever custa modelo, e não se gasta modelo com quem ela não atende). */
+  /* Áudio sem texto SEGUE: vai para o agente, que decide se transcreve (ver `ouvir` abaixo). */
   const ehAudio = envelope?.midia === "audio" && !envelope.texto.trim();
   if (!envelope || (!envelope.texto.trim() && !ehAudio)) {
     /* O tipo de mídia entra no log de propósito. "Ignorado" sem qualificação é o
@@ -139,17 +138,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignorado: true, motivo: "assinatura_vencida" });
   }
 
-  /* ── 6. áudio vira fala ──
-   * A transcrição entra na conversa como se o cliente tivesse escrito, marcada "[áudio]".
-   * Ver `ouvirAudio`: nunca lança, e no pior caso a MAISA pede para a pessoa escrever. */
-  if (ehAudio) envelope.texto = await ouvirAudio(envelope);
-
   try {
     /* A espera da rajada é coisa do canal: no WhatsApp a pessoa manda três mensagens
-     * seguidas, e cada uma chega aqui num webhook próprio. Ver `ESPERA_DA_RAJADA_MS`. */
+     * seguidas, e cada uma chega aqui num webhook próprio. Ver `ESPERA_DA_RAJADA_MS`.
+     *
+     * O áudio vai como `ouvir`, e não transcrito aqui: o agente só transcreve depois de
+     * saber que atende essa pessoa (passo 1a de `agente.ts`). A transcrição entra na
+     * conversa marcada "[áudio]"; ver `ouvirAudio`, que nunca lança. */
     const resposta = await agenteWhatsapp()(
       resolucao.tenant,
-      { de: envelope.de, texto: envelope.texto, jid: envelope.jid },
+      {
+        de: envelope.de,
+        texto: envelope.texto,
+        jid: envelope.jid,
+        ...(ehAudio ? { ouvir: () => ouvirAudio(envelope) } : {}),
+      },
       { esperaDaRajadaMs: ESPERA_DA_RAJADA_MS },
     );
 

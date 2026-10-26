@@ -127,9 +127,11 @@ async function principal() {
       if (c.audio && tarefa.audio === "ignorar") continue;
 
       const t0 = Date.now();
+      /* O áudio vai como a rota manda: `ouvir`, que o agente só chama se for atender. */
+      const recebida = c.audio ? { de: c.telefone, texto: "", ouvir: () => ouvir(texto) } : { de: c.telefone, texto };
       pendentes.push(
-        (c.audio ? ouvir(texto) : Promise.resolve(texto))
-          .then((chegou) => mundo.responder(mundo.t, { de: c.telefone, texto: chegou }, opcoes))
+        mundo
+          .responder(mundo.t, recebida, opcoes)
           .then((r) => {
             if (r.bolhas.length) latencias.push(Date.now() - t0);
             for (const b of r.bolhas) falas.push({ de: "maisa", texto: b, ms: Date.now() - inicio, rajada });

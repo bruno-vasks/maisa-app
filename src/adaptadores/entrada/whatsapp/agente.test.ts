@@ -23,7 +23,8 @@ const config: ConfiguracaoDoAgente = {
 };
 
 /** Um agente com modelo falso: grava o que o modelo viu e responde depois de `pensaMs`. */
-function montar(pensaMs = 0) {
+function montar(o: number | { pensaMs?: number; pode?: boolean } = 0) {
+  const { pensaMs = 0, pode = true } = typeof o === "number" ? { pensaMs: o } : o;
   const vistos: TurnoDeConversa[][] = [];
   const modelo: ModeloDeConversa = {
     nome: "falso",
@@ -42,7 +43,7 @@ function montar(pensaMs = 0) {
     lembrarCliente: async (_t: ContextoTenant, telefone: string) => ({
       telefone, clienteId: null, nome: null, memoria: memoriaNova(telefone, "2026-10-27T10:00:00-03:00"),
     }),
-    avaliarAtendimento: async () => ({ pode: true, motivo: null, nome: null }),
+    avaliarAtendimento: async () => ({ pode, motivo: pode ? null : "contato pessoal do dono", nome: null }),
     historico: historicoDemo,
     conversas: conversasDemo,
     canal: { enviar: async () => {}, enviarDocumento: async () => {}, escalar: async () => {} },
@@ -86,5 +87,26 @@ describe("a rajada", () => {
     const { responder, t } = montar();
     const r = await responder(t, { de: TEL, texto: "oi" });
     expect(r.bolhas.length).toBeGreaterThan(0);
+  });
+});
+
+describe("o áudio", () => {
+  it("de quem a MAISA atende: é ouvido, e a transcrição entra na conversa", async () => {
+    const { responder, vistos, t } = montar();
+    let ouviu = 0;
+    const r = await responder(t, { de: TEL, texto: "", ouvir: async () => (ouviu++, "[áudio] tem horário sexta?") });
+    expect(ouviu).toBe(1);
+    expect(r.bolhas.length).toBeGreaterThan(0);
+    expect(vistos[0][vistos[0].length - 1]).toEqual({ papel: "cliente", texto: "[áudio] tem horário sexta?" });
+  });
+
+  it("de quem ela NÃO atende (a vida pessoal do dono): não sai do celular, nem para transcrever", async () => {
+    const { responder, t } = montar({ pode: false });
+    let ouviu = 0;
+    const r = await responder(t, { de: TEL, texto: "", ouvir: async () => (ouviu++, "[áudio] oi filho") });
+    expect(ouviu).toBe(0);
+    expect(r.bolhas).toEqual([]);
+    const [gravada] = await historicoDemo.ler(t, TEL, 1);
+    expect(gravada.txt).toBe("[áudio]");
   });
 });

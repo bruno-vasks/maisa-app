@@ -13,8 +13,7 @@ a mesma chamada que marcar pelo painel, sem nada abaixo mudar. Foi.
 cliente no WhatsApp
   └─ webhook (Evolution / Cloud API) → app/api/whatsapp/route.ts   ← rota FINA
      ├─ contexto.ts ....... segredo + destino da mensagem → ContextoTenant, ator = agente
-     ├─ (áudio) ........... composicao.ouvirAudio → Evolution baixa, Gemini transcreve → "[áudio] …"
-     └─ agente.ts ......... espera a rajada (4 s) → o loop (modelo + histórico + ferramentas)
+     └─ agente.ts ......... (áudio: ouve só quem vai atender) → espera a rajada (4 s) → o loop
         ├─ persona.ts ..... system prompt montado a partir do cadastro
         ├─ ferramentas.ts . casos de uso como tools + os guardrails de alucinação
         ├─ bolhas.ts ...... texto do modelo → mensagens curtas de WhatsApp
@@ -158,13 +157,21 @@ pessoa manda uma mensagem e espera a resposta).
 ## Áudio
 
 Transcrito e respondido como se a MAISA tivesse lido (decisão do Bruno, 26/10/2026). A rota
-deixa o áudio passar pelas mesmas checagens do texto e só então chama `ouvirAudio`
-(`composicao.ts`): a Evolution entrega o áudio (no próprio webhook, com `webhookBase64`
-ligado, ou por `getBase64FromMediaMessage`) e o Gemini transcreve
-(`saida/gemini/transcricao.ts`). A fala entra na thread como `[áudio] <transcrição>` (texto, e não
-emoji, porque o design system não usa emoji em superfície nenhuma), então o dono lê na tela
-de Conversas o que o cliente disse. Se não der para ouvir, entra `[áudio] (não deu para
-ouvir)` e a MAISA pede para a pessoa escrever — nunca o silêncio de antes. Só Evolution: na Cloud API da Meta, o áudio cai no aviso.
+não transcreve: manda ao agente a função `ouvir` (`ouvirAudio`, em `composicao.ts`), e o
+agente só a chama **depois de saber que atende essa pessoa** (passo 1a). Transcrever é mandar
+a voz de alguém para o provedor de IA, e no número pessoal do dono quem manda áudio é quase
+sempre a vida pessoal dele; com texto, a mensagem de um contato pessoal nem chega ao modelo,
+e com áudio tem que ser igual. Número novo no modo pessoal também não é ouvido (a regra dele
+é "só se pedir horário com clareza", e áudio não diz isso sem ser ouvido): fica `[áudio]` na
+tela de Conversas, e o dono responde.
+
+Quando ouve, a Evolution entrega o áudio (no próprio webhook, com `webhookBase64` ligado, ou
+por `getBase64FromMediaMessage`) e o Gemini transcreve (`saida/gemini/transcricao.ts`). A
+fala entra na thread como `[áudio] <transcrição>` (texto, e não emoji, porque o design system
+não usa emoji em superfície nenhuma), então o dono lê na tela de Conversas o que o cliente
+disse. Se não der para ouvir, entra `[áudio] (não deu para ouvir)` e a MAISA pede para a
+pessoa escrever — nunca o silêncio de antes. Só Evolution: na Cloud API da Meta, o áudio cai
+no aviso.
 
 ## Quando o modelo não responde
 

@@ -69,6 +69,12 @@ export type MensagemRecebida = {
   /** O endereço cru, quando o WhatsApp mandou `…@lid`. Serve para achar o histórico da
    *  conversa, que pode estar guardado sob ele. Ver `HistoricoDoCanal`. */
   jid?: string;
+  /**
+   * A mensagem é um ÁUDIO, e isto o transcreve (`ouvirAudio`, em `composicao.ts`). Chega
+   * como função, e não como texto pronto, porque transcrever é mandar a voz da pessoa para o
+   * provedor de IA: só se faz quando a MAISA vai atender essa pessoa. Ver o passo 1a.
+   */
+  ouvir?: () => Promise<string>;
 };
 
 /** Um passo de ferramenta, para inspeção. Alimenta o laboratório de conversa: ver que a
@@ -241,8 +247,8 @@ export function criarAgente(deps: Dependencias) {
       bolhas: [], escalou: false, trilha: [], modelo: deps.modelo.nome, voltas: 0, ...extra,
     });
 
-    const texto = limparEntrada(recebida.texto);
-    if (!texto) return vazia();
+    let texto = limparEntrada(recebida.texto);
+    if (!texto && !recebida.ouvir) return vazia();
 
     /* ── 0. o que a MAISA sabe deste negócio ──
      * Vem antes de tudo porque o catálogo, a equipe e o liga/desliga da assistente moram
@@ -280,6 +286,27 @@ export function criarAgente(deps: Dependencias) {
       deps.historico.ler(t, perfil.telefone, HISTORICO),
       deps.conversas.posse(t, perfil.telefone),
     ]);
+
+    /* ── 1a. ÁUDIO: OUVIR SÓ QUEM ELA VAI ATENDER ──
+     *
+     * Transcrever manda a voz da pessoa para o provedor de IA. No número pessoal do dono,
+     * quem manda áudio quase sempre é a vida pessoal dele (a mãe, um amigo), e essa voz não
+     * tem por que sair do celular: com texto, a mensagem de um contato pessoal nem chega ao
+     * modelo, e com áudio tem que ser igual. Então a MAISA pergunta antes se atende essa
+     * pessoa (a mesma pergunta do passo 1e) e só transcreve se a resposta for sim.
+     *
+     * O número novo no modo pessoal fica de fora: a regra dele é "só se pedir horário com
+     * clareza", e um áudio não diz isso sem ser ouvido. É o mesmo erro barato do resto da
+     * regra (ver `MODO_PADRAO`): o dono vê "[áudio]" na tela de Conversas e responde ele.
+     *
+     * Com a assistente desligada ou a conversa assumida pelo dono, também não transcreve:
+     * nenhum dos dois casos usa o texto. */
+    if (recebida.ouvir) {
+      const atende =
+        config.assistente.ativa && !posse.assumidaEm &&
+        (await deps.avaliarAtendimento(t, { telefone: perfil.telefone, jid: recebida.jid, anteriores, texto: "[áudio]" })).pode;
+      texto = atende ? limparEntrada(await recebida.ouvir()) : "[áudio]";
+    }
 
     /* ── 1b. A FALA DO CLIENTE ENTRA NA THREAD AGORA ──
      *
