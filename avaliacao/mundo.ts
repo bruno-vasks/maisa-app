@@ -20,6 +20,7 @@ import type { ConfiguracaoDoAgente } from "@/adaptadores/entrada/whatsapp/person
 import { agendaDemo } from "@/adaptadores/saida/demo/agenda";
 import { espelhoDemo, registroDemo } from "@/adaptadores/saida/demo/atendimentos";
 import { conversasDemo, historicoDemo, memoriaDemo } from "@/adaptadores/saida/demo/memoria";
+import { embeddingDemo } from "@/adaptadores/saida/demo/embedding";
 import { embeddingDePergunta, embeddingGemini } from "@/adaptadores/saida/gemini/embedding";
 import { criarCancelarAtendimento, criarLerAgenda } from "@/nucleo/aplicacao/agenda";
 import { criarAgendarAtendimento } from "@/nucleo/aplicacao/agendar-atendimento";
@@ -116,6 +117,7 @@ function lerCacheDeVetores(): Record<string, number[]> {
 async function vetorDaPergunta(pergunta: string): Promise<number[]> {
   const guardado = lerCacheDeVetores()[pergunta];
   if (guardado) return guardado;
+  if (EMBEDDING_DEMO) return embeddingDemo.embutir(pergunta);
   const vetor = await comPaciencia(() => embeddingGemini.embutir(pergunta));
   const temporario = `${CACHE_DE_VETORES}.${process.pid}`;
   writeFileSync(temporario, JSON.stringify({ ...lerCacheDeVetores(), [pergunta]: vetor }));
@@ -124,6 +126,12 @@ async function vetorDaPergunta(pergunta: string): Promise<number[]> {
 }
 
 const vetoresPorNegocio = new Map<string, Promise<number[][]>>();
+
+/* `AVAL_EMBEDDING=demo` troca o embedding do Gemini pelo saco de palavras do `demo`. Existe
+ * porque a bancada estourou a cota DIÁRIA do embedding (1000/dia no plano gratuito) em
+ * 26/10/2026, e a chave é a mesma de produção. É busca lexical, mais fraca: compare só
+ * rodadas que usaram o mesmo embedding. */
+const EMBEDDING_DEMO = process.env.AVAL_EMBEDDING === "demo";
 
 function faqsDe(n: NegocioDeTeste): RepositorioFaqs {
   let vetores = vetoresPorNegocio.get(n.chave);
@@ -266,7 +274,9 @@ export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
     anotarFato,
     responderDuvida: criarResponderDuvida({
       faqs: faqsDe(n),
-      embeddingDePergunta: { embutir: (texto) => comPaciencia(() => embeddingDePergunta.embutir(texto)) },
+      embeddingDePergunta: EMBEDDING_DEMO
+        ? embeddingDemo
+        : { embutir: (texto) => comPaciencia(() => embeddingDePergunta.embutir(texto)) },
     }),
     historico: historicoDemo,
     conversas: conversasDemo,

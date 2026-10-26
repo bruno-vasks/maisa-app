@@ -12,7 +12,8 @@
  *   --paralelo    conversas ao mesmo tempo                (padrão: 5)
  *   --cliente     modelo do cliente simulado              (padrão: claude-haiku-5-5)
  *   --juiz        modelo do juiz, ou "nenhum"             (padrão: claude-sonnet-5-5)
- *   --audio       ignorar | transcrever                   (padrão: ignorar, como produção hoje)
+ *   --audio       ignorar | transcrever | simular         (padrão: ignorar, como produção até 26/10/2026)
+ *   --embedding   gemini | demo                           (padrão: gemini; demo não gasta a cota do Gemini)
  *   --repeticoes  quantas vezes cada cenário              (padrão: 1)
  *   --env         arquivo de onde ler GEMINI_API_KEY      (padrão: .env.local)
  *   --comparar    pasta de uma rodada anterior, para o antes × depois
@@ -44,7 +45,7 @@ function chaveDoGemini(arquivo: string): string {
   return linha.slice("GEMINI_API_KEY=".length).trim().replace(/^["']|["']$/g, "");
 }
 
-function rodarUma(tarefa: Tarefa, chave: string, log: string): Promise<boolean> {
+function rodarUma(tarefa: Tarefa, chave: string, log: string, embedding: string): Promise<boolean> {
   return new Promise((ok) => {
     const filho = spawn(join(RAIZ, "node_modules", ".bin", "vite-node"), ["-c", "vitest.config.ts", "avaliacao/conversa.ts"], {
       cwd: RAIZ,
@@ -58,6 +59,7 @@ function rodarUma(tarefa: Tarefa, chave: string, log: string): Promise<boolean> 
             .map((k) => [k, process.env[k]!]),
         ),
         GEMINI_API_KEY: chave,
+        ...(embedding === "demo" ? { AVAL_EMBEDDING: "demo" } : {}),
         AVAL_TAREFA: JSON.stringify(tarefa),
         AVAL_CLAUDE_PARALELO: "2",
       },
@@ -105,7 +107,7 @@ async function principal() {
   await Promise.all(
     Array.from({ length: paralelo }, async () => {
       for (let t = fila.shift(); t; t = fila.shift()) {
-        const ok = await rodarUma(t, chave, join(pasta, "logs", `${t.cenario}-${t.repeticao}.log`));
+        const ok = await rodarUma(t, chave, join(pasta, "logs", `${t.cenario}-${t.repeticao}.log`), a.embedding ?? "gemini");
         feitas++;
         if (!ok) falhas.push(`${t.cenario}#${t.repeticao}`);
         console.log(`[${feitas}/${tarefas.length}] ${t.cenario}#${t.repeticao} ${ok ? "ok" : "FALHOU (ver logs/)"}`);

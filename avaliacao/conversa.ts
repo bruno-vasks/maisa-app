@@ -25,8 +25,9 @@ export type Tarefa = {
   modeloCliente: string;
   /** `null` pula o juiz (rodada só para olhar a conversa). */
   modeloJuiz: string | null;
-  /** "ignorar" é o comportamento de hoje em produção: áudio não chega à MAISA. */
-  audio: "ignorar" | "transcrever";
+  /** "ignorar" é o comportamento de produção até 26/10/2026: áudio não chega à MAISA.
+   *  "simular" entrega a fala como transcrição perfeita, sem chamar o Gemini. */
+  audio: "ignorar" | "transcrever" | "simular";
   saida: string;
   repeticao: number;
 };
@@ -128,7 +129,10 @@ async function principal() {
 
       const t0 = Date.now();
       /* O áudio vai como a rota manda: `ouvir`, que o agente só chama se for atender. */
-      const recebida = c.audio ? { de: c.telefone, texto: "", ouvir: () => ouvir(texto) } : { de: c.telefone, texto };
+      const ouvirDaVez = tarefa.audio === "simular"
+        ? async () => (await import("@/adaptadores/entrada/whatsapp/contexto")).textoDoAudio(texto)
+        : () => ouvir(texto);
+      const recebida = c.audio ? { de: c.telefone, texto: "", ouvir: ouvirDaVez } : { de: c.telefone, texto };
       pendentes.push(
         mundo
           .responder(mundo.t, recebida, opcoes)
