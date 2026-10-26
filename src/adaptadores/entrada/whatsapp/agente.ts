@@ -194,13 +194,29 @@ const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  */
 const ESPERAS_DO_PROVEDOR_MS = [2_000, 5_000];
 
-async function conversarComPaciencia(modelo: ModeloDeConversa, pedido: Parameters<ModeloDeConversa["conversar"]>[0]) {
+/**
+ * Quanto um turno pode durar, do webhook à resposta.
+ *
+ * Abaixo do `maxDuration` de 60 s da rota, com folga para enviar. A espera da rajada, as
+ * novas tentativas e o timeout do provedor (45 s no Gemini) somados passavam disso, e um
+ * turno morto pela Vercel não chama ninguém: o webhook falha, a Evolution reentrega, e o
+ * cliente pode receber a resposta duas vezes. Achado em revisão, 26/10/2026. O orçamento
+ * não interrompe uma chamada em andamento; ele impede de começar outra sem tempo para ela.
+ */
+const ORCAMENTO_DO_TURNO_MS = 50_000;
+
+async function conversarComPaciencia(
+  modelo: ModeloDeConversa,
+  pedido: Parameters<ModeloDeConversa["conversar"]>[0],
+  prazo: number,
+) {
   for (let tentativa = 0; ; tentativa++) {
     try {
       return await modelo.conversar(pedido);
     } catch (e) {
-      if (!(e instanceof LimiteDoProvedor) || tentativa >= ESPERAS_DO_PROVEDOR_MS.length) throw e;
-      await dormir(ESPERAS_DO_PROVEDOR_MS[tentativa]);
+      const espera = ESPERAS_DO_PROVEDOR_MS[tentativa];
+      if (!(e instanceof LimiteDoProvedor) || espera === undefined || Date.now() + espera >= prazo) throw e;
+      await dormir(espera);
     }
   }
 }
@@ -247,6 +263,7 @@ export function criarAgente(deps: Dependencias) {
       bolhas: [], escalou: false, trilha: [], modelo: deps.modelo.nome, voltas: 0, ...extra,
     });
 
+    const prazo = Date.now() + ORCAMENTO_DO_TURNO_MS;
     let texto = limparEntrada(recebida.texto);
     if (!texto && !recebida.ouvir) return vazia();
 
@@ -343,8 +360,20 @@ export function criarAgente(deps: Dependencias) {
       /* A pergunta é sempre "a última fala DO CLIENTE é a minha?", e não "a última fala é a
        * minha?": a resposta de um turno anterior pode ser gravada logo depois desta mensagem,
        * e um turno que se calasse por isso deixaria o cliente sem resposta nenhuma. */
-      minha = ultimaDoCliente(await deps.historico.ler(t, perfil.telefone, 5));
-      if (!minha || minha.txt !== texto) return vazia({ motivo: "rajada: outra mensagem do cliente chegou junto" });
+      const recentes = await deps.historico.ler(t, perfil.telefone, 5);
+      minha = ultimaDoCliente(recentes);
+      if (minha?.txt !== texto) {
+        if (recentes.some((m) => m.de === "cliente" && m.txt === texto)) {
+          return vazia({ motivo: "rajada: outra mensagem do cliente chegou junto" });
+        }
+        /* A fala nem está na thread: a gravação do passo 1b falhou (`anexar` não lança).
+         * Sem ela não há rajada para coordenar, e calar aqui trocaria um registro perdido por
+         * um cliente sem resposta. Segue como antes da rajada existir. */
+        console.warn(`[whatsapp/agente] a fala de ${perfil.telefone} não apareceu na thread; respondendo sem esperar a rajada.`);
+        minha = undefined;
+      }
+    }
+    if (minha) {
       await dormir(espera);
       const [lidas, posseDepois] = await Promise.all([
         deps.historico.ler(t, perfil.telefone, HISTORICO + 1),
@@ -435,10 +464,15 @@ export function criarAgente(deps: Dependencias) {
     const estado = novoEstado();
     const trilha: PassoDaTrilha[] = [];
     let ultimoTexto = "";
+    let falaDaEscalada = "";
     let voltas = 0;
 
     /* ── 2. o loop ── */
     for (voltas = 1; voltas <= MAX_VOLTAS; voltas++) {
+      if (Date.now() >= prazo) {
+        await deps.canal.escalar(t, { telefone: perfil.telefone, motivo: "a MAISA passou do tempo de resposta neste atendimento" });
+        return vazia({ escalou: true, motivo: "turno sem tempo", trilha, voltas });
+      }
       let resposta: Awaited<ReturnType<ModeloDeConversa["conversar"]>>;
       try {
         resposta = await conversarComPaciencia(deps.modelo, {
@@ -447,7 +481,7 @@ export function criarAgente(deps: Dependencias) {
           ferramentas: FERRAMENTAS,
           turnos,
           maxTokens: MAX_TOKENS,
-        });
+        }, prazo);
       } catch (e) {
         /* O provedor não respondeu nem depois de esperar. Antes, a exceção subia até a rota
          * e o cliente ficava sem resposta, sem ninguém saber: o pior modo de falha deste
@@ -469,6 +503,11 @@ export function criarAgente(deps: Dependencias) {
       }
 
       if (resposta.texto) ultimoTexto = resposta.texto;
+      /* A fala escrita JUNTO com `chamar_humano` é a mais importante do turno: numa crise,
+       * é ela que tem o acolhimento e o CVV. Só a última fala do loop chegava ao cliente, e
+       * a volta seguinte ("vou falar com a Ana e já te retorno") a apagava. Achado em
+       * revisão, 26/10/2026. */
+      if (resposta.texto && resposta.chamadas.some((c) => c.nome === "chamar_humano")) falaDaEscalada = resposta.texto;
 
       // Sem chamada de ferramenta: o modelo já disse o que tinha a dizer.
       if (resposta.chamadas.length === 0) break;
@@ -494,6 +533,31 @@ export function criarAgente(deps: Dependencias) {
     if (!ultimoTexto) {
       await deps.canal.escalar(t, { telefone: perfil.telefone, motivo: "agente não concluiu o atendimento" });
       return vazia({ escalou: true, motivo: "sem resposta do agente", trilha, voltas });
+    }
+
+    /* ── 3a. O MUNDO ANDOU ENQUANTO ELA PENSAVA ──
+     *
+     * Duas coisas podem ter acontecido durante a resposta, e as duas tornam esta resposta
+     * velha. O cliente escreveu de novo: o turno da fala nova está esperando e vai ler a
+     * thread inteira, então mandar esta seria responder duas vezes. Ou o dono assumiu a
+     * conversa: aí quem fala é ele.
+     *
+     * Descarta em silêncio, salvo se o turno MUDOU O MUNDO (marcou, cancelou, chamou o
+     * dono): aí a resposta é o único aviso de que aquilo aconteceu, e calar faria o cliente
+     * não saber do próprio horário.
+     *
+     * Vem ANTES do 3b de propósito: um turno que já ficou velho não tem por que chamar o
+     * dono por uma tentativa de marcar que o turno seguinte vai refazer. */
+    const agiu = !!estado.marcou || !!estado.escalou || trilha.some((p) => p.ferramenta === "cancelar" && !p.erro);
+    if (espera > 0 && !agiu) {
+      const [lidas, posseNoFim] = await Promise.all([
+        deps.historico.ler(t, perfil.telefone, 5),
+        deps.conversas.posse(t, perfil.telefone),
+      ]);
+      if (posseNoFim.assumidaEm) return vazia({ motivo: "o dono assumiu a conversa durante a resposta", trilha, voltas });
+      if (minha && !mesmaFala(ultimaDoCliente(lidas), minha)) {
+        return vazia({ motivo: "rajada: chegou mensagem nova durante a resposta", trilha, voltas });
+      }
     }
 
     /* ── 3b. ELE TENTOU MARCAR, NÃO CONSEGUIU, E ESTÁ RESPONDENDO COMO SE TIVESSE ──
@@ -539,20 +603,8 @@ export function criarAgente(deps: Dependencias) {
       return vazia({ escalou: true, motivo: "confirmação sem agendamento", trilha, voltas });
     }
 
-    const saida = bolhas(ultimoTexto);
-
-    /* ── 3c. O CLIENTE ESCREVEU DE NOVO ENQUANTO ELA PENSAVA ──
-     *
-     * Se chegou fala nova depois da que este turno respondeu, a resposta já nasceu velha: o
-     * turno da fala nova está esperando e vai ler a thread inteira. Mandar esta também seria
-     * responder duas vezes. Descarta, salvo se o turno MUDOU O MUNDO (marcou, cancelou, chamou
-     * o dono): aí a resposta é o único aviso de que aquilo aconteceu, e calar faria o cliente
-     * não saber do próprio horário. */
-    const agiu = !!estado.marcou || !!estado.escalou || trilha.some((p) => p.ferramenta === "cancelar" && !p.erro);
-    if (minha && !agiu) {
-      const agora = ultimaDoCliente(await deps.historico.ler(t, perfil.telefone, 5));
-      if (!mesmaFala(agora, minha)) return vazia({ motivo: "rajada: chegou mensagem nova durante a resposta", trilha, voltas });
-    }
+    const final = falaDaEscalada && !ultimoTexto.includes(falaDaEscalada) ? `${falaDaEscalada}\n\n${ultimoTexto}` : ultimoTexto;
+    const saida = bolhas(final);
 
     /* ── 4. gravar o que aconteceu ──
      * Depois de responder, nunca antes: memória é registro de fato, e "o cliente marcou"

@@ -104,9 +104,17 @@ marcação atravessa turnos (a MAISA oferece 10h30, pede o nome, o cliente respo
 e a recusa obrigava o modelo a consultar e marcar de novo: duas voltas inteiras do modelo na
 hora de confirmar, medidas na bancada como 78 s até o "Pronto, Lucas!". Agora, quando o
 horário não foi ofertado neste turno, **o executor consulta `oferecer_horarios` sozinho**
-para aquele dia e profissional, e só marca se o horário voltar livre. A garantia é a mesma
-(só se marca o que a agenda de agora oferece, almoço do dono incluído); some só a volta do
-modelo.
+para aquele dia e profissional — o dia inteiro (`porDia` no teto), e não a amostra de três
+que a conversa mostra, senão um horário livre podia ficar de fora — e só marca se o horário
+voltar livre. A garantia é a mesma (só se marca o que a agenda de agora oferece, almoço do
+dono incluído); some só a volta do modelo.
+
+**"Já existia" pode ser um horário cancelado.** A chave de idempotência é derivada do
+horário, e o núcleo devolve `ja_existia` também para uma linha cancelada com a mesma chave
+(de propósito: retentar não ressuscita o que alguém desmarcou). Para o agente isso tornava
+impossível voltar a um horário cancelado, e a MAISA confirmava um atendimento que não
+existia. Agora `agendar` confere na agenda e, se o horário não está marcado, a chave ganha
+uma geração (`#1`, `#2`…). A retentativa do modelo continua caindo na geração que vingou.
 
 ### Idempotência sem colaboração do modelo
 
@@ -144,11 +152,14 @@ mesmo horário — um conseguia, o outro era barrado e chamava o dono por um ate
 tinha dado certo. Visto nas conversas reais e medido na bancada (`avaliacao/`).
 
 Agora a rota passa `esperaDaRajadaMs` (`ESPERA_DA_RAJADA_MS`, 4 s). Cada turno grava a fala
-do cliente, espera, e só segue se ela ainda for a **última fala da thread**; os outros saem
-calados, e o que segue lê a rajada inteira (o histórico junta falas seguidas do mesmo lado
-num turno só). Antes de enviar, ele confere de novo: se o cliente escreveu enquanto a MAISA
-pensava, a resposta é descartada e o turno da fala nova responde por tudo — **salvo se o
-turno marcou, cancelou ou chamou o dono**, porque aí a resposta é o único aviso disso.
+do cliente, espera, e só segue se ela ainda for a **última fala do cliente** na thread (do
+cliente, e não a última de todas: a resposta de um turno anterior pode ser gravada logo
+depois); os outros saem calados, e o que segue lê a rajada inteira (o histórico junta falas
+seguidas do mesmo lado num turno só). Se a fala nem aparece na thread (a gravação falhou),
+ele responde sem esperar, como antes. Antes de enviar (passo 3a), confere de novo: se o
+cliente escreveu ou o dono assumiu enquanto a MAISA pensava, a resposta é descartada —
+**salvo se o turno marcou, cancelou ou chamou o dono**, porque aí a resposta é o único aviso
+disso. O 3a vem antes da trava do 3b, para um turno velho não chamar o dono à toa.
 
 A pergunta é feita à thread (`RepositorioHistorico`), não à memória do processo: cada webhook
 pode rodar numa instância diferente da Vercel. O laboratório não passa a espera (lá uma
@@ -175,9 +186,14 @@ no aviso.
 
 ## Quando o modelo não responde
 
-`LimiteDoProvedor` (429, 5xx, timeout) ganha duas novas tentativas, 2 s e 5 s depois. Se o
-provedor continuar fora, o dono é chamado com a causa e o cliente não fica num silêncio que
-ninguém vê — era o que acontecia, porque a exceção subia até a rota. Medido na bancada:
+`LimiteDoProvedor` (429, 5xx, timeout) ganha duas novas tentativas, 2 s e 5 s depois, desde
+que caibam no orçamento do turno (`ORCAMENTO_DO_TURNO_MS`, 50 s, abaixo dos 60 s da rota:
+turno morto pela Vercel não chama ninguém e o webhook é reentregue). Se o provedor continuar
+fora, o dono é chamado com a causa e o cliente não fica num silêncio que ninguém vê — era o
+que acontecia, porque a exceção subia até a rota.
+
+A fala que o modelo escreve **junto com `chamar_humano`** não se perde: numa crise é ela que
+tem o acolhimento e o CVV, e antes só a última fala do loop ("vou falar com a Ana") chegava. Medido na bancada:
 com a chave do Gemini de plano gratuito (15 pedidos por minuto), 184 chamadas de 24
 conversas voltaram 429.
 
@@ -346,6 +362,15 @@ botão "Assumir" prometia silêncio no toast e o webhook nunca soube — o dono 
 cliente respondia de volta, e a MAISA falava por cima dele.
 
 ## Dívida declarada
+- **Áudio seguido de texto pode inverter a ordem.** A transcrição leva alguns segundos e a fala
+  só é gravada depois dela, então um texto mandado logo após um áudio ("ops, 11h") entra antes
+  dele na thread. A thread usa o relógio do Postgres de propósito (ver `saida/supabase/memoria.ts`),
+  e gravar a hora de chegada pelo relógio do processo desfaria isso. Raro: pede uma correção por
+  texto até uns 3 s depois do áudio.
+- **Dois turnos ao mesmo tempo não se veem.** Se o cliente escreve enquanto um turno está
+  marcando, o turno seguinte lê a thread sem a resposta do primeiro (ela ainda não foi gravada).
+  Na maioria das vezes isso dá uma confirmação repetida; se a mensagem nova mudar o horário, pode
+  dar dois atendimentos. Resolver pede coordenação entre instâncias que hoje não existe.
 - ~~**Áudio não é respondido.**~~ **Fechada em 26/10/2026**: transcrito (ver "Áudio"). O
   caminho até o Gemini foi provado com nota de voz OGG/Opus de verdade; o download pela
   Evolution (`getBase64FromMediaMessage`) segue a documentação dela e ainda espera o primeiro

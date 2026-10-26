@@ -14,18 +14,18 @@ cliente no WhatsApp
     │     (áudio SEGUE, com `ouvir` = composicao.ouvirAudio)
     ├─ 3. de quem é esta linha?                           route.ts:101     → integracoes_whatsapp
     └─ 6. rodar o agente, com a espera da rajada          route.ts:148     → whatsapp/agente.ts
-       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:253
-       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:272
-       ├─ 1a. áudio: só ouve quem ela vai atender         agente.ts:290  → senão grava "[áudio]"
-       ├─ 1b. GRAVA a fala do cliente                     agente.ts:311
-       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:329  → os outros calam
-       ├─ 1c. a assistente está ligada?                   agente.ts:367
-       ├─ 1d. o dono assumiu a conversa?                  agente.ts:375  → cala
-       ├─ 1e. é da vida pessoal do dono?                  agente.ts:392  → cala
-       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:440  → 429: tenta de novo, depois chama o dono
-       ├─ 3b. tentou marcar e não marcou?                 agente.ts:499  → descarta
-       ├─ 3c. o cliente escreveu enquanto ela pensava?    agente.ts:544  → descarta, salvo se marcou
-       └─ 4.  grava o que aconteceu                       agente.ts:557
+       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:270
+       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:289
+       ├─ 1a. áudio: só ouve quem ela vai atender         agente.ts:307  → senão grava "[áudio]"
+       ├─ 1b. GRAVA a fala do cliente                     agente.ts:328
+       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:346  → os outros calam
+       ├─ 1c. a assistente está ligada?                   agente.ts:396
+       ├─ 1d. o dono assumiu a conversa?                  agente.ts:404  → cala
+       ├─ 1e. é da vida pessoal do dono?                  agente.ts:421  → cala
+       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:470  → 429: tenta de novo dentro de 50 s, depois chama o dono
+       ├─ 3a. o cliente escreveu ou o dono assumiu?       agente.ts:538  → descarta, salvo se marcou/cancelou/chamou
+       ├─ 3b. tentou marcar e não marcou?                 agente.ts:563  → descarta e chama o dono
+       └─ 4.  grava o que aconteceu                       agente.ts:609
           └─ canal.enviar() → saida/evolution/
 ```
 

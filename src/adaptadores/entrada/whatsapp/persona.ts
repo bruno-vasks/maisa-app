@@ -138,7 +138,7 @@ export function parteEstavel(c: ConfiguracaoDoAgente): string {
     c.cfg.precoCatalogo &&
       "PREÇO: só diga valores que estão na lista de serviços. Se perguntarem de algo que não está lá, diga que vai confirmar e chame o responsável. Nunca estime, nunca arredonde, nunca dê desconto.",
     c.cfg.remarcar
-      ? "REMARCAR: você pode remarcar sozinha. Ache o horário atual com `meus_horarios`, ofereça os novos, marque o escolhido e só então cancele o antigo."
+      ? "REMARCAR: você pode remarcar sozinha. Ache o horário atual com `meus_horarios` e ofereça os novos; quando a pessoa escolher, cancele o antigo e marque o novo."
       : "REMARCAR: você NÃO remarca sozinha. Se pedirem, chame o responsável.",
     c.cfg.encaixe
       ? "ENCAIXE: pode oferecer horários que abriram de última hora."
@@ -167,7 +167,7 @@ Isto é WhatsApp, não e-mail. Escreva como uma pessoa escreve no celular:
 - Mensagem que começa com [áudio] é um áudio do cliente, já transcrito. Responda por escrito, normalmente, sem comentar que era áudio. Se vier "[áudio] (não deu para ouvir)", diga numa frase que não conseguiu ouvir e peça para a pessoa escrever.
 - Fale como quem trabalha aqui: "consigo te encaixar", "tenho quinta às 15h", "a Ana atende de manhã". Não "o sistema indica disponibilidade".
 
-Cumprimente só na sua primeira mensagem da conversa, com o período certo do dia (a hora de agora está no fim deste prompt). Na primeira conversa com alguém, diga quem você é de passagem, na MESMA mensagem da resposta, sem uma mensagem só para isso: "Oi, boa tarde! Aqui é a ${nome}, ${doOuDa(c.negocio.nome)} ${c.negocio.nome}. Amanhã tenho 10h30 ou 16h, qual fica melhor?". Se a pessoa escreveu achando que fala com o profissional ("Oi, Ana!"), deixe claro que você é a secretária. Depois da primeira mensagem, nunca mais se apresente nem cumprimente de novo.
+Cumprimente só na sua primeira mensagem da conversa, com o período certo do dia (a hora de agora está no fim deste prompt). Na primeira conversa com alguém, diga quem você é de passagem, na MESMA mensagem da resposta, sem uma mensagem só para isso: "Oi, boa tarde! Aqui é a ${nome}, ${doOuDa(c.negocio.nome)} ${c.negocio.nome}." seguido, na mesma mensagem, do que a pessoa perguntou (horários só depois de consultar). Se a pessoa escreveu achando que fala com o profissional ("Oi, Ana!"), deixe claro que você é a secretária. Depois da primeira mensagem, nunca mais se apresente nem cumprimente de novo.
 
 Se perguntarem se você é um robô ou uma pessoa, diga a verdade sem rodeio: você é a assistente virtual ${doOuDa(c.negocio.nome)} ${c.negocio.nome} e resolve horário por aqui mesmo. Se a pessoa preferir falar com alguém, chame o responsável. Não precisa dizer que é virtual sem ninguém perguntar.
 
@@ -311,8 +311,9 @@ export function parteDoCliente(p: {
    * desculpas por um erro que não existiu. Dizer aqui o que a memória registrou fecha esse
    * buraco sem replayar ferramenta. É memória, não agenda: cancelamento não sai daqui, e por
    * isso o prompt manda conferir com `meus_horarios` antes de mexer. */
-  const futuros = m.historico.filter((e) => e.data >= p.hojeISO);
-  const passados = m.historico.filter((e) => e.data < p.hojeISO);
+  const jaPassou = (e: { data: string; inicio: number }) => e.data < p.hojeISO || (e.data === p.hojeISO && hora !== undefined && e.inicio < hora);
+  const futuros = m.historico.filter((e) => !jaPassou(e));
+  const passados = m.historico.filter(jaPassou);
   for (const e of futuros) {
     linhas.push(`- Já marcado: ${servico(e.servicoId)}, ${rotuloLongo(e.data)} às ${horaFalada(e.inicio)} com ${profissional(e.profissionalId)}. Para mexer nele, confira com \`meus_horarios\`.`);
   }

@@ -218,7 +218,7 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
   {
     nome: "cancelar",
     descricao:
-      "Cancela um atendimento marcado. Só chame com um evento_id que veio de `meus_horarios`, e só depois de o cliente confirmar que quer cancelar aquele horário específico. Para remarcar: ofereça e marque o horário novo primeiro, e só então cancele o antigo — assim a pessoa nunca fica sem nenhum.",
+      "Cancela um atendimento marcado. Só chame com um evento_id que veio de `meus_horarios`, e só depois de o cliente confirmar que quer cancelar aquele horário específico. Para remarcar: ofereça os horários novos primeiro; quando o cliente escolher, cancele o antigo e marque o novo.",
     parametros: {
       type: "object",
       properties: {
@@ -477,10 +477,12 @@ export function criarExecutor(deps: Dependencias) {
              * horário que saiu de `oferecer_horarios`, contra a agenda de AGORA — almoço e
              * compromisso do dono incluídos. O que deixa de existir é só a volta do modelo.
              * Se a agenda mudou e o horário saiu da lista, a recusa abaixo vale como antes. */
-            const deNovo = await deps
-              .oferecerHorarios(t, { servicoId, agendaId, de: data, dias: 1 })
-              .catch(() => null);
-            const aindaLivre = deNovo?.dias.some(
+            /* O dia INTEIRO (`porDia` no teto), e não a amostra de 3: com a amostra, um
+             * horário livre ficava de fora sempre que outra marcação mudava o meio dela.
+             * Erro de provedor sobe para o `catch` deste executor, que o diz como erro, e
+             * não como "o horário não está livre". */
+            const deNovo = await deps.oferecerHorarios(t, { servicoId, agendaId, de: data, dias: 1, porDia: 48 });
+            const aindaLivre = deNovo.dias.some(
               (d) => d.data === data && d.agendaId === agendaId && d.horarios.some((h) => Math.abs(h - inicio) < 1e-6),
             );
             if (!aindaLivre) {
@@ -490,7 +492,7 @@ export function criarExecutor(deps: Dependencias) {
               );
             }
             estado.ofertas.set(chaveOferta(servicoId, agendaId, data, inicio), {
-              agendaId, data, inicio, servicoId, duracaoMin: deNovo!.duracaoMin,
+              agendaId, data, inicio, servicoId, duracaoMin: deNovo.duracaoMin,
             });
           }
 
@@ -501,7 +503,7 @@ export function criarExecutor(deps: Dependencias) {
             if (m.nome) perfil.nome = m.nome;
           }
 
-          const r = await deps.agendarAtendimento(t, {
+          const pedido = (geracao: number) => ({
             agendaId,
             /* O cliente que ainda não existe no cadastro entra como `lead:<telefone>`.
              * Precisa ser ESTÁVEL, e não um id sorteado: é ele que fica gravado no
@@ -513,12 +515,32 @@ export function criarExecutor(deps: Dependencias) {
             servicoId,
             data,
             inicio,
-            maisaAg: chaveIdempotente(t.tenantId, perfil.telefone, servicoId, agendaId, data, String(inicio)),
+            maisaAg: chaveIdempotente(t.tenantId, perfil.telefone, servicoId, agendaId, data, String(inicio), ...(geracao ? [`#${geracao}`] : [])),
             // Videochamada e convite por e-mail são decisões do dono, não do modelo:
             // não estão no schema da ferramenta de propósito.
             comMeet: false,
             convidarCliente: false,
           });
+
+          /* ── "JÁ EXISTIA" PODE SER UM HORÁRIO CANCELADO ──
+           *
+           * A chave é derivada do horário (ver `chaveIdempotente`), e o núcleo devolve
+           * `ja_existia` também para uma linha CANCELADA com a mesma chave — de propósito:
+           * retentar não ressuscita o que alguém desmarcou. Só que, para o agente, isso
+           * tornava impossível voltar a um horário cancelado ("na verdade, volta pro das
+           * 15h"): a MAISA confirmava um atendimento que não existia. Achado em revisão,
+           * 26/10/2026.
+           *
+           * Então "já existia" é conferido na agenda. Se o horário não está marcado para
+           * este cliente, a chave ganha uma geração (#1, #2…) e a marcação é feita de novo.
+           * Retentativa do modelo continua idempotente: ela cai na geração que vingou. */
+          let r = await deps.agendarAtendimento(t, pedido(0));
+          for (let geracao = 1; r.situacao === "ja_existia" && geracao <= 3 && !(await jaMarcadoPara(agendaId, data, inicio)); geracao++) {
+            r = await deps.agendarAtendimento(t, pedido(geracao));
+          }
+          if (r.situacao === "ja_existia" && !(await jaMarcadoPara(agendaId, data, inicio))) {
+            return nao("Não deu para marcar esse horário de novo. Chame o responsável com `chamar_humano`.");
+          }
 
           // Só agora o fato é real. Ver `EstadoDoTurno.marcou`.
           estado.marcou = { data, inicio, profissionalId: agendaId, servicoId };
@@ -570,7 +592,7 @@ export function criarExecutor(deps: Dependencias) {
             eventoId: String(entrada.evento_id ?? ""),
           });
           return ok(
-            "Cancelado. Se era uma remarcação e o horário novo já está marcado, confirme o novo numa frase. " +
+            "Cancelado. Se era uma remarcação, marque agora o horário novo que o cliente escolheu e confirme o novo numa frase. " +
               "Se era só cancelamento, avise numa frase e deixe a porta aberta para marcar outro dia, sem insistir.",
           );
         }

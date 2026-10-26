@@ -23,15 +23,15 @@ const config: ConfiguracaoDoAgente = {
 };
 
 /** Um agente com modelo falso: grava o que o modelo viu e responde depois de `pensaMs`. */
-function montar(o: number | { pensaMs?: number; pode?: boolean } = 0) {
-  const { pensaMs = 0, pode = true } = typeof o === "number" ? { pensaMs: o } : o;
+function montar(o: number | { pensaMs?: number; pode?: boolean; respostas?: Awaited<ReturnType<ModeloDeConversa["conversar"]>>[] } = 0) {
+  const { pensaMs = 0, pode = true, respostas } = typeof o === "number" ? { pensaMs: o } : o;
   const vistos: TurnoDeConversa[][] = [];
   const modelo: ModeloDeConversa = {
     nome: "falso",
     async conversar(p) {
       vistos.push(p.turnos);
       await dormir(pensaMs);
-      return { texto: "Sexta tenho 14h ou 16h, qual fica melhor?", chamadas: [], recusou: false };
+      return respostas?.shift() ?? { texto: "Sexta tenho 14h ou 16h, qual fica melhor?", chamadas: [], recusou: false };
     },
   };
   const naoUsado = async () => {
@@ -108,5 +108,28 @@ describe("o áudio", () => {
     expect(r.bolhas).toEqual([]);
     const [gravada] = await historicoDemo.ler(t, TEL, 1);
     expect(gravada.txt).toBe("[áudio]");
+  });
+});
+
+describe("o que o turno não pode perder", () => {
+  it("a fala escrita junto com chamar_humano chega ao cliente (numa crise, é ela que tem o CVV)", async () => {
+    const respostas = [
+      { texto: "Sinto muito que você esteja passando por isso. Se for urgente, ligue 188 (CVV), é de graça e 24 horas.", chamadas: [{ id: "c1", nome: "chamar_humano", argumentos: { motivo: "risco" } }], recusou: false },
+      { texto: "Vou falar com a Ana agora e já te retorno.", chamadas: [], recusou: false },
+    ];
+    const { responder, t } = montar({ respostas });
+    const r = await responder(t, { de: TEL, texto: "nao aguento mais" });
+    expect(r.bolhas.join(" ")).toContain("188");
+    expect(r.bolhas.join(" ")).toContain("Vou falar com a Ana");
+  });
+
+  it("o dono assumiu enquanto ela pensava: a resposta não sai", async () => {
+    const { responder, t } = montar({ pensaMs: 300 });
+    const turno = responder(t, { de: TEL, texto: "tem horário sexta?" }, { esperaDaRajadaMs: 50 });
+    await dormir(150);
+    await conversasDemo.marcar(t, TEL, { assumida: true });
+    const r = await turno;
+    expect(r.bolhas).toEqual([]);
+    expect(r.motivo).toContain("dono assumiu");
   });
 });

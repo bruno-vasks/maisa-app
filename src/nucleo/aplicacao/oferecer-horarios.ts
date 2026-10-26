@@ -40,6 +40,9 @@ export type Dependencias = {
   agora?: () => number;
 };
 
+/** O teto de `porDia`: um dia inteiro, de meia em meia hora. */
+const MAX_POR_DIA = 48;
+
 /** Quantos dias COM VAGA devolver. Passou disso, para de varrer: a conversa não
  *  aproveita o oitavo dia, e cada dia extra é agenda lida de graça. */
 const MAX_DIAS_COM_VAGA = 4;
@@ -62,7 +65,12 @@ export function criarOferecerHorarios({ agenda, negocio, registro, agora = Date.
     if (!ehDataCivil(p.de)) throw new DadoInvalido("Data inválida.", "de");
 
     const dias = Math.min(Math.max(Number(p.dias ?? 7), 1), MAX_DIAS_VARRIDOS);
-    const porDia = Math.min(Math.max(Number(p.porDia ?? 3), 1), 8);
+    /* Teto de 48, um dia inteiro de meia em meia hora. Quem pede o dia inteiro é o agente,
+     * para reconferir se o horário que o cliente escolheu ainda está livre (`agendar` em
+     * `whatsapp/ferramentas.ts`): com o teto antigo de 8, um horário livre podia ficar fora
+     * da amostra e ser recusado. O modelo não escolhe este número — ele não está no esquema
+     * da ferramenta —, então a conversa continua recebendo 2 ou 3 opções. */
+    const porDia = Math.min(Math.max(Number(p.porDia ?? 3), 1), MAX_POR_DIA);
 
     /* ── 2. quais agendas podem ser consultadas ──
      * Interseção de DUAS listas, e as duas importam por motivos diferentes:
