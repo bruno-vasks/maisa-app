@@ -7,20 +7,25 @@ importante do produto e o que tem mais armadilhas.
 
 ```
 cliente no WhatsApp
- └─ Evolution API → POST /api/whatsapp                    app/api/whatsapp/route.ts:51
-    ├─ 1. o segredo confere?                              route.ts:60-67   → 401
-    ├─ 2. normalizar o envelope                           route.ts:83      → contexto.ts
-    │     descarta eco, grupo, @lid, recibo, áudio        → 200 "ignorado"
-    ├─ 3. de quem é esta linha?                           route.ts:99      → integracoes_whatsapp
-    └─ 4. rodar o agente                                  whatsapp/agente.ts
-       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:162
-       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:181
-       ├─ 1b. GRAVA a fala do cliente                     agente.ts:199
-       ├─ 1c. a assistente está ligada?                   agente.ts:217
-       ├─ 1d. o dono assumiu a conversa?                  agente.ts:225  → cala
-       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:250
-       ├─ 3b. tentou marcar e não marcou?                 agente.ts:296  → descarta
-       └─ 4.  grava o que aconteceu                       agente.ts:341
+ └─ Evolution API → POST /api/whatsapp                    app/api/whatsapp/route.ts:54
+    ├─ 1. o segredo confere?                              route.ts:55-72   → 401
+    ├─ 2. normalizar o envelope                           route.ts:86      → contexto.ts
+    │     descarta eco, grupo, @lid, recibo, figurinha    → 200 "ignorado"
+    │     (áudio SEGUE: vira fala no passo 6)
+    ├─ 3. de quem é esta linha?                           route.ts:101     → integracoes_whatsapp
+    ├─ 6. áudio vira fala                                 route.ts:142     → composicao.ouvirAudio
+    └─ 7. rodar o agente, com a espera da rajada          route.ts:150     → whatsapp/agente.ts
+       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:241
+       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:260
+       ├─ 1b. GRAVA a fala do cliente                     agente.ts:278
+       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:296  → os outros calam
+       ├─ 1c. a assistente está ligada?                   agente.ts:326
+       ├─ 1d. o dono assumiu a conversa?                  agente.ts:334  → cala
+       ├─ 1e. é da vida pessoal do dono?                  agente.ts:351  → cala
+       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:399  → 429: tenta de novo, depois chama o dono
+       ├─ 3b. tentou marcar e não marcou?                 agente.ts:458  → descarta
+       ├─ 3c. o cliente escreveu enquanto ela pensava?    agente.ts:503  → descarta, salvo se marcou
+       └─ 4.  grava o que aconteceu                       agente.ts:516
           └─ canal.enviar() → saida/evolution/
 ```
 
@@ -33,7 +38,7 @@ pelo navegador são a mesma função — esse era o teste da reorganização hex
 
 Para o provedor, resposta de erro significa "tente de novo", e ele reentrega o mesmo evento em
 laço. Por isso todo descarte sai `200 {ok: true, ignorado: true}` com um motivo dentro
-(`route.ts:91-115`). Até a falha interna sai **200** (`route.ts:129`): reentregar não conserta
+(`route.ts:89-139`). Até a falha interna sai **200** (`route.ts:164`): reentregar não conserta
 bug nosso, só multiplica.
 
 ### O que é descartado, e por quê
@@ -44,7 +49,8 @@ bug nosso, só multiplica.
 | grupo / broadcast | ela responderia a cada participante — e o dono descobre pelo grupo da família |
 | `@lid` sem telefone | cadastra cliente falso **e** a resposta não chega em ninguém |
 | evento ≠ `messages.upsert` | recibo de leitura tem a mesma forma de uma mensagem |
-| áudio, figurinha, localização | **dívida declarada** — hoje é silêncio para o cliente |
+| figurinha, localização, foto sem legenda | a MAISA não lê; o descarte sai com o tipo no log |
+| áudio | **não é descartado desde 26/10/2026**: a Evolution entrega, o Gemini transcreve, e a fala entra como `[áudio] …`. Se não der para ouvir, ela pede para a pessoa escrever |
 
 O nome do evento é comparado numa forma canônica porque a Evolution é inconsistente: a
 configuração usa `MESSAGES_UPSERT` e o corpo entregue traz `messages.upsert`.
@@ -56,7 +62,7 @@ no log.
 
 ### De quem é esta mensagem
 
-Vem da **instância** que recebeu (`route.ts:99` → `tenantPorDestino`), consultada em
+Vem da **instância** que recebeu (`route.ts:101` → `tenantPorDestino`), consultada em
 `integracoes_whatsapp`. A instância é preenchida pelo servidor da Evolution, não por quem
 escreveu a mensagem — é essa propriedade que importa: identidade tem que vir de algo que o
 cliente não controla.
