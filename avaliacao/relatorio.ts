@@ -23,6 +23,7 @@ export type Resultado = {
   relogio: string;
   encerrou: boolean;
   falas: Fala[];
+  silenciosEscolhidos?: { rajada: number; ms: number; motivo: string }[];
   trilha: PassoGravado[];
   desfecho: Desfecho;
   verificacao: Verificacao;
@@ -84,7 +85,10 @@ export function resumir(rs: Resultado[]): Resumo {
 }
 
 function conversaEmMarkdown(r: Resultado): string {
-  const linhas = r.falas.map((f) => `${f.de === "cliente" ? "**cliente**" : "MAISA"}${f.audio ? " 🎤" : ""} · ${f.texto}`);
+  const linhas = [
+    ...r.falas.map((f) => ({ ms: f.ms, l: `${f.de === "cliente" ? "**cliente**" : "MAISA"}${f.audio ? " (áudio)" : ""} · ${f.texto}` })),
+    ...(r.silenciosEscolhidos ?? []).map((s) => ({ ms: s.ms, l: `MAISA · _(não respondeu: ${s.motivo.replace(/^escolheu não responder: /, "")})_` })),
+  ].sort((a, b) => a.ms - b.ms).map((x) => x.l);
   const n = r.nota;
   return [
     `### ${r.cenario}${r.repeticao ? ` (#${r.repeticao + 1})` : ""}: ${r.titulo}`,

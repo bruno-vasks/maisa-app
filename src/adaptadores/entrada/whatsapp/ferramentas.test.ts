@@ -105,3 +105,31 @@ describe("voltar a um horário que foi cancelado", () => {
     expect(await marcados(dia)).toHaveLength(1);
   });
 });
+
+describe("nao_responder", () => {
+  const executar = criarExecutor({} as unknown as Dependencias);
+  const ctx = (mexer: (e: ReturnType<typeof novoEstado>) => void) => {
+    const estado = novoEstado();
+    mexer(estado);
+    return { t: {} as ContextoTenant, perfil: {} as never, estado, config: {} as ConfiguracaoDoAgente };
+  };
+
+  it("no turno em que chamou o dono, não pode calar: o cliente tem que saber", async () => {
+    const r = await executar(ctx((e) => { e.podeCalar = true; e.escalou = { motivo: "reclamação" }; }), "nao_responder", { motivo: "ok" });
+    expect(r.erro).toBe(true);
+  });
+
+  it("sem resposta anterior na conversa, não pode calar", async () => {
+    const c = ctx(() => {});
+    const r = await executar(c, "nao_responder", { motivo: "ok" });
+    expect(r.erro).toBe(true);
+    expect(c.estado.calou).toBeNull();
+  });
+
+  it("com a conversa andando e nada feito no turno, cala", async () => {
+    const c = ctx((e) => { e.podeCalar = true; });
+    const r = await executar(c, "nao_responder", { motivo: "só um 👍" });
+    expect(r.erro).toBe(false);
+    expect(c.estado.calou).toEqual({ motivo: "só um 👍" });
+  });
+});

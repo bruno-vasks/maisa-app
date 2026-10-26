@@ -148,6 +148,19 @@ export const paraTurnos = (msgs: Msg[]): TurnoDeConversa[] => {
   return turnos;
 };
 
+/** As palavras de uma fala, sem acento e sem as curtas ("o", "já", "pra"). */
+const palavrasDe = (t: string) =>
+  new Set(t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter((p) => p.length >= 3));
+
+/** Duas falas dizem a mesma coisa? Metade ou mais das palavras em comum (Jaccard ≥ 0,4). */
+export function parecidas(a: string, b: string): boolean {
+  const A = palavrasDe(a);
+  const B = palavrasDe(b);
+  const comuns = [...A].filter((p) => B.has(p)).length;
+  const todas = new Set([...A, ...B]).size;
+  return todas > 0 && comuns / todas >= 0.4;
+}
+
 /** A última fala do cliente numa thread, se houver. */
 const ultimaDoCliente = (msgs: Msg[]): Msg | undefined => {
   for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].de === "cliente") return msgs[i];
@@ -462,6 +475,9 @@ export function criarAgente(deps: Dependencias) {
     const turnos: TurnoDeConversa[] = paraTurnos([...thread, { de: "cliente", txt: texto }]);
 
     const estado = novoEstado();
+    /* Silêncio só depois de a conversa já ter tido resposta (da MAISA ou do dono). Quem
+     * escreve pela primeira vez sempre recebe resposta. Ver `nao_responder`. */
+    estado.podeCalar = thread.some((m) => m.de !== "cliente");
     const trilha: PassoDaTrilha[] = [];
     let ultimoTexto = "";
     let falaDaEscalada = "";
@@ -525,6 +541,24 @@ export function criarAgente(deps: Dependencias) {
        * de pedir ferramentas em paralelo — e aí cada consulta de agenda vira uma volta
        * inteira do loop. */
       turnos.push({ papel: "resultados", resultados });
+
+      /* Decidiu não responder: não há o que perguntar ao modelo de novo. */
+      if (estado.calou) break;
+    }
+
+    /* ── 2b. ELA ESCOLHEU NÃO RESPONDER ──
+     *
+     * "Tá certo, vou ficar esperando", "ok", um 👍 depois da despedida: uma secretária lê e
+     * não responde, e responder com frase de praxe é o que denuncia robô. Pedido do Bruno em
+     * 26/10/2026. O turno termina sem mensagem e SEM chamar o dono: silêncio aqui é decisão,
+     * não falha.
+     *
+     * As travas estão em `nao_responder` (primeiro contato e turno que mudou o mundo sempre
+     * respondem). Aqui fica a última: se o modelo tentou marcar, não conseguiu e escolheu
+     * calar, o caso é o do 3b e o dono é chamado como sempre. */
+    if (estado.calou && !(estado.tentouAgendar && !estado.marcou && !estado.jaEstavaMarcado)) {
+      console.info(`[whatsapp/agente] sem resposta, por escolha (inquilino ${t.tenantId}): ${estado.calou.motivo}`);
+      return vazia({ motivo: `escolheu não responder: ${estado.calou.motivo}`, trilha, voltas });
     }
 
     /* ── 3. o loop girou sem chegar a nada ──
@@ -603,12 +637,14 @@ export function criarAgente(deps: Dependencias) {
       return vazia({ escalou: true, motivo: "confirmação sem agendamento", trilha, voltas });
     }
 
-    /* Só junta quando a fala da escalada carrega MAIS do que a última (o acolhimento e o CVV,
-     * numa crise). Quando as duas dizem a mesma coisa ("já chamei o dono" e "o responsável foi
-     * avisado"), juntar era repetir o aviso duas vezes na mesma resposta: medido na bancada. */
-    const final = falaDaEscalada && falaDaEscalada.length > ultimoTexto.length && !ultimoTexto.includes(falaDaEscalada)
-      ? `${falaDaEscalada}\n\n${ultimoTexto}`
-      : ultimoTexto;
+    /* Só junta quando a fala da escalada carrega MAIS do que a última e diz OUTRA coisa (o
+     * acolhimento e o CVV, numa crise, antes de "vou falar com a Ana"). Quando as duas dizem a
+     * mesma coisa com palavras diferentes ("sinto muito, já avisei o Zé" duas vezes), juntar
+     * era mandar o mesmo aviso em duas bolhas: medido na bancada. */
+    const final =
+      falaDaEscalada && falaDaEscalada.length > ultimoTexto.length && !parecidas(falaDaEscalada, ultimoTexto)
+        ? `${falaDaEscalada}\n\n${ultimoTexto}`
+        : ultimoTexto;
     const saida = bolhas(final);
 
     /* ── 4. gravar o que aconteceu ──

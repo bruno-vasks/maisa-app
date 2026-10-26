@@ -93,10 +93,28 @@ export type EstadoDoTurno = {
    * horário que ninguém ofereceu e ninguém marcou" continua escalando.
    */
   jaEstavaMarcado: boolean;
+
+  /** Um atendimento foi cancelado neste turno. Junto com `marcou` e `escalou`, é o que
+   *  impede o silêncio: o turno que mudou o mundo tem que avisar o cliente. */
+  cancelou: boolean;
+
+  /**
+   * O silêncio é permitido neste turno? Só depois de a conversa já ter alguma resposta da
+   * MAISA (ou do dono): quem escreve pela primeira vez sempre recebe resposta. Quem liga
+   * é o agente, antes do loop, olhando a thread.
+   */
+  podeCalar: boolean;
+
+  /**
+   * O modelo decidiu que esta mensagem não pede resposta (`nao_responder`): um "ok", um
+   * "vou esperar", um emoji depois da despedida. Ver o passo 3 de `agente.ts`.
+   */
+  calou: { motivo: string } | null;
 };
 
 export const novoEstado = (): EstadoDoTurno => ({
   ofertas: new Map(), escalou: null, marcou: null, tentouAgendar: false, jaEstavaMarcado: false,
+  cancelou: false, podeCalar: false, calou: null,
 });
 
 const chaveOferta = (servicoId: string, agendaId: string, data: string, inicio: number) =>
@@ -248,6 +266,16 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
         pergunta: { type: "string", description: "A dúvida do cliente, como ele escreveu." },
       },
       required: ["pergunta"],
+    },
+  },
+  {
+    nome: "nao_responder",
+    descricao:
+      "Termina este turno SEM mandar mensagem nenhuma, como uma secretária que lê e não precisa responder. Use quando a mensagem só fecha o assunto e não pede nada: 'ok', 'tá bom', 'beleza', 'vou esperar', um emoji, um 'obrigado' depois de você já ter se despedido; ou quando você já chamou o responsável e a pessoa só confirmou que vai esperar. NÃO use se há pergunta, pedido, dúvida ou reclamação nova; se a pessoa está irritada ou cobrando uma solução que ainda não chegou (mesmo repetindo o que já disse: aí uma frase curta mostra que você leu); se você deixou uma pergunta em aberto (um 'ok' depois de '10h ou 15h?' pede que você pergunte qual); nem logo depois de marcar, cancelar ou chamar o responsável neste turno. Se chamar, não escreva texto.",
+    parametros: {
+      type: "object",
+      properties: { motivo: { type: "string", description: "Por que esta mensagem não pede resposta, em poucas palavras. Vai para o registro, não para o cliente." } },
+      required: ["motivo"],
     },
   },
   {
@@ -591,6 +619,7 @@ export function criarExecutor(deps: Dependencias) {
             agendaId: String(entrada.profissional_id ?? ""),
             eventoId: String(entrada.evento_id ?? ""),
           });
+          estado.cancelou = true;
           return ok(
             "Cancelado. Se era uma remarcação, marque agora o horário novo que o cliente escolheu e confirme o novo numa frase. " +
               "Se era só cancelamento, avise numa frase e deixe a porta aberta para marcar outro dia, sem insistir.",
@@ -665,14 +694,29 @@ export function criarExecutor(deps: Dependencias) {
           const motivo = String(entrada.motivo ?? "sem motivo informado");
           estado.escalou = { motivo };
           await deps.canal.escalar(t, { telefone: perfil.telefone, motivo });
-          /* Devolve a FRASE FINAL que o cliente vai ver. O modelo não escreve mais
-           * nada depois disto (o loop encerra) — então esta é a última palavra da
-           * MAISA, e ela não pode prometer prazo que ninguém garantiu. */
+          /* O que vem depois é a fala da MAISA para o cliente, escrita na volta seguinte do
+           * loop: ela não pode prometer prazo que ninguém garantiu, nem repetir o aviso que
+           * já deu em outra mensagem. */
           return ok(
             "Responsável avisado. Se você ainda não disse isso nesta conversa, diga numa frase curta que vai falar com o responsável e já retorna; " +
               "se já disse, não repita: responda só ao que a pessoa disse agora. " +
               "Se a pessoa está sofrendo ou em risco, o acolhimento continua na mensagem.",
           );
+        }
+
+        /* ── não responder ──
+         * O silêncio é uma decisão do modelo, mas com duas travas em código: quem escreve
+         * pela primeira vez sempre recebe resposta, e o turno que marcou, cancelou ou
+         * chamou o dono tem que avisar o cliente disso. */
+        case "nao_responder": {
+          if (!estado.podeCalar) {
+            return nao("É a primeira resposta desta conversa: responda a pessoa, mesmo que numa frase curta.");
+          }
+          if (estado.marcou || estado.cancelou || estado.escalou) {
+            return nao("Você acabou de marcar, cancelar ou chamar o responsável neste turno: avise o cliente numa frase curta.");
+          }
+          estado.calou = { motivo: String(entrada.motivo ?? "sem motivo informado") };
+          return ok("Certo: este turno termina sem mensagem. Não escreva nada.");
         }
 
         default:

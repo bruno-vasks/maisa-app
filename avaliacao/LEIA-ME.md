@@ -93,6 +93,21 @@ mede a fila, não a conversa. `conversa.ts` espera até 3 min por chamada e cont
 **Variância.** Modelo de linguagem não responde igual duas vezes. Para decidir entre duas
 versões, rode com `--repeticoes 2` ou mais e olhe a conversa, não só a média.
 
+## Para testar outro agente com o mesmo método
+
+O método não é da MAISA: serve para qualquer agente conversacional, e não gasta API, porque o
+cliente simulado, o juiz e (quando o agente usa Claude) o próprio agente rodam pelo Claude Code
+logado na máquina (`claude -p`). Para levar a outro projeto:
+
+| Leva como está | Reescreve para o agente novo |
+|---|---|
+| `claude-cli.ts` (a chamada sem chave), `cliente.ts` (o cliente simulado), `juiz.ts` (a régua e as medidas), `relogio.ts`, `medidor.ts`, `rodar.ts`, `relatorio.ts` | `cenarios.ts` (quem escreve e o que quer), `negocios.ts` (os dados de teste), `mundo.ts` (como o agente é montado sem o banco), a parte de `conversa.ts` que chama o agente |
+
+A régua do juiz (`REGUA` em `juiz.ts`) fala de secretária de WhatsApp; troque o papel e os
+critérios pelos do agente novo. Mantenha as três regras que mais pesaram aqui: um processo por
+conversa, código congelado numa git worktree durante a rodada, e nenhuma chave de produção de
+outro provedor no ambiente.
+
 ## O que NÃO fazer aqui
 
 - ❌ Apontar a bancada para o Supabase. Ela marca e cancela horário de verdade no que estiver

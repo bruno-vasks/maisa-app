@@ -30,7 +30,7 @@ conhecem: encontram-se em `composicao.ts`.
 |---|---|
 | `contexto.ts` | Valida o segredo, resolve o inquilino **pelo destino da mensagem**, normaliza o envelope de três formatos de webhook e diz como um áudio entra na conversa (`textoDoAudio`) |
 | `persona.ts` | Monta o system prompt em duas partes: estável (cacheável) e volátil (hoje + memória) |
-| `ferramentas.ts` | As 6 ferramentas, o executor e a camada que desconfia do modelo |
+| `ferramentas.ts` | As ferramentas, o executor e a camada que desconfia do modelo |
 | `bolhas.ts` | Quebra a resposta em mensagens, converte Markdown, põe hora e preço do jeito falado (`comoSeFala`), aplica os tetos |
 | `agente.ts` | O loop: rajada → histórico → modelo → ferramenta → resposta → memória |
 
@@ -137,7 +137,8 @@ Elas são, literalmente, [`nucleo/portas/entrada/casos-de-uso.ts`](../../../nucl
 | `meus_horarios` | `LerAgenda` | Filtra por marca da MAISA **e** por telefone — sem isso vaza o compromisso pessoal do dono e o atendimento de outro cliente |
 | `cancelar` | `CancelarAtendimento` | `evento_id` só vem de `meus_horarios` |
 | `anotar_nome` | `AnotarFato` | Só nome. Favorito é inferido, nunca escrito |
-| `chamar_humano` | `CanalDeMensagens.escalar` | Encerra o turno |
+| `chamar_humano` | `CanalDeMensagens.escalar` | Uma vez por assunto; o aviso ao cliente não se repete |
+| `nao_responder` | — | Termina o turno sem mensagem. Recusado no primeiro contato e no turno que marcou, cancelou ou chamou o dono |
 
 Não existe ferramenta de identificar cliente: o telefone vem do envelope e o perfil é
 carregado **antes** do primeiro token. Uma ferramenta a menos, e um passo que o modelo
@@ -183,6 +184,24 @@ não usa emoji em superfície nenhuma), então o dono lê na tela de Conversas o
 disse. Se não der para ouvir, entra `[áudio] (não deu para ouvir)` e a MAISA pede para a
 pessoa escrever — nunca o silêncio de antes. Só Evolution: na Cloud API da Meta, o áudio cai
 no aviso.
+
+## Às vezes ela não responde
+
+"Tá certo, vou ficar esperando", "ok", um 👍 depois da despedida: uma secretária lê e não
+responde, e responder isso com frase de praxe é o que denuncia robô. Até 26/10/2026 a MAISA
+respondia toda mensagem; pior, um turno sem texto era tratado como falha e chamava o dono.
+Agora o silêncio é uma ferramenta, `nao_responder`, com duas travas em código: quem escreve
+pela primeira vez sempre recebe resposta (`podeCalar`, ligado só se a thread já tem fala da
+MAISA ou do dono), e o turno que marcou, cancelou ou chamou o dono sempre avisa o cliente. O
+turno calado termina sem bolha e sem escalar (passo 2b de `agente.ts`); se o modelo tentou
+marcar, não conseguiu e escolheu calar, vale o 3b e o dono é chamado. O prompt diz quando
+calar e quando não: um "ok" depois de "10h ou 15h?" não fecha nada, e quem está irritado ou
+cobrando uma solução nunca fica sem resposta, mesmo repetindo o que já disse (medido na
+bancada: o silêncio ali virou "oi??" e reclamação de demora). Uma frase curta basta.
+
+A fala escrita junto com `chamar_humano` só se junta à final quando é mais longa e diz outra
+coisa (`parecidas`, por palavras em comum): o CVV de uma crise passa; o mesmo "sinto muito,
+já avisei o Zé" dito duas vezes, não.
 
 ## Quando o modelo não responde
 

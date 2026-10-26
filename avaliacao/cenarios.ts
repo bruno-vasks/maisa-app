@@ -40,6 +40,9 @@ export type Desfecho = {
 
 export type Verificacao = { ok: boolean; motivo: string };
 
+/** O que apareceu no WhatsApp, para os cenários que medem QUANDO ela responde (o silêncio). */
+export type FalaVista = { de: "cliente" | "maisa"; texto: string };
+
 export type Cenario = {
   id: string;
   negocio: "consultorio" | "barbearia";
@@ -65,7 +68,7 @@ export type Cenario = {
   maxTurnos?: number;
   /** O que deveria acontecer, em uma frase, para o juiz. */
   esperado: string;
-  verificar: (d: Desfecho) => Verificacao;
+  verificar: (d: Desfecho, falas: FalaVista[]) => Verificacao;
 };
 
 /* ───────────────────────────── verificações ───────────────────────────── */
@@ -96,9 +99,25 @@ const naoMarcou = (d: Desfecho): Verificacao =>
 const escalou = (d: Desfecho): Verificacao =>
   d.escalou ? { ok: true, motivo: `chamou o dono: ${d.motivosDeEscalada.join(" / ")}` } : { ok: false, motivo: "não chamou o dono" };
 
-const todas = (...vs: ((d: Desfecho) => Verificacao)[]) => (d: Desfecho): Verificacao => {
-  const r = vs.map((v) => v(d));
+const todas = (...vs: ((d: Desfecho, falas: FalaVista[]) => Verificacao)[]) => (d: Desfecho, falas: FalaVista[]): Verificacao => {
+  const r = vs.map((v) => v(d, falas));
   return { ok: r.every((x) => x.ok), motivo: r.map((x) => x.motivo).join("; ") };
+};
+
+/**
+ * A MAISA não respondeu à fala do cliente que bate com `padrao` (a última delas): entre ela e a
+ * próxima fala do cliente, nada da MAISA. Só até a próxima fala, porque o cliente simulado
+ * reage ao silêncio ("oi??"), e responder a isso é certo.
+ */
+const calouDepoisDe = (padrao: RegExp) => (_d: Desfecho, falas: FalaVista[]): Verificacao => {
+  const i = falas.map((f) => f.de === "cliente" && padrao.test(f.texto)).lastIndexOf(true);
+  if (i < 0) return { ok: false, motivo: `o cliente nunca mandou ${padrao}` };
+  const proximaDoCliente = falas.findIndex((f, k) => k > i && f.de === "cliente");
+  const antesDaProxima = falas.slice(i + 1, proximaDoCliente < 0 ? undefined : proximaDoCliente);
+  const resposta = antesDaProxima.find((f) => f.de === "maisa");
+  return resposta
+    ? { ok: false, motivo: `respondeu o que não pedia resposta: "${resposta.texto.slice(0, 80)}"` }
+    : { ok: true, motivo: "ficou em silêncio quando não havia o que responder" };
 };
 
 /* ───────────────────────────── as pessoas ───────────────────────────── */
@@ -407,6 +426,30 @@ export const CENARIOS: Cenario[] = [
     abertura: ["Bom dia! Queria marcar corte pra mim e pro meu filho de 8 anos no sábado de manhã, um depois do outro. Tem?"],
     esperado: "Marca DOIS cortes no sábado 31/10 de manhã, seguidos ou simultâneos, e confirma os dois.",
     verificar: marcou({ servicos: ["sv-corte"], dias: ["2026-10-31"], de: 9, ate: 13 }, 2),
+  },
+  {
+    id: "espera-o-dono",
+    negocio: "barbearia",
+    titulo: "Reclamação resolvida com o dono: o cliente só vai esperar",
+    telefone: "11990000025",
+    persona: "Carlos, 38 anos, calmo mas chateado. Escreve frases curtas, com pontuação, sem emoji.",
+    objetivo:
+      "Cortou com o Rafael ontem e ficou torto de um lado. Quer que o Zé veja isso. Depois que a atendente disser que avisou o Zé, responda só 'ta certo, vou ficar esperando ele'. Se ela mandar mais alguma mensagem depois disso, responda só '👍' e encerre. Não peça mais nada.",
+    abertura: ["Oi. Cortei com o Rafael ontem e ficou torto de um lado.", "Queria que o Zé desse uma olhada nisso."],
+    esperado: "Pede desculpas, chama o Zé uma vez e, quando o cliente diz que vai esperar, NÃO responde mais nada.",
+    verificar: todas(escalou, calouDepoisDe(/esperando/i)),
+  },
+  {
+    id: "joinha-final",
+    negocio: "consultorio",
+    titulo: "Marca, agradece e manda um joinha",
+    telefone: "11990000026",
+    persona: "Beatriz, 34 anos, arquiteta, objetiva. Escreve com acento, sem gíria.",
+    objetivo:
+      "Quer uma sessão individual com a Ana amanhã (quarta, 28/10) de manhã; aceita qualquer horário da manhã. É paciente da Ana há meses. Nome: Beatriz. Depois de receber a confirmação, mande 'obrigada!'. Se a atendente responder de novo depois disso, mande só '👍' e encerre.",
+    abertura: ["Oi! Queria marcar uma sessão com a Ana amanhã de manhã."],
+    esperado: "Marca com a Ana na quarta de manhã; ao 'obrigada' pode responder curto uma vez, ou não responder; ao '👍' não responde.",
+    verificar: todas(marcou({ profissionais: ["pr-ana"], dias: ["2026-10-28"], de: 8, ate: 12 }), calouDepoisDe(/👍|obrigad/i)),
   },
 ];
 

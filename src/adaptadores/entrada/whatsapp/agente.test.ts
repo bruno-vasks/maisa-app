@@ -134,6 +134,16 @@ describe("o que o turno não pode perder", () => {
     expect(r.bolhas.join(" ")).toContain("vai falar com você");
   });
 
+  it("a fala da escalada mais longa, mas dizendo o mesmo que a final, também não se repete", async () => {
+    const respostas = [
+      { texto: "Poxa, sinto muito que o corte tenha ficado torto. Já avisei o Zé pra dar uma olhada, e ele retorna com você por aqui.", chamadas: [{ id: "c1", nome: "chamar_humano", argumentos: { motivo: "corte torto" } }], recusou: false },
+      { texto: "Poxa, sinto muito que o corte tenha ficado torto. Avisei o Zé, ele retorna com você.", chamadas: [], recusou: false },
+    ];
+    const { responder, t } = montar({ respostas });
+    const r = await responder(t, { de: TEL, texto: "o corte ficou torto" });
+    expect(r.bolhas.join(" ").match(/sinto muito/g)).toHaveLength(1);
+  });
+
   it("o dono assumiu enquanto ela pensava: a resposta não sai", async () => {
     const { responder, t } = montar({ pensaMs: 300 });
     const turno = responder(t, { de: TEL, texto: "tem horário sexta?" }, { esperaDaRajadaMs: 50 });
@@ -142,5 +152,30 @@ describe("o que o turno não pode perder", () => {
     const r = await turno;
     expect(r.bolhas).toEqual([]);
     expect(r.motivo).toContain("dono assumiu");
+  });
+});
+
+describe("o silêncio", () => {
+  const calar = { texto: "", chamadas: [{ id: "s1", nome: "nao_responder", argumentos: { motivo: "cliente só confirmou que vai esperar" } }], recusou: false };
+
+  it("depois de a conversa já ter resposta, ela pode não responder um 'vou esperar', e ninguém é chamado", async () => {
+    const respostas = [
+      { texto: "Já avisei o Zé, ele vai falar com você por aqui.", chamadas: [], recusou: false },
+      calar,
+    ];
+    const { responder, t } = montar({ respostas });
+    await responder(t, { de: TEL, texto: "quero falar com o dono" });
+    const r = await responder(t, { de: TEL, texto: "ta certo, vou ficar esperando" });
+    expect(r.bolhas).toEqual([]);
+    expect(r.escalou).toBe(false);
+    expect(r.motivo).toContain("escolheu não responder");
+  });
+
+  it("quem escreve pela primeira vez sempre recebe resposta, mesmo que o modelo tente calar", async () => {
+    const respostas = [calar, { texto: "Oi! Sexta tenho 14h ou 16h, qual fica melhor?", chamadas: [], recusou: false }];
+    const { responder, t } = montar({ respostas });
+    const r = await responder(t, { de: TEL, texto: "oi" });
+    expect(r.bolhas.length).toBeGreaterThan(0);
+    expect(r.trilha.find((p) => p.ferramenta === "nao_responder")?.erro).toBe(true);
   });
 });

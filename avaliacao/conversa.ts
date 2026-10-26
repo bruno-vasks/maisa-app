@@ -93,6 +93,9 @@ async function principal() {
   const trilha: import("./juiz").PassoGravado[] = [];
   const latencias: number[] = [];
   const erros: string[] = [];
+  /* Turnos em que a MAISA decidiu não responder (`nao_responder`). Não é falha: é o que o
+   * juiz precisa ver para julgar se o silêncio foi certo. */
+  const silenciosEscolhidos: { rajada: number; ms: number; motivo: string }[] = [];
 
   /* ── o áudio, como o WhatsApp entrega ──
    * A fala do cliente simulado vira uma nota de voz de verdade: `say` com voz brasileira e
@@ -138,6 +141,9 @@ async function principal() {
           .responder(mundo.t, recebida, opcoes)
           .then((r) => {
             if (r.bolhas.length) latencias.push(Date.now() - t0);
+            if (!r.bolhas.length && r.motivo?.startsWith("escolheu não responder")) {
+              silenciosEscolhidos.push({ rajada, ms: Date.now() - inicio, motivo: r.motivo });
+            }
             for (const b of r.bolhas) falas.push({ de: "maisa", texto: b, ms: Date.now() - inicio, rajada });
             for (const p of r.trilha) trilha.push({ rajada, ...p });
           })
@@ -164,10 +170,10 @@ async function principal() {
   }
 
   const desfecho = mundo.desfecho();
-  const verificacao = c.verificar(desfecho);
-  const medidas = medir(falas, horaDecimal(relogio), latencias);
+  const verificacao = c.verificar(desfecho, falas);
+  const medidas = medir(falas, horaDecimal(relogio), latencias, silenciosEscolhidos);
   const nota = tarefa.modeloJuiz
-    ? await julgar({ cenario: c, negocio: mundo.negocio, relogio, falas, trilha, desfecho, verificacao, modelo: tarefa.modeloJuiz })
+    ? await julgar({ cenario: c, negocio: mundo.negocio, relogio, falas, trilha, desfecho, verificacao, silenciosEscolhidos, modelo: tarefa.modeloJuiz })
     : null;
 
   writeFileSync(
@@ -182,6 +188,7 @@ async function principal() {
         relogio,
         encerrou,
         falas,
+        silenciosEscolhidos,
         trilha,
         desfecho,
         verificacao,

@@ -65,8 +65,10 @@ export type Medidas = {
   caracteresPorBolha: number;
   /** Rajadas do cliente respondidas mais de uma vez: o sintoma de "uma resposta por mensagem". */
   respostasDuplicadas: number;
-  /** Rajadas sem resposta nenhuma, sem contar a despedida final. */
+  /** Rajadas sem resposta nenhuma, sem contar a despedida final nem o silêncio escolhido. */
   silencios: number;
+  /** Rajadas em que ela decidiu não responder (`nao_responder`). O juiz diz se foi certo. */
+  silenciosEscolhidos: number;
   frasesDeRobo: Record<string, number>;
   horaDeMaquina: number;
   saudacoesErradas: string[];
@@ -75,7 +77,12 @@ export type Medidas = {
   latenciaMediaMs: number;
 };
 
-export function medir(falas: Fala[], horaDoRelogio: number, latencias: number[]): Medidas {
+export function medir(
+  falas: Fala[],
+  horaDoRelogio: number,
+  latencias: number[],
+  escolhidos: { rajada: number }[] = [],
+): Medidas {
   const doCliente = falas.filter((f) => f.de === "cliente");
   const daMaisa = falas.filter((f) => f.de === "maisa");
   const rajadas = [...new Set(doCliente.map((f) => f.rajada))];
@@ -107,7 +114,8 @@ export function medir(falas: Fala[], horaDoRelogio: number, latencias: number[])
     maxBolhas: Math.max(0, ...rajadas.map((r) => daMaisa.filter((f) => f.rajada === r).length)),
     caracteresPorBolha: daMaisa.length ? daMaisa.reduce((s, f) => s + f.texto.length, 0) / daMaisa.length : 0,
     respostasDuplicadas: [...respostasPorRajada.values()].filter((n) => n > 1).length,
-    silencios: rajadas.filter((r) => r !== ultimaRajada && !respostasPorRajada.get(r)).length,
+    silencios: rajadas.filter((r) => r !== ultimaRajada && !respostasPorRajada.get(r) && !escolhidos.some((e) => e.rajada === r)).length,
+    silenciosEscolhidos: escolhidos.length,
     frasesDeRobo,
     horaDeMaquina: daMaisa.reduce((s, f) => s + (f.texto.match(HORA_DE_MAQUINA)?.length ?? 0), 0),
     saudacoesErradas: daMaisa.map((f) => saudacaoErrada(f.texto, horaDoRelogio)).filter((x): x is string => !!x),
@@ -131,6 +139,7 @@ Seja exigente. 5 = o que uma ótima secretária humana faria. 4 = boa, com detal
 - prestatividade: resolve o que a pessoa precisa, oferece alternativa quando não dá, antecipa o próximo passo com moderação.
 - objetividade: vai direto ao ponto, sem enrolar; uma pergunta por vez; poucas trocas até resolver; não pergunta o que já sabe.
 - tom: acompanha o jeito do cliente (formal com formal, leve com leve, acolhedor e calmo quando o assunto é sensível), sem perder o tom do negócio.
+- Silêncio também é resposta. Não responder a "ok", "tá bom", "vou esperar", a um emoji ou a um obrigado depois da despedida é o que uma secretária faz; responder isso com frase de praxe é robô (pese em naturalidade e objetividade). Silêncio quando havia pergunta, pedido ou uma pergunta da MAISA em aberto é falha (pese em prestatividade). Na conversa, "[MAISA não respondeu, de propósito]" marca onde ela decidiu calar.
 - conducao: interesse em marcar. Propõe dia e hora concretos, recupera o "vou ver", não deixa a conversa morrer, sem pressionar. Em conversa que não é de agendamento (reclamação, crise, papo), conduzir bem é encaminhar para quem resolve.
 - correcao: não inventa horário, preço nem regra; o que confirmou bate com o que foi marcado (use o DESFECHO e a TRILHA); não promete o que não pode; chama o dono quando deve (reclamação, pedido fora do alcance, risco à vida).
 
@@ -145,10 +154,12 @@ function contexto(n: NegocioDeTeste): string {
   return `Negócio: ${n.negocio.nome}. Tom configurado: ${n.assistente.tom}.\nServiços: ${servicos}.\nQuem atende: ${quem}.\nRespostas cadastradas pelo dono: ${n.faqs.map((f) => f.pergunta).join(" | ")}.`;
 }
 
-function transcrito(falas: Fala[]): string {
-  return falas
-    .map((f) => `[${(f.ms / 1000).toFixed(0).padStart(4)}s · rajada ${f.rajada}] ${f.de === "cliente" ? "CLIENTE" : "MAISA"}${f.audio ? " (áudio)" : ""}: ${f.texto}`)
-    .join("\n");
+function transcrito(falas: Fala[], silencios: { rajada: number; ms: number; motivo: string }[] = []): string {
+  const linhas = [
+    ...falas.map((f) => ({ ms: f.ms, texto: `[${(f.ms / 1000).toFixed(0).padStart(4)}s · rajada ${f.rajada}] ${f.de === "cliente" ? "CLIENTE" : "MAISA"}${f.audio ? " (áudio)" : ""}: ${f.texto}` })),
+    ...silencios.map((s) => ({ ms: s.ms, texto: `[${(s.ms / 1000).toFixed(0).padStart(4)}s · rajada ${s.rajada}] [MAISA não respondeu, de propósito: ${s.motivo.replace(/^escolheu não responder: /, "")}]` })),
+  ];
+  return linhas.sort((a, b) => a.ms - b.ms).map((l) => l.texto).join("\n");
 }
 
 function trilhaEmTexto(trilha: PassoGravado[]): string {
@@ -166,6 +177,7 @@ export async function julgar(p: {
   trilha: PassoGravado[];
   desfecho: Desfecho;
   verificacao: Verificacao;
+  silenciosEscolhidos?: { rajada: number; ms: number; motivo: string }[];
   modelo: string;
 }): Promise<Nota> {
   const prompt = `## Contexto
@@ -178,7 +190,7 @@ O que ele quer: ${p.cenario.objetivo}
 O que deveria acontecer: ${p.cenario.esperado}
 
 ## A conversa (como o cliente viu)
-${transcrito(p.falas)}
+${transcrito(p.falas, p.silenciosEscolhidos)}
 
 ## O que a MAISA fez por baixo (trilha de ferramentas)
 ${trilhaEmTexto(p.trilha)}
