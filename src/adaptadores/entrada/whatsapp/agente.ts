@@ -142,6 +142,12 @@ export const paraTurnos = (msgs: Msg[]): TurnoDeConversa[] => {
   return turnos;
 };
 
+/** A última fala do cliente numa thread, se houver. */
+const ultimaDoCliente = (msgs: Msg[]): Msg | undefined => {
+  for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].de === "cliente") return msgs[i];
+  return undefined;
+};
+
 /** A mesma linha da thread? `em` vem do banco, então duas mensagens iguais em instantes
  *  diferentes não se confundem. */
 const mesmaFala = (a: Msg | undefined, b: Msg | undefined) =>
@@ -305,16 +311,24 @@ export function criarAgente(deps: Dependencias) {
     const espera = opcoes.esperaDaRajadaMs ?? 0;
     let minha: Msg | undefined;
     let thread = anteriores;
+    let posseAgora = posse;
     if (espera > 0) {
-      [minha] = await deps.historico.ler(t, perfil.telefone, 1);
-      if (!minha || minha.de !== "cliente" || minha.txt !== texto) {
-        return vazia({ motivo: "rajada: outra mensagem do cliente chegou junto" });
-      }
+      /* A pergunta é sempre "a última fala DO CLIENTE é a minha?", e não "a última fala é a
+       * minha?": a resposta de um turno anterior pode ser gravada logo depois desta mensagem,
+       * e um turno que se calasse por isso deixaria o cliente sem resposta nenhuma. */
+      minha = ultimaDoCliente(await deps.historico.ler(t, perfil.telefone, 5));
+      if (!minha || minha.txt !== texto) return vazia({ motivo: "rajada: outra mensagem do cliente chegou junto" });
       await dormir(espera);
-      const [ultima] = await deps.historico.ler(t, perfil.telefone, 1);
-      if (!mesmaFala(ultima, minha)) return vazia({ motivo: "rajada: o cliente continuou escrevendo" });
-      /* A thread de novo, agora com a rajada inteira; a fala deste turno é a última dela. */
-      thread = (await deps.historico.ler(t, perfil.telefone, HISTORICO + 1)).slice(0, -1);
+      const [lidas, posseDepois] = await Promise.all([
+        deps.historico.ler(t, perfil.telefone, HISTORICO + 1),
+        deps.conversas.posse(t, perfil.telefone),
+      ]);
+      if (!mesmaFala(ultimaDoCliente(lidas), minha)) return vazia({ motivo: "rajada: o cliente continuou escrevendo" });
+      /* A thread de novo, agora com a rajada inteira. A fala deste turno sai dela e volta no
+       * fim, onde o modelo espera a pergunta a responder. */
+      thread = lidas.filter((m) => !mesmaFala(m, minha));
+      /* O dono pode ter assumido durante a espera: a posse lida no passo 1 já envelheceu. */
+      posseAgora = posseDepois;
     }
 
     /* O que o cliente disse desde a última fala da MAISA: a rajada inteira, numa frase só. É
@@ -344,7 +358,7 @@ export function criarAgente(deps: Dependencias) {
      *
      * NÃO escala: escalar avisaria o dono de uma conversa que ele já está conduzindo. E não
      * responde nada ao cliente — quem responde é o dono, e ele já está lá. */
-    if (posse.assumidaEm) {
+    if (posseAgora.assumidaEm) {
       return vazia({ motivo: "conversa assumida pelo dono" });
     }
 
@@ -509,8 +523,8 @@ export function criarAgente(deps: Dependencias) {
      * não saber do próprio horário. */
     const agiu = !!estado.marcou || !!estado.escalou || trilha.some((p) => p.ferramenta === "cancelar" && !p.erro);
     if (minha && !agiu) {
-      const [ultima] = await deps.historico.ler(t, perfil.telefone, 1);
-      if (!mesmaFala(ultima, minha)) return vazia({ motivo: "rajada: chegou mensagem nova durante a resposta", trilha, voltas });
+      const agora = ultimaDoCliente(await deps.historico.ler(t, perfil.telefone, 5));
+      if (!mesmaFala(agora, minha)) return vazia({ motivo: "rajada: chegou mensagem nova durante a resposta", trilha, voltas });
     }
 
     /* ── 4. gravar o que aconteceu ──
