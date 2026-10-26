@@ -10,7 +10,10 @@
  * visível a MAISA respondendo mensagem por mensagem.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { cenario as acharCenario, RELOGIO_PADRAO } from "./cenarios";
 import { horaDecimal, viverEm } from "./relogio";
@@ -90,6 +93,30 @@ async function principal() {
   const latencias: number[] = [];
   const erros: string[] = [];
 
+  /* ── o áudio, como o WhatsApp entrega ──
+   * A fala do cliente simulado vira uma nota de voz de verdade: `say` com voz brasileira e
+   * ffmpeg para OGG/Opus, o formato do WhatsApp. Depois passa pela MESMA transcrição de
+   * produção (`saida/gemini/transcricao.ts`) e entra marcada como em produção
+   * (`textoDoAudio`). Assim o cenário mede também se a MAISA entende o que ouviu. */
+  async function ouvir(falado: string): Promise<string> {
+    const { transcreverAudio } = await import("@/adaptadores/saida/gemini/transcricao");
+    const { textoDoAudio } = await import("@/adaptadores/entrada/whatsapp/contexto");
+    const pasta = mkdtempSync(join(tmpdir(), "aval-audio-"));
+    execFileSync("say", ["-v", "Luciana", "-r", "190", "-o", join(pasta, "fala.aiff"), falado]);
+    execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", join(pasta, "fala.aiff"), "-c:a", "libopus", "-b:a", "24k", "-ar", "16000", "-ac", "1", join(pasta, "fala.ogg")]);
+    const audio = { base64: readFileSync(join(pasta, "fala.ogg")).toString("base64"), mimetype: "audio/ogg; codecs=opus" };
+    for (const espera of [3_000, 6_000, 12_000, 20_000, 0]) {
+      try {
+        return textoDoAudio(await transcreverAudio(audio));
+      } catch (e) {
+        if (!(e instanceof LimiteDoProvedor) || !espera) return textoDoAudio(null);
+        recusasDoProvedor++;
+        await dormir(espera);
+      }
+    }
+    return textoDoAudio(null);
+  }
+
   async function enviarRajada(mensagens: string[], rajada: number) {
     const pendentes: Promise<void>[] = [];
     for (let i = 0; i < mensagens.length; i++) {
@@ -101,8 +128,8 @@ async function principal() {
 
       const t0 = Date.now();
       pendentes.push(
-        mundo
-          .responder(mundo.t, { de: c.telefone, texto }, opcoes)
+        (c.audio ? ouvir(texto) : Promise.resolve(texto))
+          .then((chegou) => mundo.responder(mundo.t, { de: c.telefone, texto: chegou }, opcoes))
           .then((r) => {
             if (r.bolhas.length) latencias.push(Date.now() - t0);
             for (const b of r.bolhas) falas.push({ de: "maisa", texto: b, ms: Date.now() - inicio, rajada });
