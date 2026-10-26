@@ -13,7 +13,8 @@ a mesma chamada que marcar pelo painel, sem nada abaixo mudar. Foi.
 cliente no WhatsApp
   └─ webhook (Evolution / Cloud API) → app/api/whatsapp/route.ts   ← rota FINA
      ├─ contexto.ts ....... segredo + destino da mensagem → ContextoTenant, ator = agente
-     └─ agente.ts ......... o loop (Claude + histórico + ferramentas)
+     ├─ (áudio) ........... composicao.ouvirAudio → Evolution baixa, Gemini transcreve → "🎤 …"
+     └─ agente.ts ......... espera a rajada (4 s) → o loop (modelo + histórico + ferramentas)
         ├─ persona.ts ..... system prompt montado a partir do cadastro
         ├─ ferramentas.ts . casos de uso como tools + os guardrails de alucinação
         ├─ bolhas.ts ...... texto do modelo → mensagens curtas de WhatsApp
@@ -28,11 +29,11 @@ conhecem: encontram-se em `composicao.ts`.
 
 | Arquivo | O que faz |
 |---|---|
-| `contexto.ts` | Valida o segredo, resolve o inquilino **pelo destino da mensagem** e normaliza o envelope de três formatos de webhook |
+| `contexto.ts` | Valida o segredo, resolve o inquilino **pelo destino da mensagem**, normaliza o envelope de três formatos de webhook e diz como um áudio entra na conversa (`textoDoAudio`) |
 | `persona.ts` | Monta o system prompt em duas partes: estável (cacheável) e volátil (hoje + memória) |
 | `ferramentas.ts` | As 6 ferramentas, o executor e a camada que desconfia do modelo |
-| `bolhas.ts` | Quebra a resposta em mensagens, converte Markdown, aplica os tetos |
-| `agente.ts` | O loop: histórico → modelo → ferramenta → resposta → memória |
+| `bolhas.ts` | Quebra a resposta em mensagens, converte Markdown, põe hora e preço do jeito falado (`comoSeFala`), aplica os tetos |
+| `agente.ts` | O loop: rajada → histórico → modelo → ferramenta → resposta → memória |
 
 ## O destino da mensagem, por provedor
 
@@ -64,7 +65,7 @@ Tudo devolve `null` e a rota responde **200**: para o provedor, resposta de erro
 | `@g.us` / `@broadcast` | Grupo não é atendimento. A MAISA num grupo responderia a cada mensagem de cada participante — e o dono descobre pelo grupo da família. |
 | `@lid` sem telefone | Desde 2025 o WhatsApp entrega alguns contatos por id opaco (`69385314111689@lid`). Tratá-lo como número põe um "cliente" de telefone falso no cadastro **e** o `sendText` de volta falha com `exists: false`: a conversa roda inteira, gasta token, e a resposta não chega em ninguém. Quando vem `remoteJidAlt`/`senderPn`, usamos o telefone de lá. |
 | evento ≠ `messages.upsert` | `messages.update` (recibo de leitura) também tem `data.key`. |
-| áudio, figurinha, localização | A MAISA não lê. **Ver a dívida.** |
+| figurinha, localização, foto sem legenda | A MAISA não lê. Áudio **segue**: é transcrito (ver "Áudio"). |
 
 O nome do evento é comparado numa forma canônica porque a Evolution é inconsistente: a
 configuração usa `MESSAGES_UPSERT`, o corpo entregue traz `messages.upsert`
@@ -94,10 +95,19 @@ os dois são um pedido válido.
 
 ### O guardrail principal
 
-`agendar` só aceita um horário que saiu de `oferecer_horarios` **neste turno**. Sem
-isso, o caminho de falha é silencioso e caro: o modelo diz "tenho quinta às 15h" sem
-consultar, o cliente aceita, o núcleo não tem como saber que ninguém ofereceu 15h, o
-evento nasce em cima do almoço do dono — e todo mundo descobre na quinta.
+`agendar` só aceita um horário que saiu de `oferecer_horarios`. Sem isso, o caminho de
+falha é silencioso e caro: o modelo diz "tenho quinta às 15h" sem consultar, o cliente
+aceita, o núcleo não tem como saber que ninguém ofereceu 15h, o evento nasce em cima do
+almoço do dono — e todo mundo descobre na quinta.
+
+Até 26/10/2026 a oferta tinha que ser **do mesmo turno**. O caminho mais comum de uma
+marcação atravessa turnos (a MAISA oferece 10h30, pede o nome, o cliente responde "Lucas"),
+e a recusa obrigava o modelo a consultar e marcar de novo: duas voltas inteiras do modelo na
+hora de confirmar, medidas na bancada como 78 s até o "Pronto, Lucas!". Agora, quando o
+horário não foi ofertado neste turno, **o executor consulta `oferecer_horarios` sozinho**
+para aquele dia e profissional, e só marca se o horário voltar livre. A garantia é a mesma
+(só se marca o que a agenda de agora oferece, almoço do dono incluído); some só a volta do
+modelo.
 
 ### Idempotência sem colaboração do modelo
 
@@ -126,6 +136,44 @@ Não existe ferramenta de identificar cliente: o telefone vem do envelope e o pe
 carregado **antes** do primeiro token. Uma ferramenta a menos, e um passo que o modelo
 não pode esquecer.
 
+## A rajada
+
+Gente escreve "oi", "tudo bem?", "queria marcar", "pra sexta" em quatro mensagens, e cada
+uma chega num webhook próprio, ao mesmo tempo. Sem tratamento, a MAISA respondia as quatro:
+duas saudações seguidas, respostas que se contradiziam e, pior, dois turnos tentando marcar o
+mesmo horário — um conseguia, o outro era barrado e chamava o dono por um atendimento que
+tinha dado certo. Visto nas conversas reais e medido na bancada (`avaliacao/`).
+
+Agora a rota passa `esperaDaRajadaMs` (`ESPERA_DA_RAJADA_MS`, 4 s). Cada turno grava a fala
+do cliente, espera, e só segue se ela ainda for a **última fala da thread**; os outros saem
+calados, e o que segue lê a rajada inteira (o histórico junta falas seguidas do mesmo lado
+num turno só). Antes de enviar, ele confere de novo: se o cliente escreveu enquanto a MAISA
+pensava, a resposta é descartada e o turno da fala nova responde por tudo — **salvo se o
+turno marcou, cancelou ou chamou o dono**, porque aí a resposta é o único aviso disso.
+
+A pergunta é feita à thread (`RepositorioHistorico`), não à memória do processo: cada webhook
+pode rodar numa instância diferente da Vercel. O laboratório não passa a espera (lá uma
+pessoa manda uma mensagem e espera a resposta).
+
+## Áudio
+
+Transcrito e respondido como se a MAISA tivesse lido (decisão do Bruno, 26/10/2026). A rota
+deixa o áudio passar pelas mesmas checagens do texto e só então chama `ouvirAudio`
+(`composicao.ts`): a Evolution entrega o áudio (no próprio webhook, com `webhookBase64`
+ligado, ou por `getBase64FromMediaMessage`) e o Gemini transcreve
+(`saida/gemini/transcricao.ts`). A fala entra na thread como `🎤 <transcrição>`, então o
+dono lê na tela de Conversas o que o cliente disse. Se não der para ouvir, entra
+`🎤 (não deu para ouvir o áudio)` e a MAISA pede para a pessoa escrever — nunca o silêncio
+de antes. Só Evolution: na Cloud API da Meta, o áudio cai no aviso.
+
+## Quando o modelo não responde
+
+`LimiteDoProvedor` (429, 5xx, timeout) ganha duas novas tentativas, 2 s e 5 s depois. Se o
+provedor continuar fora, o dono é chamado com a causa e o cliente não fica num silêncio que
+ninguém vê — era o que acontecia, porque a exceção subia até a rota. Medido na bancada:
+com a chave do Gemini de plano gratuito (15 pedidos por minuto), 184 chamadas de 24
+conversas voltaram 429.
+
 ## Ser conversacional é código, não pedido
 
 O que denuncia um bot na primeira frase é o **bloco**: parágrafo, lista com marcadores,
@@ -140,6 +188,17 @@ exceção aparece.
 `bolhas.ts` também traduz Markdown, porque o WhatsApp não é Markdown: `**negrito**`
 aparece com os asteriscos duplos e `### Título` com as cerquilhas. O modelo escreve
 Markdown por hábito, e o cliente lê o hábito.
+
+E põe hora e preço do jeito falado (`comoSeFala`): "09:00" vira "9h", "14:30" vira "14h30",
+"R$ 50.00" vira "R$ 50". As ferramentas já entregam a hora falada e o prompt pede, mas o
+modelo copia o formato de onde estiver olhando, e "09:00" é a marca mais visível de que
+quem responde é um sistema.
+
+O que o prompt pede (`persona.ts`, reescrito em 26/10/2026 a partir da bancada): escrever
+como gente no WhatsApp, acompanhar o tom de quem escreve (formal com formal, leve com leve,
+calma no assunto delicado), cumprimentar só na primeira mensagem e com o período certo do
+dia (a hora agora vai no prompt), e conduzir até o horário marcado — preço vem com oferta
+de horário, "vou ver" ganha uma porta aberta. Perguntada se é robô, ela diz a verdade.
 
 ## Memória
 
@@ -280,12 +339,10 @@ botão "Assumir" prometia silêncio no toast e o webhook nunca soube — o dono 
 cliente respondia de volta, e a MAISA falava por cima dele.
 
 ## Dívida declarada
-- **⚠️ Áudio não é respondido.** Cliente que manda áudio recebe **silêncio**. A mensagem é
-  reconhecida e aparece no log (`[api/whatsapp] audio de 5511… sem legenda`), depois é
-  descartada. No Brasil áudio é como muita gente manda mensagem, então isto não é caso de
-  borda — é decisão de produto pendente, com três saídas: responder uma frase pedindo
-  texto, escalar para o dono, ou transcrever. A plumbing está pronta (`Envelope.midia`);
-  falta escolher.
+- ~~**Áudio não é respondido.**~~ **Fechada em 26/10/2026**: transcrito (ver "Áudio"). O
+  caminho até o Gemini foi provado com nota de voz OGG/Opus de verdade; o download pela
+  Evolution (`getBase64FromMediaMessage`) segue a documentação dela e ainda espera o primeiro
+  áudio real.
 - ~~**Um inquilino só.**~~ **Fechada em 14/08/2026.** `tenantPorDestino` resolve o inquilino
   em `integracoes_whatsapp` pela instância. O env (`MAISA_TENANT_ID`) sobrou para um caso e
   só um: ambiente **sem** Supabase, onde a MAISA roda em demonstração e se conversa com ela

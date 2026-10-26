@@ -926,6 +926,9 @@ export const servicos = { emissor, negocio };
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 import { criarAgente, type ResolvedorDeConfiguracao } from "@/adaptadores/entrada/whatsapp/agente";
+import { textoDoAudio, type Envelope } from "@/adaptadores/entrada/whatsapp/contexto";
+import { baixarMidia } from "@/adaptadores/saida/evolution/cliente";
+import { transcreverAudio } from "@/adaptadores/saida/gemini/transcricao";
 import { modeloGemini } from "@/adaptadores/saida/gemini/modelo-gemini";
 import { GEMINI, isGeminiConfigured } from "@/adaptadores/saida/gemini/config";
 import { criarModeloAnthropic } from "@/adaptadores/saida/anthropic/modelo-anthropic";
@@ -1029,6 +1032,32 @@ const configuracaoDoAgente: ResolvedorDeConfiguracao = async (t) => {
  * dele (a config) e virou argumento resolvido a cada mensagem. O que sobra aqui — o cliente
  * do provedor de IA, as definições de ferramenta — é igual para todo mundo. */
 let _agente: ReturnType<typeof criarAgente> | null = null;
+
+/**
+ * O que a MAISA "ouviu" num áudio do cliente, já no formato de fala da conversa.
+ *
+ * Aqui porque junta dois adaptadores que não se conhecem: a Evolution, que guarda o áudio,
+ * e o Gemini, que ouve. O base64 pode já ter vindo no webhook (`webhookBase64` ligado na
+ * instância); se não veio, baixa pela chave da mensagem.
+ *
+ * Nunca lança. Qualquer falha vira "não deu para ouvir", e a MAISA pede para a pessoa
+ * escrever: errar aqui é responder pedindo texto, nunca o silêncio de antes.
+ */
+export async function ouvirAudio(envelope: Envelope): Promise<string> {
+  try {
+    const audio =
+      envelope.audio?.base64
+        ? { base64: envelope.audio.base64, mimetype: envelope.audio.mimetype }
+        : isEvolutionConfigured && envelope.conversaId
+          ? await baixarMidia({ idDaMensagem: envelope.conversaId, instancia: envelope.instancia })
+          : null;
+    if (!audio || !isGeminiConfigured) return textoDoAudio(null);
+    return textoDoAudio(await transcreverAudio(audio));
+  } catch (e) {
+    console.error(`[composicao] não deu para ouvir o áudio de ${envelope.de}`, e);
+    return textoDoAudio(null);
+  }
+}
 
 export function agenteWhatsapp() {
   if (!_agente) {

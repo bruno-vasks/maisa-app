@@ -31,7 +31,7 @@ import type { CanalDeMensagens } from "@/nucleo/portas/saida/canal-mensagens";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import type { Escolha } from "@/nucleo/dominio/memoria";
 import { DadoInvalido, ErroDeDominio, LimiteDoProvedor, NaoEncontrado, PrecisaReconectar } from "@/nucleo/dominio/erros";
-import { hhmm, hojeISO, rotuloLongo, somarDias } from "@/nucleo/dominio/tempo";
+import { hojeISO, horaFalada, rotuloLongo, somarDias } from "@/nucleo/dominio/tempo";
 import { soDigitos } from "@/nucleo/dominio/clientes";
 import type { ConfiguracaoDoAgente } from "./persona";
 
@@ -140,10 +140,12 @@ function chaveIdempotente(...partes: string[]): string {
  * — erro silencioso de 12 minutos, que ninguém percebe até o cliente chegar.
  */
 function horaDecimal(v: unknown): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v ?? "").trim());
+  /* "15:30", "15h30", "15h" e "15": as horas chegam ao modelo como se falam ("15h30", ver
+   * `horaFalada`), e ele devolve do jeito que leu — ou do jeito que o esquema sugere. */
+  const m = /^(\d{1,2})(?:[:h](\d{2})?)?h?$/i.exec(String(v ?? "").trim());
   if (!m) return null;
   const h = Number(m[1]);
-  const min = Number(m[2]);
+  const min = Number(m[2] ?? 0);
   if (h > 23 || min > 59) return null;
   return h + min / 60;
 }
@@ -201,7 +203,7 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
         servico_id: { type: "string", description: "Id do serviço." },
         profissional_id: { type: "string", description: "Id do profissional cuja agenda recebeu a oferta." },
         data: { type: "string", description: "AAAA-MM-DD." },
-        hora: { type: "string", description: "HH:MM em 24h, exatamente como veio de oferecer_horarios (ex.: 15:30)." },
+        hora: { type: "string", description: "A hora escolhida, como veio de oferecer_horarios (ex.: 15h30)." },
         nome_cliente: { type: "string", description: "Primeiro nome, se você souber e ele ainda não estiver no cadastro." },
       },
       required: ["servico_id", "profissional_id", "data", "hora"],
@@ -216,7 +218,7 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
   {
     nome: "cancelar",
     descricao:
-      "Cancela um atendimento marcado. Só chame com um evento_id que veio de `meus_horarios`, e só depois de o cliente confirmar que quer cancelar aquele horário específico. Para remarcar: cancele e depois ofereça horários novos.",
+      "Cancela um atendimento marcado. Só chame com um evento_id que veio de `meus_horarios`, e só depois de o cliente confirmar que quer cancelar aquele horário específico. Para remarcar: ofereça e marque o horário novo primeiro, e só então cancele o antigo — assim a pessoa nunca fica sem nenhum.",
     parametros: {
       type: "object",
       properties: {
@@ -251,7 +253,7 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
   {
     nome: "chamar_humano",
     descricao:
-      "Passa a conversa para o responsável e para de responder. Chame quando: não souber a resposta e não houver ferramenta que resolva; pedirem desconto, exceção ou algo fora do seu alcance; a pessoa estiver irritada ou reclamando de atendimento; o assunto for saúde, orientação técnica ou qualquer coisa que exija julgamento profissional; ou algo der errado duas vezes. Chamar o responsável não é falha — é o comportamento certo. Depois de chamar, não escreva mais nada.",
+      "Avisa o responsável, que vai continuar a conversa. Chame quando: não souber a resposta e não houver ferramenta que resolva; pedirem desconto, exceção ou algo fora do seu alcance; a pessoa estiver irritada ou reclamando de atendimento; pedir para falar com alguém; houver sinal de risco à vida; o assunto exigir julgamento profissional; ou algo der errado duas vezes. Chamar o responsável não é falha — é o comportamento certo. Depois de chamar, diga ao cliente numa frase curta que vai falar com o responsável e já retorna.",
     parametros: {
       type: "object",
       properties: { motivo: { type: "string", description: "Uma frase para o responsável entender o que precisa dele." } },
@@ -381,7 +383,7 @@ export function criarExecutor(deps: Dependencias) {
                 duracaoMin: r.duracaoMin,
               });
             }
-            return `${rotuloLongo(d.data)} (${d.data}) com ${nomeProf(d.agendaId)} [${d.agendaId}]: ${d.horarios.map(hhmm).join(", ")}`;
+            return `${rotuloLongo(d.data)} (${d.data}) com ${nomeProf(d.agendaId)} [${d.agendaId}]: ${d.horarios.map(horaFalada).join(", ")}`;
           });
 
           return ok(
@@ -455,15 +457,41 @@ export function criarExecutor(deps: Dependencias) {
             if (await jaMarcadoPara(agendaId, data, inicio)) {
               estado.jaEstavaMarcado = true;
               return ok(
-                `Esse atendimento já está marcado: ${rotuloLongo(data)} às ${hhmm(inicio)} com ${nomeProf(agendaId)}. ` +
+                `Esse atendimento já está marcado: ${rotuloLongo(data)} às ${horaFalada(inicio)} com ${nomeProf(agendaId)}. ` +
                   "Confirme para o cliente em uma frase, sem dizer que marcou de novo.",
               );
             }
 
-            return nao(
-              "Esse horário não está entre os que você ofereceu nesta conversa, então não posso marcar. " +
-                "Chame `oferecer_horarios` para esse serviço e esse dia, confirme com o cliente um dos horários que voltarem, e só então marque.",
+            /* ── A OFERTA FOI NO TURNO ANTERIOR: a agenda confere de novo ──
+             *
+             * O caminho mais comum de uma marcação atravessa turnos: a MAISA oferece 10h30,
+             * pergunta o nome, e o cliente responde "Lucas" na mensagem seguinte. Aqui,
+             * `ofertas` nasceu vazio, e a recusa obrigava o modelo a chamar
+             * `oferecer_horarios` e `agendar` de novo — duas voltas inteiras do modelo no
+             * momento da confirmação. Medido na bancada (`avaliacao/`) em 26/10/2026: o
+             * "Pronto, Lucas!" chegava 78 s depois do nome.
+             *
+             * Então quem consulta é o próprio executor, com a mesma pergunta que gerou a
+             * oferta (aquele dia, aquele profissional; `espalhar` devolve os mesmos horários
+             * enquanto a agenda não muda). A garantia continua a mesma de sempre: só se marca
+             * horário que saiu de `oferecer_horarios`, contra a agenda de AGORA — almoço e
+             * compromisso do dono incluídos. O que deixa de existir é só a volta do modelo.
+             * Se a agenda mudou e o horário saiu da lista, a recusa abaixo vale como antes. */
+            const deNovo = await deps
+              .oferecerHorarios(t, { servicoId, agendaId, de: data, dias: 1 })
+              .catch(() => null);
+            const aindaLivre = deNovo?.dias.some(
+              (d) => d.data === data && d.agendaId === agendaId && d.horarios.some((h) => Math.abs(h - inicio) < 1e-6),
             );
+            if (!aindaLivre) {
+              return nao(
+                "Esse horário não está livre entre os que a agenda oferece agora, então não posso marcar. " +
+                  "Chame `oferecer_horarios` para esse serviço e esse dia, confirme com o cliente um dos horários que voltarem, e só então marque.",
+              );
+            }
+            estado.ofertas.set(chaveOferta(servicoId, agendaId, data, inicio), {
+              agendaId, data, inicio, servicoId, duracaoMin: deNovo!.duracaoMin,
+            });
           }
 
           if (entrada.nome_cliente) {
@@ -495,11 +523,11 @@ export function criarExecutor(deps: Dependencias) {
           // Só agora o fato é real. Ver `EstadoDoTurno.marcou`.
           estado.marcou = { data, inicio, profissionalId: agendaId, servicoId };
 
-          const quando = `${rotuloLongo(data)} às ${hhmm(inicio)} com ${nomeProf(agendaId)}`;
+          const quando = `${rotuloLongo(data)} às ${horaFalada(inicio)} com ${nomeProf(agendaId)}`;
           return ok(
             r.situacao === "ja_existia"
               ? `Esse atendimento já estava marcado: ${quando}. Confirme para o cliente sem dizer que marcou duas vezes.`
-              : `Marcado: ${nomeServico(servicoId)}, ${quando}. Confirme em uma mensagem curta.`,
+              : `Marcado: ${nomeServico(servicoId)}, ${quando}. Confirme numa frase curta, do jeito falado ("Pronto! Quinta às 15h com o Rafael."), e pare.`,
           );
         }
 
@@ -529,7 +557,7 @@ export function criarExecutor(deps: Dependencias) {
             eventos
               .map(
                 ({ e, agendaId }) =>
-                  `${rotuloLongo(e.data)} (${e.data}) às ${hhmm(e.inicio)} · ${e.maisa!.servicoNome} com ${nomeProf(agendaId)} · evento_id: ${e.eventoId} · profissional_id: ${agendaId}`,
+                  `${rotuloLongo(e.data)} (${e.data}) às ${horaFalada(e.inicio)} · ${e.maisa!.servicoNome} com ${nomeProf(agendaId)} · evento_id: ${e.eventoId} · profissional_id: ${agendaId}`,
               )
               .join("\n"),
           );
@@ -541,7 +569,10 @@ export function criarExecutor(deps: Dependencias) {
             agendaId: String(entrada.profissional_id ?? ""),
             eventoId: String(entrada.evento_id ?? ""),
           });
-          return ok("Cancelado. Avise o cliente em uma frase e pergunte se quer remarcar.");
+          return ok(
+            "Cancelado. Se era uma remarcação e o horário novo já está marcado, confirme o novo numa frase. " +
+              "Se era só cancelamento, avise numa frase e deixe a porta aberta para marcar outro dia, sem insistir.",
+          );
         }
 
         /* ── memória ── */
@@ -615,7 +646,10 @@ export function criarExecutor(deps: Dependencias) {
           /* Devolve a FRASE FINAL que o cliente vai ver. O modelo não escreve mais
            * nada depois disto (o loop encerra) — então esta é a última palavra da
            * MAISA, e ela não pode prometer prazo que ninguém garantiu. */
-          return ok("Responsável avisado. Diga ao cliente que você vai confirmar com a equipe e já volta — e nada além disso.");
+          return ok(
+            "Responsável avisado. Diga ao cliente, numa frase curta, que vai falar com o responsável e já retorna. " +
+              "Se a pessoa está sofrendo ou em risco, o acolhimento e o CVV (188) continuam na mensagem.",
+          );
         }
 
         default:

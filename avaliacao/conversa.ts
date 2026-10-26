@@ -43,6 +43,10 @@ async function principal() {
   const { criarModeloClaudeCli } = await import("./modelo-claude-cli");
   const { proximaRajada } = await import("./cliente");
   const { julgar, medir } = await import("./juiz");
+  /* A mesma espera da rajada que a rota do WhatsApp usa. Código antigo sem a constante
+   * cai em `undefined`, que é "responde na hora": dá para rodar a bancada contra ele. */
+  const agente: { ESPERA_DA_RAJADA_MS?: number } = await import("@/adaptadores/entrada/whatsapp/agente");
+  const opcoes = { esperaDaRajadaMs: agente.ESPERA_DA_RAJADA_MS };
 
   const medidor = criarMedidor();
   const [provedor, nomeDoModelo] = tarefa.modelo.split(/:(.+)/);
@@ -56,7 +60,30 @@ async function principal() {
     throw new Error(`modelo desconhecido: ${tarefa.modelo}`);
   }
 
-  const mundo = await criarMundo(c, { modelo });
+  /* Paciência com o "agora não" do provedor, MAIOR que a do agente em produção. A bancada
+   * roda várias conversas ao mesmo tempo e estoura a cota da chave de um jeito que um
+   * negócio de verdade não estoura; sem isto a nota mediria a cota, não a conversa. As
+   * recusas são contadas e saem no resultado. */
+  const { LimiteDoProvedor } = await import("@/nucleo/dominio/erros");
+  let recusasDoProvedor = 0;
+  const doProvedor = modelo;
+  const paciente: typeof modelo = {
+    nome: doProvedor.nome,
+    async conversar(p) {
+      for (const espera of [3_000, 6_000, 12_000, 20_000, 30_000, 0]) {
+        try {
+          return await doProvedor.conversar(p);
+        } catch (e) {
+          if (!(e instanceof LimiteDoProvedor) || !espera) throw e;
+          recusasDoProvedor++;
+          await dormir(espera);
+        }
+      }
+      throw new Error("inalcançável");
+    },
+  };
+
+  const mundo = await criarMundo(c, { modelo: paciente });
   const inicio = Date.now();
   const falas: import("./cliente").Fala[] = [];
   const trilha: import("./juiz").PassoGravado[] = [];
@@ -75,7 +102,7 @@ async function principal() {
       const t0 = Date.now();
       pendentes.push(
         mundo
-          .responder(mundo.t, { de: c.telefone, texto })
+          .responder(mundo.t, { de: c.telefone, texto }, opcoes)
           .then((r) => {
             if (r.bolhas.length) latencias.push(Date.now() - t0);
             for (const b of r.bolhas) falas.push({ de: "maisa", texto: b, ms: Date.now() - inicio, rajada });
@@ -128,6 +155,7 @@ async function principal() {
         medidas,
         nota,
         custo: medidor.total(),
+        recusasDoProvedor,
         erros,
         duracaoMs: Date.now() - inicio,
       },

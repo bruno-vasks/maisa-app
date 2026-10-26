@@ -109,6 +109,18 @@ export const hhmm = (v: number) => {
   return `${p2(h)}:${p2(m)}`;
 };
 
+/**
+ * Hora decimal → como se fala no Brasil. 9 → "9h", 10.5 → "10h30".
+ *
+ * É a forma que a MAISA usa com o cliente. "09:00" é formato de sistema, e numa conversa
+ * de WhatsApp é a marca mais visível de que quem responde é um programa.
+ */
+export const horaFalada = (v: number) => {
+  const h = Math.floor(v);
+  const m = Math.round((v - h) * 60);
+  return m ? `${h}h${p2(m)}` : `${h}h`;
+};
+
 /* ───────────────────────────── hoje ───────────────────────────── */
 
 /**

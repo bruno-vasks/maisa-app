@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rotuloDaCompetencia, rotuloDoMes } from "./tempo";
+import { horaFalada, rotuloDaCompetencia, rotuloDoMes } from "./tempo";
 
 describe("rotuloDoMes", () => {
   it("dia ou mês ISO viram o mês por extenso", () => {
@@ -20,5 +20,16 @@ describe("rotuloDaCompetencia", () => {
   it("duas competências: do primeiro ao último mês", () => {
     expect(rotuloDaCompetencia(["2026-09-01", "2026-08-01"], "2026-09-24")).toBe("agosto a setembro de 2026");
     expect(rotuloDaCompetencia(["2025-12-01", "2026-01-01"], "2026-01-10")).toBe("dezembro de 2025 a janeiro de 2026");
+  });
+});
+
+describe("horaFalada", () => {
+  it("hora cheia sem minutos, e sem zero à esquerda", () => {
+    expect(horaFalada(9)).toBe("9h");
+    expect(horaFalada(14)).toBe("14h");
+  });
+  it("minutos depois do h", () => {
+    expect(horaFalada(10.5)).toBe("10h30");
+    expect(horaFalada(8.25)).toBe("8h15");
   });
 });

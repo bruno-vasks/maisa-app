@@ -16,7 +16,9 @@ Cumpre a porta [`ModeloDeConversa`](../../../nucleo/portas/saida/modelo-conversa
 | Arquivo | O que faz |
 |---|---|
 | `config.ts` | `GEMINI_API_KEY`, `GEMINI_MODELO`, `GEMINI_BASE_URL`, `GEMINI_TIMEOUT_MS` e `isGeminiConfigured` |
-| `modelo-gemini.ts` | o adaptador: monta o `contents`, chama a REST, traduz a volta |
+| `modelo-gemini.ts` | o adaptador: monta o `contents`, chama a REST, traduz a volta. `criarModeloGemini(modelo)` é a fábrica (a bancada `avaliacao/` compara modelos com ela); `modeloGemini` é o do ambiente |
+| `transcricao.ts` | `transcreverAudio`: a nota de voz do cliente (OGG/Opus do WhatsApp, direto em `inlineData`) vira texto. Modelo em `GEMINI_MODELO_TRANSCRICAO`, padrão `gemini-3.5-flash-lite` |
+| `embedding.ts` | o vetor das respostas prontas e das perguntas (`responder_duvidas`) |
 
 ## REST com `fetch`, sem SDK
 
@@ -52,6 +54,19 @@ de qualidade é `GEMINI_MODELO=gemini-3.6-flash`, sem deploy. Hoje roda
 data de hoje fica no volátil, **depois**. Cache de prompt é casamento de prefixo: com a data no
 topo, o prefixo mudaria à meia-noite e o catálogo inteiro seria reprocessado a preço cheio a
 cada mensagem.
+
+## ⚠️ A chave de hoje é de PLANO GRATUITO
+
+Medido em 26/10/2026 pela bancada de conversas: o 429 do Gemini diz
+`generate_content_free_tier_requests, limit: 15` — **15 pedidos por minuto** no
+`gemini-3.5-flash-lite`, somando todos os negócios. Uma resposta da MAISA usa de 2 a 4
+pedidos, então dá uns 4 a 7 turnos por minuto no produto inteiro; acima disso o cliente
+fica sem resposta (agora o agente tenta de novo e, se não der, chama o dono). Cada chamada
+também levou de 8 a 17 s, inclusive um "diga oi".
+
+E no plano gratuito o Google pode usar o que entra e sai da API para melhorar os produtos
+dele. Para conversa de paciente de psicólogo, isso não serve. Produção precisa de chave
+com faturamento (ou do adaptador da Anthropic) antes de qualquer cliente de verdade.
 
 ## Erros que ele traduz
 

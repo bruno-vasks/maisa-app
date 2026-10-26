@@ -46,6 +46,20 @@ function paraWhatsapp(s: string): string {
     .trim();
 }
 
+/**
+ * Hora e dinheiro como se escreve numa conversa: "09:00" → "9h", "14:30" → "14h30",
+ * "R$ 50.00" → "R$ 50".
+ *
+ * O prompt pede e as ferramentas já entregam a hora falada (`horaFalada`), mas o modelo
+ * copia o formato de onde estiver olhando (a grade do negócio, por exemplo, é "08:00–20:00")
+ * — e "09:00" é a marca mais visível de que quem responde é um sistema. Aqui é garantia.
+ */
+export function comoSeFala(s: string): string {
+  return s
+    .replace(/\b([01]?\d|2[0-3]):([0-5]\d)h?\b/g, (_, h: string, m: string) => `${Number(h)}h${m === "00" ? "" : m}`)
+    .replace(/R\$\s?(\d+)\.(\d{2})\b/g, (_, r: string, c: string) => (c === "00" ? `R$ ${r}` : `R$ ${r},${c}`));
+}
+
 /** Quebra num limite de FRASE, não de caractere. Cortar no meio de "quinta às
  *  15h" produziria duas bolhas sem sentido nenhuma das duas. */
 function porFrase(texto: string, limite: number): string[] {
@@ -80,7 +94,7 @@ function porFrase(texto: string, limite: number): string[] {
  * nos outros 5%, o cliente lê o marcador.
  */
 export function bolhas(texto: string): string[] {
-  const brutas = paraWhatsapp(texto)
+  const brutas = comoSeFala(paraWhatsapp(texto))
     .split(/\n\s*\n+/)
     .flatMap((b) => porFrase(b.replace(/\n+/g, " ").trim(), MAX_CHARS))
     .filter((b) => b.length > 0);

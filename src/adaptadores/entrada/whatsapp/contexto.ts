@@ -333,9 +333,9 @@ async function tenantPorDestino(envelope: Envelope): Promise<Resolvido> {
  * depender de nenhum dos dois: o resto do adaptador fala `MensagemRecebida`. Ficar
  * tolerante aqui é o que permite trocar de provedor sem tocar no agente. */
 
-/** O que não é texto. Não respondemos a isso hoje — mas o tipo VIAJA até a rota para
- *  que o descarte apareça no log com nome ("ignorado: audio") em vez de virar silêncio.
- *  Áudio é o caso que mais vai acontecer no Brasil; ver o LEIA-ME desta pasta. */
+/** O que não é texto. O tipo VIAJA até a rota: áudio é transcrito e respondido (desde
+ *  26/10/2026); o resto é descartado com nome no log ("ignorado: figurinha") em vez de
+ *  virar silêncio sem rastro. Ver o LEIA-ME desta pasta. */
 export type Midia = "audio" | "imagem" | "video" | "documento" | "figurinha" | "localizacao" | "contato" | "reacao";
 
 export type Envelope = {
@@ -349,11 +349,27 @@ export type Envelope = {
   conversaId?: string;
   /** Presente quando a mensagem não era (só) texto. */
   midia?: Midia;
+  /** O áudio, quando `midia` é "audio": o tipo, e o conteúdo se o webhook já o trouxe
+   *  (`webhookBase64` ligado na instância). Sem conteúdo, quem ouve baixa pela
+   *  `conversaId`. Ver `ouvirAudio` em `composicao.ts`. */
+  audio?: { mimetype: string; base64?: string };
   /** O `…@lid` cru, quando a mensagem chegou assim. Ver `MensagemRecebida.jid`. */
   jid?: string;
 };
 
 const texto = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/**
+ * Como um áudio entra na conversa: a transcrição, marcada com 🎤.
+ *
+ * A marca serve aos dois que leem a thread. O modelo sabe que aquilo foi falado (e o
+ * prompt diz o que fazer com isso, ver `persona.ts`); o dono, na tela de Conversas, vê que
+ * o cliente mandou áudio e lê o que ele disse. Sem transcrição (o áudio não baixou, ou não
+ * tinha fala), a marca vem com o aviso, e a MAISA pede para a pessoa escrever em vez de
+ * ficar em silêncio — que era o comportamento até 26/10/2026.
+ */
+export const textoDoAudio = (transcrito: string | null): string =>
+  transcrito ? `🎤 ${transcrito}` : "🎤 (não deu para ouvir o áudio)";
 
 /**
  * A Evolution é inconsistente no nome do evento: a documentação e a configuração usam
@@ -379,7 +395,7 @@ const telefoneDoJid = (jid: string) => digitos(jid.split("@")[0]?.split(":")[0] 
  * `imageMessage.caption` se ele mandou foto escrevendo em cima. Ler só `conversation`
  * funciona no teste e perde uma fatia grande da conversa real — sem erro nenhum no log.
  */
-function conteudo(m: any, profundidade = 0): { texto: string; midia?: Midia } {
+function conteudo(m: any, profundidade = 0): { texto: string; midia?: Midia; audio?: Envelope["audio"] } {
   if (!m || profundidade > 4) return { texto: "" };
 
   // Embrulhos: a mensagem real está uma camada abaixo.
@@ -412,7 +428,16 @@ function conteudo(m: any, profundidade = 0): { texto: string; midia?: Midia } {
   if (m.imageMessage) return { texto: texto(m.imageMessage.caption), midia: "imagem" };
   if (m.videoMessage) return { texto: texto(m.videoMessage.caption), midia: "video" };
   if (m.documentMessage) return { texto: texto(m.documentMessage.caption), midia: "documento" };
-  if (m.audioMessage) return { texto: "", midia: "audio" };
+  if (m.audioMessage) {
+    return {
+      texto: "",
+      midia: "audio",
+      audio: {
+        mimetype: texto(m.audioMessage.mimetype) || "audio/ogg",
+        base64: texto(m.base64) || undefined,
+      },
+    };
+  }
   if (m.stickerMessage) return { texto: "", midia: "figurinha" };
   if (m.locationMessage || m.liveLocationMessage) return { texto: "", midia: "localizacao" };
   if (m.contactMessage || m.contactsArrayMessage) return { texto: "", midia: "contato" };
@@ -517,7 +542,7 @@ export function normalizar(corpo: any): Envelope | null {
     const de = telefoneDoJid(jidDoCliente);
     if (!de) return null;
 
-    const { texto: falado, midia } = conteudo(d.message);
+    const { texto: falado, midia, audio } = conteudo(d.message);
 
     return {
       de,
@@ -532,6 +557,7 @@ export function normalizar(corpo: any): Envelope | null {
       texto: falado,
       conversaId: texto(d.key.id) || undefined,
       midia,
+      audio,
     };
   }
 

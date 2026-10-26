@@ -37,6 +37,8 @@ export const PRECO_GEMINI: Record<string, [number, number, number]> = {
   "gemini-3.6-flash": [1.5, 0.15, 7.5],
 };
 
+let recusasLogadas = 0;
+
 /** Escuta o `fetch` e soma o uso de cada `generateContent` do Gemini no medidor. */
 export function medirGemini(medidor: Medidor) {
   const original = globalThis.fetch;
@@ -46,6 +48,11 @@ export function medirGemini(medidor: Medidor) {
     const r = await original(entrada, init);
     const m = url.match(/models\/([^:]+):generateContent/);
     if (!m) return r;
+    if (r.status === 429 || r.status >= 500) {
+      /* O corpo diz QUAL limite estourou (por minuto, por dia, de tokens ou de pedidos). */
+      if (recusasLogadas++ < 3) console.error(`[gemini ${r.status}] ${(await r.clone().text()).replace(/\s+/g, " ").slice(0, 500)}`);
+      return r;
+    }
     try {
       const j = await r.clone().json();
       const u = j?.usageMetadata ?? {};

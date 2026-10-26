@@ -263,6 +263,26 @@ export function enviarDocumento(p: {
 }
 
 /**
+ * O conteúdo de uma mídia RECEBIDA (26/10/2026: o áudio do cliente, para transcrever).
+ *
+ * `POST /chat/getBase64FromMediaMessage/{instância}` com a chave da mensagem. A Evolution
+ * baixa do WhatsApp e devolve base64 + mimetype. Só funciona enquanto ela guarda a
+ * mensagem, que é o caso de quem acabou de chegar pelo webhook.
+ *
+ * Quando a instância está com `webhookBase64` ligado, o base64 já vem no próprio webhook
+ * (`data.message.base64`) e esta chamada nem acontece. Ver `ouvirAudio` em `composicao.ts`.
+ */
+export async function baixarMidia(p: { idDaMensagem: string; instancia?: string }): Promise<{ base64: string; mimetype: string }> {
+  const data = await exigir(`/chat/getBase64FromMediaMessage/${p.instancia ? encodeURIComponent(p.instancia) : inst()}`, {
+    corpo: { message: { key: { id: p.idDaMensagem } }, convertToMp4: false },
+    timeoutMs: Math.max(EVOLUTION.timeoutMs, 20_000),
+  });
+  const base64 = typeof data?.base64 === "string" ? data.base64 : "";
+  if (!base64) throw new FalhaDoProvedor("A Evolution não devolveu o conteúdo da mídia.");
+  return { base64, mimetype: typeof data?.mimetype === "string" ? data.mimetype : "audio/ogg" };
+}
+
+/**
  * "digitando…" por `delayMs`. Disponível, mas fora do caminho normal de envio — ver a
  * nota em `canal-evolution.ts` sobre por que o ritmo vem do `delay` do sendText.
  *

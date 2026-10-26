@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { agenteConfigurado, agenteWhatsapp, app } from "@/composicao";
+import { agenteConfigurado, agenteWhatsapp, app, ouvirAudio } from "@/composicao";
 import { hojeISO } from "@/nucleo/dominio/tempo";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { contextoDaMensagem, normalizar, numeroPermitido, SEGREDO } from "@/adaptadores/entrada/whatsapp/contexto";
+import { ESPERA_DA_RAJADA_MS } from "@/adaptadores/entrada/whatsapp/agente";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WEBHOOK DO WHATSAPP — a porta por onde o cliente fala com a MAISA.
@@ -83,11 +84,13 @@ export async function POST(request: Request) {
    * 200 e não 4xx: para o provedor, resposta de erro significa "tente de novo", e ele
    * reentrega o mesmo evento em loop. Aceitar e ignorar é o contrato certo. */
   const envelope = normalizar(corpo);
-  if (!envelope || !envelope.texto.trim()) {
+  /* Áudio sem texto SEGUE: é transcrito mais abaixo, depois das checagens que decidem se a
+   * MAISA responde (transcrever custa modelo, e não se gasta modelo com quem ela não atende). */
+  const ehAudio = envelope?.midia === "audio" && !envelope.texto.trim();
+  if (!envelope || (!envelope.texto.trim() && !ehAudio)) {
     /* O tipo de mídia entra no log de propósito. "Ignorado" sem qualificação é o
-     * relatório que esconde o problema: o cliente mandou áudio (o que mais acontece no
-     * Brasil), ficou esperando, e do nosso lado não há nem sinal de que ele falou.
-     * Enquanto a MAISA não trata áudio, que ao menos apareça que ela recebeu um. */
+     * relatório que esconde o problema: o cliente mandou uma figurinha ou uma foto sem
+     * legenda, ficou esperando, e do nosso lado não há nem sinal de que ele escreveu. */
     if (envelope?.midia) {
       console.warn(`[api/whatsapp] ${envelope.midia} de ${envelope.de} sem legenda — a MAISA não responde a isso hoje.`);
       return NextResponse.json({ ok: true, ignorado: true, motivo: envelope.midia });
@@ -136,8 +139,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignorado: true, motivo: "assinatura_vencida" });
   }
 
+  /* ── 6. áudio vira fala ──
+   * A transcrição entra na conversa como se o cliente tivesse escrito, marcada com 🎤.
+   * Ver `ouvirAudio`: nunca lança, e no pior caso a MAISA pede para a pessoa escrever. */
+  if (ehAudio) envelope.texto = await ouvirAudio(envelope);
+
   try {
-    const resposta = await agenteWhatsapp()(resolucao.tenant, { de: envelope.de, texto: envelope.texto, jid: envelope.jid });
+    /* A espera da rajada é coisa do canal: no WhatsApp a pessoa manda três mensagens
+     * seguidas, e cada uma chega aqui num webhook próprio. Ver `ESPERA_DA_RAJADA_MS`. */
+    const resposta = await agenteWhatsapp()(
+      resolucao.tenant,
+      { de: envelope.de, texto: envelope.texto, jid: envelope.jid },
+      { esperaDaRajadaMs: ESPERA_DA_RAJADA_MS },
+    );
 
     /* As bolhas voltam no corpo. Em produção quem entrega é o `CanalDeMensagens` (o
      * agente já chamou); aqui elas servem para conversar com a MAISA por `curl` e

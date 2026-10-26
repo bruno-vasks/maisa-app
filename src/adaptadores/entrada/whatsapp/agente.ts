@@ -38,6 +38,7 @@ import type {
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import type { Msg } from "@/nucleo/dominio/conversas";
 import { hojeISO } from "@/nucleo/dominio/tempo";
+import { FalhaDoProvedor, LimiteDoProvedor } from "@/nucleo/dominio/erros";
 
 import { bolhas, limparEntrada } from "./bolhas";
 import { criarExecutor, FERRAMENTAS, novoEstado, type Dependencias as DepsFerramentas } from "./ferramentas";
@@ -124,13 +125,73 @@ export type Dependencias = DepsFerramentas & {
 
 /** `Msg` do domínio → turnos da porta. "voce" (o dono assumiu) entra como assistente:
  *  para o cliente foi a mesma voz, e fingir que aquilo não foi dito faria a MAISA
- *  contradizer o próprio dono. */
-const paraTurnos = (msgs: Msg[]): TurnoDeConversa[] =>
-  msgs.map((m) =>
-    m.de === "cliente"
-      ? { papel: "cliente", texto: m.txt }
-      : { papel: "assistente", texto: m.txt },
-  );
+ *  contradizer o próprio dono.
+ *
+ *  Falas seguidas do mesmo lado viram UM turno. Do cliente, porque "oi" / "queria marcar" /
+ *  "pra sexta" é uma pergunta só, escrita em três mensagens; da MAISA, porque as bolhas de
+ *  uma resposta foram uma fala só, e voltam separadas por linha em branco, que é como o
+ *  modelo as escreveu (ver `bolhas.ts`). */
+export const paraTurnos = (msgs: Msg[]): TurnoDeConversa[] => {
+  const turnos: { papel: "cliente" | "assistente"; texto: string }[] = [];
+  for (const m of msgs) {
+    const papel = m.de === "cliente" ? "cliente" : "assistente";
+    const ultimo = turnos[turnos.length - 1];
+    if (ultimo?.papel === papel) ultimo.texto += papel === "cliente" ? `\n${m.txt}` : `\n\n${m.txt}`;
+    else turnos.push({ papel, texto: m.txt });
+  }
+  return turnos;
+};
+
+/** A mesma linha da thread? `em` vem do banco, então duas mensagens iguais em instantes
+ *  diferentes não se confundem. */
+const mesmaFala = (a: Msg | undefined, b: Msg | undefined) =>
+  !!a && !!b && a.de === b.de && a.txt === b.txt && a.em === b.em;
+
+/**
+ * Quanto esperar por mais mensagens antes de responder, no WhatsApp.
+ *
+ * ⚠️ EXISTE POR CAUSA DA RAJADA, medida nas conversas reais e na bancada (`avaliacao/`).
+ * Gente escreve "oi", "tudo bem?", "queria marcar", "pra sexta" em quatro mensagens, e cada
+ * uma chega num webhook próprio, ao mesmo tempo. Sem espera, a MAISA respondia as quatro:
+ * duas saudações seguidas, respostas que se contradiziam ("qual seu nome?" e "com o Zé ou
+ * com o Rafael?" juntas) e, pior, dois turnos tentando marcar o mesmo horário — um conseguia,
+ * o outro era barrado pela allowlist de ofertas e chamava o dono por um atendimento que
+ * tinha dado certo.
+ *
+ * Quatro segundos é o intervalo entre mensagens curtas de quem está digitando. Quem para de
+ * escrever recebe UMA resposta, para tudo o que escreveu.
+ */
+export const ESPERA_DA_RAJADA_MS = 4_000;
+
+export type OpcoesDoTurno = {
+  /** Espera por mais mensagens antes de responder. 0 (padrão) responde na hora: é o caso
+   *  do laboratório, onde uma pessoa manda uma mensagem e espera a resposta. */
+  esperaDaRajadaMs?: number;
+};
+
+const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Esperas entre as tentativas quando o provedor responde "agora não" (`LimiteDoProvedor`:
+ * 429, 5xx, timeout).
+ *
+ * ⚠️ MEDIDO NA BANCADA EM 26/10/2026: com a chave do Gemini em uso, 184 chamadas de 24
+ * conversas voltaram 429 quando várias conversas rodavam juntas, e cada uma virou silêncio
+ * para o cliente — a exceção subia até a rota, que responde 200 e não manda nada. Duas
+ * novas tentativas curtas cobrem o pico; a soma (2s + 5s) cabe no `maxDuration` da rota.
+ */
+const ESPERAS_DO_PROVEDOR_MS = [2_000, 5_000];
+
+async function conversarComPaciencia(modelo: ModeloDeConversa, pedido: Parameters<ModeloDeConversa["conversar"]>[0]) {
+  for (let tentativa = 0; ; tentativa++) {
+    try {
+      return await modelo.conversar(pedido);
+    } catch (e) {
+      if (!(e instanceof LimiteDoProvedor) || tentativa >= ESPERAS_DO_PROVEDOR_MS.length) throw e;
+      await dormir(ESPERAS_DO_PROVEDOR_MS[tentativa]);
+    }
+  }
+}
 
 /**
  * O prompt estável, memorizado por inquilino.
@@ -165,7 +226,11 @@ function promptEstavel(tenantId: string, config: ConfiguracaoDoAgente): string {
 export function criarAgente(deps: Dependencias) {
   const executar = criarExecutor(deps);
 
-  return async function responder(t: ContextoTenant, recebida: MensagemRecebida): Promise<RespostaDoAgente> {
+  return async function responder(
+    t: ContextoTenant,
+    recebida: MensagemRecebida,
+    opcoes: OpcoesDoTurno = {},
+  ): Promise<RespostaDoAgente> {
     const vazia = (extra: Partial<RespostaDoAgente> = {}): RespostaDoAgente => ({
       bolhas: [], escalou: false, trilha: [], modelo: deps.modelo.nome, voltas: 0, ...extra,
     });
@@ -228,6 +293,36 @@ export function criarAgente(deps: Dependencias) {
      * Conversas ser um retrato do WhatsApp em vez de um retrato dos turnos bem-sucedidos. */
     await deps.historico.anexar(t, perfil.telefone, [{ de: "cliente", txt: texto }]);
 
+    /* ── 1b'. A RAJADA: só responde quem chegou por último ──
+     *
+     * Ver `ESPERA_DA_RAJADA_MS`. Cada mensagem de uma rajada roda este turno ao mesmo tempo;
+     * todas esperam, e só segue a que ainda for a última fala da thread depois da espera. As
+     * outras saem caladas: a que segue lê a thread inteira e responde por todas.
+     *
+     * A pergunta é feita à THREAD, e não à memória do processo, porque cada webhook pode
+     * rodar numa instância diferente da Vercel. A fala do cliente já foi gravada (1b), então
+     * a thread é o único lugar que todas as instâncias enxergam. */
+    const espera = opcoes.esperaDaRajadaMs ?? 0;
+    let minha: Msg | undefined;
+    let thread = anteriores;
+    if (espera > 0) {
+      [minha] = await deps.historico.ler(t, perfil.telefone, 1);
+      if (!minha || minha.de !== "cliente" || minha.txt !== texto) {
+        return vazia({ motivo: "rajada: outra mensagem do cliente chegou junto" });
+      }
+      await dormir(espera);
+      const [ultima] = await deps.historico.ler(t, perfil.telefone, 1);
+      if (!mesmaFala(ultima, minha)) return vazia({ motivo: "rajada: o cliente continuou escrevendo" });
+      /* A thread de novo, agora com a rajada inteira; a fala deste turno é a última dela. */
+      thread = (await deps.historico.ler(t, perfil.telefone, HISTORICO + 1)).slice(0, -1);
+    }
+
+    /* O que o cliente disse desde a última fala da MAISA: a rajada inteira, numa frase só. É
+     * isso que a regra de quem atender precisa ler — "pra sexta" sozinho não é pedido de
+     * horário; "oi / queria marcar corte / pra sexta" é. */
+    const ultimaDaMaisa = thread.map((m) => m.de !== "cliente").lastIndexOf(true);
+    const rajada = [...thread.slice(ultimaDaMaisa + 1).map((m) => m.txt), texto].join("\n");
+
     /* ── 1c. a MAISA está ligada? ──
      * Guardrail de produto: o dono pode desligar a assistente na tela "A MAISA".
      * Desligada significa desligada — nem uma mensagem de "estou fora do ar", que já
@@ -271,8 +366,8 @@ export function criarAgente(deps: Dependencias) {
     const atendimento = await deps.avaliarAtendimento(t, {
       telefone: perfil.telefone,
       jid: recebida.jid,
-      anteriores,
-      texto,
+      anteriores: thread,
+      texto: rajada,
     });
     if (!atendimento.pode) {
       console.info(`[whatsapp/agente] silêncio para ${perfil.telefone} no inquilino ${t.tenantId}: ${atendimento.motivo}`);
@@ -287,8 +382,14 @@ export function criarAgente(deps: Dependencias) {
      * escolheu ("Fernanda cabelo", "João pneu"). */
     if (!perfil.nome && atendimento.nome) perfil.nome = atendimento.nome;
 
-    const sistemaVolatil = parteDoCliente({ perfil, hojeISO: hojeISO() });
-    const turnos: TurnoDeConversa[] = [...paraTurnos(anteriores), { papel: "cliente", texto }];
+    const sistemaVolatil = parteDoCliente({
+      perfil,
+      hojeISO: hojeISO(),
+      agoraISO: new Date().toISOString(),
+      servicos: config.servicos,
+      profissionais: config.profissionais,
+    });
+    const turnos: TurnoDeConversa[] = paraTurnos([...thread, { de: "cliente", txt: texto }]);
 
     const estado = novoEstado();
     const trilha: PassoDaTrilha[] = [];
@@ -297,13 +398,26 @@ export function criarAgente(deps: Dependencias) {
 
     /* ── 2. o loop ── */
     for (voltas = 1; voltas <= MAX_VOLTAS; voltas++) {
-      const resposta = await deps.modelo.conversar({
-        sistemaEstavel: promptEstavel(t.tenantId, config),
-        sistemaVolatil,
-        ferramentas: FERRAMENTAS,
-        turnos,
-        maxTokens: MAX_TOKENS,
-      });
+      let resposta: Awaited<ReturnType<ModeloDeConversa["conversar"]>>;
+      try {
+        resposta = await conversarComPaciencia(deps.modelo, {
+          sistemaEstavel: promptEstavel(t.tenantId, config),
+          sistemaVolatil,
+          ferramentas: FERRAMENTAS,
+          turnos,
+          maxTokens: MAX_TOKENS,
+        });
+      } catch (e) {
+        /* O provedor não respondeu nem depois de esperar. Antes, a exceção subia até a rota
+         * e o cliente ficava sem resposta, sem ninguém saber: o pior modo de falha deste
+         * canal (ver o passo 0). Agora o dono é chamado com a causa, como quando o cadastro
+         * não carrega. Erro que não é do provedor continua subindo: é bug, e bug tem que
+         * aparecer. */
+        if (!(e instanceof LimiteDoProvedor) && !(e instanceof FalhaDoProvedor)) throw e;
+        console.error(`[whatsapp/agente] o modelo não respondeu (inquilino ${t.tenantId}): ${e.message}`);
+        await deps.canal.escalar(t, { telefone: perfil.telefone, motivo: `a MAISA ficou sem resposta do modelo de IA: ${e.message}` });
+        return vazia({ escalou: true, motivo: "modelo indisponível", trilha, voltas });
+      }
 
       /* Recusa do classificador de segurança do provedor. Não é erro de código e não se
        * resolve tentando de novo. O cliente não pode receber a recusa (ele mandou uma
@@ -385,6 +499,19 @@ export function criarAgente(deps: Dependencias) {
     }
 
     const saida = bolhas(ultimoTexto);
+
+    /* ── 3c. O CLIENTE ESCREVEU DE NOVO ENQUANTO ELA PENSAVA ──
+     *
+     * Se chegou fala nova depois da que este turno respondeu, a resposta já nasceu velha: o
+     * turno da fala nova está esperando e vai ler a thread inteira. Mandar esta também seria
+     * responder duas vezes. Descarta, salvo se o turno MUDOU O MUNDO (marcou, cancelou, chamou
+     * o dono): aí a resposta é o único aviso de que aquilo aconteceu, e calar faria o cliente
+     * não saber do próprio horário. */
+    const agiu = !!estado.marcou || !!estado.escalou || trilha.some((p) => p.ferramenta === "cancelar" && !p.erro);
+    if (minha && !agiu) {
+      const [ultima] = await deps.historico.ler(t, perfil.telefone, 1);
+      if (!mesmaFala(ultima, minha)) return vazia({ motivo: "rajada: chegou mensagem nova durante a resposta", trilha, voltas });
+    }
 
     /* ── 4. gravar o que aconteceu ──
      * Depois de responder, nunca antes: memória é registro de fato, e "o cliente marcou"
