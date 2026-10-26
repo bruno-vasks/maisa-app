@@ -61,8 +61,10 @@ Medido em 26/10/2026 pela bancada de conversas: o 429 do Gemini diz
 `generate_content_free_tier_requests, limit: 15` — **15 pedidos por minuto** no
 `gemini-3.5-flash-lite`, somando todos os negócios. Uma resposta da MAISA usa de 2 a 4
 pedidos, então dá uns 4 a 7 turnos por minuto no produto inteiro; acima disso o cliente
-fica sem resposta (agora o agente tenta de novo e, se não der, chama o dono). Cada chamada
-também levou de 8 a 17 s, inclusive um "diga oi".
+fica sem resposta (agora o agente tenta de novo e, se não der, chama o dono). Sob a carga da
+bancada, cada chamada também passou a levar de 8 a 17 s, inclusive um "diga oi" — a fila do
+plano gratuito. Nas 11 conversas reais de agosto e setembro, sem essa carga, a resposta saiu
+com mediana de 1,1 s.
 
 E no plano gratuito o Google pode usar o que entra e sai da API para melhorar os produtos
 dele. Para conversa de paciente de psicólogo, isso não serve. Produção precisa de chave
