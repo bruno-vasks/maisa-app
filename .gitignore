@@ -78,3 +78,6 @@ next-env.d.ts
 # O Vercel CLI acrescentou `.env*` acima, e regra posterior vence — o que voltaria a
 # ignorar o exemplo. Ele é rastreado de propósito: é a documentação das variáveis.
 !.env.local.example
+
+# Rodadas da bancada de conversas (avaliacao/): transcrições inteiras, uma pasta por rodada.
+/avaliacao/resultados/

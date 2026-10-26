@@ -51,6 +51,7 @@ code/
 ├── supabase/                   ← DDL versionada (o schema é o arquivo, não a prosa)
 ├── lp/  → public/lp/           ← LP estática de terapeutas (espelhada no predev)
 ├── scripts/                    ← espelha-lp, vendor-ds, captura de telas
+├── avaliacao/                  ← bancada de conversas: clientes simulados × MAISA, com juiz
 └── src/
     ├── composicao.ts           ★ RAIZ DE COMPOSIÇÃO — portas encontram adaptadores
     ├── config/                 ← configuração LIDA NO EDGE (o middleware não roda em Node)
@@ -291,3 +292,4 @@ Honestidade sobre o estado real, para ninguém achar que está mais pronto do qu
 | `src/ui/` | [src/ui/LEIA-ME.md](src/ui/LEIA-ME.md) |
 | `src/ui/guardas/` | [src/ui/guardas/LEIA-ME.md](src/ui/guardas/LEIA-ME.md) |
 | `scripts/bancada/` | [scripts/bancada/LEIA-ME.md](scripts/bancada/LEIA-ME.md) |
+| `avaliacao/` | [avaliacao/LEIA-ME.md](avaliacao/LEIA-ME.md) |

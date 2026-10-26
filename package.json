@@ -21,7 +21,8 @@
     "abacate:catalogo": "node scripts/abacate-catalogo.mjs",
     "email:conferir": "node scripts/confere-email.mjs",
     "leads": "node scripts/leads.mjs",
-    "banco:conferir": "node scripts/conferir-banco.mjs"
+    "banco:conferir": "node scripts/conferir-banco.mjs",
+    "conversas": "vite-node -c vitest.config.ts avaliacao/rodar.ts --"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
