@@ -11,6 +11,9 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { criarAgente, type Dependencias as DepsDoAgente } from "@/adaptadores/entrada/whatsapp/agente";
 import type { ConfiguracaoDoAgente } from "@/adaptadores/entrada/whatsapp/persona";
@@ -80,14 +83,56 @@ function cliente(nome: string, telefone: string): Cliente {
   };
 }
 
-/* As respostas prontas, indexadas com o MESMO embedding de produção (Gemini). Calculadas
- * uma vez por processo: são poucas e não mudam entre turnos. */
+/* Paciência com a cota do embedding, como a do modelo em `conversa.ts`: dezenas de conversas
+ * começando juntas estouram o limite por minuto do plano gratuito, e a conversa morria antes da
+ * primeira mensagem. O erro do adaptador é `FalhaDoProvedor` com o status na causa. */
+async function comPaciencia<T>(f: () => Promise<T>): Promise<T> {
+  for (const espera of [3_000, 6_000, 12_000, 20_000, 30_000, 45_000, 60_000, 0]) {
+    try {
+      return await f();
+    } catch (e) {
+      const texto = `${(e as Error)?.message ?? ""} ${String((e as { causa?: unknown })?.causa ?? "")}`;
+      if (!espera || !/429|quota|RESOURCE_EXHAUSTED/i.test(texto)) throw e;
+      await new Promise((r) => setTimeout(r, espera));
+    }
+  }
+  throw new Error("inalcançável");
+}
+
+/* As respostas prontas, indexadas com o MESMO embedding de produção (Gemini). Guardadas em
+ * disco entre processos: são as mesmas em toda conversa, e calcular de novo em cada uma
+ * gastava a cota que a conversa precisa. Gravação por arquivo temporário + rename, porque
+ * várias conversas escrevem ao mesmo tempo. */
+const CACHE_DE_VETORES = join(tmpdir(), "maisa-avaliacao-vetores-faq.json");
+
+function lerCacheDeVetores(): Record<string, number[]> {
+  try {
+    return existsSync(CACHE_DE_VETORES) ? JSON.parse(readFileSync(CACHE_DE_VETORES, "utf8")) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function vetorDaPergunta(pergunta: string): Promise<number[]> {
+  const guardado = lerCacheDeVetores()[pergunta];
+  if (guardado) return guardado;
+  const vetor = await comPaciencia(() => embeddingGemini.embutir(pergunta));
+  const temporario = `${CACHE_DE_VETORES}.${process.pid}`;
+  writeFileSync(temporario, JSON.stringify({ ...lerCacheDeVetores(), [pergunta]: vetor }));
+  renameSync(temporario, CACHE_DE_VETORES);
+  return vetor;
+}
+
 const vetoresPorNegocio = new Map<string, Promise<number[][]>>();
 
 function faqsDe(n: NegocioDeTeste): RepositorioFaqs {
   let vetores = vetoresPorNegocio.get(n.chave);
   if (!vetores) {
-    vetores = Promise.all(n.faqs.map((f) => embeddingGemini.embutir(f.pergunta)));
+    vetores = (async () => {
+      const vs: number[][] = [];
+      for (const f of n.faqs) vs.push(await vetorDaPergunta(f.pergunta));
+      return vs;
+    })();
     vetoresPorNegocio.set(n.chave, vetores);
   }
   const cosseno = (a: number[], b: number[]) => {
@@ -219,7 +264,10 @@ export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
      * não é o que esta bancada mede: aqui todo mundo é cliente do negócio. */
     avaliarAtendimento: (async () => ({ pode: true, motivo: null, nome: null })) as unknown as AvaliarAtendimento,
     anotarFato,
-    responderDuvida: criarResponderDuvida({ faqs: faqsDe(n), embeddingDePergunta }),
+    responderDuvida: criarResponderDuvida({
+      faqs: faqsDe(n),
+      embeddingDePergunta: { embutir: (texto) => comPaciencia(() => embeddingDePergunta.embutir(texto)) },
+    }),
     historico: historicoDemo,
     conversas: conversasDemo,
     canal,
