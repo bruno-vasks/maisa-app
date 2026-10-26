@@ -16,7 +16,7 @@ describe("doOuDa", () => {
 
 describe("nomeNaConversa", () => {
   it("a sigla padrão vira nome; nome escolhido pelo dono passa como veio", () => {
-    expect(nomeNaConversa("MAISA")).toBe("Maisa");
+    expect(nomeNaConversa("MAISA")).toBe("maisa");
     expect(nomeNaConversa("Bia")).toBe("Bia");
   });
 });

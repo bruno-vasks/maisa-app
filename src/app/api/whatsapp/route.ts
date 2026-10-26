@@ -140,7 +140,7 @@ export async function POST(request: Request) {
   }
 
   /* ── 6. áudio vira fala ──
-   * A transcrição entra na conversa como se o cliente tivesse escrito, marcada com 🎤.
+   * A transcrição entra na conversa como se o cliente tivesse escrito, marcada "[áudio]".
    * Ver `ouvirAudio`: nunca lança, e no pior caso a MAISA pede para a pessoa escrever. */
   if (ehAudio) envelope.texto = await ouvirAudio(envelope);
 

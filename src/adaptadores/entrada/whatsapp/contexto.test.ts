@@ -30,11 +30,11 @@ describe("áudio no envelope", () => {
 });
 
 describe("textoDoAudio", () => {
-  it("a transcrição entra marcada com 🎤", () => {
-    expect(textoDoAudio("queria marcar pra quinta")).toBe("🎤 queria marcar pra quinta");
+  it("a transcrição entra marcada como áudio", () => {
+    expect(textoDoAudio("queria marcar pra quinta")).toBe("[áudio] queria marcar pra quinta");
   });
 
   it("sem transcrição, a marca leva o aviso: a MAISA pede para escrever em vez de calar", () => {
-    expect(textoDoAudio(null)).toBe("🎤 (não deu para ouvir o áudio)");
+    expect(textoDoAudio(null)).toBe("[áudio] (não deu para ouvir)");
   });
 });

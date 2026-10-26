@@ -13,7 +13,7 @@ a mesma chamada que marcar pelo painel, sem nada abaixo mudar. Foi.
 cliente no WhatsApp
   └─ webhook (Evolution / Cloud API) → app/api/whatsapp/route.ts   ← rota FINA
      ├─ contexto.ts ....... segredo + destino da mensagem → ContextoTenant, ator = agente
-     ├─ (áudio) ........... composicao.ouvirAudio → Evolution baixa, Gemini transcreve → "🎤 …"
+     ├─ (áudio) ........... composicao.ouvirAudio → Evolution baixa, Gemini transcreve → "[áudio] …"
      └─ agente.ts ......... espera a rajada (4 s) → o loop (modelo + histórico + ferramentas)
         ├─ persona.ts ..... system prompt montado a partir do cadastro
         ├─ ferramentas.ts . casos de uso como tools + os guardrails de alucinação
@@ -161,10 +161,10 @@ Transcrito e respondido como se a MAISA tivesse lido (decisão do Bruno, 26/10/2
 deixa o áudio passar pelas mesmas checagens do texto e só então chama `ouvirAudio`
 (`composicao.ts`): a Evolution entrega o áudio (no próprio webhook, com `webhookBase64`
 ligado, ou por `getBase64FromMediaMessage`) e o Gemini transcreve
-(`saida/gemini/transcricao.ts`). A fala entra na thread como `🎤 <transcrição>`, então o
-dono lê na tela de Conversas o que o cliente disse. Se não der para ouvir, entra
-`🎤 (não deu para ouvir o áudio)` e a MAISA pede para a pessoa escrever — nunca o silêncio
-de antes. Só Evolution: na Cloud API da Meta, o áudio cai no aviso.
+(`saida/gemini/transcricao.ts`). A fala entra na thread como `[áudio] <transcrição>` (texto, e não
+emoji, porque o design system não usa emoji em superfície nenhuma), então o dono lê na tela
+de Conversas o que o cliente disse. Se não der para ouvir, entra `[áudio] (não deu para
+ouvir)` e a MAISA pede para a pessoa escrever — nunca o silêncio de antes. Só Evolution: na Cloud API da Meta, o áudio cai no aviso.
 
 ## Quando o modelo não responde
 

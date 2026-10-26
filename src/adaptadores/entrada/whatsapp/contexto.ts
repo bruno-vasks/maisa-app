@@ -360,16 +360,17 @@ export type Envelope = {
 const texto = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /**
- * Como um áudio entra na conversa: a transcrição, marcada com 🎤.
+ * Como um áudio entra na conversa: a transcrição, marcada com "[áudio]".
  *
- * A marca serve aos dois que leem a thread. O modelo sabe que aquilo foi falado (e o
+ * Marca em texto, e não emoji: o design system proíbe emoji em toda superfície, e a tela de
+ * Conversas é uma delas. A marca serve aos dois que leem a thread. O modelo sabe que aquilo foi falado (e o
  * prompt diz o que fazer com isso, ver `persona.ts`); o dono, na tela de Conversas, vê que
  * o cliente mandou áudio e lê o que ele disse. Sem transcrição (o áudio não baixou, ou não
  * tinha fala), a marca vem com o aviso, e a MAISA pede para a pessoa escrever em vez de
  * ficar em silêncio — que era o comportamento até 26/10/2026.
  */
 export const textoDoAudio = (transcrito: string | null): string =>
-  transcrito ? `🎤 ${transcrito}` : "🎤 (não deu para ouvir o áudio)";
+  transcrito ? `[áudio] ${transcrito}` : "[áudio] (não deu para ouvir)";
 
 /**
  * A Evolution é inconsistente no nome do evento: a documentação e a configuração usam
