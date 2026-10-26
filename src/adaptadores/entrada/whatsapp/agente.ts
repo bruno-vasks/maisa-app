@@ -603,7 +603,12 @@ export function criarAgente(deps: Dependencias) {
       return vazia({ escalou: true, motivo: "confirmação sem agendamento", trilha, voltas });
     }
 
-    const final = falaDaEscalada && !ultimoTexto.includes(falaDaEscalada) ? `${falaDaEscalada}\n\n${ultimoTexto}` : ultimoTexto;
+    /* Só junta quando a fala da escalada carrega MAIS do que a última (o acolhimento e o CVV,
+     * numa crise). Quando as duas dizem a mesma coisa ("já chamei o dono" e "o responsável foi
+     * avisado"), juntar era repetir o aviso duas vezes na mesma resposta: medido na bancada. */
+    const final = falaDaEscalada && falaDaEscalada.length > ultimoTexto.length && !ultimoTexto.includes(falaDaEscalada)
+      ? `${falaDaEscalada}\n\n${ultimoTexto}`
+      : ultimoTexto;
     const saida = bolhas(final);
 
     /* ── 4. gravar o que aconteceu ──

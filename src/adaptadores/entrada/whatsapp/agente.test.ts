@@ -123,6 +123,17 @@ describe("o que o turno não pode perder", () => {
     expect(r.bolhas.join(" ")).toContain("Vou falar com a Ana");
   });
 
+  it("quando a fala da escalada e a final dizem o mesmo, o aviso sai uma vez só", async () => {
+    const respostas = [
+      { texto: "Já chamei o Zé.", chamadas: [{ id: "c1", nome: "chamar_humano", argumentos: { motivo: "reclamação" } }], recusou: false },
+      { texto: "Sinto muito pelo que aconteceu. O Zé já foi avisado e vai falar com você por aqui.", chamadas: [], recusou: false },
+    ];
+    const { responder, t } = montar({ respostas });
+    const r = await responder(t, { de: TEL, texto: "cheguei e ninguem tava la" });
+    expect(r.bolhas.join(" ")).not.toContain("Já chamei o Zé.");
+    expect(r.bolhas.join(" ")).toContain("vai falar com você");
+  });
+
   it("o dono assumiu enquanto ela pensava: a resposta não sai", async () => {
     const { responder, t } = montar({ pensaMs: 300 });
     const turno = responder(t, { de: TEL, texto: "tem horário sexta?" }, { esperaDaRajadaMs: 50 });

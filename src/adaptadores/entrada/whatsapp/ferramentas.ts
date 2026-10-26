@@ -253,7 +253,7 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
   {
     nome: "chamar_humano",
     descricao:
-      "Avisa o responsável, que vai continuar a conversa. Chame quando: não souber a resposta e não houver ferramenta que resolva; pedirem desconto, exceção ou algo fora do seu alcance; a pessoa estiver irritada ou reclamando de atendimento; pedir para falar com alguém; houver sinal de risco à vida; o assunto exigir julgamento profissional; ou algo der errado duas vezes. Chamar o responsável não é falha — é o comportamento certo. Depois de chamar, diga ao cliente numa frase curta que vai falar com o responsável e já retorna.",
+      "Avisa o responsável, que vai continuar a conversa. Chame quando: não souber a resposta e não houver ferramenta que resolva; pedirem desconto, exceção ou algo fora do seu alcance; a pessoa estiver irritada ou reclamando de atendimento; pedir para falar com alguém; houver sinal de risco à vida; o assunto exigir julgamento profissional; ou algo der errado duas vezes. Chamar o responsável não é falha — é o comportamento certo. Chame uma vez por assunto: se você já chamou nesta conversa pelo mesmo motivo, não chame de novo. Depois de chamar, diga ao cliente numa frase curta que vai falar com o responsável e já retorna.",
     parametros: {
       type: "object",
       properties: { motivo: { type: "string", description: "Uma frase para o responsável entender o que precisa dele." } },
@@ -669,8 +669,9 @@ export function criarExecutor(deps: Dependencias) {
            * nada depois disto (o loop encerra) — então esta é a última palavra da
            * MAISA, e ela não pode prometer prazo que ninguém garantiu. */
           return ok(
-            "Responsável avisado. Diga ao cliente, numa frase curta, que vai falar com o responsável e já retorna. " +
-              "Se a pessoa está sofrendo ou em risco, o acolhimento e o CVV (188) continuam na mensagem.",
+            "Responsável avisado. Se você ainda não disse isso nesta conversa, diga numa frase curta que vai falar com o responsável e já retorna; " +
+              "se já disse, não repita: responda só ao que a pessoa disse agora. " +
+              "Se a pessoa está sofrendo ou em risco, o acolhimento continua na mensagem.",
           );
         }
 
