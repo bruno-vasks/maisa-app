@@ -13,6 +13,24 @@ O relatório sai em `avaliacao/resultados/<data>-<rótulo>/relatorio.md` (fora d
 transcrições inteiras). Com `--comparar <pasta de outra rodada>` sai também um
 `comparacao.md`, o antes × depois.
 
+## ⚠️ Antes de rodar: a cota do Gemini é a de produção
+
+Em 26/10/2026 a bancada esgotou as cotas **diárias** do plano gratuito da chave do Gemini
+(500 chamadas de conversa e 1000 embeddings por dia; também há 15 chamadas por minuto no
+flash-lite e 5 no 3.6-flash). A chave do `.env.local` é a mesma de produção: esgotar a cota
+aqui cala a MAISA dos clientes até o dia virar (meia-noite do Pacífico, 4h ou 5h de Brasília).
+
+Enquanto a chave for essa, rode **só com Claude** e sem tocar no Gemini:
+
+```sh
+GEMINI_API_KEY=desligada npm run conversas -- --modelo claude:claude-sonnet-5-5 --embedding demo --audio simular
+```
+
+`GEMINI_API_KEY=desligada` faz qualquer chamada escapada falhar em vez de gastar cota.
+`--embedding demo` busca as respostas prontas por palavras (mais fraco que o Gemini: compare só
+rodadas com o mesmo embedding). `--audio simular` entrega a fala como transcrição perfeita.
+Para medir o Gemini de verdade, use uma chave separada, de preferência paga.
+
 ## O que é de verdade e o que é de mentira
 
 | Peça | Aqui |
@@ -67,6 +85,10 @@ aparece com custo `NaN`. Confira antes de decidir por ele.
 
 **O juiz é exigente de propósito.** 5 é o que uma ótima secretária humana faria. Uma nota
 3 não é "errou": é "funcionou com cara de robô".
+
+**Cota contamina a nota.** Com várias conversas ao mesmo tempo, o 429 vira silêncio e a nota
+mede a fila, não a conversa. `conversa.ts` espera até 3 min por chamada e conta as recusas
+(`recusasDoProvedor` no resultado); conversa com muitas recusas não serve para comparar.
 
 **Variância.** Modelo de linguagem não responde igual duas vezes. Para decidir entre duas
 versões, rode com `--repeticoes 2` ou mais e olhe a conversa, não só a média.
