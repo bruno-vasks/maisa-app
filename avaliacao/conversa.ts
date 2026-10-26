@@ -73,7 +73,7 @@ async function principal() {
   const paciente: typeof modelo = {
     nome: doProvedor.nome,
     async conversar(p) {
-      for (const espera of [3_000, 6_000, 12_000, 20_000, 30_000, 0]) {
+      for (const espera of [3_000, 6_000, 12_000, 20_000, 30_000, 45_000, 60_000, 0]) {
         try {
           return await doProvedor.conversar(p);
         } catch (e) {
