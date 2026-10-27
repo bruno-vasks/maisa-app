@@ -144,13 +144,23 @@ export const notasSupabase: RepositorioNotas = {
   async abrir(t, p): Promise<NotaAberta | null> {
     const supabase = clienteDoContexto(t);
 
-    const { data, error } = await supabase.rpc("abrir_nota", {
-      p_tenant_id: t.tenantId,
-      p_cliente_id: p.clienteId,
-      p_ref: p.ref,
-      p_ambiente: p.ambiente,
-      p_discriminacao: p.discriminacao,
-    });
+    /* Com a lista, a nota de um pagamento só (038); sem ela, a de tudo o que falta faturar. */
+    const { data, error } = p.atendimentoIds?.length
+      ? await supabase.rpc("abrir_nota_dos_atendimentos", {
+          p_tenant_id: t.tenantId,
+          p_cliente_id: p.clienteId,
+          p_atendimentos: p.atendimentoIds,
+          p_ref: p.ref,
+          p_ambiente: p.ambiente,
+          p_discriminacao: p.discriminacao,
+        })
+      : await supabase.rpc("abrir_nota", {
+          p_tenant_id: t.tenantId,
+          p_cliente_id: p.clienteId,
+          p_ref: p.ref,
+          p_ambiente: p.ambiente,
+          p_discriminacao: p.discriminacao,
+        });
 
     if (faltaMigracao(error)) throw new Error(AVISO_015);
     if (error) throw new Error(error.message);

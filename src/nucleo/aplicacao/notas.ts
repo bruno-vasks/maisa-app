@@ -152,11 +152,15 @@ export function criarEmitirNota({ emissor, fiscal, notas, novoId, aviso }: DepsN
       );
     }
 
+    /* A nota de um pagamento (27/10/2026, `aplicacao/recebimentos.ts`) leva só os atendimentos que
+     * ele pagou. A discriminação conta esses, com o serviço e o mês do que falta faturar. */
+    const so = p.atendimentoIds?.length ? p.atendimentoIds : null;
     const aberta = await notas.abrir(t, {
       clienteId: p.clienteId,
       ref: cunharRef(novoId, p.clienteId),
       ambiente: config.ambiente,
-      discriminacao: discriminacaoDaNota(pendente),
+      discriminacao: discriminacaoDaNota(so ? { ...pendente, atendimentos: so.length } : pendente),
+      ...(so ? { atendimentoIds: so } : {}),
     });
 
     /* ⚠️ `null` NÃO É ERRO, e este caminho é o da CORRIDA DE VERDADE — não do duplo clique.

@@ -267,9 +267,12 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
       if (!primeiroParametro(abre).includes("ContextoTenant")) semContexto.push(m[1]);
     }
 
+    /* `CobrarAtendimentos` (27/10/2026) é a sétima, e pelo motivo das outras rotinas: o pg_cron da
+     * 038 chama sem sessão, a pergunta cross-tenant devolve só ids e cada cobrança acontece num
+     * contexto de sistema daquele negócio. Ver o bloco "recebimentos" em `casos-de-uso.ts`. */
     expect(semContexto.sort()).toEqual([
-      "AvisarNovoCadastro", "AvisarVencimentos", "EmitirRecibosAutomaticos", "EnviarFilaDeMensagens", "EnviarLembretes",
-      "ProvisionarNegocio",
+      "AvisarNovoCadastro", "AvisarVencimentos", "CobrarAtendimentos", "EmitirRecibosAutomaticos", "EnviarFilaDeMensagens",
+      "EnviarLembretes", "ProvisionarNegocio",
     ]);
   });
 });

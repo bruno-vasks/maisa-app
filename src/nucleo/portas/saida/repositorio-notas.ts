@@ -75,6 +75,12 @@ export interface RepositorioNotas {
     ref: string;
     ambiente: AmbienteFiscal;
     discriminacao: string;
+    /**
+     * Só estes atendimentos (27/10/2026): a nota de um pagamento confirmado, e não a do mês. Em
+     * Postgres é `abrir_nota_dos_atendimentos` (038), a mesma claim com a lista. Ausente = todos
+     * os do cliente sem nota, como sempre.
+     */
+    atendimentoIds?: string[];
   }): Promise<NotaAberta | null>;
 
   /**

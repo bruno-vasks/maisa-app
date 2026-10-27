@@ -69,11 +69,13 @@ export const notasDemo: RepositorioNotas = {
       ...gravadas,
     ];
 
+    /* Com a lista (a nota de um pagamento), o demo não tem atendimento por atendimento: prende o
+     * cliente inteiro, como sempre, e conta só os pedidos. É a aproximação de quem não tem banco. */
     return {
       id,
       ref: p.ref,
       valor: alvo.valor,
-      atendimentos: alvo.atendimentos,
+      atendimentos: p.atendimentoIds?.length ?? alvo.atendimentos,
       competencia: alvo.competencia,
       discriminacao: p.discriminacao,
       tomador: { nome: alvo.nome, cpf: alvo.cpf, email: null, telefone: null },

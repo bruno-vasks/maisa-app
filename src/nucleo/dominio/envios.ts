@@ -25,7 +25,8 @@ export type NovoEnvio = {
   /** Bolhas de texto, nesta ordem. Vão antes do documento, quando há documento. */
   textos: string[];
   documento?: DocumentoNaFila;
-  origem: "lote_de_recibos" | "recibo";
+  /** `cobranca` (038): o Pix, a confirmação do pagamento, o pedido de CPF e a pergunta ao dono. */
+  origem: "lote_de_recibos" | "recibo" | "cobranca";
   /** O recibo cujo aviso isto é, e o desfecho a gravar nele quando sair. */
   recibo?: { id: string; desfechoAoEnviar: Extract<DesfechoDoAviso, "enviado" | "enviado_ao_dono"> };
 };

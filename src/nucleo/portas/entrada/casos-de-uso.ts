@@ -46,6 +46,9 @@ import type { Faq, FaqEncontrada } from "../../dominio/faq";
 import type { ProgressoDaAtivacao } from "../../dominio/ativacao";
 import type { Assinatura, MetodoDePagamento } from "../../dominio/assinatura";
 import type { CheckoutAberto, PagamentoPix, PedidoDeCheckout } from "../saida/cobranca";
+import type {
+  ArquivoRecebido, ComprovanteDePagamento, ConfigDeRecebimentos, Recebimento,
+} from "../../dominio/recebimentos";
 
 /* ───────────────────────────── agenda ───────────────────────────── */
 
@@ -649,6 +652,13 @@ export type DesconectarAgenda = (t: ContextoTenant, p: { agendaId: string }) => 
  */
 export type PedidoDeEmissao = {
   clienteId: string;
+  /**
+   * Só estes atendimentos, e não todos os do cliente sem nota (27/10/2026). É a nota de UM
+   * pagamento confirmado (`aplicacao/recebimentos.ts`): o Pix pagou o corte de hoje, e a nota
+   * não pode levar junto o de semana passada, que talvez nem tenha sido pago. Ausente = a nota de
+   * sempre, com tudo o que falta faturar.
+   */
+  atendimentoIds?: string[];
 };
 
 export type EmitirNota = (t: ContextoTenant, p: PedidoDeEmissao) => Promise<ResultadoDeNota>;
@@ -1191,3 +1201,96 @@ export type ResultadoDoAvisoDeCadastro = {
 };
 
 export type AvisarNovoCadastro = (contaId: string, agora: Date) => Promise<ResultadoDoAvisoDeCadastro>;
+
+/* ───────────────────────────── recebimentos (27/10/2026) ─────────────────────────────
+ * O negócio recebendo do cliente dele, pelo Pix na chave de sempre. Ver `dominio/recebimentos.ts`
+ * e `aplicacao/recebimentos.ts`.
+ *
+ * `CobrarAtendimentos` é a SÉTIMA exceção à regra do `ContextoTenant`, irmã de
+ * `EnviarFilaDeMensagens`: o pg_cron (038) chama sem sessão, a pergunta cross-tenant
+ * (`RepositorioRecebimentos.negociosComRecebimento`) devolve só ids, e cada cobrança acontece
+ * num `ContextoTenant` de ator `sistema`. */
+
+/** O que a tela de hoje mostra dos recebimentos. */
+export type PainelDeRecebimentos = {
+  config: ConfigDeRecebimentos;
+  /** O que falta para o Pix sair (`pixFaltando`). Vazio = pronto. */
+  faltando: string[];
+  /** Acabou o atendimento e o dono ainda não disse se o cliente pagou. */
+  paraDecidir: Recebimento[];
+  /** O Pix foi; falta o pagamento. */
+  abertos: Recebimento[];
+  /** O que os clientes mandaram, esperando o dono conferir no extrato. */
+  comprovantes: ComprovanteDePagamento[];
+  /** Os pagos dos últimos 30 dias. */
+  recebidos: Recebimento[];
+};
+
+export type LerRecebimentos = (t: ContextoTenant) => Promise<PainelDeRecebimentos>;
+
+/** O que a tela manda. Tipo da chave e "depois do atendimento" chegam como texto, e são conferidos. */
+export type PedidoDeConfigDeRecebimentos = {
+  tipoDaChave: string | null;
+  chave: string | null;
+  nome: string | null;
+  cidade: string | null;
+  depoisDoAtendimento: string;
+};
+
+export type SalvarConfigDeRecebimentos = (t: ContextoTenant, p: PedidoDeConfigDeRecebimentos) => Promise<ConfigDeRecebimentos>;
+
+/** "Mandar Pix" no atendimento: cria a cobrança dele (ou usa a que estava perguntando) e manda. */
+export type MandarPix = (t: ContextoTenant, p: { atendimentoId: string }) => Promise<Recebimento>;
+
+/** A resposta à pergunta "já está pago?", pelo painel ou pelo WhatsApp do dono. */
+export type DecisaoSobreRecebimento = "pagou" | "pix" | "nao_cobrar";
+
+/**
+ * O que aconteceu com o documento depois do pagamento. O recibo e a nota só são PEDIDOS aqui: o
+ * recibo fica pendente até a Receita responder, como em qualquer outra emissão.
+ *
+ *   recibo · nota → pedido ao emissor
+ *   pediu_cpf     → a ficha não tinha CPF: a MAISA pediu ao cliente, e o documento sai quando ele mandar
+ *   nenhum        → o negócio não emite documento pela MAISA, a cobrança não foi paga, ou não tem ficha
+ *   falhou        → o emissor recusou; o motivo vai para a tela
+ */
+export type DocumentoDoPagamento =
+  | { tipo: "recibo" | "nota" | "pediu_cpf" | "nenhum" }
+  | { tipo: "falhou"; motivo: string };
+
+export type RecebimentoDecidido = { recebimento: Recebimento; documento: DocumentoDoPagamento };
+
+export type DecidirRecebimento = (t: ContextoTenant, p: { id: string; decisao: DecisaoSobreRecebimento }) => Promise<RecebimentoDecidido>;
+
+/** O dono conferiu no extrato. Sem `recebimentoId`, vale a cobrança que a MAISA sugeriu. */
+export type ConfirmarComprovante = (t: ContextoTenant, p: { id: string; recebimentoId?: string | null }) => Promise<RecebimentoDecidido>;
+
+export type DescartarComprovante = (t: ContextoTenant, p: { id: string; motivo: string }) => Promise<void>;
+
+/* Os caminhos da conversa que não passam pelo modelo. Quem chama é o agente do WhatsApp, e cada
+ * um devolve `null` quando a mensagem não era com ele: ela segue o caminho de sempre. */
+
+export type TemPixEmAberto = (t: ContextoTenant, telefone: string) => Promise<boolean>;
+
+/** Lê e registra o comprovante. `resposta` é o que dizer ao cliente; quem decide se diz é o agente. */
+export type ReceberComprovante = (
+  t: ContextoTenant,
+  p: { telefone: string; arquivo: ArquivoRecebido; mensagemId?: string },
+) => Promise<{ resposta: string } | null>;
+
+/** Guarda o CPF que a MAISA pediu. `resposta` nula: guardou, e a mensagem tinha mais assunto. */
+export type GuardarCpfDaConversa = (t: ContextoTenant, p: { telefone: string; texto: string }) => Promise<{ resposta: string | null } | null>;
+
+/** O "1" ou o "2" do dono à pergunta que está valendo no WhatsApp dele. */
+export type ResponderAoDono = (t: ContextoTenant, p: { telefone: string; texto: string }) => Promise<{ resposta: string } | null>;
+
+export type ResultadoDosRecebimentos = {
+  negocios: number;
+  /** Pix que foram para a fila. */
+  pix: number;
+  /** Perguntas "já está pago?" que foram para o WhatsApp do dono. */
+  perguntas: number;
+  falhas: { tenantId: string; motivo: string }[];
+};
+
+export type CobrarAtendimentos = (agora: Date) => Promise<ResultadoDosRecebimentos>;
