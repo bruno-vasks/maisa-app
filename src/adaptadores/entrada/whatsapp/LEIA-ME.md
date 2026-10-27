@@ -220,7 +220,7 @@ existe, em ordem de importância:
 | Eco da própria mensagem (`fromMe`) cai fora | `contexto.ts` | A MAISA respondendo a si mesma, em laço. Já existia |
 | Mensagem escrita há mais de 15 min é gravada e não respondida (`IDADE_MAXIMA_MS`) | `agente.ts`, fim do passo 1b | A enxurrada de quando a Evolution volta de uma queda: dezenas de respostas no mesmo minuto, para perguntas de horas atrás |
 | Disjuntor: a mesma mensagem longa pela 3ª vez, ou 12 respostas em 10 min, e ela para e chama o dono | `disjuntor.ts`, passo 1f | Laço com outro robô (resposta automática de loja respondendo a ela, sem fim) |
-| A mesma resposta, palavra por palavra, a menos de 10 min da anterior, não sai | `agente.ts`, passo 3c | O parágrafo repetido, marca de robô e o que todo laço produz |
+| A mesma resposta, palavra por palavra, a menos de 10 min da anterior e para uma fala diferente do cliente, não sai. A mesma pergunta de novo recebe a resposta de novo | `agente.ts`, passo 3c | O parágrafo repetido, marca de robô e o que o laço com robô de menu produz |
 | A fala inventada ("Cliente: pode ser às 15h", e a resposta a ela) é cortada | `bolhas.ts` | A MAISA conversando consigo mesma dentro de uma resposta |
 | Tique azul antes de pensar, só na conversa que ela atende | passo 1g; `confirmarLeitura` no `saida/evolution/` | Responder sem nunca ter lido (os tiques do cliente ficavam cinza para sempre) |
 | "Digitando…" em toda bolha, ~1,5 palavra/s, variando | `saida/evolution/canal-evolution.ts`, ritmo "conversa" | Resposta instantânea, várias bolhas no mesmo segundo, sempre no mesmo compasso |

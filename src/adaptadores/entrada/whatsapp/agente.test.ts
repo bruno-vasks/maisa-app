@@ -237,14 +237,23 @@ describe("a blindagem do número (27/10/2026)", () => {
     expect(escaladas).toHaveLength(1);
   });
 
-  it("a mesma resposta de novo, palavra por palavra, não sai", async () => {
-    const igual = "Funcionamos de terça a sábado, das 9h às 19h.";
+  it("fala nova do cliente e a mesma resposta, palavra por palavra: a segunda não sai", async () => {
+    const igual = "Por nada! Qualquer coisa é só chamar por aqui.";
     const { responder, t, enviadas } = montar({ respostas: [fala(igual), fala(igual)] });
-    await responder(t, { de: TEL, texto: "qual o horário de vocês?" });
-    const r = await responder(t, { de: TEL, texto: "qual o horário?" });
+    await responder(t, { de: TEL, texto: "obrigado!" });
+    const r = await responder(t, { de: TEL, texto: "valeu, até sexta" });
     expect(r.bolhas).toEqual([]);
     expect(r.motivo).toContain("igual à anterior");
     expect(enviadas).toHaveLength(1);
+  });
+
+  it("a mesma pergunta de novo, de quem não viu a resposta, recebe a resposta de novo", async () => {
+    const endereco = "Fica na Rua Augusta, 1500, perto do metrô Consolação.";
+    const { responder, t, enviadas } = montar({ respostas: [fala(endereco), fala(endereco)] });
+    await responder(t, { de: TEL, texto: "qual o endereço de vocês?" });
+    const r = await responder(t, { de: TEL, texto: "qual o endereço?" });
+    expect(r.bolhas.length).toBeGreaterThan(0);
+    expect(enviadas).toHaveLength(2);
   });
 
   it("a fala que ela inventou para o cliente, e a resposta a ela, não saem", async () => {

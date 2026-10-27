@@ -187,26 +187,41 @@ export function parecidas(a: string, b: string): boolean {
   return todas > 0 && comuns / todas >= 0.4;
 }
 
-/** A última resposta da MAISA na thread: as bolhas seguidas, juntas, e quando terminou. */
-function ultimaResposta(msgs: Msg[]): { texto: string; em?: string } | null {
+/** A última resposta da MAISA na thread (as bolhas seguidas, juntas), quando terminou, e o
+ *  que o cliente tinha dito logo antes dela. */
+function ultimaResposta(msgs: Msg[]): { texto: string; em?: string; pergunta: string } | null {
   let fim = msgs.length - 1;
   while (fim >= 0 && msgs[fim].de !== "bot") fim--;
   if (fim < 0) return null;
   let inicio = fim;
   while (inicio > 0 && msgs[inicio - 1].de === "bot") inicio--;
-  return { texto: msgs.slice(inicio, fim + 1).map((m) => m.txt).join(" "), em: msgs[fim].em };
+  let antes = inicio;
+  while (antes > 0 && msgs[antes - 1].de === "cliente") antes--;
+  return {
+    texto: msgs.slice(inicio, fim + 1).map((m) => m.txt).join(" "),
+    em: msgs[fim].em,
+    pergunta: msgs.slice(antes, inicio).map((m) => m.txt).join(" "),
+  };
 }
 
 const semPontuacao = (t: string) =>
   t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-/** A mesma resposta, a menos de dez minutos da outra. Curtas ("Perfeito!") podem repetir. */
+/**
+ * A mesma resposta, a menos de dez minutos da outra, para uma fala DIFERENTE do cliente.
+ *
+ * Fala diferente e resposta igual é o laço com robô de menu ("Desculpe, não entendi…" a
+ * cada opção que ele manda) e o "Por nada!" repetido a cada agradecimento. Já a mesma
+ * pergunta de novo ("qual o endereço?", de quem não viu a resposta) merece a resposta de
+ * novo, e calar ali deixaria a pessoa sem nada. Curtas ("Perfeito!") podem repetir.
+ */
 const REPETICAO_MS = 10 * 60_000;
-function repete(bolhasNovas: string[], anterior: { texto: string; em?: string } | null): boolean {
+function repete(bolhasNovas: string[], anterior: ReturnType<typeof ultimaResposta>, rajada: string): boolean {
   if (!anterior) return false;
   const nova = semPontuacao(bolhasNovas.join(" "));
   const recente = !anterior.em || Date.now() - Date.parse(anterior.em) < REPETICAO_MS;
-  return recente && nova.length >= 20 && nova === semPontuacao(anterior.texto);
+  const mesmaPergunta = parecidas(anterior.pergunta, rajada);
+  return recente && !mesmaPergunta && nova.length >= 20 && nova === semPontuacao(anterior.texto);
 }
 
 /** A última fala do cliente numa thread, se houver. */
@@ -744,12 +759,13 @@ export function criarAgente(deps: Dependencias) {
 
     /* ── 3c. A MESMA RESPOSTA, DE NOVO ──
      *
-     * Igual, palavra por palavra, à que ela mandou há menos de dez minutos: não sai. Mandar
-     * duas vezes o mesmo parágrafo é a marca mais clara de robô, e é exatamente o que um laço
-     * com outro robô produz ("Desculpe, não entendi…" a cada volta). Calar aqui também
-     * corta o laço antes do disjuntor (1f). Turno que agiu (marcou, cancelou, chamou o dono)
-     * fala sempre: a resposta é o aviso do que aconteceu. */
-    if (!agiu && repete(saida, ultimaResposta(thread))) {
+     * Igual, palavra por palavra, à que ela mandou há menos de dez minutos, para uma fala
+     * diferente do cliente: não sai (ver `repete`). Mandar duas vezes o mesmo parágrafo é a
+     * marca mais clara de robô, e é o que um laço com robô de menu produz ("Desculpe, não
+     * entendi…" a cada volta); calar aqui corta esse laço antes do disjuntor (1f). Turno que
+     * agiu (marcou, cancelou, chamou o dono) fala sempre: a resposta é o aviso do que
+     * aconteceu. */
+    if (!agiu && repete(saida, ultimaResposta(thread), rajada)) {
       console.warn(`[whatsapp/agente] resposta igual à anterior, não enviada (inquilino ${t.tenantId}, ${perfil.telefone}): ${saida.join(" ").slice(0, 120)}`);
       return vazia({ motivo: "resposta igual à anterior", trilha, voltas });
     }
