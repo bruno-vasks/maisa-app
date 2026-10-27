@@ -205,8 +205,9 @@ export async function exigir(
 }
 
 /* ───────────────────────────── as chamadas que usamos ─────────────────────────────
- * Só quatro. Cada endpoint a mais é superfície que alguém tem que manter alinhada com
- * uma API que muda de versão em versão — e a MAISA conversa por texto. */
+ * Poucas, de propósito: cada endpoint a mais é superfície que alguém tem que manter
+ * alinhada com uma API que muda de versão em versão. Texto, documento, mídia recebida, o
+ * tique azul e a presença; o resto é administração de instância, no fim do arquivo. */
 
 const inst = () => encodeURIComponent(EVOLUTION.instancia);
 
@@ -215,8 +216,10 @@ const inst = () => encodeURIComponent(EVOLUTION.instancia);
  * acrescenta o `@s.whatsapp.net`. Mandar o JID pronto funciona em algumas versões e
  * falha silenciosamente em outras — dígitos é o formato documentado.
  *
- * `delay` pausa o envio DENTRO da Evolution (ela segura a requisição). É o que dá ritmo
- * de conversa às bolhas; ver `canal-evolution.ts`.
+ * `delay` é o "digitando…": a Evolution mostra a presença `composing` por esse tempo e só
+ * então envia, segurando a requisição (ver `canal-evolution.ts`). Por isso o prazo da
+ * chamada SOMA o `delay`: com o prazo fixo de 15 s, uma bolha de 10 s de digitação mais a
+ * ida ao WhatsApp estourava, a mensagem saía do lado de lá e aqui virava falha.
  */
 export function enviarTexto(p: { numero: string; texto: string; delayMs?: number; instancia?: string }): Promise<any> {
   /* `instancia` opcional e não obrigatória: `escalar` e as rotas de diagnóstico ainda
@@ -233,6 +236,25 @@ export function enviarTexto(p: { numero: string; texto: string; delayMs?: number
        * é uma caixa cinza sem informação. */
       linkPreview: false,
     },
+    timeoutMs: EVOLUTION.timeoutMs + (p.delayMs ?? 0),
+  });
+}
+
+/**
+ * Os dois tiques azuis: avisa ao WhatsApp que a mensagem recebida foi LIDA (27/10/2026).
+ *
+ * `POST /chat/markMessageAsRead/{instância}`, corpo `{ readMessages: [{ remoteJid, fromMe,
+ * id }] }`. Conferido no código da 2.3.7: ela chama `readMessages` do Baileys, e só passa
+ * chave de telefone (`@s.whatsapp.net`) ou de grupo. Chave `@lid` é descartada em silêncio,
+ * e a mensagem fica sem tique azul, como antes.
+ *
+ * Sem isto, o cliente via a MAISA responder sem nunca ter lido: os tiques dele ficavam
+ * cinza para sempre, a menos que o dono abrisse a conversa no celular.
+ */
+export function confirmarLeitura(p: { remoteJid: string; id: string; instancia?: string }): Promise<any> {
+  return exigir(`/chat/markMessageAsRead/${p.instancia ? encodeURIComponent(p.instancia) : inst()}`, {
+    corpo: { readMessages: [{ remoteJid: p.remoteJid, fromMe: false, id: p.id }] },
+    timeoutMs: 5_000,
   });
 }
 
@@ -475,6 +497,14 @@ export async function criarInstancia(p: {
       qrcode: true,
       integration: "WHATSAPP-BAILEYS",
       ...(p.numero ? { number: p.numero } : {}),
+      /* Ajustes da instância, ditos em voz alta (27/10/2026). Campos de topo do `InstanceDto`
+       * da 2.3.7. Grupo nem chega ao webhook. Nada de "online" 24 horas, que gente não fica.
+       * E a Evolution NÃO marca tudo como lido sozinha: o tique azul é da MAISA, e só na
+       * conversa que ela atende (ver `confirmarLeitura`). Marcar tudo apagaria do celular do
+       * dono o "não lida" das conversas pessoais dele. */
+      groupsIgnore: true,
+      alwaysOnline: false,
+      readMessages: false,
       /* O webhook vai JUNTO da criação, e não numa chamada seguinte. Separar produz a
        * falha mais cara do produto: o cliente pareia, vê "conectado", manda "oi" e
        * ninguém responde — porque as mensagens estão indo para lugar nenhum. */

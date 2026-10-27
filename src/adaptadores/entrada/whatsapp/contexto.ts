@@ -355,9 +355,27 @@ export type Envelope = {
   audio?: { mimetype: string; base64?: string };
   /** O `…@lid` cru, quando a mensagem chegou assim. Ver `MensagemRecebida.jid`. */
   jid?: string;
+  /** De onde veio. Os provedores reentregam o evento se a resposta demora, e por isso a rota
+   *  os atende em segundo plano; o formato de teste (`curl`) espera a resposta. */
+  origem: "evolution" | "meta" | "teste";
+  /** Quando a pessoa mandou, em ms, pelo relógio do WhatsApp. Ver `MensagemRecebida.enviadaEm`. */
+  enviadaEm?: number;
+  /** A chave da mensagem na Evolution, para o tique azul (`confirmarLeitura`). */
+  chave?: { remoteJid: string; id: string };
 };
 
 const texto = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/**
+ * O instante da mensagem, em ms. O WhatsApp conta em SEGUNDOS, e a Evolution manda número;
+ * a Cloud API manda texto. Valor fora de qualquer data plausível vira `undefined`: sem
+ * instante, a mensagem é tratada como nova, que era o comportamento de antes.
+ */
+function instanteDe(v: unknown): number | undefined {
+  const s = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  const ms = s * 1000;
+  return Number.isFinite(ms) && ms > Date.UTC(2020, 0, 1) && ms < Date.now() + 60 * 60_000 ? ms : undefined;
+}
 
 /**
  * Como um áudio entra na conversa: a transcrição, marcada com "[áudio]".
@@ -465,6 +483,7 @@ export function normalizar(corpo: any): Envelope | null {
       instancia: texto(corpo.instancia) || INSTANCIA || undefined,
       texto: corpo.texto,
       conversaId: texto(corpo.conversaId) || undefined,
+      origem: "teste",
     };
   }
 
@@ -477,6 +496,8 @@ export function normalizar(corpo: any): Envelope | null {
       para: digitos(texto(valor?.metadata?.display_phone_number)),
       texto: texto(msgMeta.text?.body) || texto(msgMeta.button?.text) || texto(msgMeta.interactive?.list_reply?.title),
       conversaId: texto(msgMeta.id) || undefined,
+      origem: "meta",
+      enviadaEm: instanteDe(msgMeta.timestamp),
     };
   }
 
@@ -559,6 +580,11 @@ export function normalizar(corpo: any): Envelope | null {
       conversaId: texto(d.key.id) || undefined,
       midia,
       audio,
+      origem: "evolution",
+      enviadaEm: instanteDe(d.messageTimestamp),
+      /* O `remoteJid` como chegou, e não o telefone: o tique azul vai para a conversa onde a
+       * mensagem mora. Com `@lid`, a Evolution descarta a chave e nada acontece. */
+      ...(texto(d.key.id) ? { chave: { remoteJid: jid, id: texto(d.key.id) } } : {}),
     };
   }
 

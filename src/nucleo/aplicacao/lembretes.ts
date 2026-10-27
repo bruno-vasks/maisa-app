@@ -35,11 +35,19 @@ import { janelaDeLembrete, textoDoLembrete } from "../dominio/lembretes";
  * Teto de lembretes por rodada.
  *
  * Existe por causa do relógio da plataforma, não do banco: a função serverless tem tempo
- * máximo, e cada envio é uma chamada de rede ao provedor de WhatsApp. 100 cabem com
- * folga; o que passar disso fica para a rodada seguinte, que é minutos depois — e a
- * janela de 3h dá espaço de sobra para o atraso ser invisível.
+ * máximo, e cada envio é uma chamada de rede ao provedor de WhatsApp. Era 100, quando os
+ * lembretes saíam colados. Desde 27/10/2026 o canal os espaça (o "digitando…" e de 3 a 7 s
+ * entre duas pessoas do mesmo número, para não parecer disparo em massa), e quem decide
+ * quantos cabem é `TEMPO_DA_RODADA_MS`. Reservar muito mais que isso só gera devolução.
  */
-const POR_RODADA = 100;
+const POR_RODADA = 30;
+
+/**
+ * Quanto a rodada pode passar enviando. Abaixo do `maxDuration` de 60 s da rota, com
+ * folga. Passou: o que sobrou volta para a fila e sai na rodada seguinte, minutos depois.
+ * A janela de 3h dá espaço de sobra para o atraso ser invisível.
+ */
+const TEMPO_DA_RODADA_MS = 40_000;
 
 /** O ator da rotina. Não é usuário nem agente: ninguém clicou, e a IA não escreveu. */
 const contextoDeSistema = (tenantId: string): ContextoTenant => ({
@@ -55,8 +63,12 @@ export function criarEnviarLembretes(deps: {
   canal: CanalDeMensagens;
   negocio: RepositorioNegocio;
   assistente: RepositorioAssistente;
+  /** O relógio da rodada, em ms. Só o teste troca. */
+  relogio?: () => number;
 }): EnviarLembretes {
+  const relogio = deps.relogio ?? (() => Date.now());
   return async (agora: Date): Promise<ResultadoDaRotina> => {
+    const comecou = relogio();
     const pendentes = await deps.fila.reservar(janelaDeLembrete(agora), POR_RODADA);
     if (!pendentes.length) return { enviados: 0, falhas: [] };
 
@@ -69,6 +81,12 @@ export function criarEnviarLembretes(deps: {
     const identidade = new Map<string, { negocio: string; assistente: string }>();
 
     for (const p of pendentes) {
+      /* Sem tempo para mais um: devolve, sem contar como falha. Não é erro, é a próxima
+       * rodada. Ver `TEMPO_DA_RODADA_MS`. */
+      if (relogio() - comecou > TEMPO_DA_RODADA_MS) {
+        await deps.fila.devolver(p.id).catch(() => {});
+        continue;
+      }
       const t = contextoDeSistema(p.tenantId);
       try {
         let quem = identidade.get(p.tenantId);

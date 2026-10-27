@@ -172,3 +172,25 @@ describe("falha de um não derruba os outros", () => {
     expect(r.falhas[0].motivo).toBe("WhatsApp desconectado");
   });
 });
+
+describe("o tempo da rodada (27/10/2026)", () => {
+  it("passou de 40 s enviando, o resto volta para a fila sem virar falha", async () => {
+    let agora = 0;
+    const canalQueEspaca: CanalDeMensagens = {
+      ...canalFake,
+      async enviar(t, para, textos) {
+        agora += 15_000; // o "digitando…" e a vez de cada pessoa, no canal de verdade
+        await canalFake.enviar(t, para, textos);
+      },
+    };
+    const comRelogio = criarEnviarLembretes({
+      fila: filaFake, canal: canalQueEspaca, negocio: negocioFake, assistente: assistenteFake, relogio: () => agora,
+    });
+    fila = [pendente({ id: "a" }), pendente({ id: "b" }), pendente({ id: "c" }), pendente({ id: "d" })];
+
+    const r = await comRelogio(AGORA);
+
+    expect(r).toEqual({ enviados: 3, falhas: [] });
+    expect(devolvidos).toEqual(["d"]);
+  });
+});

@@ -45,23 +45,108 @@ export function paraNumeroWhats(v: string): string {
 }
 
 /* ───────────────────────────── o ritmo ─────────────────────────────
- * Quanto a MAISA "demora para digitar" cada bolha. Proporcional ao tamanho, com teto
- * curto: o cliente está olhando a tela esperando, e cada milissegundo aqui é latência
- * que a rota do webhook segura. Realismo perfeito seria ~5s por bolha — e ninguém
- * espera 5s por educação. */
+ * Quanto tempo o "digitando…" aparece antes de cada bolha, e quanto se espera entre uma
+ * pessoa e outra. Muda com QUEM está mandando, e por isso é escolhido em `composicao.ts`,
+ * uma instância do canal por ritmo:
+ *
+ *   • "conversa" — a MAISA respondendo o cliente. Digita TODAS as bolhas, a primeira
+ *     também, proporcional ao tamanho: ~1,5 palavra por segundo, sorteado entre 1,3 e 1,8
+ *     a cada bolha. Pedido do Bruno em 27/10/2026, e o motivo é o banimento: pela
+ *     Evolution a MAISA é um WhatsApp Web não oficial, e resposta instantânea, várias
+ *     bolhas no mesmo segundo, sempre no mesmo compasso, é o desenho de robô. Até aqui a
+ *     primeira bolha saía sem "digitando…" nenhum e as seguintes a ~10 palavras/s.
+ *   • "rotina" — o lembrete que parte sem ninguém ter escrito. Digita pouco (o texto é
+ *     pronto) e ESPAÇA as pessoas: duas mensagens da mesma instância para pessoas
+ *     diferentes nunca saem com menos de 3 a 7 s entre elas. Cem lembretes em trinta
+ *     segundos é o padrão de disparo em massa.
+ *   • "direto" — o que já existia: a primeira bolha na hora, as outras com pausa curta. É
+ *     a resposta que o DONO escreveu no painel (ele já digitou; segurar a mensagem dele é
+ *     a tela travada) e os avisos para o próprio dono.
+ *
+ * Por que não mais devagar, se gente digita no celular a ~0,6 palavra/s: uma resposta de
+ * três bolhas levaria mais de um minuto, o cliente desiste antes, e a função da Vercel tem
+ * teto de 60 s. Não há evidência pública de que o WhatsApp meça velocidade de digitação;
+ * o que tira a cara de robô é o "digitando…" existir, durar conforme o tamanho e variar.
+ *
+ * ⚠️ O TETO DA RESPOSTA (18 s) ENTRA NA CONTA DO AGENTE. `ORCAMENTO_DO_TURNO_MS`, em
+ * `entrada/whatsapp/agente.ts`, reserva esse tempo dentro dos 60 s da função. Subir um
+ * sem rever o outro é turno cortado no meio do envio. */
 
-const MS_POR_CHAR = 18;
-const PAUSA_MIN = 400;
-const PAUSA_MAX = 2000;
+export type Ritmo = "conversa" | "rotina" | "direto";
 
-const pausaPara = (txt: string) => Math.min(PAUSA_MAX, Math.max(PAUSA_MIN, txt.length * MS_POR_CHAR));
+type Compasso = {
+  /** Milissegundos de "digitando…" por caractere, sorteado a cada bolha entre os dois. */
+  msPorCaractere: [number, number];
+  minimoMs: number;
+  maximoMs: number;
+  /** Teto da resposta inteira: passou, todas as bolhas encolhem na mesma proporção. */
+  tetoMs: number;
+  /** Pausa entre uma bolha entregue e o "digitando…" da seguinte. */
+  entreBolhasMs: [number, number];
+  /** Intervalo mínimo entre mensagens para pessoas DIFERENTES pela mesma instância. */
+  entrePessoasMs: [number, number] | null;
+};
+
+const COMPASSOS: Record<Exclude<Ritmo, "direto">, Compasso> = {
+  /* 95–130 ms por caractere ≈ 7,7–10,5 caracteres/s ≈ 1,3–1,8 palavra/s (6 caracteres por
+   * palavra, contando o espaço). "Oi, tudo bem?" digita ~1,5 s; uma bolha de 90 caracteres,
+   * ~10 s. */
+  conversa: { msPorCaractere: [95, 130], minimoMs: 1_400, maximoMs: 10_000, tetoMs: 18_000, entreBolhasMs: [400, 1_100], entrePessoasMs: null },
+  rotina: { msPorCaractere: [95, 130], minimoMs: 1_400, maximoMs: 4_000, tetoMs: 4_000, entreBolhasMs: [400, 1_100], entrePessoasMs: [3_000, 7_000] },
+};
+
+const sortearEntre = ([a, b]: [number, number], sorteio: () => number) => Math.round(a + (b - a) * sorteio());
+
+/** O ritmo "direto", como era: a primeira bolha sem pausa, as outras com 400 ms a 2 s. */
+const pausaDireta = (txt: string, indice: number) => (indice === 0 ? 0 : Math.min(2_000, Math.max(400, txt.length * 18)));
 
 /**
- * A PRIMEIRA bolha sai sem pausa nenhuma, e isso é deliberado: o cliente já esperou o
- * modelo pensar (alguns segundos), então uma pausa "para parecer humano" antes da
- * primeira resposta só soma em cima de uma espera que já existiu.
+ * Quantos milissegundos de "digitando…" cada bolha recebe. Pura: o sorteio entra por
+ * argumento para o teste fixar.
  */
-const pausaDaBolha = (txt: string, indice: number) => (indice === 0 ? 0 : pausaPara(txt));
+export function esperasDeDigitacao(bolhas: string[], ritmo: Ritmo, sorteio: () => number = Math.random): number[] {
+  if (ritmo === "direto") return bolhas.map(pausaDireta);
+  const c = COMPASSOS[ritmo];
+  const cruas = bolhas.map((b) =>
+    Math.min(c.maximoMs, Math.max(c.minimoMs, b.length * sortearEntre(c.msPorCaractere, sorteio))),
+  );
+  const soma = cruas.reduce((a, b) => a + b, 0);
+  const fator = soma > c.tetoMs ? c.tetoMs / soma : 1;
+  return cruas.map((ms) => Math.round(ms * fator));
+}
+
+/** O que fica de fora do "digitando…" na conta do prazo: a ida à Evolution, por bolha, e uma
+ *  folga para o turno ainda gravar e fechar. */
+const IDA_POR_BOLHA_MS = 1_500;
+const FOLGA_DO_PRAZO_MS = 3_000;
+
+/**
+ * Encolhe a digitação para caber até `prazo`, na mesma proporção em todas as bolhas. É a
+ * rede de segurança do orçamento do agente: um turno que pensou demais ainda entrega a
+ * resposta inteira, só que digitada mais depressa, em vez de ser cortado pela plataforma
+ * no meio da segunda bolha.
+ */
+export function caberNoPrazo(esperas: number[], prazo: number | undefined, agora: number): number[] {
+  if (prazo === undefined) return esperas;
+  const sobra = prazo - agora - FOLGA_DO_PRAZO_MS - IDA_POR_BOLHA_MS * esperas.length;
+  const soma = esperas.reduce((a, b) => a + b, 0);
+  if (soma <= sobra) return esperas;
+  const fator = Math.max(0, sobra) / soma;
+  return esperas.map((ms) => Math.floor(ms * fator));
+}
+
+/* ── a vez de cada pessoa ──
+ * Por instância, NESTE processo: quando foi a última mensagem e para quem. Só o ritmo
+ * "rotina" espera por ela; os outros só anotam. Vale dentro de uma execução (a rotina manda
+ * em série, na mesma função), que é onde a rajada de lembretes acontece. */
+const ultimaPorInstancia = new Map<string, { numero: string; em: number }>();
+
+async function esperarAVez(instancia: string, numero: string, compasso: Compasso, sorteio: () => number) {
+  const ultima = ultimaPorInstancia.get(instancia);
+  if (!compasso.entrePessoasMs || !ultima || ultima.numero === numero) return;
+  const falta = ultima.em + sortearEntre(compasso.entrePessoasMs, sorteio) - Date.now();
+  if (falta > 0) await dormir(falta);
+}
 
 /* ───────────────────────────── uma segunda chance ─────────────────────────────
  * Só `LimiteDoProvedor`, e só uma vez.
@@ -110,11 +195,29 @@ async function comSegundaChance<T>(acao: () => Promise<T>): Promise<T> {
 
 export type ResolvedorDeInstancia = (t: ContextoTenant) => Promise<string>;
 
+/* ───────────────────────────── um aviso por cliente ─────────────────────────────
+ * O dono é chamado UMA vez por cliente a cada 10 minutos, neste processo. Escalar acontece
+ * nos caminhos de falha, e falha costuma se repetir: com a cota do modelo esgotada, cada
+ * mensagem do mesmo cliente virava um 🔔 novo, todos iguais, no WhatsApp do dono, saindo
+ * do número do negócio. O primeiro aviso já leva o dono à conversa; os seguintes só
+ * engordam o volume que o WhatsApp vê. */
+const AVISO_REPETIDO_MS = 10 * 60_000;
+const avisadosEm = new Map<string, number>();
+
 export function criarCanalEvolution(deps: {
   instanciaDe: ResolvedorDeInstancia;
   /** Para quem escalar, NESTE inquilino. Ver o ⚠️ dentro de `escalar`. */
   donoDe: (t: ContextoTenant) => Promise<string | null>;
+  /** Ver "o ritmo", acima. Sem ele, "direto": o comportamento de antes de 27/10/2026. */
+  ritmo?: Ritmo;
+  /** Até quando (ms desde 1970) a execução pode durar, quando a plataforma diz. Ver
+   *  `caberNoPrazo`. Quem sabe disso é a plataforma, e por isso entra por aqui. */
+  prazo?: () => number | undefined;
+  /** Só para o teste fixar o sorteio. */
+  sorteio?: () => number;
 }): CanalDeMensagens {
+  const ritmo = deps.ritmo ?? "direto";
+  const sorteio = deps.sorteio ?? Math.random;
   return {
   /**
    * Envia na ordem, uma bolha por chamada.
@@ -140,18 +243,24 @@ export function criarCanalEvolution(deps: {
       throw new FalhaDoProvedor(`Telefone "${para}" não virou número de WhatsApp válido — nada foi enviado.`);
     }
 
-    for (let i = 0; i < textos.length; i++) {
-      const texto = textos[i].trim();
-      if (!texto) continue;
+    const bolhas = textos.map((x) => x.trim()).filter(Boolean);
+    if (bolhas.length === 0) return;
+    if (ritmo !== "direto") await esperarAVez(instancia, numero, COMPASSOS[ritmo], sorteio);
+    const esperas = caberNoPrazo(esperasDeDigitacao(bolhas, ritmo, sorteio), deps.prazo?.(), Date.now());
 
-      /* O `delay` é executado DENTRO da Evolution: ela segura a requisição e só então
-       * despacha. Preferido a dormir aqui porque a pausa acontece do lado que também
-       * controla a presença — e porque um `sleep` nosso é tempo de função serverless
-       * comprado para não fazer nada.
-       *
-       * Se o "digitando…" não aparecer na sua versão da Evolution, a peça que liga é
-       * `sinalizarDigitando()` no cliente; o ritmo das bolhas já funciona sem ela. */
-      await comSegundaChance(() => enviarTexto({ instancia, numero, texto, delayMs: pausaDaBolha(texto, i) }));
+    try {
+      for (let i = 0; i < bolhas.length; i++) {
+        if (i > 0 && ritmo !== "direto") await dormir(sortearEntre(COMPASSOS[ritmo].entreBolhasMs, sorteio));
+
+        /* O `delay` é o "digitando…", e roda DENTRO da Evolution: conferido no código da
+         * 2.3.7, ela manda a presença `composing`, espera, manda `paused` e só então envia —
+         * segurando a nossa requisição esse tempo todo (o prazo do `enviarTexto` já soma o
+         * `delay`). Uma chamada por bolha, em vez de presença + envio separados. */
+        const texto = bolhas[i];
+        await comSegundaChance(() => enviarTexto({ instancia, numero, texto, delayMs: esperas[i] }));
+      }
+    } finally {
+      ultimaPorInstancia.set(instancia, { numero, em: Date.now() });
     }
   },
 
@@ -222,13 +331,28 @@ export function criarCanalEvolution(deps: {
       return;
     }
 
+    let chave = "";
     try {
       /* Também pela instância do inquilino: o dono precisa receber o aviso NO MESMO
        * número em que a conversa está acontecendo, senão ele abre o WhatsApp errado para
        * assumir. Se resolver falhar, o `catch` já garante que escalar nunca lança. */
       const instancia = await deps.instanciaDe(t);
+
+      /* Ver "um aviso por cliente", acima. Marcado ANTES de enviar, para dois turnos ao mesmo
+       * tempo não mandarem dois; desmarcado no `catch`, para um aviso que falhou não calar
+       * o próximo. */
+      chave = `${instancia}|${numeroDono}|${cliente || soDigitos(p.telefone)}`;
+      const agora = Date.now();
+      for (const [k, em] of avisadosEm) if (agora - em > AVISO_REPETIDO_MS) avisadosEm.delete(k);
+      if (avisadosEm.has(chave)) {
+        console.info(`[evolution/escalar ${p.telefone}] o dono já foi avisado deste cliente há pouco; sem aviso novo: ${p.motivo}`);
+        return;
+      }
+      avisadosEm.set(chave, agora);
+
       await enviarTexto({ instancia, numero: numeroDono, texto: aviso });
     } catch (e) {
+      if (chave) avisadosEm.delete(chave);
       console.error(`[evolution/escalar ${p.telefone}] não conseguiu avisar o dono: ${p.motivo}`, e);
     }
   },

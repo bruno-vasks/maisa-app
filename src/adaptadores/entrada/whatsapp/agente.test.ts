@@ -26,6 +26,8 @@ const config: ConfiguracaoDoAgente = {
 function montar(o: number | { pensaMs?: number; pode?: boolean; respostas?: Awaited<ReturnType<ModeloDeConversa["conversar"]>>[] } = 0) {
   const { pensaMs = 0, pode = true, respostas } = typeof o === "number" ? { pensaMs: o } : o;
   const vistos: TurnoDeConversa[][] = [];
+  const enviadas: string[][] = [];
+  const escaladas: string[] = [];
   const modelo: ModeloDeConversa = {
     nome: "falso",
     async conversar(p) {
@@ -46,12 +48,16 @@ function montar(o: number | { pensaMs?: number; pode?: boolean; respostas?: Awai
     avaliarAtendimento: async () => ({ pode, motivo: pode ? null : "contato pessoal do dono", nome: null }),
     historico: historicoDemo,
     conversas: conversasDemo,
-    canal: { enviar: async () => {}, enviarDocumento: async () => {}, escalar: async () => {} },
+    canal: {
+      enviar: async (_t: unknown, _para: string, textos: string[]) => { enviadas.push(textos); },
+      enviarDocumento: async () => {},
+      escalar: async (_t: unknown, p: { motivo: string }) => { escaladas.push(p.motivo); },
+    },
     oferecerHorarios: naoUsado, agendarAtendimento: naoUsado, cancelarAtendimento: naoUsado,
     lerAgenda: naoUsado, anotarFato: naoUsado, responderDuvida: naoUsado,
   } as unknown as Dependencias;
   const t: ContextoTenant = { tenantId: `teste-${randomUUID()}`, usuarioId: "teste", ator: atorAgente("teste") };
-  return { responder: criarAgente(deps), vistos, t };
+  return { responder: criarAgente(deps), vistos, t, enviadas, escaladas };
 }
 
 const TEL = "11990001111";
@@ -177,5 +183,76 @@ describe("o silêncio", () => {
     const r = await responder(t, { de: TEL, texto: "oi" });
     expect(r.bolhas.length).toBeGreaterThan(0);
     expect(r.trilha.find((p) => p.ferramenta === "nao_responder")?.erro).toBe(true);
+  });
+});
+
+describe("a blindagem do número (27/10/2026)", () => {
+  const fala = (texto: string) => ({ texto, chamadas: [], recusou: false });
+
+  it("mensagem escrita há mais de 15 minutos é gravada, e não é lida nem respondida", async () => {
+    const { responder, vistos, t } = montar();
+    let lidas = 0;
+    const r = await responder(t, {
+      de: TEL, texto: "tem horário hoje às 14h?", enviadaEm: Date.now() - 40 * 60_000,
+      marcarComoLida: async () => { lidas++; },
+    });
+    expect(r.bolhas).toEqual([]);
+    expect(r.motivo).toContain("escrita há 40 min");
+    expect(vistos).toHaveLength(0);
+    expect(lidas).toBe(0);
+    const [gravada] = await historicoDemo.ler(t, TEL, 1);
+    expect(gravada.txt).toBe("tem horário hoje às 14h?");
+  });
+
+  it("mensagem de agora fica lida (tique azul) antes de ela pensar", async () => {
+    const { responder, vistos, t } = montar();
+    let antesDoModelo: boolean | null = null;
+    const r = await responder(t, {
+      de: TEL, texto: "oi", enviadaEm: Date.now() - 5_000,
+      marcarComoLida: async () => { antesDoModelo = vistos.length === 0; },
+    });
+    expect(antesDoModelo).toBe(true);
+    expect(r.bolhas.length).toBeGreaterThan(0);
+  });
+
+  it("conversa da vida pessoal do dono continua não lida no celular dele", async () => {
+    const { responder, t } = montar({ pode: false });
+    let lidas = 0;
+    await responder(t, { de: TEL, texto: "oi filho", marcarComoLida: async () => { lidas++; } });
+    expect(lidas).toBe(0);
+  });
+
+  it("outro robô mandando a mesma mensagem: na terceira ela para, sem gastar o modelo, e chama o dono", async () => {
+    const auto = "Olá! Recebemos sua mensagem e em breve retornaremos.";
+    const { responder, vistos, t, escaladas } = montar({
+      respostas: [fala("Oi! Quer marcar um horário?"), fala("Desculpe, não entendi. Quer marcar um horário?")],
+    });
+    await responder(t, { de: TEL, texto: auto });
+    await responder(t, { de: TEL, texto: auto });
+    const r = await responder(t, { de: TEL, texto: auto });
+    expect(r.bolhas).toEqual([]);
+    expect(r.escalou).toBe(true);
+    expect(r.motivo).toContain("disjuntor");
+    expect(vistos).toHaveLength(2);
+    expect(escaladas).toHaveLength(1);
+  });
+
+  it("a mesma resposta de novo, palavra por palavra, não sai", async () => {
+    const igual = "Funcionamos de terça a sábado, das 9h às 19h.";
+    const { responder, t, enviadas } = montar({ respostas: [fala(igual), fala(igual)] });
+    await responder(t, { de: TEL, texto: "qual o horário de vocês?" });
+    const r = await responder(t, { de: TEL, texto: "qual o horário?" });
+    expect(r.bolhas).toEqual([]);
+    expect(r.motivo).toContain("igual à anterior");
+    expect(enviadas).toHaveLength(1);
+  });
+
+  it("a fala que ela inventou para o cliente, e a resposta a ela, não saem", async () => {
+    const { responder, t, enviadas } = montar({
+      respostas: [fala("Tenho sexta às 15h, serve?\n\nCliente: serve sim\n\nÓtimo, marcado!")],
+    });
+    const r = await responder(t, { de: TEL, texto: "tem sexta?" });
+    expect(r.bolhas).toEqual(["Tenho sexta às 15h, serve?"]);
+    expect(enviadas).toEqual([["Tenho sexta às 15h, serve?"]]);
   });
 });

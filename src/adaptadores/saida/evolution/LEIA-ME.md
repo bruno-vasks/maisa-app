@@ -12,17 +12,19 @@ Doc oficial: <https://doc.evolution-api.com/v2/> · Auth: header `apikey: <token
 
 | Arquivo | Assunto | Detalhe que não é óbvio |
 |---|---|---|
-| `canal-evolution.ts` | **A fachada.** Implementa `CanalDeMensagens`: bolhas com ritmo + escalação para o dono. | `escalar()` **nunca lança** — ele é chamado justamente nos caminhos de falha do agente, e uma exceção aqui trocaria o problema original por um erro de notificação. Desde 01/10/2026 também `enviarDocumento` (o PDF do recibo, com a mensagem na legenda), **sem segunda chance**: a Evolution segura a resposta enquanto baixa o arquivo, e repetir pode entregar duas vezes. |
+| `canal-evolution.ts` | **A fachada.** Implementa `CanalDeMensagens`: bolhas no ritmo de quem manda (ver "O ritmo", abaixo) + escalação para o dono, um aviso por cliente a cada 10 min. | `escalar()` **nunca lança** — ele é chamado justamente nos caminhos de falha do agente, e uma exceção aqui trocaria o problema original por um erro de notificação. Desde 01/10/2026 também `enviarDocumento` (o PDF do recibo, com a mensagem na legenda), **sem segunda chance**: a Evolution segura a resposta enquanto baixa o arquivo, e repetir pode entregar duas vezes. |
 | `contatos-evolution.ts` | Implementa `ContatosDoCanal`: lê a agenda por `POST /chat/findContacts/{instancia}`. | **Só POST — o GET responde 404** nesta versão. Filtra aqui, não em quem chama: da agenda do Bruno, 1.840 entradas dão **374** utilizáveis (o resto é grupo ou `@lid` sem telefone). `findChats` é fonte pior: 137 conversas, 3 com telefone. |
-| `cliente.ts` | HTTP: `sendText`, `sendPresence`, `connectionState`, `webhook/set` | Todo o mapeamento de erro vive aqui. `LimiteDoProvedor` só para status que provam que a Evolution **não** processou. `sendMedia` (01/10/2026): corpo plano da v2 (`mediatype: "document"`, `mimetype`, `media` como URL, `fileName`, `caption`), conferido no `SendMediaDto` da Evolution. `getBase64FromMediaMessage` (26/10/2026, `baixarMidia`): o áudio recebido, para a MAISA transcrever; corpo `{ message: { key: { id } }, convertToMp4: false }`. Segue a documentação da Evolution e ainda espera o primeiro áudio real. Com `webhookBase64` ligado na instância, o áudio já vem no webhook e esta chamada não acontece. |
+| `cliente.ts` | HTTP: `sendText`, `sendPresence`, `markMessageAsRead`, `connectionState`, `webhook/set` | Todo o mapeamento de erro vive aqui. O prazo do `sendText` **soma o `delay`** (o "digitando…" segura a requisição). `markMessageAsRead` (27/10/2026, `confirmarLeitura`): o tique azul, corpo `{ readMessages: [{ remoteJid, fromMe: false, id }] }`; conferido no código da 2.3.7, chave `@lid` é descartada em silêncio. `LimiteDoProvedor` só para status que provam que a Evolution **não** processou. `sendMedia` (01/10/2026): corpo plano da v2 (`mediatype: "document"`, `mimetype`, `media` como URL, `fileName`, `caption`), conferido no `SendMediaDto` da Evolution. `getBase64FromMediaMessage` (26/10/2026, `baixarMidia`): o áudio recebido, para a MAISA transcrever; corpo `{ message: { key: { id } }, convertToMp4: false }`. Segue a documentação da Evolution e ainda espera o primeiro áudio real. Com `webhookBase64` ligado na instância, o áudio já vem no webhook e esta chamada não acontece. |
 | `config.ts` | Env vars, `isEvolutionConfigured`, avisos | Sem configuração o app **não quebra**: cai no `canalDemo` e a MAISA continua respondendo no log. |
 
 ## Fluxo de operação
 
 ```
-agente responde  →  canal.enviar(t, telefone, ["bolha 1", "bolha 2"])
+agente atende    →  POST /chat/markMessageAsRead/{instancia}   (tique azul, antes de pensar)
+agente responde  →  canal.enviar(t, telefone, ["bolha 1", "bolha 2"])   (ritmo "conversa")
                     └─ paraNumeroWhats()      "(11) 98888-7777" → "5511988887777"
-                       └─ POST /message/sendText/{instancia}   (uma por bolha, em ordem)
+                       └─ POST /message/sendText/{instancia}   (uma por bolha, em ordem,
+                          com `delay` = o "digitando…" daquela bolha)
 
 agente desiste   →  canal.escalar(t, { telefone, motivo })
                     └─ POST /message/sendText/{instancia}  → número do DONO, com link wa.me
@@ -44,13 +46,11 @@ do servidor".
 - **Sequencial, nunca `Promise.all`.** Em paralelo a bolha curta chega antes da longa, e
   resposta fora de ordem no WhatsApp lê como bot quebrado — exatamente o que as bolhas
   existem para evitar.
-- **O ritmo vem do `delay` do `sendText`**, executado dentro da Evolution, e não de um
-  `sleep` nosso: dormir aqui é tempo de função serverless comprado para não fazer nada.
-  `sinalizarDigitando()` (`/chat/sendPresence`) existe no cliente para quem quiser o
-  "digitando…" explícito — o corpo dela é **plano**, não aninhado em `options` (a doc
-  antiga mostrava aninhado e devolve 400: evolution-api#1107).
-- **A primeira bolha sai sem pausa.** O cliente já esperou o modelo pensar; pausa "para
-  parecer humano" antes da primeira resposta só soma em cima de uma espera que já houve.
+- **O "digitando…" é o `delay` do `sendText`**, executado dentro da Evolution: conferido no
+  código da 2.3.7, ela manda a presença `composing`, espera o `delay`, manda `paused` e só
+  então envia. Uma chamada por bolha. `sinalizarDigitando()` (`/chat/sendPresence`) existe
+  no cliente para quem quiser a presença solta — o corpo dela é **plano**, não aninhado em
+  `options` (a doc antiga mostrava aninhado e devolve 400: evolution-api#1107).
 - **Retentativa só em `LimiteDoProvedor`, uma vez.** Aquele erro significa que a Evolution
   disse que não processou (429/502/503/504). Timeout e 500 passam direto: podem ter sido
   entregues, e mensagem duplicada no WhatsApp do cliente é um erro que ele **vê**.
@@ -62,6 +62,47 @@ do servidor".
 - **Só o evento `MESSAGES_UPSERT` é assinado.** Assinar tudo traria recibo de entrega,
   presença e "digitando" do cliente — dezenas de POST por conversa, todos descartados,
   cada um uma invocação paga.
+
+## O ritmo (27/10/2026)
+
+Pela Evolution, a MAISA é um WhatsApp Web não oficial, e o WhatsApp derruba número assim
+por volume e por padrão de robô. Até aqui a primeira bolha saía sem "digitando…" e as
+seguintes a ~10 palavras por segundo. Agora o canal tem três ritmos, um por quem manda, e
+`composicao.ts` monta uma instância do canal para cada:
+
+| Ritmo | Quem usa | "Digitando…" por bolha | Entre duas pessoas do mesmo número |
+|---|---|---|---|
+| `conversa` | o agente | 95–130 ms por caractere (≈ 1,3–1,8 palavra/s, sorteado a cada bolha), mín. 1,4 s, máx. 10 s, **até 18 s por resposta**; 0,4–1,1 s de pausa entre bolhas | — |
+| `rotina` | o lembrete | o mesmo cálculo, máx. 4 s (o texto é pronto) | **3 a 7 s**, sorteado |
+| `direto` | a resposta do dono no painel, os avisos ao dono, os recibos | a primeira bolha na hora; as outras 0,4–2 s, como era | — |
+
+Os números:
+
+- **Por que ~1,5 palavra/s, e não a velocidade de gente no celular (~0,6).** Uma resposta de
+  três bolhas levaria mais de um minuto: o cliente desiste antes, e a função da Vercel tem
+  teto de 60 s. Não há evidência pública de que o WhatsApp meça velocidade de digitação; o
+  que tira a cara de robô é o "digitando…" existir, durar conforme o tamanho e variar.
+  Numa resposta típica ("Tenho sexta às 15h e às 16h30 com o Rafael." + "Qual fica melhor
+  pra você?"), são ~5 s e ~3 s.
+- **O teto de 18 s entra na conta do agente.** `ORCAMENTO_DO_TURNO_MS`, em
+  `entrada/whatsapp/agente.ts`, reserva esse tempo dentro dos 60 s. Subir um sem rever o
+  outro é turno cortado no meio da segunda bolha.
+- **E ainda há uma rede.** O canal recebe de `composicao.ts` o prazo da execução
+  (`getDeadline()`, do `@vercel/functions`) e, se o turno pensou demais, encolhe o
+  "digitando…" para caber (`caberNoPrazo`). Fora da Vercel o prazo não existe e valem os tetos.
+- **A vez de cada pessoa é por processo.** O ritmo `rotina` lembra a última mensagem de cada
+  instância na memória do processo; vale dentro de uma execução da rotina, que manda em
+  série, e é onde a rajada de lembretes acontece. A rotina, por sua vez, para de enviar aos
+  40 s e devolve o resto para a fila (`TEMPO_DA_RODADA_MS`, em `aplicacao/lembretes.ts`).
+- **⚠️ O lote de recibos ainda sai colado.** Fechar o mês com "avisar pacientes" manda um
+  aviso por paciente em sequência, sem espaço (ritmo `direto`), dentro de uma requisição do
+  painel. Espaçar ali estoura o tempo da requisição; o certo é uma fila, e é uma fatia própria.
+
+Na criação da instância (`criarInstancia`), os ajustes vão explícitos: `groupsIgnore: true`
+(grupo nem chega ao webhook), `alwaysOnline: false` (gente não fica online 24 horas) e
+`readMessages: false` (o tique azul é da MAISA, só na conversa que ela atende; marcar tudo
+apagaria do celular do dono o "não lida" das conversas pessoais dele). Instância que já
+existe não muda: ajuste pelo manager da Evolution, ou `POST /settings/set/{instancia}`.
 
 ## Ligar isso na prática
 

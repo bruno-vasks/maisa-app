@@ -124,6 +124,7 @@ import {
 } from "@/adaptadores/saida/supabase/memoria";
 import { agendaDemo, conexoesDemo } from "@/adaptadores/saida/demo/agenda";
 import { criarCanalEvolution } from "@/adaptadores/saida/evolution/canal-evolution";
+import { getDeadline } from "@vercel/functions";
 import { criarContatosEvolution } from "@/adaptadores/saida/evolution/contatos-evolution";
 import { contatosSupabase } from "@/adaptadores/saida/supabase/contatos";
 import { contatosDemo, contatosDoCanalDemo, historicoDoCanalDemo } from "@/adaptadores/saida/demo/contatos";
@@ -503,8 +504,27 @@ const donoDoInquilino = async (t: ContextoTenant): Promise<string | null> => {
   return c?.telefoneDono ?? null;
 };
 
+/* Até quando a função pode rodar, quando a Vercel diz (fora dela, `undefined`). O canal encolhe o
+ * "digitando…" para caber; ver `caberNoPrazo` em `canal-evolution.ts`. */
+const prazoDaFuncao = () => getDeadline()?.getTime();
+
 const canal = isEvolutionConfigured
-  ? criarCanalEvolution({ instanciaDe: instanciaDoInquilino, donoDe: donoDoInquilino })
+  ? criarCanalEvolution({ instanciaDe: instanciaDoInquilino, donoDe: donoDoInquilino, prazo: prazoDaFuncao })
+  : canalDemo;
+
+/**
+ * O MESMO canal, em outros ritmos (27/10/2026). Ver "o ritmo" em `canal-evolution.ts`.
+ *
+ * `canal`, acima, é o ritmo "direto": a resposta que o dono escreveu no painel, os avisos
+ * para o próprio dono e os recibos. A MAISA conversando digita como gente
+ * (`canalDaConversa`); o lembrete, que sai sem ninguém ter escrito, espaça uma pessoa da
+ * outra (`canalDaRotina`). Mesma instância, mesmas regras de falha: só muda o tempo.
+ */
+const canalDaConversa = isEvolutionConfigured
+  ? criarCanalEvolution({ instanciaDe: instanciaDoInquilino, donoDe: donoDoInquilino, ritmo: "conversa", prazo: prazoDaFuncao })
+  : canalDemo;
+const canalDaRotina = isEvolutionConfigured
+  ? criarCanalEvolution({ instanciaDe: instanciaDoInquilino, donoDe: donoDoInquilino, ritmo: "rotina", prazo: prazoDaFuncao })
   : canalDemo;
 
 /**
@@ -705,12 +725,12 @@ export const app = {
   /**
    * A ROTINA. É a única linha deste arquivo que monta um caso de uso sem inquilino.
    *
-   * Recebe o MESMO `canal` que o agente usa — o que já resolve a instância de WhatsApp
-   * por inquilino (`instanciaDoInquilino`, acima). É o que garante que o lembrete sai
-   * pelo número do próprio negócio, e não por uma env global: um lembrete saindo do
-   * WhatsApp de outro cliente seria o pior vazamento visível do produto.
+   * Recebe o MESMO canal que o agente usa, no ritmo "rotina" — o que já resolve a
+   * instância de WhatsApp por inquilino (`instanciaDoInquilino`, acima). É o que garante
+   * que o lembrete sai pelo número do próprio negócio, e não por uma env global: um
+   * lembrete saindo do WhatsApp de outro cliente seria o pior vazamento visível do produto.
    */
-  enviarLembretes: criarEnviarLembretes({ fila: filaLembretes, canal, negocio, assistente }),
+  enviarLembretes: criarEnviarLembretes({ fila: filaLembretes, canal: canalDaRotina, negocio, assistente }),
 
   lembrarCliente: criarLembrarCliente({ negocio, memoria }),
   anotarFato: criarAnotarFato({ negocio, memoria }),
@@ -927,7 +947,7 @@ export const servicos = { emissor, negocio };
 
 import { criarAgente, type ResolvedorDeConfiguracao } from "@/adaptadores/entrada/whatsapp/agente";
 import { textoDoAudio, type Envelope } from "@/adaptadores/entrada/whatsapp/contexto";
-import { baixarMidia } from "@/adaptadores/saida/evolution/cliente";
+import { baixarMidia, confirmarLeitura } from "@/adaptadores/saida/evolution/cliente";
 import { transcreverAudio } from "@/adaptadores/saida/gemini/transcricao";
 import { modeloGemini } from "@/adaptadores/saida/gemini/modelo-gemini";
 import { GEMINI, isGeminiConfigured } from "@/adaptadores/saida/gemini/config";
@@ -1059,6 +1079,25 @@ export async function ouvirAudio(envelope: Envelope): Promise<string> {
   }
 }
 
+/**
+ * Os dois tiques azuis na mensagem que chegou. O agente chama só quando vai atender (passo
+ * 1g de `agente.ts`). Aqui porque é a Evolution que conhece a chave da mensagem, e o
+ * webhook que a trouxe.
+ *
+ * Nunca lança: tique que não ficou azul não pode custar a resposta.
+ *
+ * Sem a instância do webhook, nada: cair na instância do ambiente mandaria o "lido" de outro
+ * número.
+ */
+export async function marcarComoLida(envelope: Envelope): Promise<void> {
+  if (!isEvolutionConfigured || !envelope.chave || !envelope.instancia) return;
+  try {
+    await confirmarLeitura({ ...envelope.chave, instancia: envelope.instancia });
+  } catch (e) {
+    console.warn(`[composicao] não marcou como lida a mensagem de ${envelope.de}`, e);
+  }
+}
+
 export function agenteWhatsapp() {
   if (!_agente) {
     _agente = criarAgente({
@@ -1082,7 +1121,8 @@ export function agenteWhatsapp() {
        * Ver o passo 1d de `agente.ts` — é o que faz o botão "Assumir" do painel parar de
        * prometer silêncio e não entregar. */
       conversas,
-      canal,
+      /* No ritmo "conversa": "digitando…" em toda bolha. Ver `canal-evolution.ts`. */
+      canal: canalDaConversa,
     });
   }
   return _agente;

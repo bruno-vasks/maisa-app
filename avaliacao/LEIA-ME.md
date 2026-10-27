@@ -43,6 +43,8 @@ Para medir o Gemini de verdade, use uma chave separada, de preferência paga.
 | o negócio | `negocios.ts`: um consultório e uma barbearia inventados |
 | quem a MAISA atende (número pessoal) | sempre "pode": essa regra tem teste próprio |
 | o cliente | um modelo fazendo papel de pessoa (`cliente.ts`) |
+| o ritmo de envio ("digitando…", tique azul, espaço entre pessoas) | **não existe aqui**: o canal é falso e entrega na hora. O ritmo tem teste próprio (`saida/evolution/canal-evolution.test.ts`) |
+| o orçamento do turno | **50 s, o de antes de 27/10/2026** (`orcamentoMs`). Produção usa 34 s porque reserva o "digitando…" dentro dos 60 s da Vercel; aqui não há digitação, e o modelo pela linha de comando é mais lento que a API |
 
 Nada fala com Supabase, Google ou Evolution. Os processos de conversa recebem um ambiente
 limpo, só com a chave do Gemini e o necessário para o Claude Code achar o login.

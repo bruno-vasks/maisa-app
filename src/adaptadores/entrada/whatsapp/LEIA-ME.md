@@ -11,14 +11,17 @@ a mesma chamada que marcar pelo painel, sem nada abaixo mudar. Foi.
 
 ```
 cliente no WhatsApp
-  └─ webhook (Evolution / Cloud API) → app/api/whatsapp/route.ts   ← rota FINA
+  └─ webhook (Evolution / Cloud API) → app/api/whatsapp/route.ts   ← rota FINA, 200 na hora
      ├─ contexto.ts ....... segredo + destino da mensagem → ContextoTenant, ator = agente
-     └─ agente.ts ......... (áudio: ouve só quem vai atender) → espera a rajada (4 s) → o loop
+     └─ agente.ts ......... (em segundo plano, `waitUntil`)
+        │                   atrasada? grava e para → espera a rajada (4 s) → atende? →
+        │                   disjuntor → tique azul → o loop
         ├─ persona.ts ..... system prompt montado a partir do cadastro
         ├─ ferramentas.ts . casos de uso como tools + os guardrails de alucinação
-        ├─ bolhas.ts ...... texto do modelo → mensagens curtas de WhatsApp
+        ├─ disjuntor.ts ... a conversa virou laço com outro robô?
+        ├─ bolhas.ts ...... texto do modelo → mensagens curtas de WhatsApp, sem fala inventada
         └─ composicao.ts → app.agendarAtendimento(...)   ← A MESMA FUNÇÃO DO PAINEL
-                           └─ canal.enviar(...) → saida/evolution/  ← a resposta sai aqui
+                           └─ canal.enviar(...) → saida/evolution/  ← sai com "digitando…"
 ```
 
 A volta é o [`saida/evolution/`](../../saida/evolution/LEIA-ME.md). Os dois lados não se
@@ -31,7 +34,8 @@ conhecem: encontram-se em `composicao.ts`.
 | `contexto.ts` | Valida o segredo, resolve o inquilino **pelo destino da mensagem**, normaliza o envelope de três formatos de webhook e diz como um áudio entra na conversa (`textoDoAudio`) |
 | `persona.ts` | Monta o system prompt em duas partes: estável (cacheável) e volátil (hoje + memória) |
 | `ferramentas.ts` | As ferramentas, o executor e a camada que desconfia do modelo |
-| `bolhas.ts` | Quebra a resposta em mensagens, converte Markdown, põe hora e preço do jeito falado (`comoSeFala`), aplica os tetos |
+| `bolhas.ts` | Quebra a resposta em mensagens, converte Markdown, põe hora e preço do jeito falado (`comoSeFala`), corta a fala que o modelo inventou para o cliente (`semFalaInventada`), aplica os tetos |
+| `disjuntor.ts` | Diz, só pela thread, se a conversa virou laço: a mesma mensagem longa pela terceira vez, ou 12 respostas em 10 minutos |
 | `agente.ts` | O loop: rajada → histórico → modelo → ferramenta → resposta → memória |
 
 ## O destino da mensagem, por provedor
@@ -203,11 +207,42 @@ A fala escrita junto com `chamar_humano` só se junta à final quando é mais lo
 coisa (`parecidas`, por palavras em comum): o CVV de uma crise passa; o mesmo "sinto muito,
 já avisei o Zé" dito duas vezes, não.
 
+## Blindagem do número
+
+Pela Evolution, a MAISA é um WhatsApp Web não oficial (Baileys), e o WhatsApp derruba número
+assim por volume e por padrão de robô. Pedido do Bruno em 27/10/2026: agir como gente,
+digitar de verdade, não disparar mensagem em rajada, nunca responder a si mesma. O que
+existe, em ordem de importância:
+
+| Trava | Onde | O que evita |
+|---|---|---|
+| A rota responde 200 na hora; o turno segue depois (`waitUntil`) | `app/api/whatsapp/route.ts` | Conferido no código da Evolution 2.3.7: o webhook desiste em 30 s e reentrega o evento até 10 vezes. Sem deduplicação, cada reentrega era a conversa rodando de novo, e com o "digitando…" quase todo turno passaria de 30 s |
+| Eco da própria mensagem (`fromMe`) cai fora | `contexto.ts` | A MAISA respondendo a si mesma, em laço. Já existia |
+| Mensagem escrita há mais de 15 min é gravada e não respondida (`IDADE_MAXIMA_MS`) | `agente.ts`, fim do passo 1b | A enxurrada de quando a Evolution volta de uma queda: dezenas de respostas no mesmo minuto, para perguntas de horas atrás |
+| Disjuntor: a mesma mensagem longa pela 3ª vez, ou 12 respostas em 10 min, e ela para e chama o dono | `disjuntor.ts`, passo 1f | Laço com outro robô (resposta automática de loja respondendo a ela, sem fim) |
+| A mesma resposta, palavra por palavra, a menos de 10 min da anterior, não sai | `agente.ts`, passo 3c | O parágrafo repetido, marca de robô e o que todo laço produz |
+| A fala inventada ("Cliente: pode ser às 15h", e a resposta a ela) é cortada | `bolhas.ts` | A MAISA conversando consigo mesma dentro de uma resposta |
+| Tique azul antes de pensar, só na conversa que ela atende | passo 1g; `confirmarLeitura` no `saida/evolution/` | Responder sem nunca ter lido (os tiques do cliente ficavam cinza para sempre) |
+| "Digitando…" em toda bolha, ~1,5 palavra/s, variando | `saida/evolution/canal-evolution.ts`, ritmo "conversa" | Resposta instantânea, várias bolhas no mesmo segundo, sempre no mesmo compasso |
+| Um aviso ao dono por cliente a cada 10 min | `saida/evolution/canal-evolution.ts` | Uma falha repetida (a cota do modelo, por exemplo) virando um 🔔 por mensagem no WhatsApp do dono |
+
+O tique azul não vai para a conversa pessoal do dono, a conversa assumida por ele nem a
+mensagem atrasada: essas continuam "não lidas" no celular dele, que é como ele sabe que tem
+alguém esperando. Contato `@lid` fica sem tique (a Evolution descarta a chave).
+
+O ritmo de digitação, os números e o porquê deles estão no LEIA-ME do
+[`saida/evolution/`](../../saida/evolution/LEIA-ME.md). O que ele custa aqui: até 18 s por
+resposta, reservados dentro dos 60 s da função. Ver o orçamento logo abaixo.
+
 ## Quando o modelo não responde
 
 `LimiteDoProvedor` (429, 5xx, timeout) ganha duas novas tentativas, 2 s e 5 s depois, desde
-que caibam no orçamento do turno (`ORCAMENTO_DO_TURNO_MS`, 50 s, abaixo dos 60 s da rota:
-turno morto pela Vercel não chama ninguém e o webhook é reentregue). Se o provedor continuar
+que caibam no orçamento do turno (`ORCAMENTO_DO_TURNO_MS`, 34 s contados do webhook: dos 60 s
+da rota, até 18 s são do "digitando…" e o resto das idas à Evolution e ao banco; era 50 s
+quando as bolhas saíam na hora). Turno morto pela Vercel não chama ninguém, e o cliente fica
+com meia resposta. Se mesmo assim o modelo terminar tarde, o canal encolhe o "digitando…"
+para caber (`caberNoPrazo`, com o prazo que a Vercel informa). A bancada passa `orcamentoMs:
+50_000`: ela roda fora da Vercel, sem digitar, com um modelo mais lento que a API. Se o provedor continuar
 fora, o dono é chamado com a causa e o cliente não fica num silêncio que ninguém vê — era o
 que acontecia, porque a exceção subia até a rota.
 
@@ -400,13 +435,16 @@ cliente respondia de volta, e a MAISA falava por cima dele.
   por `curl`. Com Supabase configurado o banco ganha sempre — um env esquecido apontando para
   o inquilino errado escreveria na agenda de outro negócio. E falha de banco **não** cai para
   o env: descartar a mensagem é reversível, marcar horário no negócio errado não é.
-- **Sem deduplicação de reentrega.** O webhook reentrega quando não recebe 200 a tempo; o
-  índice único em `provedor_id` já está na DDL, mas a porta `RepositorioHistorico.anexar` fala
-  `Msg`, e `Msg` não carrega id de provedor — então nem o adaptador do Supabase o usa. Hoje uma
-  reentrega gera resposta duplicada, e agora também **duas linhas na thread do painel**: o
-  dono vê a mesma pergunta do cliente duas vezes. É a próxima dívida a fechar desta lista, e o
-  desenho não é óbvio de propósito — pôr `provedorId` em `Msg` faria o tipo da TELA carregar
-  um detalhe do canal.
+- **Sem deduplicação de reentrega.** O índice único em `provedor_id` já está na DDL, mas a
+  porta `RepositorioHistorico.anexar` fala `Msg`, e `Msg` não carrega id de provedor — então
+  nem o adaptador do Supabase o usa. Desde 27/10/2026 a causa comum de reentrega sumiu (a rota
+  responde 200 antes de o turno rodar, e a Evolution não espera mais 30 s), mas uma reentrega
+  por outro motivo ainda gera resposta duplicada e **duas linhas na thread do painel**.
+  Fechar pede mexer na porta (decisão do Bruno), e o desenho não é óbvio de propósito — pôr
+  `provedorId` em `Msg` faria o tipo da TELA carregar um detalhe do canal.
+- **As travas de volume valem por conversa, não pelo número inteiro.** O disjuntor olha uma
+  pessoa; não há teto de mensagens por minuto para a instância toda, porque um contador assim
+  precisaria morar no banco (cada webhook pode rodar numa instância diferente da Vercel).
 - **A thread do painel não é realtime.** A tela relê de 15 em 15 segundos com ela aberta (ver
   `RELER_CONVERSAS_MS` no store). O Supabase tem realtime; é uma fatia própria.
 - ~~**Nenhum teste automatizado no repo.**~~ **Fechada em 13/08/2026.** O vitest entrou e o

@@ -236,7 +236,7 @@ prometer. O Pix recorrente é justamente o motivo de a AbacatePay existir aqui:
 
 | Rota | Métodos | Porteiro | O que faz |
 |---|---|---|---|
-| `/api/whatsapp` | GET · POST | `SEGREDO` | **o webhook.** Recebe a mensagem do cliente e roda o agente |
+| `/api/whatsapp` | GET · POST | `SEGREDO` | **o webhook.** Recebe a mensagem do cliente, responde 200 na hora e roda o agente em seguida (`waitUntil`); só o formato de teste (`{ de, texto }`) espera e devolve as bolhas |
 | `/api/whatsapp/conexao` | GET · POST | `SEGREDO` | pareamento da instância |
 | `/api/canal` | GET · POST · PATCH · DELETE | `exigirSessao` | `LerCanal` · `ConectarCanal` · `DesconectarCanal` — a visão do painel do mesmo canal |
 | `/api/canal/codigo` | POST | `exigirSessao` | `RenovarCodigo` — outro código de pareamento, **sem** derrubar a instância |

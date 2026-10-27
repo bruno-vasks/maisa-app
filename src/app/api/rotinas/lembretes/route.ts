@@ -46,10 +46,11 @@ import { falha } from "@/adaptadores/entrada/http/respostas";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/* Enviar 100 mensagens é uma chamada de rede por lembrete. O padrão da Vercel (10s) é
- * curto para isso, e estourar no meio deixa lembretes reservados sem terem saído — eles
- * voltam na rodada seguinte só se a devolução tiver rodado, e ela não roda se a função
- * morreu. Ver `POR_RODADA` em `aplicacao/lembretes.ts`. */
+/* Cada lembrete é uma chamada de rede, e desde 27/10/2026 eles saem espaçados (ver o ritmo
+ * "rotina" em `canal-evolution.ts`). Estourar no meio deixa lembretes reservados sem terem
+ * saído, e eles só voltam se a devolução tiver rodado, o que não acontece se a função
+ * morreu. Por isso a rodada para sozinha antes: ver `TEMPO_DA_RODADA_MS` em
+ * `aplicacao/lembretes.ts`. */
 export const maxDuration = 60;
 
 const SEGREDO = (process.env.ROTINAS_SECRET || process.env.WHATSAPP_WEBHOOK_SECRET || "").trim();

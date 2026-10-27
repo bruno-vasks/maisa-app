@@ -60,6 +60,33 @@ export function comoSeFala(s: string): string {
     .replace(/R\$\s?(\d+)\.(\d{2})\b/g, (_, r: string, c: string) => (c === "00" ? `R$ ${r}` : `R$ ${r},${c}`));
 }
 
+/* ───────────────────────────── a fala inventada ─────────────────────────────
+ * O modelo às vezes continua a conversa sozinho: responde, escreve "Cliente: pode ser às
+ * 15h" e responde a isso também ("Ótimo, marcado!") sem o cliente ter dito nada nem a
+ * agenda ter sido tocada. É a MAISA conversando consigo mesma, e o cliente leria as duas
+ * partes. Pedido do Bruno em 27/10/2026: "nunca alucinar e responder ela mesma".
+ *
+ * Aqui é garantia, como o resto do arquivo: da primeira linha com rótulo de quem fala em
+ * diante, nada sai. O rótulo dela na ABERTURA ("maisa: Oi!") só é tirado. "Cliente: Ana"
+ * dentro de uma ficha (outra linha "Serviço: corte" ao lado) é resumo, não fala, e fica. */
+
+const ROTULO_DELA = /^\s*[*_]*\s*(maisa|assistente|assistant|secret[áa]ria)\s*[*_]*\s*:\s*/i;
+const ROTULO_DO_CLIENTE = /^\s*[*_]*\s*(cliente|usu[áa]rio|user|human[oa]?|voc[êe])\s*[*_]*\s*:/i;
+const LINHA_DE_FICHA = /^\s*[*_]*\s*[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ]{1,20}[*_]*\s*:\s*\S/;
+
+export function semFalaInventada(texto: string): string {
+  const linhas = texto.split("\n");
+  linhas[0] = linhas[0].replace(ROTULO_DELA, "");
+  /* Linha de ficha é "Serviço: corte"; rótulo de quem fala não conta como ficha, senão
+   * "Cliente: …" colado em "MAISA: …" protegeria a fala inventada. */
+  const ehFicha = (l?: string) => l !== undefined && LINHA_DE_FICHA.test(l) && !ROTULO_DELA.test(l) && !ROTULO_DO_CLIENTE.test(l);
+  const naFicha = (i: number) => ehFicha(linhas[i - 1]) || ehFicha(linhas[i + 1]);
+  const corte = linhas.findIndex(
+    (l, i) => i > 0 && (ROTULO_DELA.test(l) || (ROTULO_DO_CLIENTE.test(l) && !naFicha(i))),
+  );
+  return (corte === -1 ? linhas : linhas.slice(0, corte)).join("\n").trim();
+}
+
 /** Quebra num limite de FRASE, não de caractere. Cortar no meio de "quinta às
  *  15h" produziria duas bolhas sem sentido nenhuma das duas. */
 function porFrase(texto: string, limite: number): string[] {
@@ -94,7 +121,7 @@ function porFrase(texto: string, limite: number): string[] {
  * nos outros 5%, o cliente lê o marcador.
  */
 export function bolhas(texto: string): string[] {
-  const brutas = comoSeFala(paraWhatsapp(texto))
+  const brutas = comoSeFala(paraWhatsapp(semFalaInventada(texto)))
     .split(/\n\s*\n+/)
     .flatMap((b) => porFrase(b.replace(/\n+/g, " ").trim(), MAX_CHARS))
     .filter((b) => b.length > 0);

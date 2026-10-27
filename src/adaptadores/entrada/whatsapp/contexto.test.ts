@@ -38,3 +38,31 @@ describe("textoDoAudio", () => {
     expect(textoDoAudio(null)).toBe("[áudio] (não deu para ouvir)");
   });
 });
+
+describe("o que a entrada passa a carregar (27/10/2026)", () => {
+  const texto = (extra: Record<string, unknown> = {}) => ({
+    event: "messages.upsert",
+    instance: "maisa-barbearia",
+    data: {
+      key: { remoteJid: "5511988887777@s.whatsapp.net", fromMe: false, id: "3EB0AAA" },
+      message: { conversation: "tem horário sexta?" },
+      ...extra,
+    },
+  });
+
+  it("a hora em que a pessoa mandou (o WhatsApp conta em segundos) e a chave para o tique azul", () => {
+    const e = normalizar(texto({ messageTimestamp: 1_790_000_000 }));
+    expect(e).toMatchObject({ origem: "evolution", enviadaEm: 1_790_000_000_000 });
+    expect(e?.chave).toEqual({ remoteJid: "5511988887777@s.whatsapp.net", id: "3EB0AAA" });
+  });
+
+  it("hora que não é hora vira ausência: a mensagem é tratada como nova", () => {
+    expect(normalizar(texto({ messageTimestamp: "ontem" }))?.enviadaEm).toBeUndefined();
+    expect(normalizar(texto({ messageTimestamp: 12 }))?.enviadaEm).toBeUndefined();
+    expect(normalizar(texto())?.enviadaEm).toBeUndefined();
+  });
+
+  it("o formato do curl é teste: a rota espera a resposta para devolver as bolhas", () => {
+    expect(normalizar({ de: "5511988887777", texto: "oi" })?.origem).toBe("teste");
+  });
+});

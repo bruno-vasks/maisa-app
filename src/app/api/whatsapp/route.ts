@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { agenteConfigurado, agenteWhatsapp, app, ouvirAudio } from "@/composicao";
+import { waitUntil } from "@vercel/functions";
+import { agenteConfigurado, agenteWhatsapp, app, marcarComoLida, ouvirAudio } from "@/composicao";
 import { hojeISO } from "@/nucleo/dominio/tempo";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { contextoDaMensagem, normalizar, numeroPermitido, SEGREDO } from "@/adaptadores/entrada/whatsapp/contexto";
@@ -24,16 +25,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * ⚠️ TETO DE TEMPO — medido, não estimado.
+ * ⚠️ TETO DE TEMPO. O turno inteiro cabe nele: a espera da rajada, o modelo e o
+ * "digitando…" de cada bolha (até 18 s por resposta desde 27/10/2026). Quem reparte os 60 s
+ * é `ORCAMENTO_DO_TURNO_MS`, em `whatsapp/agente.ts`.
  *
- * Uma conversa real ponta a ponta deu **8,4s**: inferência do modelo + a pausa entre as
- * bolhas (que roda dentro da Evolution, via `delay`) + os envios. O teto padrão de função
- * na Vercel é 10s, e três bolhas passam disso.
- *
- * Estourar aqui não é só "deu erro": para o provedor, webhook sem 200 a tempo significa
- * REENTREGAR. E como a deduplicação por `provedor_id` ainda não existe, a reentrega roda a
- * conversa de novo — o cliente recebe a resposta duplicada e paga-se o modelo duas vezes.
- * Por isso o teto é explícito em vez de herdado.
+ * A Evolution NÃO espera esse tempo todo, e é por isso que o turno roda depois da resposta
+ * (ver o fim do POST). Conferido no código da 2.3.7: o webhook dela desiste em 30 s e
+ * REENTREGA o mesmo evento até 10 vezes. Como a deduplicação por `provedor_id` ainda não
+ * existe, cada reentrega rodava a conversa de novo: resposta em dobro para o cliente e o
+ * modelo pago duas vezes. Com o "digitando…", quase todo turno passaria de 30 s.
  */
 export const maxDuration = 60;
 
@@ -138,34 +138,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignorado: true, motivo: "assinatura_vencida" });
   }
 
-  try {
-    /* A espera da rajada é coisa do canal: no WhatsApp a pessoa manda três mensagens
-     * seguidas, e cada uma chega aqui num webhook próprio. Ver `ESPERA_DA_RAJADA_MS`.
-     *
-     * O áudio vai como `ouvir`, e não transcrito aqui: o agente só transcreve depois de
-     * saber que atende essa pessoa (passo 1a de `agente.ts`). A transcrição entra na
-     * conversa marcada "[áudio]"; ver `ouvirAudio`, que nunca lança. */
-    const resposta = await agenteWhatsapp()(
-      resolucao.tenant,
-      {
-        de: envelope.de,
-        texto: envelope.texto,
-        jid: envelope.jid,
-        ...(ehAudio ? { ouvir: () => ouvirAudio(envelope) } : {}),
-      },
-      { esperaDaRajadaMs: ESPERA_DA_RAJADA_MS },
-    );
-
-    /* As bolhas voltam no corpo. Em produção quem entrega é o `CanalDeMensagens` (o
-     * agente já chamou); aqui elas servem para conversar com a MAISA por `curl` e
-     * afinar o tom sem número de WhatsApp — é o que torna essa parte iterável. */
-    return NextResponse.json({ ok: true, bolhas: resposta.bolhas, escalou: resposta.escalou, motivo: resposta.motivo });
-  } catch (e) {
-    /* Não vaza detalhe para fora e não pede reentrega. Uma falha nossa reentregue em
-     * loop pelo provedor viraria a mesma falha N vezes, cobrando token a cada volta. */
+  /* A espera da rajada é coisa do canal: no WhatsApp a pessoa manda três mensagens
+   * seguidas, e cada uma chega aqui num webhook próprio. Ver `ESPERA_DA_RAJADA_MS`.
+   *
+   * O áudio vai como `ouvir`, e não transcrito aqui: o agente só transcreve depois de
+   * saber que atende essa pessoa (passo 1a de `agente.ts`). A transcrição entra na
+   * conversa marcada "[áudio]"; ver `ouvirAudio`, que nunca lança. O tique azul vai do
+   * mesmo jeito, como função que o agente chama só se for atender (passo 1g).
+   *
+   * O `catch` não vaza detalhe e não pede reentrega: uma falha nossa reentregue em loop
+   * pelo provedor viraria a mesma falha N vezes, cobrando token a cada volta. */
+  const turno = agenteWhatsapp()(
+    resolucao.tenant,
+    {
+      de: envelope.de,
+      texto: envelope.texto,
+      jid: envelope.jid,
+      enviadaEm: envelope.enviadaEm,
+      marcarComoLida: () => marcarComoLida(envelope),
+      ...(ehAudio ? { ouvir: () => ouvirAudio(envelope) } : {}),
+    },
+    { esperaDaRajadaMs: ESPERA_DA_RAJADA_MS },
+  ).catch((e) => {
     console.error("[api/whatsapp] falha ao responder", e);
-    return NextResponse.json({ ok: false, erro: "falha_interna" }, { status: 200 });
+    return null;
+  });
+
+  /* O formato de teste espera: as bolhas voltam no corpo, para conversar com a MAISA por
+   * `curl` e afinar o tom sem número de WhatsApp. Em produção quem entrega é o
+   * `CanalDeMensagens` (o agente já chamou). */
+  if (envelope.origem === "teste") {
+    const resposta = await turno;
+    return resposta
+      ? NextResponse.json({ ok: true, bolhas: resposta.bolhas, escalou: resposta.escalou, motivo: resposta.motivo })
+      : NextResponse.json({ ok: false, erro: "falha_interna" }, { status: 200 });
   }
+
+  /* O provedor recebe o 200 AGORA e o turno segue depois da resposta, no mesmo
+   * `maxDuration`. Ver o ⚠️ do `maxDuration`: esperar aqui era a Evolution desistir em 30 s
+   * e reentregar a mesma mensagem. Fora da Vercel, `waitUntil` não faz nada e o processo
+   * segue rodando o turno do mesmo jeito. */
+  waitUntil(turno);
+  return NextResponse.json({ ok: true, recebido: true });
 }
 
 /**

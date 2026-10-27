@@ -40,7 +40,8 @@ import type { Msg } from "@/nucleo/dominio/conversas";
 import { hojeISO } from "@/nucleo/dominio/tempo";
 import { FalhaDoProvedor, LimiteDoProvedor } from "@/nucleo/dominio/erros";
 
-import { bolhas, limparEntrada } from "./bolhas";
+import { bolhas, limparEntrada, semFalaInventada } from "./bolhas";
+import { pareceLaco } from "./disjuntor";
 import { criarExecutor, FERRAMENTAS, novoEstado, type Dependencias as DepsFerramentas } from "./ferramentas";
 import { parteDoCliente, parteEstavel, type ConfiguracaoDoAgente } from "./persona";
 
@@ -52,6 +53,23 @@ const MAX_VOLTAS = 6;
 /** Quantas mensagens de histórico replayar. 20 cobre a conversa de agendamento
  *  inteira; mais que isso é pagar token para lembrar de assunto encerrado. */
 const HISTORICO = 20;
+
+/** Quantas falas ler depois da rajada: o modelo continua vendo as 20 últimas; as outras
+ *  servem ao disjuntor, que precisa de dez minutos de conversa (ver `disjuntor.ts`). */
+const JANELA_DO_DISJUNTOR = 60;
+
+/**
+ * Mensagem escrita há mais que isso não é respondida (27/10/2026).
+ *
+ * Quando a Evolution volta de uma queda, ela entrega de uma vez tudo o que chegou enquanto
+ * esteve fora (conferido no código da 2.3.7: nenhuma checagem de idade). Responder era a
+ * MAISA disparar dezenas de mensagens no mesmo minuto, para pessoas diferentes, sobre
+ * perguntas de horas atrás ("tem horário hoje às 14h?" respondido às 17h). É o desenho de
+ * disparo em massa, o jeito mais rápido de o WhatsApp derrubar o número.
+ *
+ * A fala é gravada (o dono vê na tela de Conversas) e continua "não lida" no celular dele.
+ */
+export const IDADE_MAXIMA_MS = 15 * 60_000;
 
 /**
  * Teto de saída por volta.
@@ -75,6 +93,14 @@ export type MensagemRecebida = {
    * provedor de IA: só se faz quando a MAISA vai atender essa pessoa. Ver o passo 1a.
    */
   ouvir?: () => Promise<string>;
+  /** Quando a pessoa mandou, em ms, pelo relógio do WhatsApp. Ver `IDADE_MAXIMA_MS`. */
+  enviadaEm?: number;
+  /**
+   * Os dois tiques azuis (`marcarComoLida`, em `composicao.ts`). Chamado só quando a MAISA vai
+   * cuidar da conversa, e antes de ela pensar: lê, pensa, digita. Conversa pessoal do dono,
+   * conversa assumida e mensagem atrasada ficam "não lidas" no celular dele. Nunca lança.
+   */
+  marcarComoLida?: () => Promise<void>;
 };
 
 /** Um passo de ferramenta, para inspeção. Alimenta o laboratório de conversa: ver que a
@@ -161,6 +187,28 @@ export function parecidas(a: string, b: string): boolean {
   return todas > 0 && comuns / todas >= 0.4;
 }
 
+/** A última resposta da MAISA na thread: as bolhas seguidas, juntas, e quando terminou. */
+function ultimaResposta(msgs: Msg[]): { texto: string; em?: string } | null {
+  let fim = msgs.length - 1;
+  while (fim >= 0 && msgs[fim].de !== "bot") fim--;
+  if (fim < 0) return null;
+  let inicio = fim;
+  while (inicio > 0 && msgs[inicio - 1].de === "bot") inicio--;
+  return { texto: msgs.slice(inicio, fim + 1).map((m) => m.txt).join(" "), em: msgs[fim].em };
+}
+
+const semPontuacao = (t: string) =>
+  t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** A mesma resposta, a menos de dez minutos da outra. Curtas ("Perfeito!") podem repetir. */
+const REPETICAO_MS = 10 * 60_000;
+function repete(bolhasNovas: string[], anterior: { texto: string; em?: string } | null): boolean {
+  if (!anterior) return false;
+  const nova = semPontuacao(bolhasNovas.join(" "));
+  const recente = !anterior.em || Date.now() - Date.parse(anterior.em) < REPETICAO_MS;
+  return recente && nova.length >= 20 && nova === semPontuacao(anterior.texto);
+}
+
 /** A última fala do cliente numa thread, se houver. */
 const ultimaDoCliente = (msgs: Msg[]): Msg | undefined => {
   for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].de === "cliente") return msgs[i];
@@ -192,6 +240,10 @@ export type OpcoesDoTurno = {
   /** Espera por mais mensagens antes de responder. 0 (padrão) responde na hora: é o caso
    *  do laboratório, onde uma pessoa manda uma mensagem e espera a resposta. */
   esperaDaRajadaMs?: number;
+  /** Troca o `ORCAMENTO_DO_TURNO_MS`. Só a bancada usa: ela roda fora da Vercel, sem o teto
+   *  de 60 s nem o "digitando…", com um modelo pela linha de comando que é mais lento que a
+   *  API, e mede com o orçamento de antes (50 s) para comparar rodadas. */
+  orcamentoMs?: number;
 };
 
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -208,15 +260,18 @@ const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const ESPERAS_DO_PROVEDOR_MS = [2_000, 5_000];
 
 /**
- * Quanto um turno pode durar, do webhook à resposta.
+ * Até quando, contado do webhook, o turno pode começar uma chamada ao modelo.
  *
- * Abaixo do `maxDuration` de 60 s da rota, com folga para enviar. A espera da rajada, as
- * novas tentativas e o timeout do provedor (45 s no Gemini) somados passavam disso, e um
- * turno morto pela Vercel não chama ninguém: o webhook falha, a Evolution reentrega, e o
- * cliente pode receber a resposta duas vezes. Achado em revisão, 26/10/2026. O orçamento
+ * O turno roda dentro do `maxDuration` de 60 s da rota (em segundo plano desde 27/10/2026,
+ * mas no mesmo teto), e o fim dele agora é o "digitando…": até 18 s por resposta (o teto
+ * do ritmo "conversa", em `canal-evolution.ts`), mais as idas à Evolution e ao banco. Sobram
+ * 34 s para a espera da rajada e o modelo. Era 50 s quando as bolhas saíam na hora.
+ *
+ * Turno morto pela Vercel não chama ninguém, e o cliente fica com meia resposta. O orçamento
  * não interrompe uma chamada em andamento; ele impede de começar outra sem tempo para ela.
+ * Mexeu no teto da digitação, reveja este número.
  */
-const ORCAMENTO_DO_TURNO_MS = 50_000;
+const ORCAMENTO_DO_TURNO_MS = 34_000;
 
 async function conversarComPaciencia(
   modelo: ModeloDeConversa,
@@ -276,7 +331,7 @@ export function criarAgente(deps: Dependencias) {
       bolhas: [], escalou: false, trilha: [], modelo: deps.modelo.nome, voltas: 0, ...extra,
     });
 
-    const prazo = Date.now() + ORCAMENTO_DO_TURNO_MS;
+    const prazo = Date.now() + (opcoes.orcamentoMs ?? ORCAMENTO_DO_TURNO_MS);
     let texto = limparEntrada(recebida.texto);
     if (!texto && !recebida.ouvir) return vazia();
 
@@ -329,11 +384,13 @@ export function criarAgente(deps: Dependencias) {
      * clareza", e um áudio não diz isso sem ser ouvido. É o mesmo erro barato do resto da
      * regra (ver `MODO_PADRAO`): o dono vê "[áudio]" na tela de Conversas e responde ele.
      *
-     * Com a assistente desligada ou a conversa assumida pelo dono, também não transcreve:
-     * nenhum dos dois casos usa o texto. */
+     * Com a assistente desligada, a conversa assumida pelo dono ou a mensagem atrasada (ver o
+     * fim do 1b), também não transcreve: nenhum desses casos usa o texto. */
+    const atrasoMs = recebida.enviadaEm ? Date.now() - recebida.enviadaEm : 0;
+    const atrasada = atrasoMs > IDADE_MAXIMA_MS;
     if (recebida.ouvir) {
       const atende =
-        config.assistente.ativa && !posse.assumidaEm &&
+        !atrasada && config.assistente.ativa && !posse.assumidaEm &&
         (await deps.avaliarAtendimento(t, { telefone: perfil.telefone, jid: recebida.jid, anteriores, texto: "[áudio]" })).pode;
       texto = atende ? limparEntrada(await recebida.ouvir()) : "[áudio]";
     }
@@ -356,6 +413,14 @@ export function criarAgente(deps: Dependencias) {
      * Conversas ser um retrato do WhatsApp em vez de um retrato dos turnos bem-sucedidos. */
     await deps.historico.anexar(t, perfil.telefone, [{ de: "cliente", txt: texto }]);
 
+    /* E se ela chegou atrasada, o turno termina aqui, gravada e sem resposta. Ver
+     * `IDADE_MAXIMA_MS`: é a enxurrada de quando a Evolution volta de uma queda. */
+    if (atrasada) {
+      const minutos = Math.round(atrasoMs / 60_000);
+      console.warn(`[whatsapp/agente] mensagem de ${perfil.telefone} escrita há ${minutos} min: gravada, sem resposta (inquilino ${t.tenantId}).`);
+      return vazia({ motivo: `mensagem atrasada: escrita há ${minutos} min` });
+    }
+
     /* ── 1b'. A RAJADA: só responde quem chegou por último ──
      *
      * Ver `ESPERA_DA_RAJADA_MS`. Cada mensagem de uma rajada roda este turno ao mesmo tempo;
@@ -368,6 +433,8 @@ export function criarAgente(deps: Dependencias) {
     const espera = opcoes.esperaDaRajadaMs ?? 0;
     let minha: Msg | undefined;
     let thread = anteriores;
+    /* O que o disjuntor (1f) olha: a thread, mais longa quando houve a releitura da rajada. */
+    let vistas = anteriores;
     let posseAgora = posse;
     if (espera > 0) {
       /* A pergunta é sempre "a última fala DO CLIENTE é a minha?", e não "a última fala é a
@@ -389,13 +456,15 @@ export function criarAgente(deps: Dependencias) {
     if (minha) {
       await dormir(espera);
       const [lidas, posseDepois] = await Promise.all([
-        deps.historico.ler(t, perfil.telefone, HISTORICO + 1),
+        deps.historico.ler(t, perfil.telefone, JANELA_DO_DISJUNTOR),
         deps.conversas.posse(t, perfil.telefone),
       ]);
       if (!mesmaFala(ultimaDoCliente(lidas), minha)) return vazia({ motivo: "rajada: o cliente continuou escrevendo" });
       /* A thread de novo, agora com a rajada inteira. A fala deste turno sai dela e volta no
-       * fim, onde o modelo espera a pergunta a responder. */
-      thread = lidas.filter((m) => !mesmaFala(m, minha));
+       * fim, onde o modelo espera a pergunta a responder. O modelo vê as últimas `HISTORICO`;
+       * o resto da leitura é do disjuntor. */
+      vistas = lidas.filter((m) => !mesmaFala(m, minha));
+      thread = vistas.slice(-HISTORICO);
       /* O dono pode ter assumido durante a espera: a posse lida no passo 1 já envelheceu. */
       posseAgora = posseDepois;
     }
@@ -456,6 +525,28 @@ export function criarAgente(deps: Dependencias) {
       console.info(`[whatsapp/agente] silêncio para ${perfil.telefone} no inquilino ${t.tenantId}: ${atendimento.motivo}`);
       return vazia({ motivo: atendimento.motivo ?? "contato pessoal do dono" });
     }
+
+    /* ── 1f. A CONVERSA VIROU LAÇO ──
+     *
+     * Ver `disjuntor.ts`: outro robô respondendo a ela, ou um ritmo que gente não tem. A
+     * MAISA para de responder ESTA pessoa e chama o dono. Antes do modelo, porque cada volta
+     * de um laço custa token e mensagem saindo do número. O canal avisa o dono uma vez por
+     * cliente a cada dez minutos (ver `canal-evolution.ts`), então o laço não vira enxurrada
+     * de avisos no WhatsApp dele. */
+    const laco = pareceLaco([...vistas, { de: "cliente", txt: texto }], Date.now());
+    if (laco) {
+      console.warn(`[whatsapp/agente] disjuntor desarmado para ${perfil.telefone} (inquilino ${t.tenantId}): ${laco}`);
+      await deps.canal.escalar(t, { telefone: perfil.telefone, motivo: `a MAISA parou de responder esta conversa: ${laco}` });
+      return vazia({ escalou: true, motivo: `disjuntor: ${laco}` });
+    }
+
+    /* ── 1g. LIDA ──
+     *
+     * Daqui em diante a conversa é dela, então os tiques ficam azuis antes de ela pensar:
+     * lê, pensa, digita, como gente. Até 27/10/2026 a MAISA respondia sem nunca ler, e os
+     * tiques do cliente ficavam cinza para sempre. Vale também quando ela escolhe não
+     * responder (2b): leu o "ok" e não tinha o que dizer. */
+    if (recebida.marcarComoLida) await recebida.marcarComoLida().catch(() => {});
 
     /* O nome que o dono salvou no celular, quando a memória ainda não tem um.
      *
@@ -646,6 +737,22 @@ export function criarAgente(deps: Dependencias) {
         ? `${falaDaEscalada}\n\n${ultimoTexto}`
         : ultimoTexto;
     const saida = bolhas(final);
+    /* `bolhas` já cortou a fala inventada (ver `semFalaInventada`); aqui só fica o rastro. */
+    if (semFalaInventada(final) !== final.trim()) {
+      console.warn(`[whatsapp/agente] a resposta trazia rótulo de quem fala ("Cliente:", "maisa:"); saiu sem ele (inquilino ${t.tenantId}): ${final.slice(0, 200).replace(/\n+/g, " ⏎ ")}`);
+    }
+
+    /* ── 3c. A MESMA RESPOSTA, DE NOVO ──
+     *
+     * Igual, palavra por palavra, à que ela mandou há menos de dez minutos: não sai. Mandar
+     * duas vezes o mesmo parágrafo é a marca mais clara de robô, e é exatamente o que um laço
+     * com outro robô produz ("Desculpe, não entendi…" a cada volta). Calar aqui também
+     * corta o laço antes do disjuntor (1f). Turno que agiu (marcou, cancelou, chamou o dono)
+     * fala sempre: a resposta é o aviso do que aconteceu. */
+    if (!agiu && repete(saida, ultimaResposta(thread))) {
+      console.warn(`[whatsapp/agente] resposta igual à anterior, não enviada (inquilino ${t.tenantId}, ${perfil.telefone}): ${saida.join(" ").slice(0, 120)}`);
+      return vazia({ motivo: "resposta igual à anterior", trilha, voltas });
+    }
 
     /* ── 4. gravar o que aconteceu ──
      * Depois de responder, nunca antes: memória é registro de fato, e "o cliente marcou"
