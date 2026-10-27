@@ -50,9 +50,7 @@ async function principal() {
   /* A mesma espera da rajada que a rota do WhatsApp usa. Código antigo sem a constante
    * cai em `undefined`, que é "responde na hora": dá para rodar a bancada contra ele. */
   const agente: { ESPERA_DA_RAJADA_MS?: number } = await import("@/adaptadores/entrada/whatsapp/agente");
-  /* O orçamento de antes (50 s): a bancada roda fora da Vercel, sem o "digitando…", com o modelo
-   * pela linha de comando, mais lento que a API. Ver `OpcoesDoTurno.orcamentoMs`. */
-  const opcoes = { esperaDaRajadaMs: agente.ESPERA_DA_RAJADA_MS, orcamentoMs: 50_000 };
+  const opcoes = { esperaDaRajadaMs: agente.ESPERA_DA_RAJADA_MS };
 
   const medidor = criarMedidor();
   const [provedor, nomeDoModelo] = tarefa.modelo.split(/:(.+)/);

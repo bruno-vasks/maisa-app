@@ -8,10 +8,11 @@
  * diferentes (a LGPD pede que a thread expire; o perfil o cliente pode querer que
  * fique). Uma interface só forçaria os dois a envelhecer juntos.
  *
- * ⚠️ Note o que o histórico NÃO fala: bloco de tool_use, id de mensagem do provedor,
- * papel de "assistant". Ele fala `Msg` — o tipo que a tela de Conversas já usa. Se a
- * porta falasse a língua do modelo, trocar de modelo (ou de canal) viraria migração
- * de banco, e o núcleo passaria a conhecer um detalhe da Anthropic.
+ * ⚠️ Note o que o histórico NÃO fala: bloco de tool_use, papel de "assistant". Ele fala
+ * `Msg` — o tipo que a tela de Conversas já usa. Se a porta falasse a língua do modelo,
+ * trocar de modelo (ou de canal) viraria migração de banco, e o núcleo passaria a conhecer
+ * um detalhe da Anthropic. O id da mensagem no provedor entra num lugar só, e só na ida:
+ * `anexarRecebida`, como chave contra a reentrega. Ele nunca volta na leitura.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import type { ContextoTenant } from "../../dominio/tenant";
@@ -63,6 +64,19 @@ export interface RepositorioHistorico {
    * completo; o caminho de volta não existe.
    */
   anexar(t: ContextoTenant, telefone: string, msgs: Msg[]): Promise<void>;
+
+  /**
+   * A fala que CHEGOU pelo canal, gravada uma vez só por mensagem (27/10/2026).
+   *
+   * É `anexar` de uma fala, mais `provedorId`, o id da mensagem no provedor de WhatsApp.
+   * Devolve `false` quando essa mensagem já estava gravada: o provedor reentregou o mesmo
+   * evento, e quem chama não responde de novo. Sem isto, cada reentrega era a conversa
+   * rodando outra vez e o cliente recebendo a resposta em dobro.
+   *
+   * Falha que não seja a repetição devolve `true` e vai para o log, como em `anexar`:
+   * responder uma reentrega é ruim, calar o cliente por um defeito nosso é pior.
+   */
+  anexarRecebida(t: ContextoTenant, telefone: string, msg: Msg, provedorId: string): Promise<boolean>;
 
   /**
    * A LISTA DO PAINEL: uma linha por conversa, mais recente primeiro.

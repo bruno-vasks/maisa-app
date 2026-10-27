@@ -25,17 +25,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * ⚠️ TETO DE TEMPO. O turno inteiro cabe nele: a espera da rajada, o modelo e o
- * "digitando…" de cada bolha (até 18 s por resposta desde 27/10/2026). Quem reparte os 60 s
- * é `ORCAMENTO_DO_TURNO_MS`, em `whatsapp/agente.ts`.
+ * ⚠️ TETO DE TEMPO. O turno inteiro cabe nele: a espera da rajada (4 s), o modelo (até
+ * `ORCAMENTO_DO_TURNO_MS`, 50 s, em `whatsapp/agente.ts`) e o "digitando…" de cada bolha (até
+ * 18 s por resposta desde 27/10/2026). Uns 75 s no pior caso comum; 120 dá folga para a
+ * chamada ao modelo que começa no fim do orçamento. Acima de 60 s só vale com Fluid compute
+ * (padrão em projeto novo desde 23/04/2025, e ligado também no `vercel.json`, `"fluid": true`):
+ * sem ele o Hobby para em 60 s e o deploy recusa este número.
  *
  * A Evolution NÃO espera esse tempo todo, e é por isso que o turno roda depois da resposta
  * (ver o fim do POST). Conferido no código da 2.3.7: o webhook dela desiste em 30 s e
- * REENTREGA o mesmo evento até 10 vezes. Como a deduplicação por `provedor_id` ainda não
- * existe, cada reentrega rodava a conversa de novo: resposta em dobro para o cliente e o
- * modelo pago duas vezes. Com o "digitando…", quase todo turno passaria de 30 s.
+ * REENTREGA o mesmo evento até 10 vezes. Antes de 27/10/2026 cada reentrega rodava a
+ * conversa de novo: resposta em dobro para o cliente e o modelo pago duas vezes. Com o
+ * "digitando…", quase todo turno passaria de 30 s. Hoje são duas travas: o 200 na hora, e a
+ * mensagem gravada uma vez só por id (`provedorId`, passo 1b de `agente.ts`), para a
+ * reentrega que vier por outro motivo.
  */
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 /**
  * Verificação do webhook da Cloud API. A Meta chama uma vez, com o token que você
@@ -155,6 +160,7 @@ export async function POST(request: Request) {
       texto: envelope.texto,
       jid: envelope.jid,
       enviadaEm: envelope.enviadaEm,
+      provedorId: envelope.conversaId,
       marcarComoLida: () => marcarComoLida(envelope),
       ...(ehAudio ? { ouvir: () => ouvirAudio(envelope) } : {}),
     },

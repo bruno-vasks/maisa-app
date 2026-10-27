@@ -64,12 +64,11 @@ export function paraNumeroWhats(v: string): string {
  *     a tela travada) e os avisos para o próprio dono.
  *
  * Por que não mais devagar, se gente digita no celular a ~0,6 palavra/s: uma resposta de
- * três bolhas levaria mais de um minuto, o cliente desiste antes, e a função da Vercel tem
- * teto de 60 s. Não há evidência pública de que o WhatsApp meça velocidade de digitação;
+ * três bolhas levaria mais de um minuto, e o cliente desiste antes. Não há evidência pública de que o WhatsApp meça velocidade de digitação;
  * o que tira a cara de robô é o "digitando…" existir, durar conforme o tamanho e variar.
  *
  * ⚠️ O TETO DA RESPOSTA (18 s) ENTRA NA CONTA DO AGENTE. `ORCAMENTO_DO_TURNO_MS`, em
- * `entrada/whatsapp/agente.ts`, reserva esse tempo dentro dos 60 s da função. Subir um
+ * `entrada/whatsapp/agente.ts`, conta com ele dentro do teto da função. Subir um
  * sem rever o outro é turno cortado no meio do envio. */
 
 export type Ritmo = "conversa" | "rotina" | "direto";

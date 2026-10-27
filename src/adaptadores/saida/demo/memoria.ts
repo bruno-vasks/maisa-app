@@ -43,6 +43,8 @@ const THREADS = new Map<string, Msg[]>();
  *  É o que o painel usa para responder; de 8 dígitos não se remonta DDD nem DDI. */
 const NUMEROS = new Map<string, string>();
 const POSSE = new Map<string, PosseDaConversa>();
+/** As mensagens recebidas, por `${tenantId}|${provedorId}`: o índice único da 007. */
+const RECEBIDAS = new Set<string>();
 
 /** Teto do log em memória. Sem ele, uma conversa longa segura RAM do processo
  *  indefinidamente — e ninguém repara, porque não aparece em lugar nenhum. */
@@ -81,6 +83,15 @@ export const historicoDemo: RepositorioHistorico = {
     const agora = new Date().toISOString();
     const todas = [...(THREADS.get(k) ?? []), ...msgs.map((m) => ({ ...m, em: m.em ?? agora }))];
     THREADS.set(k, todas.slice(-MAX_GUARDADO));
+  },
+
+  /* O índice único da 007, em memória: por inquilino e id do provedor. */
+  async anexarRecebida(t, telefone, msg, provedorId) {
+    const k = `${t.tenantId}|${provedorId}`;
+    if (RECEBIDAS.has(k)) return false;
+    RECEBIDAS.add(k);
+    await historicoDemo.anexar(t, telefone, [msg]);
+    return true;
   },
 
   async conversas(t, limite) {

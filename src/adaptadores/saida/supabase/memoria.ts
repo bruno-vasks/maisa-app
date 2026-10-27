@@ -263,6 +263,30 @@ export const historicoSupabase: RepositorioHistorico = {
     if (error) console.error(`[supabase/memoria] falha ao gravar ${msgs.length} mensagem(ns) de ${chave}: ${error.message}`);
   },
 
+  async anexarRecebida(t, telefone, msg, provedorId) {
+    /* A coluna e o índice único existem desde a 007 (`mensagens_agente_sem_duplicata`, por
+     * inquilino e `provedor_id`), feitos para isto e sem uso até 27/10/2026. Quem decide se é
+     * repetição é o índice, num INSERT só: duas reentregas ao mesmo tempo não passam as duas,
+     * o que uma consulta antes do INSERT não garantiria. */
+    const { error } = await clienteDoContexto(t)
+      .from("mensagens_agente")
+      .insert({
+        tenant_id: t.tenantId,
+        telefone_chave: chaveDe(telefone),
+        telefone: numeroCompleto(telefone),
+        autor: msg.de,
+        texto: msg.txt,
+        provedor_id: provedorId,
+      });
+
+    if (!error) return true;
+    /* 23505 é `unique_violation`: essa mensagem já está aqui, então é reentrega. */
+    if (error.code === "23505") return false;
+    /* Outra falha: como em `anexar`, não estoura e não cala o cliente. Ver a porta. */
+    console.error(`[supabase/memoria] falha ao gravar a mensagem ${provedorId} de ${chaveDe(telefone)}: ${error.message}`);
+    return true;
+  },
+
   async conversas(t, limite) {
     /* `v_conversas` (009) resolve numa consulta o que aqui seria N+1: a última mensagem de
      * cada thread, mais o nome (memória → cadastro) e a posse. Ver o comentário da view. */

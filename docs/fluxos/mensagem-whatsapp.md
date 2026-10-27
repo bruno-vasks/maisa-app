@@ -7,30 +7,30 @@ importante do produto e o que tem mais armadilhas.
 
 ```
 cliente no WhatsApp
- └─ Evolution API → POST /api/whatsapp                    app/api/whatsapp/route.ts:54
-    ├─ 1. o segredo confere?                              route.ts:55-74   → 401
-    ├─ 2. normalizar o envelope                           route.ts:86      → contexto.ts
+ └─ Evolution API → POST /api/whatsapp                    app/api/whatsapp/route.ts:59
+    ├─ 1. o segredo confere?                              route.ts:60-79   → 401
+    ├─ 2. normalizar o envelope                           route.ts:91      → contexto.ts
     │     descarta eco, grupo, @lid, recibo, figurinha    → 200 "ignorado"
     │     (áudio SEGUE, com `ouvir` = composicao.ouvirAudio)
-    ├─ 3. de quem é esta linha?                           route.ts:100     → integracoes_whatsapp
-    └─ 6. 200 AGORA; o agente roda depois (waitUntil)     route.ts:151-182 → whatsapp/agente.ts
-       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:338
-       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:357
-       ├─ 1a. áudio: só ouve quem ela vai atender         agente.ts:375  → senão grava "[áudio]"
-       ├─ 1b. GRAVA a fala do cliente                     agente.ts:398
-       │      escrita há mais de 15 min?                  agente.ts:416  → para aqui, sem responder
-       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:424  → os outros calam
-       ├─ 1c. a assistente está ligada?                   agente.ts:478
-       ├─ 1d. o dono assumiu a conversa?                  agente.ts:486  → cala
-       ├─ 1e. é da vida pessoal do dono?                  agente.ts:503  → cala
-       ├─ 1f. a conversa virou laço? (disjuntor.ts)       agente.ts:529  → para e chama o dono
-       ├─ 1g. tique azul                                  agente.ts:543
-       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:577  → 429: tenta de novo dentro de 34 s, depois chama o dono
-       ├─ 2b. ela escolheu não responder?                 agente.ts:640  → termina sem mensagem, sem chamar o dono
-       ├─ 3a. o cliente escreveu ou o dono assumiu?       agente.ts:663  → descarta, salvo se marcou/cancelou/chamou
-       ├─ 3b. tentou marcar e não marcou?                 agente.ts:688  → descarta e chama o dono
-       ├─ 3c. a mesma resposta de antes?                  agente.ts:745  → não sai
-       └─ 4.  grava o que aconteceu                       agente.ts:757
+    ├─ 3. de quem é esta linha?                           route.ts:105     → integracoes_whatsapp
+    └─ 6. 200 AGORA; o agente roda depois (waitUntil)     route.ts:156-187 → whatsapp/agente.ts
+       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:356
+       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:375
+       ├─ 1a. áudio: só ouve quem ela vai atender         agente.ts:393  → senão grava "[áudio]"
+       ├─ 1b. GRAVA a fala do cliente, uma vez por id     agente.ts:416  → reentrega para aqui
+       │      escrita há mais de 15 min?                  agente.ts:446  → para aqui, sem responder
+       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:454  → os outros calam
+       ├─ 1c. a assistente está ligada?                   agente.ts:508
+       ├─ 1d. o dono assumiu a conversa?                  agente.ts:516  → cala
+       ├─ 1e. é da vida pessoal do dono?                  agente.ts:533  → cala
+       ├─ 1f. a conversa virou laço? (disjuntor.ts)       agente.ts:559  → para e chama o dono
+       ├─ 1g. tique azul                                  agente.ts:573
+       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:607  → 429: tenta de novo dentro de 50 s, depois chama o dono
+       ├─ 2b. ela escolheu não responder?                 agente.ts:670  → termina sem mensagem, sem chamar o dono
+       ├─ 3a. o cliente escreveu ou o dono assumiu?       agente.ts:693  → descarta, salvo se marcou/cancelou/chamou
+       ├─ 3b. tentou marcar e não marcou?                 agente.ts:718  → descarta e chama o dono
+       ├─ 3c. a mesma resposta de antes?                  agente.ts:775  → não sai
+       └─ 4.  grava o que aconteceu                       agente.ts:788
           └─ canal.enviar() → saida/evolution/            "digitando…" em cada bolha, ~1,5 palavra/s
 ```
 
@@ -43,13 +43,13 @@ pelo navegador são a mesma função — esse era o teste da reorganização hex
 
 Para o provedor, resposta de erro significa "tente de novo", e ele reentrega o mesmo evento em
 laço. Por isso todo descarte sai `200 {ok: true, ignorado: true}` com um motivo dentro
-(`route.ts:89-138`). Até a falha interna sai **200** (`route.ts:174`, no formato de teste): reentregar não conserta
+(`route.ts:100-143`). Até a falha interna sai **200** (`route.ts:180`, no formato de teste): reentregar não conserta
 bug nosso, só multiplica.
 
 ### Responde 200 ANTES de responder ao cliente
 
-Desde 27/10/2026, a conversa roda depois da resposta HTTP (`waitUntil`, `route.ts:181`), dentro
-do mesmo teto de 60 s. Conferido no código da Evolution 2.3.7: o webhook dela desiste em **30 s**
+Desde 27/10/2026, a conversa roda depois da resposta HTTP (`waitUntil`), dentro do teto da
+rota (120 s, com Fluid compute). Conferido no código da Evolution 2.3.7: o webhook dela desiste em **30 s**
 e reentrega o evento até 10 vezes, e não há deduplicação do nosso lado. Com o "digitando…" em
 cada bolha, quase todo turno passaria de 30 s, e cada reentrega seria a conversa inteira de novo:
 o cliente recebendo a resposta em dobro. Só o formato de teste (`curl`) espera o turno, para
@@ -83,7 +83,7 @@ no log.
 
 ### De quem é esta mensagem
 
-Vem da **instância** que recebeu (`route.ts:100` → `tenantPorDestino`), consultada em
+Vem da **instância** que recebeu (`route.ts:105` → `tenantPorDestino`), consultada em
 `integracoes_whatsapp`. A instância é preenchida pelo servidor da Evolution, não por quem
 escreveu a mensagem — é essa propriedade que importa: identidade tem que vir de algo que o
 cliente não controla.

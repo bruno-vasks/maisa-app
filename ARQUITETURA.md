@@ -222,17 +222,15 @@ Honestidade sobre o estado real, para ninguém achar que está mais pronto do qu
   memória, bolhas, normalização de webhook e a allowlist de horários do agente já foram
   escritas e passaram — **fora do repositório**, porque não há runner escolhido. Falta
   trazê-las para dentro.
-- **A memória do agente é um `Map` de processo.** Morre no redeploy e não é compartilhada
-  entre instâncias: na Vercel, duas mensagens seguidas podem cair em lambdas diferentes e
-  a segunda não lembra da primeira. A DDL está em `supabase/007_memoria_agente.sql`;
-  faltam `saida/supabase/memoria.ts` e duas linhas em `composicao.ts`.
-- **O agente não responde a áudio.** Cliente que manda áudio recebe silêncio: a mensagem
-  é reconhecida, aparece no log com o tipo, e é descartada. No Brasil áudio é como muita
-  gente manda mensagem — é decisão de produto pendente (pedir texto, escalar, ou
-  transcrever), não caso de borda. A plumbing está pronta em `Envelope.midia`.
-- **A conversa não é deduplicada.** O webhook reentrega quando não recebe 200 a tempo, e
-  hoje uma reentrega gera resposta duplicada. O índice único em `provedor_id` já está na
-  DDL; o adaptador de demonstração não o usa.
+- ~~**A memória do agente é um `Map` de processo.**~~ **Fechada:** `saida/supabase/memoria.ts`
+  existe e `composicao.ts` escolhe por `isSupabaseConfigured` (ver o LEIA-ME de
+  `entrada/whatsapp/`, "O que a fatia das conversas reais mudou aqui").
+- ~~**O agente não responde a áudio.**~~ **Fechada em 26/10/2026:** transcrito e respondido, só
+  para quem a MAISA atende. Ver "Áudio" no LEIA-ME de `entrada/whatsapp/`.
+- ~~**A conversa não é deduplicada.**~~ **Fechada em 27/10/2026:** a rota responde 200 antes de
+  o turno rodar, e a fala que chega é gravada uma vez só por id da mensagem
+  (`RepositorioHistorico.anexarRecebida`, sobre o índice único de `provedor_id` da 007). Uma
+  reentrega termina no passo 1b de `agente.ts`, sem responder de novo.
 - **O espelho `atendimentos` agora é gravado** — porta `RegistroDeAtendimentos`, chamada por
   `agendar-atendimento.ts` depois de o provedor confirmar, e `garantirCliente` faz o lead do
   WhatsApp entrar em `clientes` (antes ele era `lead:<telefone>`, que o `PARECE_UUID` do

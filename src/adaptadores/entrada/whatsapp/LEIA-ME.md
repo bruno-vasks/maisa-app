@@ -218,6 +218,7 @@ existe, em ordem de importância:
 |---|---|---|
 | A rota responde 200 na hora; o turno segue depois (`waitUntil`) | `app/api/whatsapp/route.ts` | Conferido no código da Evolution 2.3.7: o webhook desiste em 30 s e reentrega o evento até 10 vezes. Sem deduplicação, cada reentrega era a conversa rodando de novo, e com o "digitando…" quase todo turno passaria de 30 s |
 | Eco da própria mensagem (`fromMe`) cai fora | `contexto.ts` | A MAISA respondendo a si mesma, em laço. Já existia |
+| A mesma mensagem (mesmo id no provedor) é gravada e respondida uma vez só | `agente.ts`, passo 1b (`anexarRecebida`) | A reentrega que vier por outro motivo, mesmo com o 200 na hora |
 | Mensagem escrita há mais de 15 min é gravada e não respondida (`IDADE_MAXIMA_MS`) | `agente.ts`, fim do passo 1b | A enxurrada de quando a Evolution volta de uma queda: dezenas de respostas no mesmo minuto, para perguntas de horas atrás |
 | Disjuntor: a mesma mensagem longa pela 3ª vez, ou 12 respostas em 10 min, e ela para e chama o dono | `disjuntor.ts`, passo 1f | Laço com outro robô (resposta automática de loja respondendo a ela, sem fim) |
 | A mesma resposta, palavra por palavra, a menos de 10 min da anterior e para uma fala diferente do cliente, não sai. A mesma pergunta de novo recebe a resposta de novo | `agente.ts`, passo 3c | O parágrafo repetido, marca de robô e o que o laço com robô de menu produz |
@@ -232,17 +233,16 @@ alguém esperando. Contato `@lid` fica sem tique (a Evolution descarta a chave).
 
 O ritmo de digitação, os números e o porquê deles estão no LEIA-ME do
 [`saida/evolution/`](../../saida/evolution/LEIA-ME.md). O que ele custa aqui: até 18 s por
-resposta, reservados dentro dos 60 s da função. Ver o orçamento logo abaixo.
+resposta, dentro dos 120 s da função. Ver o orçamento logo abaixo.
 
 ## Quando o modelo não responde
 
 `LimiteDoProvedor` (429, 5xx, timeout) ganha duas novas tentativas, 2 s e 5 s depois, desde
-que caibam no orçamento do turno (`ORCAMENTO_DO_TURNO_MS`, 34 s contados do webhook: dos 60 s
-da rota, até 18 s são do "digitando…" e o resto das idas à Evolution e ao banco; era 50 s
-quando as bolhas saíam na hora). Turno morto pela Vercel não chama ninguém, e o cliente fica
-com meia resposta. Se mesmo assim o modelo terminar tarde, o canal encolhe o "digitando…"
-para caber (`caberNoPrazo`, com o prazo que a Vercel informa). A bancada passa `orcamentoMs:
-50_000`: ela roda fora da Vercel, sem digitar, com um modelo mais lento que a API. Se o provedor continuar
+que caibam no orçamento do turno (`ORCAMENTO_DO_TURNO_MS`, 50 s contados do webhook). A rota tem
+120 s (com Fluid compute, ligado no `vercel.json`): a espera da rajada, o modelo e até 18 s de
+"digitando…" cabem com folga. Turno morto pela Vercel não chama ninguém, e o cliente fica com
+meia resposta; se o modelo terminar muito tarde, o canal encolhe o "digitando…" para caber
+(`caberNoPrazo`, com o prazo que a Vercel informa). Se o provedor continuar
 fora, o dono é chamado com a causa e o cliente não fica num silêncio que ninguém vê — era o
 que acontecia, porque a exceção subia até a rota.
 
@@ -435,13 +435,12 @@ cliente respondia de volta, e a MAISA falava por cima dele.
   por `curl`. Com Supabase configurado o banco ganha sempre — um env esquecido apontando para
   o inquilino errado escreveria na agenda de outro negócio. E falha de banco **não** cai para
   o env: descartar a mensagem é reversível, marcar horário no negócio errado não é.
-- **Sem deduplicação de reentrega.** O índice único em `provedor_id` já está na DDL, mas a
-  porta `RepositorioHistorico.anexar` fala `Msg`, e `Msg` não carrega id de provedor — então
-  nem o adaptador do Supabase o usa. Desde 27/10/2026 a causa comum de reentrega sumiu (a rota
-  responde 200 antes de o turno rodar, e a Evolution não espera mais 30 s), mas uma reentrega
-  por outro motivo ainda gera resposta duplicada e **duas linhas na thread do painel**.
-  Fechar pede mexer na porta (decisão do Bruno), e o desenho não é óbvio de propósito — pôr
-  `provedorId` em `Msg` faria o tipo da TELA carregar um detalhe do canal.
+- ~~**Sem deduplicação de reentrega.**~~ **Fechada em 27/10/2026** (o Bruno autorizou mexer na
+  porta). `RepositorioHistorico.anexarRecebida` grava a fala com o id da mensagem no provedor, e
+  o índice único da 007 (`provedor_id`, por inquilino) recusa a segunda: o turno da reentrega
+  termina no passo 1b, sem responder e sem segunda linha no painel. O id não entrou em `Msg`
+  (o tipo da tela continua sem detalhe do canal) e nunca volta na leitura. Resta uma ponta: um
+  áudio reentregue é transcrito de novo antes de chegar ao 1b.
 - **As travas de volume valem por conversa, não pelo número inteiro.** O disjuntor olha uma
   pessoa; não há teto de mensagens por minuto para a instância toda, porque um contador assim
   precisaria morar no banco (cada webhook pode rodar numa instância diferente da Vercel).

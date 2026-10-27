@@ -101,6 +101,13 @@ export type MensagemRecebida = {
    * conversa assumida e mensagem atrasada ficam "não lidas" no celular dele. Nunca lança.
    */
   marcarComoLida?: () => Promise<void>;
+  /**
+   * O id da mensagem no provedor de WhatsApp. Com ele a fala é gravada uma vez só, e uma
+   * reentrega do mesmo evento termina no passo 1b sem responder de novo. Ver
+   * `RepositorioHistorico.anexarRecebida`. O laboratório e a bancada não mandam: não há
+   * provedor para reentregar.
+   */
+  provedorId?: string;
 };
 
 /** Um passo de ferramenta, para inspeção. Alimenta o laboratório de conversa: ver que a
@@ -255,10 +262,6 @@ export type OpcoesDoTurno = {
   /** Espera por mais mensagens antes de responder. 0 (padrão) responde na hora: é o caso
    *  do laboratório, onde uma pessoa manda uma mensagem e espera a resposta. */
   esperaDaRajadaMs?: number;
-  /** Troca o `ORCAMENTO_DO_TURNO_MS`. Só a bancada usa: ela roda fora da Vercel, sem o teto
-   *  de 60 s nem o "digitando…", com um modelo pela linha de comando que é mais lento que a
-   *  API, e mede com o orçamento de antes (50 s) para comparar rodadas. */
-  orcamentoMs?: number;
 };
 
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -277,16 +280,16 @@ const ESPERAS_DO_PROVEDOR_MS = [2_000, 5_000];
 /**
  * Até quando, contado do webhook, o turno pode começar uma chamada ao modelo.
  *
- * O turno roda dentro do `maxDuration` de 60 s da rota (em segundo plano desde 27/10/2026,
- * mas no mesmo teto), e o fim dele agora é o "digitando…": até 18 s por resposta (o teto
- * do ritmo "conversa", em `canal-evolution.ts`), mais as idas à Evolution e ao banco. Sobram
- * 34 s para a espera da rajada e o modelo. Era 50 s quando as bolhas saíam na hora.
+ * O turno inteiro roda dentro do `maxDuration` da rota (120 s; em segundo plano desde
+ * 27/10/2026, mas no mesmo teto): a espera da rajada, isto, e no fim o "digitando…", até 18 s
+ * por resposta (o teto do ritmo "conversa", em `canal-evolution.ts`). Turno morto pela Vercel
+ * não chama ninguém, e o cliente fica com meia resposta. Por um dia este número foi 34 s,
+ * quando a rota tinha 60; ver o comentário do `maxDuration`.
  *
- * Turno morto pela Vercel não chama ninguém, e o cliente fica com meia resposta. O orçamento
- * não interrompe uma chamada em andamento; ele impede de começar outra sem tempo para ela.
- * Mexeu no teto da digitação, reveja este número.
+ * O orçamento não interrompe uma chamada em andamento; ele impede de começar outra sem tempo
+ * para ela. Mexeu no teto da digitação ou no da rota, reveja este número.
  */
-const ORCAMENTO_DO_TURNO_MS = 34_000;
+const ORCAMENTO_DO_TURNO_MS = 50_000;
 
 async function conversarComPaciencia(
   modelo: ModeloDeConversa,
@@ -346,7 +349,7 @@ export function criarAgente(deps: Dependencias) {
       bolhas: [], escalou: false, trilha: [], modelo: deps.modelo.nome, voltas: 0, ...extra,
     });
 
-    const prazo = Date.now() + (opcoes.orcamentoMs ?? ORCAMENTO_DO_TURNO_MS);
+    const prazo = Date.now() + ORCAMENTO_DO_TURNO_MS;
     let texto = limparEntrada(recebida.texto);
     if (!texto && !recebida.ouvir) return vazia();
 
@@ -426,7 +429,19 @@ export function criarAgente(deps: Dependencias) {
      * modelo estourar, a pergunta continua na thread. Custa um INSERT a mais por turno (as
      * bolhas da resposta vão num segundo, no passo 4) — e é o INSERT que faz a tela de
      * Conversas ser um retrato do WhatsApp em vez de um retrato dos turnos bem-sucedidos. */
-    await deps.historico.anexar(t, perfil.telefone, [{ de: "cliente", txt: texto }]);
+    const fala: Msg = { de: "cliente", txt: texto };
+    const primeiraVez = recebida.provedorId
+      ? await deps.historico.anexarRecebida(t, perfil.telefone, fala, recebida.provedorId)
+      : (await deps.historico.anexar(t, perfil.telefone, [fala]), true);
+
+    /* A MESMA MENSAGEM DE NOVO: o provedor reentregou o evento (27/10/2026, pedido do Bruno).
+     * O turno da primeira entrega já cuida dela; este termina antes de esperar, ler, pensar
+     * ou mandar qualquer coisa. Um áudio reentregue ainda é transcrito de novo no 1a, antes
+     * de chegar aqui; é o preço de a gravação, e não uma consulta, decidir quem é repetição. */
+    if (!primeiraVez) {
+      console.warn(`[whatsapp/agente] reentrega da mensagem ${recebida.provedorId} de ${perfil.telefone}: já recebida, sem resposta nova (inquilino ${t.tenantId}).`);
+      return vazia({ motivo: "reentrega: mensagem já recebida" });
+    }
 
     /* E se ela chegou atrasada, o turno termina aqui, gravada e sem resposta. Ver
      * `IDADE_MAXIMA_MS`: é a enxurrada de quando a Evolution volta de uma queda. */

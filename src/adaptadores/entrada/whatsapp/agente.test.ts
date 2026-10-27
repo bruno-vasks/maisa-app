@@ -265,3 +265,31 @@ describe("a blindagem do número (27/10/2026)", () => {
     expect(enviadas).toEqual([["Tenho sexta às 15h, serve?"]]);
   });
 });
+
+describe("a reentrega do provedor (27/10/2026)", () => {
+  it("a mesma mensagem (mesmo id) entregue duas vezes é gravada e respondida uma vez só", async () => {
+    const { responder, vistos, t, enviadas } = montar();
+    const recebida = { de: TEL, texto: "tem horário sexta?", provedorId: "3EB0REENTREGA" };
+    const primeira = await responder(t, recebida);
+    const segunda = await responder(t, recebida);
+
+    expect(primeira.bolhas.length).toBeGreaterThan(0);
+    expect(segunda.bolhas).toEqual([]);
+    expect(segunda.motivo).toContain("reentrega");
+    expect(vistos).toHaveLength(1);
+    expect(enviadas).toHaveLength(1);
+    const thread = await historicoDemo.ler(t, TEL, 10);
+    expect(thread.filter((m) => m.de === "cliente")).toHaveLength(1);
+  });
+
+  it("mensagens diferentes com o mesmo texto são duas falas: ids diferentes", async () => {
+    const { responder, vistos, t } = montar({ respostas: [
+      { texto: "Oi! Tudo bem? Quer marcar um horário?", chamadas: [], recusou: false },
+      { texto: "Estou aqui! Me diz o dia que fica melhor.", chamadas: [], recusou: false },
+    ] });
+    await responder(t, { de: TEL, texto: "oi", provedorId: "A1" });
+    const r = await responder(t, { de: TEL, texto: "oi", provedorId: "A2" });
+    expect(r.bolhas.length).toBeGreaterThan(0);
+    expect(vistos).toHaveLength(2);
+  });
+});

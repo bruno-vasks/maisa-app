@@ -79,13 +79,12 @@ seguintes a ~10 palavras por segundo. Agora o canal tem três ritmos, um por que
 Os números:
 
 - **Por que ~1,5 palavra/s, e não a velocidade de gente no celular (~0,6).** Uma resposta de
-  três bolhas levaria mais de um minuto: o cliente desiste antes, e a função da Vercel tem
-  teto de 60 s. Não há evidência pública de que o WhatsApp meça velocidade de digitação; o
+  três bolhas levaria mais de um minuto, e o cliente desiste antes. Não há evidência pública de que o WhatsApp meça velocidade de digitação; o
   que tira a cara de robô é o "digitando…" existir, durar conforme o tamanho e variar.
   Numa resposta típica ("Tenho sexta às 15h e às 16h30 com o Rafael." + "Qual fica melhor
   pra você?"), são ~5 s e ~3 s.
 - **O teto de 18 s entra na conta do agente.** `ORCAMENTO_DO_TURNO_MS`, em
-  `entrada/whatsapp/agente.ts`, reserva esse tempo dentro dos 60 s. Subir um sem rever o
+  `entrada/whatsapp/agente.ts`, conta com ele dentro dos 120 s da rota. Subir um sem rever o
   outro é turno cortado no meio da segunda bolha.
 - **E ainda há uma rede.** O canal recebe de `composicao.ts` o prazo da execução
   (`getDeadline()`, do `@vercel/functions`) e, se o turno pensou demais, encolhe o
