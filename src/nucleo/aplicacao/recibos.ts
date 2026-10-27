@@ -27,6 +27,7 @@ import type { PagamentoAFaturar, RepositorioRecibos } from "../portas/saida/repo
 import type { RepositorioFiscal } from "../portas/saida/repositorio-fiscal";
 import type { LivroDeRecibos } from "../portas/saida/livro-de-recibos";
 import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
+import type { FilaDeEnvios } from "../portas/saida/fila-de-envios";
 import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
 import type { RepositorioCanal } from "../portas/saida/repositorio-canal";
@@ -321,6 +322,9 @@ export function criarFecharLoteDeRecibos(deps: {
   assistente: RepositorioAssistente;
   /* Só para achar o `telefoneDono`. É de onde sai o destino da confirmação — nunca de env. */
   canalRepo: RepositorioCanal;
+  /** Os avisos aos pacientes vão para a fila e saem espaçados (27/10/2026). Sem ela, saem na
+   *  hora, como antes. Ver "a fila", dentro. */
+  fila?: FilaDeEnvios;
 }): FecharLoteDeRecibos {
   return async (t, p) => {
     if (!p.loteId?.trim()) throw new DadoInvalido("Diga qual lote.", "loteId");
@@ -347,6 +351,7 @@ export function criarFecharLoteDeRecibos(deps: {
     let avisados = 0;
     let semTelefone = 0;
     let falhas = 0;
+    let naFila = false;
 
     if (p.avisar) {
       const destinatarios = await deps.recibos.destinatariosDoLote(t, p.loteId);
@@ -355,20 +360,40 @@ export function criarFecharLoteDeRecibos(deps: {
       /* Nome do negócio fora do laço: a frase é a mesma para todos, e o lote de um mês cheio
        * tem trinta linhas. */
       const nomeDoNegocio = (await deps.negocio.negocio(t)).nome;
+      const avisos = destinatarios
+        .filter((d): d is typeof d & { telefone: string } => Boolean(d.telefone))
+        .map((d) => ({ para: d.telefone, texto: avisoDeRecibo({ recibo: d, nomeDoNegocio, nomeDaAssistente }) }));
 
-      for (const d of destinatarios) {
-        if (!d.telefone) continue;
+      /* ── A FILA (27/10/2026) ──
+       * Trinta avisos colados, para trinta pessoas, no mesmo minuto, é o disparo em massa que
+       * derruba o número pela Evolution. Na fila, eles saem um de cada vez, espaçados, logo
+       * depois desta requisição (a rota dispara a drenagem). `avisados` passa a contar os que
+       * vão receber, e `naFila` diz isso à tela e à confirmação.
+       *
+       * Se enfileirar falhar (a migração 036 ainda não rodou), eles saem na hora, como antes:
+       * a fila é melhora, não condição para o aviso existir. */
+      if (deps.fila && avisos.length) {
         try {
-          await deps.canal.enviar(t, d.telefone, [
-            avisoDeRecibo({ recibo: d, nomeDoNegocio, nomeDaAssistente }),
-          ]);
-          avisados++;
+          await deps.fila.enfileirar(t, avisos.map((a) => ({ para: a.para, textos: [a.texto], origem: "lote_de_recibos" as const })));
+          avisados = avisos.length;
+          naFila = true;
         } catch {
-          /* ⚠️ ENGOLE E CONTA. O recibo já foi emitido no e-CAC — propagar o erro faria a tela
-           * dizer que o fechamento falhou, e ela clicaria de novo: o `confirmarLote` devolveria
-           * `false`, ninguém mais seria avisado, e os 20 que receberam nunca apareceriam num
-           * número. Um telefone que mudou de dono não é motivo para o mês parecer roto. */
-          falhas++;
+          /* Segue para o envio direto, logo abaixo. O porquê fica no log do adaptador. */
+        }
+      }
+
+      if (!naFila) {
+        for (const a of avisos) {
+          try {
+            await deps.canal.enviar(t, a.para, [a.texto]);
+            avisados++;
+          } catch {
+            /* ⚠️ ENGOLE E CONTA. O recibo já foi emitido no e-CAC — propagar o erro faria a tela
+             * dizer que o fechamento falhou, e ela clicaria de novo: o `confirmarLote` devolveria
+             * `false`, ninguém mais seria avisado, e os 20 que receberam nunca apareceriam num
+             * número. Um telefone que mudou de dono não é motivo para o mês parecer roto. */
+            falhas++;
+          }
         }
       }
     }
@@ -392,10 +417,12 @@ export function criarFecharLoteDeRecibos(deps: {
         valor: lote.valor,
         avisados,
         semTelefone,
+        naFila,
       }, nomeDaAssistente).catch(() => {});
     }
 
-    return { avisados, semTelefone, falhas };
+    /* `naFila` só quando é verdade: sem a fila, a resposta é a de sempre. */
+    return { avisados, semTelefone, falhas, ...(naFila ? { naFila } : {}) };
   };
 }
 

@@ -40,6 +40,7 @@ for pedir alguma mudança, usar o nome certo economiza uma rodada inteira de con
 | **escalar** | `chamar_humano`, handoff | a MAISA desiste e chama o dono |
 | o jeito da MAISA | `Assistente`, `Tom` | nome, tom de voz, o que ela não pode falar |
 | lembrete | `FilaDeLembretes` | a mensagem de véspera, disparada de 15 em 15 minutos |
+| fila de envios | `FilaDeEnvios`, `EnvioNaFila` | o aviso que sai sem ninguém ter escrito (recibo, PDF), um por vez por negócio, espaçado (27/10/2026) |
 | nota fiscal | `Nota`, `EmissorFiscal` | emissão pela Focus NFe |
 | **instância** | `EVOLUTION_INSTANCIA`, `integracoes_whatsapp` | a linha de WhatsApp conectada. Uma instância = um negócio |
 

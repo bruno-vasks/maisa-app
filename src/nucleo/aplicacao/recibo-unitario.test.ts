@@ -12,6 +12,8 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
+import type { NovoEnvio } from "@/nucleo/dominio/envios";
+import type { FilaDeEnvios } from "@/nucleo/portas/saida/fila-de-envios";
 import {
   criarEmitirRecibo, criarFecharReciboDoCallback, criarReconciliarRecibos,
 } from "./recibo-unitario";
@@ -98,6 +100,9 @@ function ambiente(p: {
   documentoQuebra?: boolean;
   /** Quantas sessões o recibo junta, para o destinatário. Padrão 1. */
   sessoes?: number;
+  /** A fila de envios (27/10/2026). "aceita" guarda o que entrou; "recusa" lança, como quando
+   *  a migração 036 ainda não rodou. Ausente = o caso de uso sem fila, como antes. */
+  fila?: "aceita" | "recusa";
 } = {}) {
   const ordem: string[] = [];
   const protocolos: { reciboId: string; protocolo: string }[] = [];
@@ -226,10 +231,24 @@ function ambiente(p: {
     },
   } as unknown as RepositorioCanal;
 
+  const enfileirados: NovoEnvio[] = [];
+  const fila = p.fila
+    ? ({
+      async enfileirar(_t: unknown, envios: NovoEnvio[]) {
+        ordem.push("enfileirar");
+        if (p.fila === "recusa") throw new Error('relation "envios_whatsapp" does not exist');
+        enfileirados.push(...envios);
+      },
+    } as unknown as FilaDeEnvios)
+    : undefined;
+
   return {
     emitir: criarEmitirRecibo({ livro, emissor, recibos, fiscal: fiscalDe(p.config ?? carla), guarda }),
     reconciliar: criarReconciliarRecibos({ livro, emissor }),
-    fecharDoCallback: criarFecharReciboDoCallback({ livro, guarda, aviso: { canal, negocio, assistente, canalDoNegocio } }),
+    fecharDoCallback: criarFecharReciboDoCallback({
+      livro, guarda, aviso: { canal, negocio, assistente, canalDoNegocio, ...(fila ? { fila } : {}) },
+    }),
+    enfileirados,
     /* Sem as portas do aviso: é o mesmo caso de uso de antes, e tem que continuar mudo. */
     fecharSemAviso: criarFecharReciboDoCallback({ livro, guarda }),
     ordem, protocolos, descartados, soltos, fechados, consultados, arquivados, enviadas, avisosAnotados,
@@ -975,5 +994,53 @@ describe("★ emitir várias sessões num recibo", () => {
     await expect(a.emitir(t, { itens: [{ fonte: "atendimento", id: "s1" }, { fonte: "atendimento", id: "s2" }] }))
       .rejects.toMatchObject({ campo: "id" });
     expect(a.ordem).not.toContain("emitir");
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ A FILA DE ENVIOS (27/10/2026). Os retornos da Receita chegam juntos depois da rotina
+ * diária, e cada um mandava o PDF na hora: uma rajada para pessoas diferentes, que pela
+ * Evolution derruba o número. Com a fila, o aviso entra nela e sai espaçado.
+ * ────────────────────────────────────────────────────────────────────────────── */
+describe("★ o aviso pela fila de envios", () => {
+  it("vai para a fila com o CAMINHO da cópia (o link sai na hora de mandar), e não sai na hora", async () => {
+    const a = ambiente({ avisarRecibo: true, fila: "aceita" });
+    await a.fecharDoCallback(t, desfechoDe());
+
+    expect(a.enviadas).toEqual([]);
+    expect(a.enfileirados).toHaveLength(1);
+    const e = a.enfileirados[0];
+    expect(e.para).toBe("11999990000");
+    expect(e.origem).toBe("recibo");
+    expect(e.textos).toEqual([]);
+    expect(e.documento?.caminho).toBe("t1/1042.pdf");
+    expect(e.documento?.url).toBe("https://s3/f/1.pdf?X-Amz-Expires=300");
+    expect(e.documento?.legenda).toContain("Receita Saúde");
+    expect(e.recibo).toEqual({ id: "rec1", desfechoAoEnviar: "enviado" });
+  });
+
+  it("o desfecho do aviso fica para quem mandar: nada é anotado agora", async () => {
+    const a = ambiente({ avisarRecibo: true, fila: "aceita" });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.avisosAnotados).toEqual([]);
+  });
+
+  it("no \"primeiro para mim\", vai para a dona, com a linha dela antes", async () => {
+    const a = ambiente({
+      avisarRecibo: true, fila: "aceita", primeiroParaMim: true,
+      canalDaDona: { telefoneDono: "5511977776666", numero: "5511988887777" },
+    });
+    await a.fecharDoCallback(t, desfechoDe());
+    const e = a.enfileirados[0];
+    expect(e.para).toBe("5511977776666");
+    expect(e.textos).toHaveLength(1);
+    expect(e.recibo?.desfechoAoEnviar).toBe("enviado_ao_dono");
+  });
+
+  it("se a fila recusar (a 036 não rodou), sai na hora, como antes, e o desfecho é anotado", async () => {
+    const a = ambiente({ avisarRecibo: true, fila: "recusa" });
+    await a.fecharDoCallback(t, desfechoDe());
+    expect(a.enviadas).toHaveLength(1);
+    expect(a.avisosAnotados).toEqual(["enviado"]);
   });
 });

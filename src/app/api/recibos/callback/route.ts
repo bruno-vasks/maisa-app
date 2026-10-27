@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { app } from "@/composicao";
 import { lerCallbackRebots } from "@/adaptadores/saida/rebots/emissor-recibo";
 import { tenantDoProtocolo } from "@/adaptadores/saida/supabase/livro-de-recibos";
@@ -55,6 +56,11 @@ import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/* O aviso ao paciente sai pela fila de envios, drenada em segundo plano depois da resposta
+ * (ver o fim do POST). 300 s é o teto do Hobby com Fluid compute (`vercel.json`); a drenagem
+ * para aos 240 s e o resto sai pela rotina. */
+export const maxDuration = 300;
+
 const SEGREDO = (process.env.RECIBOS_CALLBACK_SECRET || process.env.ROTINAS_SECRET || "").trim();
 
 function autorizado(request: Request): boolean {
@@ -77,6 +83,22 @@ const contextoDeSistema = (tenantId: string): ContextoTenant => ({
   usuarioId: "",
   ator: { tipo: "sistema", rotina: "recibo-callback" },
 });
+
+/**
+ * O aviso ao paciente, quando há, foi para a fila de envios (27/10/2026): ela começa a sair
+ * depois desta resposta, espaçada dos outros retornos que chegam juntos. Fila vazia responde
+ * na hora.
+ *
+ * ⚠️ NUNCA LANÇA. O desfecho já está gravado quando isto roda; um erro aqui virando 500 faria a
+ * Rebots reentregar um retorno que não precisa de nada.
+ */
+function drenarDepois(t: ContextoTenant): void {
+  try {
+    waitUntil(app.drenarFilaDoNegocio(t).catch((e) => console.error("[recibos/callback] drenar a fila", e)));
+  } catch (e) {
+    console.error("[recibos/callback] drenar a fila", e);
+  }
+}
 
 export async function POST(request: Request) {
   if (!autorizado(request)) {
@@ -123,7 +145,9 @@ export async function POST(request: Request) {
 
   try {
     /* ── O CASO DE USO GRAVA ANTES DE A GENTE RESPONDER 200. Ver o cabeçalho. ── */
-    const r = await app.fecharReciboDoCallback(contextoDeSistema(tenantId), desfecho);
+    const t = contextoDeSistema(tenantId);
+    const r = await app.fecharReciboDoCallback(t, desfecho);
+    drenarDepois(t);
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     /* ⚠️ 500 DE PROPÓSITO, e é o ponto inteiro desta rota. Falhou a gravação: se respondermos

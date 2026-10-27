@@ -381,6 +381,8 @@ export type FechamentoParaODono = {
   valor: number;
   avisados: number;
   semTelefone: number;
+  /** Os avisos foram para a fila de envios: ainda estão saindo, um de cada vez (27/10/2026). */
+  naFila?: boolean;
 };
 
 export function confirmacaoDoLote(p: {
@@ -398,7 +400,10 @@ export function confirmacaoDoLote(p: {
   ];
 
   if (f.avisados > 0) {
-    partes.push(`${f.avisados} paciente${f.avisados === 1 ? "" : "s"} avisado${f.avisados === 1 ? "" : "s"} aqui no WhatsApp`);
+    const plural = f.avisados === 1 ? "" : "s";
+    partes.push(f.naFila
+      ? `${f.avisados} paciente${plural} recebendo o aviso aqui no WhatsApp, um de cada vez, nos próximos minutos`
+      : `${f.avisados} paciente${plural} avisado${plural} aqui no WhatsApp`);
   }
   /* ⚠️ ACIONÁVEL, e por isso entra na mensagem: são pacientes com recibo emitido e sem aviso, e
    * o conserto é pôr o telefone no cadastro. Omitir faria o número da tela e o da mensagem

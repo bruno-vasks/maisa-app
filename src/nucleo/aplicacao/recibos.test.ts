@@ -10,6 +10,8 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
+import type { NovoEnvio } from "@/nucleo/dominio/envios";
+import type { FilaDeEnvios } from "@/nucleo/portas/saida/fila-de-envios";
 import type { ConfigFiscal } from "../dominio/fiscal";
 import type { RepositorioFiscal } from "../portas/saida/repositorio-fiscal";
 import type {
@@ -205,6 +207,8 @@ function ambiente(p: {
     telefoneDono?: string | null;
     /** O lote que o banco devolve em `listarLotes` — é dele que saem os números da confirmação. */
     lote?: LoteGravado | null;
+    /** A fila de envios (27/10/2026): "aceita" guarda, "recusa" lança (a 036 não rodou). */
+    fila?: "aceita" | "recusa";
   } = {}) {
     const soltos: string[] = [];
     const confirmados: string[] = [];
@@ -252,12 +256,22 @@ function ambiente(p: {
       },
     } as never;
 
-    const fechar = criarFecharLoteDeRecibos({ recibos, canal, negocio, assistente, canalRepo });
+    const enfileirados: NovoEnvio[] = [];
+    const fila = p.fila
+      ? ({
+        async enfileirar(_t: unknown, envios: NovoEnvio[]) {
+          if (p.fila === "recusa") throw new Error('relation "envios_whatsapp" does not exist');
+          enfileirados.push(...envios);
+        },
+      } as unknown as FilaDeEnvios)
+      : undefined;
+
+    const fechar = criarFecharLoteDeRecibos({ recibos, canal, negocio, assistente, canalRepo, ...(fila ? { fila } : {}) });
     /* A confirmação do dono é a ÚLTIMA mensagem, e vai para o número dele. Separar por
      * destino é mais honesto que por posição: se o dono também for paciente, a posição mente. */
     const paraODono = () => enviados.filter((e) => e.para === TEL_DONO);
     const paraPacientes = () => enviados.filter((e) => e.para !== TEL_DONO);
-  return { fechar, soltos, confirmados, enviados, paraODono, paraPacientes };
+  return { fechar, soltos, confirmados, enviados, paraODono, paraPacientes, enfileirados };
 }
 
 const quem = (over: Partial<DestinatarioDeRecibo> = {}): DestinatarioDeRecibo => ({
@@ -649,5 +663,40 @@ describe("a confirmação do fechamento, para o dono", () => {
     const texto = a.paraODono()[0].texto;
     expect(texto).not.toContain("Mariana");
     expect(texto).not.toMatch(/\d{11}/);
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ A FILA DE ENVIOS (27/10/2026). Trinta avisos colados, para trinta pessoas, no mesmo
+ * minuto, é o disparo em massa que derruba o número pela Evolution. Com a fila, eles entram
+ * nela e saem um de cada vez; a confirmação para o dono continua saindo na hora.
+ * ────────────────────────────────────────────────────────────────────────────── */
+describe("fechar o lote, com a fila de envios", () => {
+  it("os avisos aos pacientes vão para a fila, não saem na hora, e a resposta diz isso", async () => {
+    const { fechar, enfileirados, paraPacientes, paraODono } = ambiente({
+      destinatarios: [quem(), quem({ nome: "Bruno Lima", telefone: "5511970000000" }), quem({ telefone: null })],
+      fila: "aceita",
+    });
+
+    const r = await fechar(t, { loteId: "l2", situacao: "importado", avisar: true });
+
+    expect(r).toEqual({ avisados: 2, semTelefone: 1, falhas: 0, naFila: true });
+    expect(paraPacientes()).toEqual([]);
+    expect(enfileirados.map((e) => e.para)).toEqual(["5511981234567", "5511970000000"]);
+    expect(enfileirados.every((e) => e.origem === "lote_de_recibos" && e.textos.length === 1)).toBe(true);
+    expect(enfileirados[0].textos[0]).toContain("Mariana");
+    /* A confirmação do dono sai na hora, e conta que os avisos estão saindo, não que saíram. */
+    expect(paraODono()).toHaveLength(1);
+    expect(paraODono()[0].texto).toContain("recebendo o aviso");
+  });
+
+  it("se a fila recusar (a 036 não rodou), os avisos saem na hora, como antes", async () => {
+    const { fechar, enfileirados, paraPacientes } = ambiente({ destinatarios: [quem()], fila: "recusa" });
+
+    const r = await fechar(t, { loteId: "l1", situacao: "importado", avisar: true });
+
+    expect(r).toEqual({ avisados: 1, semTelefone: 0, falhas: 0 });
+    expect(enfileirados).toEqual([]);
+    expect(paraPacientes()).toHaveLength(1);
   });
 });

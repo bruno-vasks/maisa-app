@@ -74,6 +74,9 @@ export const MARCADORES = [
   /* Cria uma função e um trigger em `auth.users`, que o PostgREST não enxerga. A consulta para
    * conferir à mão está no cabeçalho do arquivo. */
   { migracao: "035_aviso_de_cadastro", tabela: null, coluna: null },
+  { migracao: "036_fila_de_envios", tabela: "envios_whatsapp", coluna: null },
+  /* Agenda um `pg_cron`, que o PostgREST não enxerga. A consulta está no fim do arquivo. */
+  { migracao: "037_agendar_envios", tabela: null, coluna: null },
 ];
 
 const FALTA = new Set(["42703", "PGRST204", "42P01", "PGRST205", "PGRST200"]);

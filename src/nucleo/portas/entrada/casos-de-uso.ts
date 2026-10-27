@@ -568,6 +568,32 @@ export type ResultadoDaRotina = {
 
 export type EnviarLembretes = (agora: Date) => Promise<ResultadoDaRotina>;
 
+/* ───────────────────────────── a fila de envios (27/10/2026) ─────────────────────────────
+ * A mensagem que sai sem ninguém ter escrito (o aviso do recibo, o PDF dele) espera a vez
+ * numa fila e sai uma por vez por negócio, espaçada. Ver `dominio/envios.ts` e
+ * `aplicacao/fila-de-envios.ts`.
+ *
+ * `EnviarFilaDeMensagens` é a SEXTA exceção à regra do `ContextoTenant` (ver
+ * `arquitetura.test.ts`), e pelo motivo dos lembretes: é a rotina que pergunta "quem tem
+ * mensagem esperando?" sobre todos os negócios. O limite: a pergunta cross-tenant
+ * (`FilaDeEnvios.negociosComEnvio`) devolve só ids, e cada envio acontece por negócio, com
+ * um `ContextoTenant` de ator `sistema`, pela mesma porta que todo o resto usa.
+ *
+ * `DrenarFilaDoNegocio` é o disparo de quem acabou de enfileirar: só a fila daquele negócio,
+ * com o contexto de quem enfileirou. */
+
+export type ResultadoDaFila = {
+  enviados: number;
+  /** Falharam por algo passageiro e voltam para a fila. */
+  adiados: number;
+  /** Desistidos: a falha podia ter entregado, ou as tentativas acabaram. */
+  desistidos: number;
+};
+
+export type EnviarFilaDeMensagens = (agora: Date) => Promise<ResultadoDaFila>;
+
+export type DrenarFilaDoNegocio = (t: ContextoTenant) => Promise<ResultadoDaFila>;
+
 export type LerHorarios = (t: ContextoTenant) => Promise<SemanaAnunciada>;
 
 export type AjustarHorarios = (
@@ -853,8 +879,12 @@ export type DesligarReciboSaude = (t: ContextoTenant) => Promise<EstadoFiscal>;
 
 /** O que aconteceu com o aviso no WhatsApp, para a tela dizer um número em vez de "pronto". */
 export type FechamentoDeLote = {
-  /** Quantas pessoas receberam a mensagem. `0` quando `avisar` veio falso. */
+  /** Quantas pessoas receberam a mensagem (ou, com `naFila`, vão receber). `0` quando
+   *  `avisar` veio falso. */
   avisados: number;
+  /** Os avisos foram para a fila de envios e saem um de cada vez nos próximos minutos
+   *  (27/10/2026). Falso quando a fila não existe ainda e eles saíram na hora, como antes. */
+  naFila?: boolean;
   /** Entraram no arquivo mas não têm telefone. O recibo saiu; o aviso não. */
   semTelefone: number;
   /**

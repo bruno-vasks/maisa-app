@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { app } from "@/composicao";
 import { barrou, exigirSessao } from "@/adaptadores/entrada/http/contexto";
 import { falha } from "@/adaptadores/entrada/http/respostas";
+import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // O LOTE DO RECEITA SAÚDE — o arquivo que a profissional importa no e-CAC.
@@ -34,6 +36,11 @@ import { falha } from "@/adaptadores/entrada/http/respostas";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/* Fechar o mês com "avisar pacientes" põe os avisos na fila de envios, e a fila começa a sair
+ * logo depois desta resposta, em segundo plano (ver o fim do PATCH). 300 s é o teto do Hobby
+ * com Fluid compute (`vercel.json`); a drenagem para aos 240 s e o resto sai pela rotina. */
+export const maxDuration = 300;
+
 export async function POST(req: Request) {
   const porteiro = await exigirSessao();
   if (barrou(porteiro)) return porteiro.barrado;
@@ -46,6 +53,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, status: "ok", ...lote });
   } catch (e) {
     return falha("recibos/lote", e);
+  }
+}
+
+/**
+ * Os avisos foram para a fila de envios: começam a sair agora, depois da resposta, um de cada
+ * vez. A tela não espera (`naFila` diz a ela que estão saindo).
+ *
+ * ⚠️ NUNCA LANÇA. O lote já está fechado quando isto roda; um erro aqui faria a tela dizer que
+ * o fechamento falhou, e o clique de novo não avisaria ninguém (`confirmarLote` já virou).
+ */
+function drenarDepois(t: ContextoTenant): void {
+  try {
+    waitUntil(app.drenarFilaDoNegocio(t).catch((e) => console.error("[recibos/lote] drenar a fila", e)));
+  } catch (e) {
+    console.error("[recibos/lote] drenar a fila", e);
   }
 }
 
@@ -68,6 +90,7 @@ export async function PATCH(req: Request) {
       situacao,
       avisar,
     });
+    if (r.naFila) drenarDepois(porteiro.tenant);
     return NextResponse.json({ ok: true, status: "ok", ...r });
   } catch (e) {
     return falha("recibos/lote", e);

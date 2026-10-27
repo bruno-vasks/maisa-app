@@ -32,6 +32,8 @@ const SEGREDO = "segredo-do-teste";
 let fechados: DesfechoDeRecibo[] = [];
 let tenantResolvido: string | null = "t1";
 let resultado: ReciboFechado | "estoura" = { desfecho: "emitido", comprovanteGuardado: true };
+/** Quantas vezes a rota disparou a fila de envios depois de fechar (27/10/2026). */
+let drenagens = 0;
 
 vi.mock("@/adaptadores/saida/supabase/livro-de-recibos", () => ({
   async tenantDoProtocolo() { return tenantResolvido; },
@@ -43,6 +45,10 @@ vi.mock("@/composicao", () => ({
       fechados.push(d);
       if (resultado === "estoura") throw new Error("conexão com o banco caiu");
       return resultado;
+    },
+    async drenarFilaDoNegocio() {
+      drenagens++;
+      return { enviados: 0, adiados: 0, desistidos: 0 };
     },
   },
 }));
@@ -225,5 +231,22 @@ describe("corpo e protocolo tortos não são incidente", () => {
     expect(r.status).toBe(404);
     expect((await r.json()).erro).toBe("protocolo_desconhecido");
     expect(fechados).toEqual([]);
+  });
+});
+
+describe("a fila de envios (27/10/2026)", () => {
+  it("depois de gravar o desfecho, dispara a fila do negócio; antes, não", async () => {
+    drenagens = 0;
+    resultado = { desfecho: "emitido", comprovanteGuardado: true };
+    const POST = await rota();
+    const r = await POST(pedir(CALLBACK_OK));
+    expect(r.status).toBe(200);
+    expect(drenagens).toBe(1);
+
+    drenagens = 0;
+    resultado = "estoura";
+    const falhou = await (await rota())(pedir(CALLBACK_OK));
+    expect(falhou.status).toBe(500);
+    expect(drenagens).toBe(0);
   });
 });

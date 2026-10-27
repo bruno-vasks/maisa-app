@@ -375,7 +375,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
   /* Marcada por padrão: avisar é o que quase todo mundo quer, e é o valor do produto. Quem não
    * quer desmarca — a caixa fica ao lado do botão justamente para isso ser um clique. */
   const [avisar, setAvisar] = useState(true);
-  const [placar, setPlacar] = useState<{ avisados: number; semTelefone: number; falhas: number } | null>(null);
+  const [placar, setPlacar] = useState<{ avisados: number; semTelefone: number; falhas: number; naFila: boolean } | null>(null);
 
   /* ⚠️ O FORMULÁRIO DO AVULSO NÃO MORA MAIS AQUI. Ele virou `NovoPagamento`, porque a tela de
    * emitir recibos precisa do mesmo lançamento (Bruno, 26/08/2026) e duas cópias das validações de
@@ -493,6 +493,7 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
           avisados: Number(j?.avisados ?? 0),
           semTelefone: Number(j?.semTelefone ?? 0),
           falhas: Number(j?.falhas ?? 0),
+          naFila: j?.naFila === true,
         });
       }
       void lerPendentes();
@@ -969,7 +970,11 @@ export function LoteReceitaSaude({ apenasDados }: { apenasDados?: boolean } = {}
         <div style={s("display:grid;gap:6px;padding:12px 14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--bg)")}>
           <div style={s("display:flex;gap:8px;align-items:center;font-size:var(--t-sm);font-weight:var(--w-title)")}>
             <Icon name="check" size={16} />
-            <span>{placar.avisados} paciente(s) avisados no WhatsApp</span>
+            <span>
+              {placar.naFila
+                ? `${placar.avisados} paciente(s) recebendo o aviso no WhatsApp, um de cada vez, nos próximos minutos`
+                : `${placar.avisados} paciente(s) avisados no WhatsApp`}
+            </span>
           </div>
           {placar.semTelefone > 0 && (
             <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>

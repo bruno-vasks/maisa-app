@@ -32,6 +32,7 @@ import type { GuardaDeComprovante } from "../portas/saida/guarda-de-comprovante"
 import type { LivroDeRecibos } from "../portas/saida/livro-de-recibos";
 import type { ContextoTenant } from "../dominio/tenant";
 import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
+import type { FilaDeEnvios } from "../portas/saida/fila-de-envios";
 import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 import type { RepositorioAssistente } from "../portas/saida/repositorio-assistente";
 import type { RepositorioCanal } from "../portas/saida/repositorio-canal";
@@ -357,6 +358,9 @@ export type DepsDeAviso = {
   assistente: RepositorioAssistente;
   /** Só para achar o número da dona, no "primeiro para mim" (01/10/2026). Ver `numeroDaDona`. */
   canalDoNegocio: RepositorioCanal;
+  /** O aviso vai para a fila e sai espaçado dos outros (27/10/2026). Sem ela, sai na hora. Ver
+   *  "a fila", em `avisarPaciente`. */
+  fila?: FilaDeEnvios;
 };
 
 export function criarFecharReciboDoCallback(
@@ -428,8 +432,11 @@ export function criarFecharReciboDoCallback(
         urlDoCanal: d.pdfUrl ?? null,
       })
         .catch((): DesfechoDoAviso => "falhou");
-      await deps.livro.registrarAviso(t, { reciboId: fechada.id, desfecho: desfechoDoAviso })
-        .catch(() => {});
+      /* `null` = foi para a fila: quem grava o desfecho é quem manda, quando mandar. */
+      if (desfechoDoAviso) {
+        await deps.livro.registrarAviso(t, { reciboId: fechada.id, desfecho: desfechoDoAviso })
+          .catch(() => {});
+      }
     }
 
     return { desfecho, comprovanteGuardado: Boolean(comprovanteCaminho) };
@@ -460,7 +467,7 @@ async function avisarPaciente(
   t: ContextoTenant,
   reciboId: string,
   pdf: { caminho: string | null; urlDoCanal: string | null },
-): Promise<DesfechoDoAviso> {
+): Promise<DesfechoDoAviso | null> {
   try {
     const ajustes = await aviso.assistente.ler(t);
     /* ⚠️ `desligado` E NÃO `null`: "ele não quis" e "tentamos e não deu" são opostos, e a tela
@@ -483,16 +490,53 @@ async function avisarPaciente(
      * as duas coisas. O link é da NOSSA cópia (`comprovantes-recibo`), gerado agora e curto; sem
      * cópia, o link do canal, que ainda vale nos cinco minutos do callback. Sem nenhum dos dois, só
      * a mensagem, como era. */
-    const urlDoPdf = (pdf.caminho
-      ? await guarda.linkParaBaixar(t, { caminho: pdf.caminho, segundos: PDF_VALE_SEGUNDOS }).catch(() => null)
-      : null) ?? pdf.urlDoCanal;
-    const mandar = async (para: string, antes: string[]) => {
+    const mandar = async (
+      para: string,
+      antes: string[],
+      desfecho: "enviado" | "enviado_ao_dono",
+    ): Promise<DesfechoDoAviso | null> => {
+      /* ── A FILA (27/10/2026) ──
+       * A rotina diária emite os recibos de vários pacientes de uma vez, os retornos da Receita
+       * chegam juntos, e cada um mandava o PDF na hora: uma rajada de documentos para pessoas
+       * diferentes, o desenho que derruba o número pela Evolution. Na fila, eles saem um de
+       * cada vez, espaçados (a rota do retorno dispara a drenagem). Vai o CAMINHO da cópia, e
+       * não um link: o link é gerado na hora de mandar, para não vencer esperando. O desfecho
+       * do aviso fica para quem manda gravar (`null` aqui).
+       *
+       * Se enfileirar falhar (a migração 036 ainda não rodou), sai na hora, como antes. */
+      if (aviso.fila) {
+        const documento = pdf.caminho || pdf.urlDoCanal
+          ? {
+            ...(pdf.caminho ? { caminho: pdf.caminho } : {}),
+            ...(pdf.urlDoCanal ? { url: pdf.urlDoCanal } : {}),
+            nomeDoArquivo: nomeDoPdf(recibo),
+            legenda: aoPaciente,
+          }
+          : undefined;
+        try {
+          await aviso.fila.enfileirar(t, [{
+            para,
+            textos: documento ? antes : [...antes, aoPaciente],
+            ...(documento ? { documento } : {}),
+            origem: "recibo",
+            recibo: { id: reciboId, desfechoAoEnviar: desfecho },
+          }]);
+          return null;
+        } catch {
+          /* Segue para o envio direto, logo abaixo. O porquê fica no log do adaptador. */
+        }
+      }
+
+      const urlDoPdf = (pdf.caminho
+        ? await guarda.linkParaBaixar(t, { caminho: pdf.caminho, segundos: PDF_VALE_SEGUNDOS }).catch(() => null)
+        : null) ?? pdf.urlDoCanal;
       if (urlDoPdf) {
         if (antes.length) await aviso.canal.enviar(t, para, antes);
         await aviso.canal.enviarDocumento(t, para, { url: urlDoPdf, nomeDoArquivo: nomeDoPdf(recibo), legenda: aoPaciente });
       } else {
         await aviso.canal.enviar(t, para, [...antes, aoPaciente]);
       }
+      return desfecho;
     };
 
     if (ajustes.cfg.reciboPrimeiroParaMim) {
@@ -502,15 +546,13 @@ async function avisarPaciente(
       if (!dona) return "sem_telefone";
       /* A linha dela vai numa bolha à parte, ANTES: no arquivo (ou na bolha seguinte) fica só o
        * que é para o paciente, e o encaminhar não leva junto o "Recibo emitido: …". */
-      await mandar(dona, [cabecalhoParaADona(recibo, Boolean(quem.telefone))]);
-      return "enviado_ao_dono";
+      return mandar(dona, [cabecalhoParaADona(recibo, Boolean(quem.telefone))], "enviado_ao_dono");
     }
 
     /* Sem telefone não há o que fazer, e não é erro: o avulso de quem não é cadastro nasce assim.
      * Ver `DestinatarioDoRecibo` — quem chama conta, não falha. */
     if (!quem.telefone) return "sem_telefone";
-    await mandar(quem.telefone, []);
-    return "enviado";
+    return mandar(quem.telefone, [], "enviado");
   } catch {
     /* Engole o erro, guarda o fato. Telefone que mudou de dono, canal fora do ar, número que não
      * existe no WhatsApp: nenhum desses é motivo para o recibo emitido parecer roto — mas todos

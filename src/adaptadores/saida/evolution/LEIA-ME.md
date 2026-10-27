@@ -93,9 +93,11 @@ Os números:
   instância na memória do processo; vale dentro de uma execução da rotina, que manda em
   série, e é onde a rajada de lembretes acontece. A rotina, por sua vez, para de enviar aos
   40 s e devolve o resto para a fila (`TEMPO_DA_RODADA_MS`, em `aplicacao/lembretes.ts`).
-- **⚠️ O lote de recibos ainda sai colado.** Fechar o mês com "avisar pacientes" manda um
-  aviso por paciente em sequência, sem espaço (ritmo `direto`), dentro de uma requisição do
-  painel. Espaçar ali estoura o tempo da requisição; o certo é uma fila, e é uma fatia própria.
+- **Os avisos de recibo saem pela fila de envios** (27/10/2026). Fechar o mês com "avisar
+  pacientes" e o retorno da Receita não mandam mais na hora: põem na fila
+  (`aplicacao/fila-de-envios.ts`, migração 036), e ela sai uma por vez por número, de 3 a 7 s
+  entre pessoas, pelo canal no ritmo `rotina`. O espaço é conferido no banco, porque os
+  retornos da Receita chegam em requisições separadas.
 
 Na criação da instância (`criarInstancia`), os ajustes vão explícitos: `groupsIgnore: true`
 (grupo nem chega ao webhook), `alwaysOnline: false` (gente não fica online 24 horas) e

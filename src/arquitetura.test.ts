@@ -200,8 +200,8 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
    * cumpre. Um caso de uso novo que recebesse `tenantId: string` no lugar aceitaria um id
    * vindo de qualquer lugar, inclusive do corpo do request.
    *
-   * DUAS exceções, e elas são simétricas — uma acontece antes do inquilino existir, a
-   * outra atravessa todos eles:
+   * As exceções são de dois tipos, e eles são simétricos — uma acontece antes do inquilino
+   * existir, as outras atravessam todos eles:
    *
    *   `ProvisionarNegocio` — PRODUZ o inquilino. No instante em que roda, ele ainda não
    *     existe. Escrita em `portas/saida/provisionador-negocio.ts`.
@@ -231,8 +231,15 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
    *     o id de uma conta, o resto é relido no banco, o destinatário é fixo da configuração, e a
    *     única escrita é a marca de "avisado" da própria conta.
    *
-   * Uma sexta exceção não é impossível, mas é decisão de arquitetura: não a acrescente
-   * aqui sem escrever o limite no arquivo da porta, como estas cinco fizeram. */
+   *   `EnviarFilaDeMensagens` (27/10/2026) A SEXTA, pela fila de envios que o Bruno pediu para
+   *     o WhatsApp não disparar em rajada: a rotina pergunta "quem tem mensagem esperando?"
+   *     sobre todos os negócios. O limite está escrito em `portas/entrada/casos-de-uso.ts` e na
+   *     porta de saída `fila-de-envios.ts`: a pergunta cross-tenant (`negociosComEnvio`) devolve
+   *     só ids, e cada envio é por negócio, num `ContextoTenant` de ator `sistema`. O disparo de
+   *     quem acabou de enfileirar é outro caso de uso, `DrenarFilaDoNegocio`, com contexto.
+   *
+   * Uma sétima exceção não é impossível, mas é decisão de arquitetura: não a acrescente
+   * aqui sem escrever o limite no arquivo da porta, como estas seis fizeram. */
   it("toda porta de entrada recebe ContextoTenant primeiro, menos o provisionamento, as rotinas e o aviso de cadastro", () => {
     const fonte = readFileSync(join(SRC, "nucleo", "portas", "entrada", "casos-de-uso.ts"), "utf8");
 
@@ -261,7 +268,8 @@ describe("o inquilino nasce da sessão, nunca do request", () => {
     }
 
     expect(semContexto.sort()).toEqual([
-      "AvisarNovoCadastro", "AvisarVencimentos", "EmitirRecibosAutomaticos", "EnviarLembretes", "ProvisionarNegocio",
+      "AvisarNovoCadastro", "AvisarVencimentos", "EmitirRecibosAutomaticos", "EnviarFilaDeMensagens", "EnviarLembretes",
+      "ProvisionarNegocio",
     ]);
   });
 });

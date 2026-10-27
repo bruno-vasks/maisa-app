@@ -75,6 +75,7 @@ import { criarProvisionarNegocio } from "@/nucleo/aplicacao/provisionar";
 import { criarAjustarAssistente, criarLerAssistente } from "@/nucleo/aplicacao/assistente";
 import { criarAjustarHorarios, criarLerHorarios } from "@/nucleo/aplicacao/horarios";
 import { criarEnviarLembretes } from "@/nucleo/aplicacao/lembretes";
+import { criarDrenarFilaDoNegocio, criarEnviarFilaDeMensagens } from "@/nucleo/aplicacao/fila-de-envios";
 import { criarEmitirRecibosAutomaticos } from "@/nucleo/aplicacao/recibo-automatico";
 import {
   criarConectarCanal, criarDefinirDonoDoCanal, criarDesconectarCanal, criarLerCanal, criarRenovarCodigo,
@@ -98,6 +99,7 @@ import { provisionadorSupabase } from "@/adaptadores/saida/supabase/provisionado
 import { assistenteDemo } from "@/adaptadores/saida/demo/assistente-repo";
 import { horariosDemo } from "@/adaptadores/saida/demo/horarios-repo";
 import { lembretesDemo } from "@/adaptadores/saida/demo/lembretes";
+import { filaDeEnviosDemo } from "@/adaptadores/saida/demo/fila-de-envios";
 import { agendaDeRecibosDemo } from "@/adaptadores/saida/demo/agenda-de-recibos";
 import { assistenteSupabase } from "@/adaptadores/saida/supabase/assistente";
 import { horariosSupabase } from "@/adaptadores/saida/supabase/horarios";
@@ -107,6 +109,7 @@ import { embeddingDemo } from "@/adaptadores/saida/demo/embedding";
 import { embeddingDePergunta, embeddingGemini } from "@/adaptadores/saida/gemini/embedding";
 import { criarAjustarFaq, criarLerFaqs, criarRemoverFaq, criarResponderDuvida } from "@/nucleo/aplicacao/faqs";
 import { lembretesSupabase } from "@/adaptadores/saida/supabase/lembretes";
+import { filaDeEnviosSupabase } from "@/adaptadores/saida/supabase/fila-de-envios";
 import { agendaDeRecibosSupabase } from "@/adaptadores/saida/supabase/agenda-de-recibos";
 import { canalSupabase } from "@/adaptadores/saida/supabase/canal";
 import { canalDemoRepo, provisionamentoDemo } from "@/adaptadores/saida/demo/canal";
@@ -364,6 +367,9 @@ const embeddingParaBuscar = isGeminiConfigured ? embeddingDePergunta : embedding
  * cair, então um Supabase configurado sem service role a deixaria estourando a cada
  * tique. Sem ela, a rotina roda em demonstração e devolve zero envios. */
 const filaLembretes = isAdminConfigured ? lembretesSupabase : lembretesDemo;
+/* A fila de envios (27/10/2026), pelo mesmo critério e motivo: quem a esvazia é uma rotina sem
+ * sessão, e só a service role a lê. */
+const filaDeEnvios = isAdminConfigured ? filaDeEnviosSupabase : filaDeEnviosDemo;
 /* Quem tem dia de recibo automático (01/10/2026). Mesmo critério e mesmo motivo da fila acima: a
  * pergunta atravessa negócios, e só a service role a responde. */
 const agendaDeRecibos = isAdminConfigured ? agendaDeRecibosSupabase : agendaDeRecibosDemo;
@@ -732,6 +738,17 @@ export const app = {
    */
   enviarLembretes: criarEnviarLembretes({ fila: filaLembretes, canal: canalDaRotina, negocio, assistente }),
 
+  /* A FILA DE ENVIOS (27/10/2026): o que sai sem ninguém ter escrito, um de cada vez por
+   * negócio. A rotina (`/api/rotinas/envios`, pelo `pg_cron` da 037) e o disparo de quem acabou
+   * de enfileirar usam a mesma drenagem, no ritmo "rotina" do canal. Ver
+   * `aplicacao/fila-de-envios.ts`. */
+  enviarFilaDeMensagens: criarEnviarFilaDeMensagens({
+    fila: filaDeEnvios, canal: canalDaRotina, guarda: guardaComprovante, livro: livroRecibos,
+  }),
+  drenarFilaDoNegocio: criarDrenarFilaDoNegocio({
+    fila: filaDeEnvios, canal: canalDaRotina, guarda: guardaComprovante, livro: livroRecibos,
+  }),
+
   lembrarCliente: criarLembrarCliente({ negocio, memoria }),
   anotarFato: criarAnotarFato({ negocio, memoria }),
 
@@ -791,8 +808,10 @@ export const app = {
    * mesmas dependências do lembrete de 3h antes, e é o mesmo canal falando. */
   /* `canalRepo` só para achar o `telefoneDono`: é para lá que vai a confirmação de
    * fechamento do mês. Nunca para `MAISA_WHATSAPP_DONO` — ver `Canal.telefoneDono`. */
+  /* `fila` desde 27/10/2026: os avisos aos pacientes saem pela fila de envios, espaçados. A
+   * confirmação para o dono continua saindo na hora, pelo `canal`. */
   fecharLoteDeRecibos: criarFecharLoteDeRecibos({
-    recibos: recibosRepo, canal, negocio, assistente, canalRepo,
+    recibos: recibosRepo, canal, negocio, assistente, canalRepo, fila: filaDeEnvios,
   }),
   desligarReciboSaude: criarDesligarReciboSaude({ recibos: recibosRepo, fiscal: fiscalRepo }),
 
@@ -829,7 +848,9 @@ export const app = {
      * inquilino (`avisarRecibo`, migração 024, padrão `false`). */
     /* `canalRepo` desde 01/10/2026: no "primeiro para mim" o aviso vai para a dona, e o número
      * dela mora lá (ver `numeroDaDona`). */
-    aviso: { canal, negocio, assistente, canalDoNegocio: canalRepo },
+    /* `fila` desde 27/10/2026: o PDF ao paciente sai pela fila de envios, espaçado dos outros
+     * retornos que chegam juntos. Ver "a fila", em `avisarPaciente`. */
+    aviso: { canal, negocio, assistente, canalDoNegocio: canalRepo, fila: filaDeEnvios },
   }),
 
   /* ── A COBRANÇA ──
