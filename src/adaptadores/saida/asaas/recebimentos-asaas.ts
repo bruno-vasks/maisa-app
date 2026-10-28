@@ -10,7 +10,8 @@
  *   1 · `POST /accounts` com a chave da PLATAFORMA. A chave da subconta vem só nesta resposta;
  *   2 · ela vai para o cofre ANTES de qualquer outra chamada, com o hash do token do aviso;
  *   3 · só então o aviso de pagamento é cadastrado, com a chave da subconta. Se isso falhar, a conta
- *       continua salva, e o aviso é tentado de novo na próxima conferência da conta.
+ *       continua salva com o aviso por cadastrar, e a próxima conferência da conta (a tela confere a
+ *       cada leitura) tenta de novo, com um token novo: o antigo não se guarda, só o hash.
  *
  * O token do aviso é sorteado aqui e só o hash é guardado: é o que acha o negócio quando o aviso
  * chega (`hashDoToken`, usado também por quem recebe o HTTP).
@@ -47,17 +48,26 @@ export function criarProvedorAsaas(deps: {
   const sortear = deps.sortearToken ?? (() => randomBytes(24).toString("hex"));
   const plataforma = () => ({ ambiente: config.ambiente, chave: config.chavePlataforma });
 
-  async function cadastrarAviso(conta: { ambiente: typeof config.ambiente; chave: string }, token: string) {
-    if (!config.urlDoAviso) return;
+  /** Cadastra o aviso de pagamento com um token novo e guarda o hash dele. Lança se o Asaas recusar. */
+  async function cadastrarAviso(t: Parameters<ProvedorDeRecebimentos["conta"]>[0], conta: { ambiente: typeof config.ambiente; chave: string }) {
+    const token = sortear();
     await asaas.registrarAviso(conta, { url: config.urlDoAviso, token, email: config.emailDoAviso || "avisos@maisasecretary.com.br" });
+    await deps.cofre.trocarToken(t, hashDoToken(token));
   }
 
   return {
-    disponivel: () => config.ligado && Boolean(config.chavePlataforma),
+    /* Sem a URL do aviso, a cobrança sairia e nunca seria confirmada: não liga. */
+    disponivel: () => config.ligado && Boolean(config.chavePlataforma) && Boolean(config.urlDoAviso),
 
     async conta(t, p): Promise<ContaDeRecebimentos> {
       const guardada = await deps.cofre.ler(t);
       if (!guardada) return { situacao: "sem_conta", pendencias: [] };
+      /* O aviso que não foi cadastrado na abertura (Asaas fora, URL errada) é tentado de novo aqui. */
+      if (p?.conferir && !guardada.avisoCadastrado) {
+        await cadastrarAviso(t, { ambiente: guardada.ambiente, chave: guardada.chave }).catch((e) => {
+          console.error(`[asaas/recebimentos] ${t.tenantId}: o aviso de pagamento ainda não foi cadastrado`, e);
+        });
+      }
       /* Aprovada e recusada não mudam mais sozinhas: não vale a chamada. */
       if (!p?.conferir || guardada.situacao === "aprovada" || guardada.situacao === "recusada") {
         return { situacao: guardada.situacao, pendencias: [] };
@@ -79,15 +89,15 @@ export function criarProvedorAsaas(deps: {
       } catch (e) {
         throw traduzir(e);
       }
-      const token = sortear();
-      /* ANTES de qualquer outra chamada: a chave não volta mais. */
+      /* ANTES de qualquer outra chamada: a chave não volta mais. O hash guardado aqui é de um token
+       * que ninguém tem; o do aviso entra em `cadastrarAviso`, logo abaixo. */
       await deps.cofre.guardar(t, {
         ambiente: config.ambiente, idConta: aberta.idConta, walletId: aberta.walletId, situacao: "pendente",
-        chave: aberta.chave, hashDoToken: hashDoToken(token),
+        avisoCadastrado: false, chave: aberta.chave, hashDoToken: hashDoToken(sortear()),
       });
       const conta = { ambiente: config.ambiente, chave: aberta.chave };
-      await cadastrarAviso(conta, token).catch((e) => {
-        console.error(`[asaas/recebimentos] ${t.tenantId}: conta ${aberta.idConta} aberta, mas o aviso de pagamento não foi cadastrado`, e);
+      await cadastrarAviso(t, conta).catch((e) => {
+        console.error(`[asaas/recebimentos] ${t.tenantId}: conta ${aberta.idConta} aberta, mas o aviso de pagamento não foi cadastrado (a conferência tenta de novo)`, e);
       });
       /* Os documentos pendentes só aparecem uns 15 s depois: a primeira conferência pode vir sem eles. */
       const st = await asaas.situacaoDaConta(conta).catch(() => null);

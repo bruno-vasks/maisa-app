@@ -660,6 +660,13 @@ export type PedidoDeEmissao = {
    * sempre, com tudo o que falta faturar.
    */
   atendimentoIds?: string[];
+  /**
+   * O serviço e o mês DESTES atendimentos, para a discriminação da nota de um pagamento. Sem ele, a
+   * discriminação diria o serviço mais frequente e o mês mais recente de TUDO o que falta faturar.
+   * Montado no servidor (`aplicacao/recebimentos.ts`), a partir do banco: a rota `/api/nf/emitir`
+   * nunca o repassa do corpo, pelo motivo do bloco acima.
+   */
+  resumo?: { servico: string | null; competencia: string };
 };
 
 export type EmitirNota = (t: ContextoTenant, p: PedidoDeEmissao) => Promise<ResultadoDeNota>;

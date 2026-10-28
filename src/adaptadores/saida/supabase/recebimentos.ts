@@ -244,25 +244,37 @@ export const recebimentosSupabase: RepositorioRecebimentos = {
   },
 
   async atendimentosEmCobranca(t) {
-    const supabase = clienteDoContexto(t);
-    const { data: abertos, error } = await supabase
-      .from("recebimentos")
-      .select("id")
-      .eq("tenant_id", t.tenantId)
-      .in("situacao", ["perguntar", "aberto"]);
-    /* Sem a 038 não há cobrança: o recibo automático segue como sempre. */
-    if (faltaMigracao(error)) return [];
-    if (error) throw falha("recebimentos em aberto", error);
-    const ids = ((abertos ?? []) as { id: string }[]).map((r) => r.id);
-    if (!ids.length) return [];
-    const { data, error: erroLinks } = await supabase
+    /* Uma consulta só, com o filtro no recebimento (`!inner`): a lista de ids dos recebimentos
+     * abertos na URL (`.in(...)`) passava do teto do gateway com algumas centenas deles. */
+    const { data, error } = await clienteDoContexto(t)
       .from("recebimento_atendimentos")
-      .select("atendimento_id")
+      .select("atendimento_id, recebimentos!inner(situacao)")
       .eq("tenant_id", t.tenantId)
       .eq("ativo", true)
-      .in("recebimento_id", ids);
-    if (erroLinks) throw falha("atendimentos em cobrança", erroLinks);
+      .in("recebimentos.situacao", ["perguntar", "aberto"]);
+    /* Sem a 038 não há cobrança: o recibo automático segue como sempre. */
+    if (faltaMigracao(error)) return [];
+    if (error) throw falha("atendimentos em cobrança", error);
     return ((data ?? []) as { atendimento_id: string }[]).map((l) => l.atendimento_id);
+  },
+
+  async atendimentosDoRecebimento(t, id) {
+    const { data, error } = await clienteDoContexto(t)
+      .from("recebimento_atendimentos")
+      .select("atendimentos(id, cliente_id, cliente_nome, cliente_tel, servico_nome, servico_valor, data_local, fim)")
+      .eq("tenant_id", t.tenantId)
+      .eq("recebimento_id", id);
+    if (error) throw falha("atendimentos do recebimento", error);
+    return ((data ?? []) as unknown as { atendimentos: {
+      id: string; cliente_id: string | null; cliente_nome: string; cliente_tel: string | null; servico_nome: string;
+      servico_valor: number | string; data_local: string; fim: string;
+    } | null }[])
+      .map((l) => l.atendimentos)
+      .filter((a): a is NonNullable<typeof a> => !!a)
+      .map((a) => paraCobrar({
+        id: a.id, cliente_id: a.cliente_id, nome: a.cliente_nome, telefone: a.cliente_tel, servico: a.servico_nome,
+        valor: a.servico_valor, data_local: a.data_local, fim: a.fim, como_paga: "padrao",
+      }));
   },
 
   async criar(t, novo) {

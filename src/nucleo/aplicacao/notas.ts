@@ -159,7 +159,7 @@ export function criarEmitirNota({ emissor, fiscal, notas, novoId, aviso }: DepsN
       clienteId: p.clienteId,
       ref: cunharRef(novoId, p.clienteId),
       ambiente: config.ambiente,
-      discriminacao: discriminacaoDaNota(so ? { ...pendente, atendimentos: so.length } : pendente),
+      discriminacao: discriminacaoDaNota(so ? { ...pendente, ...(p.resumo ?? {}), atendimentos: so.length } : pendente),
       ...(so ? { atendimentoIds: so } : {}),
     });
 

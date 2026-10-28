@@ -379,6 +379,18 @@ describe("os recebimentos (27/10/2026)", () => {
     expect(b.vistos).toHaveLength(1);
   });
 
+  it("texto e, logo depois, o comprovante: as duas mensagens têm resposta (a rajada não cede a vez ao comprovante)", async () => {
+    const { rec } = recebimentos({ comPix: true, comprovante: "Recebi o comprovante, obrigada!" });
+    const { responder, t, enviadas, vistos } = montar({ recebimentos: rec });
+    const doTexto = responder(t, { de: TEL, texto: "tem horário quinta?" }, { esperaDaRajadaMs: 80 });
+    await dormir(20);
+    await responder(t, { de: TEL, texto: "", arquivo: imagem }, { esperaDaRajadaMs: 80 });
+    const r = await doTexto;
+    expect(vistos).toHaveLength(1);
+    expect(r.bolhas.length).toBeGreaterThan(0);
+    expect(enviadas[0]).toEqual(["Recebi o comprovante, obrigada!"]);
+  });
+
   it("um caso de uso que falha não derruba a conversa", async () => {
     const rec: RecebimentosNaConversa = {
       temPixEmAberto: async () => false,

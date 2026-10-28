@@ -42,7 +42,13 @@ E rodar `supabase/039_recebimentos_asaas.sql` (a tabela das subcontas e o cofre 
 ## O que foi aprendido no Smiller e vale aqui
 
 - **A chave da subconta só vem na resposta da criação.** Vai para o cofre antes de qualquer outra
-  chamada; se o cadastro do aviso falhar depois, a conta fica salva.
+  chamada; se o cadastro do aviso falhar depois, a conta fica salva e a conferência seguinte
+  (a tela confere a cada leitura) cadastra de novo, com token novo.
+- **Sem `ASAAS_URL_DO_AVISO`, a opção B não liga**: a cobrança sairia e o pagamento nunca seria
+  confirmado.
+- **A cobrança que não vale mais sai do ar.** Paga por outro caminho (comprovante, "já pagou") ou
+  "não cobrar": o link é cancelado no Asaas. Se o cliente pagar mesmo assim, o dono é avisado.
+- **Asaas fora na hora de emitir**: vai o Pix estático, e o cliente não fica sem cobrança.
 - **Sem o acordo BaaS a chave pode não vir.** `abrirConta` falha dizendo isso, com o id da conta
   criada, em vez de fingir que deu certo.
 - **A fila de avisos do Asaas é sequencial.** A rota responde 200 para tudo que é decisão nossa e

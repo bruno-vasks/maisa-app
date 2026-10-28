@@ -120,3 +120,32 @@ describe("a cobrança", () => {
     expect(montar().provedor.disponivel()).toBe(true);
   });
 });
+
+describe("o aviso que não foi cadastrado", () => {
+  it("é cadastrado de novo na conferência, com token novo; o velho deixa de valer", async () => {
+    const falso = criarAsaasFalso();
+    let falhar = true;
+    const fetchQueFalha = (async (url: string | URL | Request, init?: RequestInit) =>
+      falhar && String(url).endsWith("/webhooks") && init?.method === "POST" ? new Response("{}", { status: 500 }) : falso.fetch(url, init)) as typeof fetch;
+    let n = 0;
+    const provedor = criarProvedorAsaas({
+      cofre: cofreDeRecebimentosDemo,
+      config: CONFIG,
+      cliente: criarClienteAsaas({ fetch: fetchQueFalha, base: { sandbox: "https://asaas.falso/v3" } }),
+      sortearToken: () => `token-${++n}`,
+    });
+    await provedor.abrirConta(t, TITULAR);
+    expect(falso.webhooks).toHaveLength(0);
+    expect((await cofreDeRecebimentosDemo.ler(t))?.avisoCadastrado).toBe(false);
+
+    falhar = false;
+    await provedor.conta(t, { conferir: true });
+    expect(falso.webhooks).toHaveLength(1);
+    expect((await cofreDeRecebimentosDemo.ler(t))?.avisoCadastrado).toBe(true);
+    expect(await cofreDeRecebimentosDemo.negocioDoToken(hashDoToken(falso.webhooks[0].authToken))).toBe(t.tenantId);
+  });
+
+  it("sem a URL do aviso, a opção B não liga", () => {
+    expect(montar({ config: { urlDoAviso: "" } }).provedor.disponivel()).toBe(false);
+  });
+});

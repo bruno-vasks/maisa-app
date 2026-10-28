@@ -69,6 +69,8 @@ export interface RepositorioRecebimentos {
   atendimentoPorAg(t: ContextoTenant, maisaAg: string): Promise<(AtendimentoACobrar & { recebimentoId: string | null }) | null>;
   /** Os atendimentos em cobrança que ainda não foi paga. O recibo automático não os emite antes do pagamento. */
   atendimentosEmCobranca(t: ContextoTenant): Promise<string[]>;
+  /** Os atendimentos que um recebimento cobra: o serviço e a data de cada um, para a nota dele. */
+  atendimentosDoRecebimento(t: ContextoTenant, id: string): Promise<AtendimentoACobrar[]>;
 
   /**
    * Cria e prende os atendimentos. `null` quando um deles já está em outra cobrança ativa: quem

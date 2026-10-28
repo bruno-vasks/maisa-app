@@ -253,9 +253,21 @@ function repete(bolhasNovas: string[], anterior: ReturnType<typeof ultimaRespost
   return recente && !mesmaPergunta && nova.length >= 20 && nova === semPontuacao(anterior.texto);
 }
 
-/** A última fala do cliente numa thread, se houver. */
+/** O arquivo sem legenda que o passo 1b'' gravou (o comprovante, 27/10/2026). */
+const ARQUIVO_SEM_LEGENDA = /^\[(imagem|documento)\]$/;
+
+/**
+ * A última fala do cliente numa thread, se houver.
+ *
+ * O arquivo sem legenda não conta: quem cuida dele é o passo 1b'', sem modelo. Sem esta exceção, o
+ * cliente que escreve "tem horário quinta?" e manda o comprovante logo depois ficava sem resposta:
+ * o turno do texto via o comprovante como fala mais nova e cedia a vez, e o do comprovante só
+ * respondia o comprovante.
+ */
 const ultimaDoCliente = (msgs: Msg[]): Msg | undefined => {
-  for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].de === "cliente") return msgs[i];
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].de === "cliente" && !ARQUIVO_SEM_LEGENDA.test(msgs[i].txt)) return msgs[i];
+  }
   return undefined;
 };
 

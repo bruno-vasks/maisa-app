@@ -27,8 +27,13 @@ export const cofreDeRecebimentosSupabase: CofreDeRecebimentos = {
     const { data, error } = await createAdminClient().rpc("conta_de_recebimento", { p_tenant: t.tenantId });
     if (faltaMigracao(error)) return null;
     if (error) throw falha("conta_de_recebimento", error);
-    const l = ((data ?? []) as { ambiente: ContaGuardada["ambiente"]; id_conta: string; wallet_id: string | null; situacao: ContaGuardada["situacao"]; chave: string }[])[0];
-    return l ? { ambiente: l.ambiente, idConta: l.id_conta, walletId: l.wallet_id, situacao: l.situacao, chave: l.chave } : null;
+    const l = ((data ?? []) as {
+      ambiente: ContaGuardada["ambiente"]; id_conta: string; wallet_id: string | null; situacao: ContaGuardada["situacao"];
+      aviso_cadastrado: boolean | null; chave: string;
+    }[])[0];
+    return l
+      ? { ambiente: l.ambiente, idConta: l.id_conta, walletId: l.wallet_id, situacao: l.situacao, avisoCadastrado: l.aviso_cadastrado === true, chave: l.chave }
+      : null;
   },
 
   async guardar(t, c) {
@@ -47,6 +52,11 @@ export const cofreDeRecebimentosSupabase: CofreDeRecebimentos = {
   async atualizarSituacao(t, situacao) {
     const { error } = await createAdminClient().rpc("atualizar_situacao_de_recebimento", { p_tenant: t.tenantId, p_situacao: situacao });
     if (error) throw falha("atualizar_situacao_de_recebimento", error);
+  },
+
+  async trocarToken(t, hash) {
+    const { error } = await createAdminClient().rpc("trocar_token_de_recebimento", { p_tenant: t.tenantId, p_token_hash: hash });
+    if (error) throw falha("trocar_token_de_recebimento", error);
   },
 
   async negocioDoToken(hash) {

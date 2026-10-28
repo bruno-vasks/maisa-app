@@ -207,6 +207,10 @@ Valem com a assistente desligada (são a cobrança que o dono ligou, não a conv
 por cima dele: na conversa assumida, registram e calam. Um caso de uso que falha vira log, e a
 mensagem segue o caminho de sempre.
 
+⚠️ O arquivo sem legenda não conta como fala na rajada (`ultimaDoCliente`): o cliente que escreve
+"tem horário quinta?" e manda o comprovante logo em seguida recebe as duas respostas. Antes, o turno
+do texto cedia a vez ao comprovante, e o do comprovante só respondia o comprovante.
+
 ## Às vezes ela não responde
 
 "Tá certo, vou ficar esperando", "ok", um 👍 depois da despedida: uma secretária lê e não

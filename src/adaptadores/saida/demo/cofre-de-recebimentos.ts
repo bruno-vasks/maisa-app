@@ -25,6 +25,9 @@ export const cofreDeRecebimentosDemo: CofreDeRecebimentos = {
   async atualizarSituacao(t, situacao) {
     if (CONTAS[t.tenantId]) CONTAS[t.tenantId].situacao = situacao;
   },
+  async trocarToken(t, hash) {
+    if (CONTAS[t.tenantId]) Object.assign(CONTAS[t.tenantId], { hashDoToken: hash, avisoCadastrado: true });
+  },
   async negocioDoToken(hash) {
     return Object.keys(CONTAS).find((id) => CONTAS[id].hashDoToken === hash) ?? null;
   },

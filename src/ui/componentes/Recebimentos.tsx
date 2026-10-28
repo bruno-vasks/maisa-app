@@ -102,14 +102,18 @@ async function postar(url: string, corpo: unknown, padrao: string) {
 
 /* ───────────────────────────── o que espera o dono ───────────────────────────── */
 
+/** Pix enviado há mais que isto, sem pagamento, volta para a coluna "Precisa de você". */
+const SEM_PAGAMENTO_HA_MS = 24 * 60 * 60_000;
+
 export function PagamentosParaDecidir() {
   const { painel, ler } = usePainel();
-  if (!painel || (!painel.paraDecidir.length && !painel.comprovantes.length)) return null;
+  const atrasados = (painel?.abertos ?? []).filter((r) => Date.now() - Date.parse(r.criadoEm) > SEM_PAGAMENTO_HA_MS);
+  if (!painel || (!painel.paraDecidir.length && !painel.comprovantes.length && !atrasados.length)) return null;
   return (
     <section aria-label="Pagamentos" style={s("display:flex;flex-direction:column;gap:10px")}>
       <span style={s("display:flex;align-items:center;gap:8px;font-size:var(--t-body);font-weight:var(--w-title)")}>
         Pagamentos
-        <span className="n" style={s("font-weight:var(--w-data);color:var(--warn)")}>{painel.paraDecidir.length + painel.comprovantes.length}</span>
+        <span className="n" style={s("font-weight:var(--w-data);color:var(--warn)")}>{painel.paraDecidir.length + painel.comprovantes.length + atrasados.length}</span>
       </span>
       {painel.comprovantes.map((c) => (
         <CartaoDoComprovante key={c.id} c={c} abertos={painel.abertos} depois={ler} />
@@ -117,7 +121,45 @@ export function PagamentosParaDecidir() {
       {painel.paraDecidir.map((r) => (
         <CartaoDaPergunta key={r.id} r={r} depois={ler} />
       ))}
+      {atrasados.map((r) => (
+        <CartaoDoAberto key={r.id} r={r} depois={ler} />
+      ))}
     </section>
+  );
+}
+
+/**
+ * O Pix que foi e não voltou pago. Sem esta saída ele ficava em aberto para sempre: a sessão fora do
+ * recibo automático, e toda imagem desse cliente indo para o leitor.
+ */
+function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => void }) {
+  const [ocupado, setOcupado] = useState(false);
+  const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar") => {
+    setOcupado(true);
+    try {
+      const resp = await postar("/api/recebimentos/decidir", { id: r.id, decisao }, "Não consegui registrar.");
+      toast(decisao === "pix" ? "A cobrança vai de novo para o cliente." : decisao === "nao_cobrar" ? "Cobrança cancelada." : fraseDoDocumento(resp.documento));
+      depois();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Não consegui registrar.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <div style={s(CARTAO)}>
+      <span style={s("display:flex;flex-direction:column;gap:3px")}>
+        <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{r.nome?.trim() || r.telefone}</span>
+        <span style={s("font-size:var(--t-label);color:var(--muted)")}>
+          {r.descricao} · {reais(r.valor)} · {r.meio === "asaas" ? "link" : "Pix"} enviado em {diaMes(r.criadoEm.slice(0, 10))}, ainda sem pagamento
+        </span>
+      </span>
+      <div style={s("display:flex;gap:8px;flex-wrap:wrap")}>
+        <Btn size="sm" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
+        <Btn size="sm" variant="secondary" disabled={ocupado} onClick={() => decidir("pix")}>Mandar de novo</Btn>
+        <Btn size="sm" variant="ghost" disabled={ocupado} onClick={() => decidir("nao_cobrar")}>Não cobrar</Btn>
+      </div>
+    </div>
   );
 }
 
@@ -190,7 +232,7 @@ function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePagamento
           No comprovante, quem recebeu não parece ser você. Confira no extrato antes de confirmar.
         </span>
       )}
-      {!c.recebimentoId && doTelefone.length > 1 && (
+      {doTelefone.length > 1 && (
         <label style={s(ROTULO)}>
           Qual cobrança ele paga?
           <select value={alvo} onChange={(e) => setAlvo(e.target.value)} className="n m-focus" style={s(CAMPO)}>
@@ -356,6 +398,13 @@ export function AjustesDeRecebimentos() {
         </Btn>
         {ligado && <Btn variant="ghost" disabled={ocupado} onClick={() => salvar(true)}>Desligar</Btn>}
       </div>
+
+      {painel.abertos.length > 0 && (
+        <div style={s("display:grid;gap:8px")}>
+          <span style={s("font-size:var(--t-label);color:var(--muted)")}>Esperando pagamento ({painel.abertos.length})</span>
+          {painel.abertos.map((r) => <CartaoDoAberto key={r.id} r={r} depois={ler} />)}
+        </div>
+      )}
 
       {/* A opção B (Asaas), atrás de flag: só aparece com ela ligada na plataforma, e depois do Pix. */}
       {ligado && painel.asaas.disponivel && <ContaDeCartaoEBoleto conta={painel.asaas.conta} depois={ler} />}

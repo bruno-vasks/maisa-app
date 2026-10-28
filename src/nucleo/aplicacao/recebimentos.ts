@@ -53,13 +53,15 @@ import { chavePix, cnpjValido, ehTipoDeChave, pixCopiaECola, PIX_CIDADE_MAX, PIX
 import {
   AGRADECIMENTO_DO_CPF, avisoDeComprovanteAoDono, codigoNaConversa, COMPROVANTE_REPETIDO, confirmacaoDoPagamento,
   conferirRecebedor, cpfNaMensagem, decisaoDoDono, descricaoDoRecebimento, ehDepoisDoAtendimento,
-  identificadorDoRecebimento, janelaDepoisDoAtendimento, mensagensDaCobranca, mensagensDoPix, pedidoDeCpf, perguntaAoDono,
+  avisoDePagamentoForaDeHoraAoDono, identificadorDoRecebimento, janelaDepoisDoAtendimento, mensagensDaCobranca, mensagensDoPix,
+  pedidoDeCpf, perguntaAoDono, resumoParaANota,
   perguntaValendo, pixFaltando, respostaAoComprovante, respostaAoDono, soOCpf, sugerirRecebimento,
   type AtendimentoACobrar, type ConfigDeRecebimentos, type MotivoDoCpf, type Recebimento,
 } from "../dominio/recebimentos";
-import { corteDoRecibo, diaDoReciboAlcancado, mesQueOReciboFecha, numeroDaDona } from "../dominio/recibo-automatico";
+import { corteDoRecibo, diaDoReciboAlcancado, mesQueOReciboFecha, numeroDaDona, ULTIMO_DIA_DO_MES } from "../dominio/recibo-automatico";
+import { ehUuid } from "../dominio/agenda";
 import { rotuloDoAtor, type ContextoTenant } from "../dominio/tenant";
-import { hojeISO, somarDias } from "../dominio/tempo";
+import { hojeISO, mesDe, somarDias, somarMeses } from "../dominio/tempo";
 
 export type DepsRecebimentos = {
   recebimentos: RepositorioRecebimentos;
@@ -171,24 +173,56 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     if (!o.pixDireto && provedor?.disponivel() && (await provedor.conta(t).catch(() => null))?.situacao === "aprovada") {
       const cliente = r.clienteId ? await deps.negocio.cliente(t, r.clienteId).catch(() => null) : null;
       if (cliente && cpfValido(cliente.cpf)) {
-        const cobranca = await provedor.emitir(t, {
-          referencia: r.id,
-          valor: r.valor,
-          vencimento: somarDias(hojeISO(agora()), 3),
-          descricao: r.descricao,
-          pagador: { nome: cliente.nome, documento: soDigitos(cliente.cpf), telefone: r.telefone, referencia: cliente.id },
-        });
-        await deps.recebimentos.anotar(t, r.id, { cobranca: { idExterno: cobranca.idExterno, link: cobranca.link } });
-        const mensagens = mensagensDaCobranca({ nome: r.nome, valor: r.valor, descricao: r.descricao, link: cobranca.link, pix: cobranca.pixCopiaECola });
-        await enfileirar(t, r.telefone, mensagens, cobranca.pixCopiaECola ? [mensagens[0], codigoNaConversa(r.valor)] : mensagens);
-        return;
-      }
-      if (cliente && !r.cpfPedidoEm) {
+        /* Só a emissão no `try`: se o Asaas falhar, o cliente recebe o Pix estático em vez de nada. Uma
+         * falha depois de emitir (gravar, enfileirar) não pode virar Pix estático: seria cobrar duas vezes. */
+        const cobranca = await provedor
+          .emitir(t, {
+            referencia: r.id,
+            valor: r.valor,
+            vencimento: somarDias(hojeISO(agora()), 3),
+            descricao: r.descricao,
+            pagador: { nome: cliente.nome, documento: soDigitos(cliente.cpf), telefone: r.telefone, referencia: cliente.id },
+          })
+          .catch((e) => {
+            console.warn(`[aplicacao/recebimentos] ${t.tenantId}: o Asaas não emitiu a cobrança ${r.id}, vai o Pix estático: ${e instanceof Error ? e.message : String(e)}`);
+            return null;
+          });
+        if (cobranca) {
+          await deps.recebimentos.anotar(t, r.id, { cobranca: { idExterno: cobranca.idExterno, link: cobranca.link } });
+          const mensagens = mensagensDaCobranca({ nome: r.nome, valor: r.valor, descricao: r.descricao, link: cobranca.link, pix: cobranca.pixCopiaECola });
+          await enfileirar(t, r.telefone, mensagens, cobranca.pixCopiaECola ? [mensagens[0], codigoNaConversa(r.valor)] : mensagens);
+          return;
+        }
+      } else if (cliente && !r.cpfPedidoEm) {
         await pedirCpf(t, r, "cobranca");
         return;
       }
     }
     await mandarOPix(t, r, c);
+  }
+
+  /**
+   * A mesma cobrança, de novo. A do Asaas vai com o mesmo link (não se emite outra); a que esperava o
+   * CPF, e o dono apertou, vai no Pix estático; o resto, o mesmo Pix.
+   */
+  async function reenviar(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos): Promise<void> {
+    if (r.meio === "asaas" && r.link) {
+      const mensagens = mensagensDaCobranca({ nome: r.nome, valor: r.valor, descricao: r.descricao, link: r.link, pix: null });
+      await enfileirar(t, r.telefone, mensagens, mensagens);
+      return;
+    }
+    await mandarCobranca(t, r, c, { pixDireto: Boolean(r.cpfPedidoEm) });
+  }
+
+  /**
+   * A cobrança do Asaas que não vale mais (paga por outro caminho, ou "não cobrar") sai do ar, para o
+   * cliente não pagar duas vezes pelo link que ainda tem. Falha aqui é log: a decisão já está gravada.
+   */
+  async function retirarDoProvedor(t: ContextoTenant, r: Recebimento): Promise<void> {
+    if (r.meio !== "asaas" || !r.idExterno || !deps.provedor) return;
+    await deps.provedor.cancelar(t, r.idExterno).catch((e) => {
+      console.warn(`[aplicacao/recebimentos] ${t.tenantId}: a cobrança ${r.idExterno} continua no Asaas: ${e instanceof Error ? e.message : String(e)}`);
+    });
   }
 
   function criarRecebimento(t: ContextoTenant, atendimentos: AtendimentoACobrar[], situacao: "perguntar" | "aberto") {
@@ -266,7 +300,8 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
         await deps.emitirRecibo(t, { itens: r.atendimentoIds.map((id) => ({ fonte: "atendimento" as const, id })) });
         return { tipo: "recibo" };
       }
-      await deps.emitirNota(t, { clienteId: r.clienteId, atendimentoIds: r.atendimentoIds });
+      const resumo = resumoParaANota(await deps.recebimentos.atendimentosDoRecebimento(t, r.id).catch(() => []));
+      await deps.emitirNota(t, { clienteId: r.clienteId, atendimentoIds: r.atendimentoIds, ...(resumo ? { resumo } : {}) });
       return { tipo: "nota" };
     } catch (e) {
       const motivo = e instanceof Error ? e.message : String(e);
@@ -293,6 +328,12 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
 
     if (p.decisao === "pix") {
       const c = await configPronta(t);
+      /* Já em aberto: é o "Mandar de novo" da tela. */
+      const atual = await deps.recebimentos.porId(t, p.id);
+      if (atual?.situacao === "aberto") {
+        await reenviar(comoSistema(t), atual, c);
+        return { recebimento: atual, documento: { tipo: "nenhum" } };
+      }
       const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar"], para: "aberto", por });
       if (!r) throw jaFoi();
       await mandarCobranca(comoSistema(t), r, c);
@@ -307,11 +348,13 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       const pixFoi = antes.situacao === "aberto";
       const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar", "aberto"], para: "pago", forma: pixFoi ? "pix" : "na_hora", por });
       if (!r) throw jaFoi();
+      await retirarDoProvedor(comoSistema(t), r);
       return { recebimento: r, documento: await quitar(comoSistema(t), r, pixFoi) };
     }
 
     const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar", "aberto"], para: "cancelado", por });
     if (!r) throw jaFoi();
+    await retirarDoProvedor(comoSistema(t), r);
     return { recebimento: r, documento: { tipo: "nenhum" } };
   };
 
@@ -324,16 +367,9 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       const r = await deps.recebimentos.porId(t, a.recebimentoId);
       if (r?.situacao === "pago") throw new DadoInvalido("Este atendimento já está pago.");
       if (r?.situacao === "perguntar") return (await decidir(t, { id: r.id, decisao: "pix" })).recebimento;
-      /* Já em aberto: manda de novo. É o "o cliente pediu o código outra vez". A cobrança do Asaas
-       * vai com o mesmo link (não se emite outra); a que esperava o CPF, e o dono apertou, vai no
-       * Pix estático. */
+      /* Já em aberto: manda de novo. É o "o cliente pediu o código outra vez". */
       if (r?.situacao === "aberto") {
-        if (r.meio === "asaas" && r.link) {
-          const mensagens = mensagensDaCobranca({ nome: r.nome, valor: r.valor, descricao: r.descricao, link: r.link, pix: null });
-          await enfileirar(comoSistema(t), r.telefone, mensagens, mensagens);
-        } else {
-          await mandarCobranca(comoSistema(t), r, c, { pixDireto: Boolean(r.cpfPedidoEm) });
-        }
+        await reenviar(comoSistema(t), r, c);
         return r;
       }
     }
@@ -352,6 +388,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const alvo = p.recebimentoId || comprovante.recebimentoId;
     if (!alvo) throw new DadoInvalido("Escolha qual cobrança este comprovante paga.", "recebimentoId");
     const r = await deps.recebimentos.confirmarComprovante(t, { id: p.id, recebimentoId: alvo, por: rotuloDoAtor(t.ator) });
+    await retirarDoProvedor(comoSistema(t), r);
     return { recebimento: r, documento: await quitar(comoSistema(t), r, true) };
   };
 
@@ -432,12 +469,22 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
 
   const receberAvisoDePagamento: ReceberAvisoDePagamento = async (t, corpo) => {
     const evento = deps.provedor?.lerEvento(corpo) ?? null;
-    if (!evento || evento.tipo === "ignorado" || !evento.referencia) return { status: "ignorado" };
+    /* A referência é o id do recebimento. Outra coisa (uma cobrança criada à mão no Asaas) não é nossa:
+     * ir ao banco com ela dava erro de uuid, a rota respondia erro e a fila de avisos do Asaas parava. */
+    if (!evento || evento.tipo === "ignorado" || !evento.referencia || !ehUuid(evento.referencia)) return { status: "ignorado" };
     const r = await deps.recebimentos.porId(t, evento.referencia);
     if (!r) return { status: "ignorado" };
     if (evento.tipo === "paga") {
       const pago = await deps.recebimentos.mudar(t, r.id, { de: ["perguntar", "aberto"], para: "pago", forma: "asaas", por: "Asaas" });
-      if (!pago) return { status: "ja_estava" };
+      if (!pago) {
+        /* O cliente pagou pelo link uma cobrança que já estava fechada: o dinheiro entrou, e o dono
+         * precisa saber. A mesma cobrança paga pelo Asaas duas vezes (o aviso reentregue) não avisa. */
+        if (!(r.situacao === "pago" && r.forma === "asaas")) {
+          const dono = numeroDaDona(await deps.canalDoNegocio.ler(t).catch(() => null));
+          if (dono) await enfileirar(comoSistema(t), dono, [avisoDePagamentoForaDeHoraAoDono(r)]).catch(() => {});
+        }
+        return { status: "ja_estava" };
+      }
       return { status: "pago", documento: await quitar(comoSistema(t), pago, true) };
     }
     if (evento.tipo === "cancelada") {
@@ -536,15 +583,27 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     if (pixFaltando(c).length) return;
     r.negocios++;
 
+    /* Um item que falha vai para o relatório, e a rodada segue com o próximo: sem isso, uma pessoa
+     * sem telefone derrubava a cobrança do negócio inteiro a cada tique. */
+    const cadaUm = async (oQue: string, fazer: () => Promise<void>) => {
+      try {
+        await fazer();
+      } catch (e) {
+        r.falhas.push({ tenantId, motivo: `${oQue}: ${e instanceof Error ? e.message : String(e)}` });
+      }
+    };
+
     /* Depois de cada atendimento: pergunta ao dono, ou manda o Pix direto. */
     if (c.depoisDoAtendimento !== "desligado") {
       const janela = janelaDepoisDoAtendimento(quando, c.ligadoEm);
       for (const a of janela ? await deps.recebimentos.atendimentosQueAcabaram(t, janela) : []) {
-        const novo = await criarRecebimento(t, [a], c.depoisDoAtendimento === "perguntar" ? "perguntar" : "aberto");
-        if (novo?.situacao === "aberto") {
-          await mandarCobranca(t, novo, c);
-          r.pix++;
-        }
+        await cadaUm(`atendimento ${a.id}`, async () => {
+          const novo = await criarRecebimento(t, [a], c.depoisDoAtendimento === "perguntar" ? "perguntar" : "aberto");
+          if (novo?.situacao === "aberto") {
+            await mandarCobranca(t, novo, c);
+            r.pix++;
+          }
+        });
       }
     }
 
@@ -553,17 +612,25 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     for (const pessoa of await deps.recebimentos.clientesPorMes(t)) {
       const data = diaDoReciboAlcancado(pessoa.diaRecibo, hoje);
       if (!data) continue;
-      const sessoes = await deps.recebimentos.sessoesDoMes(t, {
-        clienteId: pessoa.clienteId,
-        desde: `${mesQueOReciboFecha(pessoa.diaRecibo, data)}-01`,
-        ate: corteDoRecibo(pessoa.diaRecibo, data),
+      /* O dia 31 fecha o próprio mês até a véspera (`corteDoRecibo`): no dia, a sessão dele ainda não
+       * aconteceu. Nos dias de folga seguintes ela entra, num Pix dela, como no recibo automático. Sem
+       * isso, a sessão do último dia nunca era cobrada. */
+      const ate = pessoa.diaRecibo >= ULTIMO_DIA_DO_MES && hoje > data
+        ? `${somarMeses(mesDe(data), 1)}-01`
+        : corteDoRecibo(pessoa.diaRecibo, data);
+      await cadaUm(`mês de ${pessoa.clienteId}`, async () => {
+        const sessoes = await deps.recebimentos.sessoesDoMes(t, {
+          clienteId: pessoa.clienteId,
+          desde: `${mesQueOReciboFecha(pessoa.diaRecibo, data)}-01`,
+          ate,
+        });
+        if (!sessoes.length) return;
+        const novo = await criarRecebimento(t, sessoes, "aberto");
+        if (novo) {
+          await mandarCobranca(t, novo, c);
+          r.pix++;
+        }
       });
-      if (!sessoes.length) continue;
-      const novo = await criarRecebimento(t, sessoes, "aberto");
-      if (novo) {
-        await mandarCobranca(t, novo, c);
-        r.pix++;
-      }
     }
 
     if (await perguntarAoDono(t)) r.perguntas++;

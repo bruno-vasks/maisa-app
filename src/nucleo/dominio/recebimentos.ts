@@ -175,6 +175,16 @@ export function descricaoDoRecebimento(atendimentos: Pick<AtendimentoACobrar, "s
   return `${atendimentos.length} atendimentos de ${rotuloDoMes(mes)}`;
 }
 
+/** O serviço mais frequente e o mês do último atendimento: a discriminação da nota de um pagamento. */
+export function resumoParaANota(atendimentos: Pick<AtendimentoACobrar, "servico" | "data">[]): { servico: string | null; competencia: string } | null {
+  if (!atendimentos.length) return null;
+  const vezes: Record<string, number> = {};
+  for (const a of atendimentos) vezes[a.servico] = (vezes[a.servico] ?? 0) + 1;
+  const servico = Object.keys(vezes).sort((a, b) => vezes[b] - vezes[a])[0] ?? null;
+  const ultima = atendimentos.reduce((a, b) => (a.data > b.data ? a : b)).data;
+  return { servico, competencia: `${mesDe(ultima)}-01` };
+}
+
 /* ───────────────────────────── quando ───────────────────────────── */
 
 /** Quanto depois do fim a MAISA age. A rotina roda de 5 em 5 minutos, então na prática são 5 a 10. */
@@ -442,6 +452,13 @@ export function perguntaAoDono(r: Pick<Recebimento, "nome" | "descricao" | "valo
 export function respostaAoDono(decisao: DecisaoDoDono, r: Pick<Recebimento, "nome" | "telefone">): string {
   const quem = r.nome?.trim() || r.telefone;
   return decisao === "pagou" ? `Anotado: ${quem} já pagou.` : `Combinado, o Pix vai para ${quem} agora.`;
+}
+
+/** O cliente pagou pelo Asaas uma cobrança que já estava paga ou cancelada: dinheiro em dobro, talvez. */
+export function avisoDePagamentoForaDeHoraAoDono(r: Pick<Recebimento, "nome" | "telefone" | "valor" | "situacao">): string {
+  const quem = r.nome?.trim() || r.telefone;
+  const estava = r.situacao === "pago" ? "já estava paga" : "tinha sido cancelada";
+  return `${quem} pagou pelo link do Asaas uma cobrança de ${reais(r.valor)} que ${estava}. Confira no Asaas: talvez seja o caso de devolver.`;
 }
 
 export function avisoDeComprovanteAoDono(p: { nome: string | null; telefone: string; valor: number | null; conferencia: Conferencia }): string {

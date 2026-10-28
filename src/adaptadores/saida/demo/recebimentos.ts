@@ -19,12 +19,15 @@ import {
 } from "@/nucleo/dominio/recebimentos";
 import { DadoInvalido } from "@/nucleo/dominio/erros";
 import { chaveDe } from "@/nucleo/dominio/contatos";
+import { soDigitos } from "@/nucleo/dominio/clientes";
 import { espelhoDemo, type EspelhoEmMemoria } from "./atendimentos";
 
 const CONFIG: Record<string, ConfigDeRecebimentos> = {};
 let RECEBIMENTOS: (Recebimento & { tenantId: string })[] = [];
 /** atendimento → recebimento ativo, por negócio. */
 let ATIVOS: Record<string, string> = {};
+/** Todo atendimento que já entrou em alguma cobrança, ativa ou cancelada: a rotina cobra uma vez só. */
+let JA_COBRADOS: Record<string, true> = {};
 let COMPROVANTES: (ComprovanteDePagamento & { tenantId: string; mensagemId: string | null })[] = [];
 let POR_MES: Record<string, ClientePorMes[]> = {};
 /** O CPF de quem a ficha demo tem, para `esperandoCpf`. O teste diz. */
@@ -66,7 +69,7 @@ export const recebimentosDemo: RepositorioRecebimentos = {
   async atendimentosQueAcabaram(t, janela) {
     return espelhoDemo(t.tenantId)
       .filter((a) => a.situacao === "marcado" && a.fimISO > janela.desde && a.fimISO <= janela.ate)
-      .filter((a) => a.servicoValor > 0 && a.clienteTel && !ATIVOS[chave(t.tenantId, a.maisaAg)])
+      .filter((a) => a.servicoValor > 0 && a.clienteTel && !JA_COBRADOS[chave(t.tenantId, a.maisaAg)])
       .map(paraCobrar)
       .filter((a) => a.comoPaga === "padrao");
   },
@@ -79,13 +82,19 @@ export const recebimentosDemo: RepositorioRecebimentos = {
     return espelhoDemo(t.tenantId)
       .filter((a) => a.clienteId === p.clienteId && a.situacao === "marcado" && a.servicoValor > 0)
       .filter((a) => a.dataLocal >= p.desde && a.dataLocal < p.ate && Date.parse(a.inicioISO) < Date.now())
-      .filter((a) => !ATIVOS[chave(t.tenantId, a.maisaAg)])
+      .filter((a) => a.clienteTel && !JA_COBRADOS[chave(t.tenantId, a.maisaAg)])
       .map(paraCobrar);
   },
 
   async atendimentoPorAg(t, maisaAg) {
     const a = espelhoDemo(t.tenantId).find((x) => x.maisaAg === maisaAg);
     return a && a.situacao === "marcado" ? { ...paraCobrar(a), recebimentoId: ATIVOS[chave(t.tenantId, maisaAg)] ?? null } : null;
+  },
+
+  async atendimentosDoRecebimento(t, id) {
+    const r = daqui(t.tenantId).find((x) => x.id === id);
+    if (!r) return [];
+    return espelhoDemo(t.tenantId).filter((a) => r.atendimentoIds.includes(a.maisaAg)).map(paraCobrar);
   },
 
   async atendimentosEmCobranca(t) {
@@ -99,8 +108,9 @@ export const recebimentosDemo: RepositorioRecebimentos = {
     const linhas = espelhoDemo(t.tenantId).filter((a) => novo.atendimentoIds.includes(a.maisaAg) && a.situacao === "marcado");
     if (!linhas.length || linhas.length !== novo.atendimentoIds.length) throw new DadoInvalido("Atendimento que não é deste negócio, ou cancelado.");
     if (new Set(linhas.map((a) => a.clienteId ?? "")).size > 1) throw new DadoInvalido("Um recebimento é de uma pessoa só.");
-    const telefone = linhas.find((a) => a.clienteTel)?.clienteTel;
-    if (!telefone) throw new DadoInvalido("Atendimento sem telefone: não há para onde mandar o Pix.");
+    /* Só dígitos, como a 038 grava. */
+    const telefone = soDigitos(linhas.find((a) => a.clienteTel)?.clienteTel);
+    if (telefone.length < 8) throw new DadoInvalido("Atendimento sem telefone: não há para onde mandar o Pix.");
     const valor = linhas.reduce((s, a) => s + a.servicoValor, 0);
     if (valor <= 0) throw new DadoInvalido("Atendimento sem valor.");
     if (linhas.some((a) => ATIVOS[chave(t.tenantId, a.maisaAg)]) || daqui(t.tenantId).some((r) => r.id === novo.id)) return null;
@@ -126,7 +136,10 @@ export const recebimentosDemo: RepositorioRecebimentos = {
       cpfPedidoEm: null,
     };
     RECEBIMENTOS.push(r);
-    for (const a of linhas) ATIVOS[chave(t.tenantId, a.maisaAg)] = r.id;
+    for (const a of linhas) {
+      ATIVOS[chave(t.tenantId, a.maisaAg)] = r.id;
+      JA_COBRADOS[chave(t.tenantId, a.maisaAg)] = true;
+    }
     return semTenant(r);
   },
 
@@ -234,6 +247,7 @@ export function zerarRecebimentosDemo(): void {
   for (const k of Object.keys(CONFIG)) delete CONFIG[k];
   RECEBIMENTOS = [];
   ATIVOS = {};
+  JA_COBRADOS = {};
   COMPROVANTES = [];
   POR_MES = {};
   CPFS = {};

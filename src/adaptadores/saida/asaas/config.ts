@@ -35,4 +35,6 @@ export const ASAAS = {
 
 export type ConfigAsaas = typeof ASAAS;
 
-export const isAsaasConfigured = ASAAS.ligado && Boolean(ASAAS.chavePlataforma);
+/* Sem a URL do aviso não há baixa sozinha: a cobrança sairia e o pagamento nunca seria confirmado.
+ * Então ela também é condição para ligar. */
+export const isAsaasConfigured = ASAAS.ligado && Boolean(ASAAS.chavePlataforma) && Boolean(ASAAS.urlDoAviso);

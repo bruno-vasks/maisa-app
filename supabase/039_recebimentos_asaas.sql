@@ -33,9 +33,15 @@ create table if not exists public.contas_de_recebimento (
   token_hash    text not null unique check (length(token_hash) = 64),
   /* O id do segredo no Vault, onde mora a chave da subconta. */
   segredo_id    uuid not null,
+  /* O aviso de pagamento foi cadastrado no Asaas. Falso: a conferência da conta tenta de novo, com
+   * token novo (o antigo não se guarda, só o hash). */
+  aviso_cadastrado boolean not null default false,
   criado_em     timestamptz not null default now(),
   atualizado_em timestamptz not null default now()
 );
+
+/* Reexecutável sobre uma versão anterior desta mesma migração. */
+alter table public.contas_de_recebimento add column if not exists aviso_cadastrado boolean not null default false;
 
 alter table public.contas_de_recebimento enable row level security;
 
@@ -78,14 +84,16 @@ begin
 end;
 $$;
 
-create or replace function public.conta_de_recebimento(p_tenant uuid)
-returns table (ambiente text, id_conta text, wallet_id text, situacao text, chave text)
+/* `drop` antes: `create or replace` não troca o formato da resposta de uma função que já existe. */
+drop function if exists public.conta_de_recebimento(uuid);
+create function public.conta_de_recebimento(p_tenant uuid)
+returns table (ambiente text, id_conta text, wallet_id text, situacao text, aviso_cadastrado boolean, chave text)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select c.ambiente, c.id_conta, c.wallet_id, c.situacao, s.decrypted_secret
+  select c.ambiente, c.id_conta, c.wallet_id, c.situacao, c.aviso_cadastrado, s.decrypted_secret
     from public.contas_de_recebimento c
     join vault.decrypted_secrets s on s.id = c.segredo_id
    where c.tenant_id = p_tenant
@@ -99,6 +107,18 @@ set search_path = ''
 as $$
   update public.contas_de_recebimento
      set situacao = p_situacao, atualizado_em = now()
+   where tenant_id = p_tenant
+$$;
+
+/* O aviso de pagamento cadastrado de novo, com token novo: o hash troca, e o antigo deixa de valer. */
+create or replace function public.trocar_token_de_recebimento(p_tenant uuid, p_token_hash text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.contas_de_recebimento
+     set token_hash = p_token_hash, aviso_cadastrado = true, atualizado_em = now()
    where tenant_id = p_tenant
 $$;
 
@@ -117,6 +137,8 @@ revoke all on function public.guardar_conta_de_recebimento(uuid, text, text, tex
 revoke all on function public.conta_de_recebimento(uuid) from public, anon, authenticated;
 revoke all on function public.atualizar_situacao_de_recebimento(uuid, text) from public, anon, authenticated;
 revoke all on function public.negocio_do_aviso(text) from public, anon, authenticated;
+revoke all on function public.trocar_token_de_recebimento(uuid, text) from public, anon, authenticated;
+grant execute on function public.trocar_token_de_recebimento(uuid, text) to service_role;
 grant execute on function public.guardar_conta_de_recebimento(uuid, text, text, text, text, text, text) to service_role;
 grant execute on function public.conta_de_recebimento(uuid) to service_role;
 grant execute on function public.atualizar_situacao_de_recebimento(uuid, text) to service_role;

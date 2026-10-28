@@ -544,3 +544,109 @@ describe("a opção B: o Asaas, atrás de flag", () => {
     expect(await a.casos.receberAvisoDePagamento(t, { event: "PAYMENT_DELETED", payment: { id: aberto.idExterno, externalReference: r.id } })).toEqual({ status: "cancelado" });
   });
 });
+
+describe("o que a revisão de 27/10/2026 achou", () => {
+  it("o não cobrar vale: a rotina seguinte não pergunta de novo pelo mesmo atendimento", async () => {
+    const a = ambiente();
+    await a.config("perguntar");
+    a.passar(60 * 60_000);
+    await atendimento({ minutosAtras: 20 - 60 });
+    await a.casos.cobrarAtendimentos(new Date(AGORA + 60 * 60_000));
+    const [p] = (await a.casos.lerRecebimentos(t)).paraDecidir;
+    await a.casos.decidir(t, { id: p.id, decisao: "nao_cobrar" });
+    await a.casos.cobrarAtendimentos(new Date(AGORA + 65 * 60_000));
+    expect((await a.casos.lerRecebimentos(t)).paraDecidir).toHaveLength(0);
+  });
+
+  it("o telefone digitado com máscara no painel ainda acha o Pix pelo número do WhatsApp", async () => {
+    const a = ambiente({ leitura: { valor: 50, pagoEm: null, recebedorNome: null, recebedorChave: null, recebedorDocumento: null, pagadorNome: null, banco: null, idTransacao: "E1", identificador: null } });
+    await a.config("direto");
+    a.passar(60 * 60_000);
+    await atendimento({ minutosAtras: 20 - 60, tel: "(11) 98888-7777" });
+    await a.casos.cobrarAtendimentos(new Date(AGORA + 60 * 60_000));
+    expect(a.enviados[0].para).toBe("11988887777");
+    expect(await a.casos.temPixEmAberto(t, "5511988887777")).toBe(true);
+    expect(await a.casos.receberComprovante(t, { telefone: "5511988887777", arquivo: { base64: "x", mimetype: "image/png" } })).not.toBeNull();
+  });
+
+  it("dia 31: a sessão do último dia, que ainda não tinha acontecido, é cobrada na folga", async () => {
+    const a = ambiente();
+    await a.config("desligado");
+    pagaPorMesDemo(T, [{ clienteId: JOAO, diaRecibo: 31 }]);
+    await atendimento({ minutosAtras: 60 * 24 * 20, data: "2026-10-07", servico: "Sessão", valor: 150 });
+    const ultimo = await atendimento({ minutosAtras: 60 * 24 * 1, data: "2026-10-31", servico: "Sessão", valor: 150 });
+    await a.casos.cobrarAtendimentos(new Date(Date.parse("2026-10-31T09:00:00-03:00")));
+    await a.casos.cobrarAtendimentos(new Date(Date.parse("2026-11-01T09:00:00-03:00")));
+    const abertos = (await a.casos.lerRecebimentos(t)).abertos;
+    expect(abertos.map((r) => r.atendimentoIds.length).sort()).toEqual([1, 1]);
+    expect(abertos.some((r) => r.atendimentoIds.includes(ultimo))).toBe(true);
+  });
+
+  it("Mandar de novo, pela decisão: a mesma cobrança vai outra vez", async () => {
+    const a = ambiente();
+    await a.config("direto");
+    a.passar(60 * 60_000);
+    await atendimento({ minutosAtras: 20 - 60 });
+    await a.casos.cobrarAtendimentos(new Date(AGORA + 60 * 60_000));
+    const [aberto] = (await a.casos.lerRecebimentos(t)).abertos;
+    await a.casos.decidir(t, { id: aberto.id, decisao: "pix" });
+    expect(a.enviados).toHaveLength(2);
+    expect(a.enviados[1].textos).toEqual(a.enviados[0].textos);
+  });
+});
+
+describe("o que a revisão achou na opção B", () => {
+  const TITULAR = {
+    documento: "123.456.789-09", nome: "Ana Lúcia Souza", email: "ana@x.com", celular: "(11) 98888-7777", cep: "01310-100",
+    endereco: "Av. Paulista", numero: "1000", bairro: "Bela Vista", faturamentoMensal: 8000, nascimento: "1990-05-10",
+  };
+  async function aprovadoComFalso(o: { quebrarEmissao?: boolean } = {}) {
+    const falso = criarAsaasFalso();
+    const fetchComFalha = (async (url: string | URL | Request, init?: RequestInit) =>
+      o.quebrarEmissao && String(url).endsWith("/payments") && init?.method === "POST"
+        ? new Response("{}", { status: 503 })
+        : falso.fetch(url, init)) as typeof fetch;
+    const provedor = criarProvedorAsaas({
+      cofre: cofreDeRecebimentosDemo,
+      config: {
+        ligado: true, ambiente: "sandbox", chavePlataforma: CHAVE_DA_PLATAFORMA, walletPlataforma: null, taxaFixa: 0, taxaPercentual: 0,
+        urlDoAviso: "https://maisa.falsa/api/recebimentos/asaas", emailDoAviso: "a@b.com",
+      },
+      cliente: criarClienteAsaas({ fetch: fetchComFalha, base: { sandbox: "https://asaas.falso/v3" } }),
+      sortearToken: () => `tok-${Math.random()}`,
+    });
+    const a = ambiente({ provedor, cpfDoCliente: "12345678909" });
+    await a.config("direto");
+    await a.casos.abrirContaDeRecebimentos(t, TITULAR);
+    falso.aprovar("acc_1");
+    await a.casos.lerRecebimentos(t);
+    return { a, falso };
+  }
+
+  it("Asaas fora na hora de emitir: o cliente recebe o Pix estático, não nada", async () => {
+    const { a, falso } = await aprovadoComFalso({ quebrarEmissao: true });
+    const id = await atendimento({ minutosAtras: 60 * 30 });
+    await a.casos.mandarPix(t, { maisaAg: id });
+    expect(a.enviados.at(-1)?.textos[0]).toMatch(/^Oi, João! Segue o Pix de R\$ 50,00/);
+    expect(Object.keys(falso.cobrancas)).toHaveLength(0);
+  });
+
+  it("não cobrar tira a cobrança do ar no Asaas; o pagamento que chega depois avisa o dono", async () => {
+    const { a, falso } = await aprovadoComFalso();
+    const id = await atendimento({ minutosAtras: 60 * 30 });
+    const r = await a.casos.mandarPix(t, { maisaAg: id });
+    const [aberto] = (await a.casos.lerRecebimentos(t)).abertos;
+    const aviso = falso.pagar(aberto.idExterno!);
+    await a.casos.decidir(t, { id: r.id, decisao: "nao_cobrar" });
+    expect(falso.registro).toContain(`DELETE /payments/${aberto.idExterno}`);
+    expect(await a.casos.receberAvisoDePagamento(t, aviso.corpo)).toEqual({ status: "ja_estava" });
+    expect(a.enviados.at(-1)).toMatchObject({ para: DONO });
+    expect(a.enviados.at(-1)?.textos[0]).toMatch(/tinha sido cancelada.*devolver/);
+  });
+
+  it("referência que não é nossa (cobrança criada à mão no Asaas) é ignorada, sem ir ao banco", async () => {
+    const { a } = await aprovadoComFalso();
+    expect(await a.casos.receberAvisoDePagamento(t, { event: "PAYMENT_RECEIVED", payment: { id: "pay_x", externalReference: "pedido-123", value: 10 } }))
+      .toEqual({ status: "ignorado" });
+  });
+});

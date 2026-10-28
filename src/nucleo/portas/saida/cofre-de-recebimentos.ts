@@ -16,6 +16,8 @@ export type ContaGuardada = {
   idConta: string;
   walletId: string | null;
   situacao: Exclude<SituacaoDaConta, "sem_conta">;
+  /** O aviso de pagamento foi cadastrado no provedor. Falso: a conferência da conta tenta de novo. */
+  avisoCadastrado: boolean;
   /** A chave da subconta. Sai daqui só para o adaptador do provedor. */
   chave: string;
 };
@@ -25,6 +27,8 @@ export interface CofreDeRecebimentos {
   /** Grava a conta recém-aberta, com o hash do token do aviso. Recusa a segunda conta do mesmo negócio. */
   guardar(t: ContextoTenant, c: ContaGuardada & { hashDoToken: string }): Promise<void>;
   atualizarSituacao(t: ContextoTenant, situacao: ContaGuardada["situacao"]): Promise<void>;
+  /** O aviso cadastrado de novo, com token novo: o hash troca, e o aviso fica marcado como cadastrado. */
+  trocarToken(t: ContextoTenant, hashDoToken: string): Promise<void>;
   /**
    * De qual negócio é este aviso. ⚠️ SEM INQUILINO: o aviso chega sem sessão, e o token (pelo hash)
    * é o que diz de quem é. `null`: token desconhecido.

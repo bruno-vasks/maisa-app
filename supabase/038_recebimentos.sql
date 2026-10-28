@@ -53,16 +53,20 @@ create policy "membro lê" on public.config_recebimentos
   for select to authenticated
   using (tenant_id in (select public.negocios_do_usuario()));
 
+/* ⚠️ A CHAVE PIX É PARA ONDE VAI O DINHEIRO: só dono e gestor gravam, como `config_fiscal` e o
+ * WhatsApp (003). Com "membro", um atendente poria a chave dele e receberia todo Pix do negócio. */
 drop policy if exists "membro insere" on public.config_recebimentos;
-create policy "membro insere" on public.config_recebimentos
+drop policy if exists "dono insere" on public.config_recebimentos;
+create policy "dono insere" on public.config_recebimentos
   for insert to authenticated
-  with check (tenant_id in (select public.negocios_do_usuario()));
+  with check (public.tem_papel(tenant_id, array['dono','gestor']));
 
 drop policy if exists "membro atualiza" on public.config_recebimentos;
-create policy "membro atualiza" on public.config_recebimentos
+drop policy if exists "dono atualiza" on public.config_recebimentos;
+create policy "dono atualiza" on public.config_recebimentos
   for update to authenticated
-  using (tenant_id in (select public.negocios_do_usuario()))
-  with check (tenant_id in (select public.negocios_do_usuario()));
+  using (public.tem_papel(tenant_id, array['dono','gestor']))
+  with check (public.tem_papel(tenant_id, array['dono','gestor']));
 
 -- ── 2 · como cada cliente paga ───────────────────────────────────────────────
 alter table public.clientes add column if not exists como_paga text not null default 'padrao';
@@ -263,7 +267,10 @@ begin
   if coalesce(array_length(v_clientes, 1), 0) > 1 then
     raise exception 'um recebimento é de uma pessoa só';
   end if;
-  if v_telefone is null then
+  /* Só dígitos: o atendimento marcado pelo painel guarda o telefone como foi digitado, "(11)
+   * 98888-7777", e quem procura o recebimento pelo telefone compara os últimos oito dígitos. */
+  v_telefone := nullif(regexp_replace(coalesce(v_telefone, ''), '\D', '', 'g'), '');
+  if v_telefone is null or length(v_telefone) < 8 then
     raise exception 'atendimento sem telefone: não há para onde mandar o Pix';
   end if;
   if v_valor <= 0 then
@@ -301,28 +308,37 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v public.recebimentos;
 begin
   if auth.uid() is not null and not (p_tenant in (select public.negocios_do_usuario())) then
     raise exception 'negócio de outra pessoa';
   end if;
 
-  return query
-    update public.recebimentos r
-       set situacao      = p_para,
-           forma         = case when p_para = 'pago' then p_forma else r.forma end,
-           pago_em       = case when p_para = 'pago' then now() else null end,
-           decidido_por  = left(p_por, 120),
-           atualizado_em = now()
-     where r.tenant_id = p_tenant
-       and r.id = p_id
-       and r.situacao = any(p_de)
-    returning r.*;
+  update public.recebimentos r
+     set situacao      = p_para,
+         forma         = case when p_para = 'pago' then p_forma else r.forma end,
+         pago_em       = case when p_para = 'pago' then now() else null end,
+         decidido_por  = left(p_por, 120),
+         atualizado_em = now()
+   where r.tenant_id = p_tenant
+     and r.id = p_id
+     and r.situacao = any(p_de)
+  returning r.* into v;
+
+  /* Nada mudou (outra decisão chegou antes): nada se solta. Soltar aqui liberaria o atendimento de
+   * um recebimento já PAGO, e o "Mandar Pix" cobraria de novo. */
+  if not found then
+    return;
+  end if;
 
   if p_para = 'cancelado' then
     update public.recebimento_atendimentos ra
        set ativo = false
      where ra.tenant_id = p_tenant and ra.recebimento_id = p_id;
   end if;
+
+  return next v;
 end;
 $$;
 
@@ -408,9 +424,13 @@ as $$
   select tenant_id from public.config_recebimentos where chave is not null
 $$;
 
-/* O que acabou na janela e ainda não está em cobrança nenhuma: atendimento marcado, com valor, com
- * telefone, de quem não está como "por mês" ou "não cobrar". A janela vem do domínio
- * (`janelaDepoisDoAtendimento`). */
+/* O que acabou na janela e nunca entrou em cobrança: atendimento marcado, com valor, com telefone,
+ * de quem não está como "por mês" ou "não cobrar", e que não é cliente de teste. A janela vem do
+ * domínio (`janelaDepoisDoAtendimento`).
+ *
+ * ⚠️ "NUNCA ENTROU", E NÃO "NÃO ESTÁ AGORA": o link cancelado conta. Sem isso, o "não cobrar" do
+ * dono durava cinco minutos: o próximo tique via o atendimento solto e perguntava de novo. A rotina
+ * cobra cada atendimento uma vez; depois disso, só o botão "Mandar Pix". */
 create or replace function public.atendimentos_que_acabaram(p_tenant uuid, p_desde timestamptz, p_ate timestamptz)
 returns table (
   id uuid, cliente_id uuid, nome text, telefone text, servico text, valor numeric,
@@ -431,14 +451,16 @@ as $$
      and a.servico_valor > 0
      and coalesce(nullif(a.cliente_tel, ''), c.telefone) is not null
      and coalesce(c.como_paga, 'padrao') = 'padrao'
+     and not coalesce(c.teste, false)
      and not exists (
-       select 1 from public.recebimento_atendimentos ra where ra.atendimento_id = a.id and ra.ativo
+       select 1 from public.recebimento_atendimentos ra where ra.atendimento_id = a.id
      )
    order by a.fim
 $$;
 
-/* As sessões de um mês de quem paga "por mês", ainda fora de cobrança. `p_ate` exclusivo: é o
- * corte do recibo (`corteDoRecibo`), e o dia dele não entra. */
+/* As sessões de um mês de quem paga "por mês" que nunca entraram em cobrança (o mesmo "uma vez só"
+ * de cima), com telefone (sem ele, `criar_recebimento` recusa, e a recusa derrubava a rodada do
+ * negócio inteiro). `p_ate` exclusivo. */
 create or replace function public.sessoes_do_mes_a_cobrar(p_tenant uuid, p_cliente uuid, p_desde date, p_ate date)
 returns table (
   id uuid, cliente_id uuid, nome text, telefone text, servico text, valor numeric,
@@ -459,8 +481,10 @@ as $$
      and a.data_local >= p_desde and a.data_local < p_ate
      and a.inicio < now()
      and a.servico_valor > 0
+     and coalesce(nullif(a.cliente_tel, ''), c.telefone) is not null
+     and not coalesce(c.teste, false)
      and not exists (
-       select 1 from public.recebimento_atendimentos ra where ra.atendimento_id = a.id and ra.ativo
+       select 1 from public.recebimento_atendimentos ra where ra.atendimento_id = a.id
      )
    order by a.data_local, a.inicio
 $$;
