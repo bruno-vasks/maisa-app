@@ -68,7 +68,7 @@ Tudo devolve `null` e a rota responde **200**: para o provedor, resposta de erro
 | `@g.us` / `@broadcast` | Grupo não é atendimento. A MAISA num grupo responderia a cada mensagem de cada participante — e o dono descobre pelo grupo da família. |
 | `@lid` sem telefone | Desde 2025 o WhatsApp entrega alguns contatos por id opaco (`69385314111689@lid`). Tratá-lo como número põe um "cliente" de telefone falso no cadastro **e** o `sendText` de volta falha com `exists: false`: a conversa roda inteira, gasta token, e a resposta não chega em ninguém. Quando vem `remoteJidAlt`/`senderPn`, usamos o telefone de lá. |
 | evento ≠ `messages.upsert` | `messages.update` (recibo de leitura) também tem `data.key`. |
-| figurinha, localização, foto sem legenda | A MAISA não lê. Áudio **segue**: é transcrito (ver "Áudio"). |
+| figurinha, localização, vídeo | A MAISA não lê. Áudio **segue**: é transcrito (ver "Áudio"). Imagem e PDF **seguem** desde 27/10/2026, e o agente só lê de quem tem Pix em aberto (ver "Comprovante, CPF e o dono"); sem legenda e sem Pix em aberto, nada é gravado nem respondido, como antes |
 
 O nome do evento é comparado numa forma canônica porque a Evolution é inconsistente: a
 configuração usa `MESSAGES_UPSERT`, o corpo entregue traz `messages.upsert`
@@ -188,6 +188,24 @@ não usa emoji em superfície nenhuma), então o dono lê na tela de Conversas o
 disse. Se não der para ouvir, entra `[áudio] (não deu para ouvir)` e a MAISA pede para a
 pessoa escrever — nunca o silêncio de antes. Só Evolution: na Cloud API da Meta, o áudio cai
 no aviso.
+
+## Comprovante, CPF e o dono
+
+Desde 27/10/2026 (os recebimentos, `aplicacao/recebimentos.ts`), três mensagens têm resposta
+pronta e não passam pelo modelo. O agente recebe os casos de uso em `recebimentos` e os chama no
+passo 1b'':
+
+- **o comprovante do Pix**: imagem ou PDF de quem tem Pix em aberto (o passo 0- pergunta isso
+  antes de qualquer outra leitura, com `temPixEmAberto`). O arquivo é baixado como o áudio
+  (`baixarArquivo`, em `composicao.ts`), o Gemini lê (`saida/gemini/comprovante.ts`), e fica
+  registrado para o dono conferir no extrato. A imagem entra na thread como `[imagem]`;
+- **o CPF que a MAISA pediu** para o recibo ou a nota sair: guardado na ficha; só o CPF é
+  agradecido, e CPF com mais assunto segue para o modelo responder o resto;
+- **o "1" ou o "2" do dono** à pergunta "já está pago?", vindo do número de avisos dele.
+
+Valem com a assistente desligada (são a cobrança que o dono ligou, não a conversa) e não falam
+por cima dele: na conversa assumida, registram e calam. Um caso de uso que falha vira log, e a
+mensagem segue o caminho de sempre.
 
 ## Às vezes ela não responde
 

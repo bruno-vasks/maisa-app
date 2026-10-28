@@ -83,9 +83,9 @@ export const recebimentosDemo: RepositorioRecebimentos = {
       .map(paraCobrar);
   },
 
-  async atendimento(t, id) {
-    const a = espelhoDemo(t.tenantId).find((x) => x.maisaAg === id);
-    return a ? { ...paraCobrar(a), recebimentoId: ATIVOS[chave(t.tenantId, id)] ?? null } : null;
+  async atendimentoPorAg(t, maisaAg) {
+    const a = espelhoDemo(t.tenantId).find((x) => x.maisaAg === maisaAg);
+    return a && a.situacao === "marcado" ? { ...paraCobrar(a), recebimentoId: ATIVOS[chave(t.tenantId, maisaAg)] ?? null } : null;
   },
 
   async atendimentosEmCobranca(t) {

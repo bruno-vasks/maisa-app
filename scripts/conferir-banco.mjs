@@ -77,6 +77,9 @@ export const MARCADORES = [
   { migracao: "036_fila_de_envios", tabela: "envios_whatsapp", coluna: null },
   /* Agenda um `pg_cron`, que o PostgREST não enxerga. A consulta está no fim do arquivo. */
   { migracao: "037_agendar_envios", tabela: null, coluna: null },
+  /* 038: a coluna da ficha é o marcador (a tabela nova também serviria). O agendador do fim do
+   * arquivo não se enxerga daqui, como o da 037. */
+  { migracao: "038_recebimentos", tabela: "clientes", coluna: "como_paga" },
 ];
 
 const FALTA = new Set(["42703", "PGRST204", "42P01", "PGRST205", "PGRST200"]);

@@ -41,6 +41,9 @@ for pedir alguma mudança, usar o nome certo economiza uma rodada inteira de con
 | o jeito da MAISA | `Assistente`, `Tom` | nome, tom de voz, o que ela não pode falar |
 | lembrete | `FilaDeLembretes` | a mensagem de véspera, disparada de 15 em 15 minutos |
 | fila de envios | `FilaDeEnvios`, `EnvioNaFila` | o aviso que sai sem ninguém ter escrito (recibo, PDF), um por vez por negócio, espaçado (27/10/2026) |
+| **recebimento** | `Recebimento`, `RepositorioRecebimentos` | o cliente pagando o negócio (27/10/2026): um Pix que a MAISA mandou, na chave do próprio profissional, e que ninguém confirmou ainda. Cobre um atendimento, ou o mês do pacote. **Não é a assinatura** (`Assinatura`, o negócio pagando a MAISA) |
+| comprovante de pagamento | `ComprovanteDePagamento`, `LeitorDeComprovanteDePagamento` | a imagem do banco que o cliente devolve depois do Pix. Lida pelo Gemini, confirmada pelo dono no extrato. ⚠️ "comprovante" sozinho, no código, é o PDF do recibo (`GuardaDeComprovante`) |
+| como paga | `ComoPaga` | na ficha: depois de cada atendimento (o padrão do negócio), uma vez por mês no dia do recibo, ou não cobrar pelo WhatsApp |
 | nota fiscal | `Nota`, `EmissorFiscal` | emissão pela Focus NFe |
 | **instância** | `EVOLUTION_INSTANCIA`, `integracoes_whatsapp` | a linha de WhatsApp conectada. Uma instância = um negócio |
 

@@ -379,15 +379,15 @@ describe("o painel", () => {
     const a = ambiente({ cpfDoCliente: "12345678909" });
     await a.config("desligado");
     const id = await atendimento({ minutosAtras: 60 * 30 });
-    const r = await a.casos.mandarPix(t, { atendimentoId: id });
+    const r = await a.casos.mandarPix(t, { maisaAg: id });
     expect(r.situacao).toBe("aberto");
     expect(a.enviados).toHaveLength(1);
-    expect((await a.casos.mandarPix(t, { atendimentoId: id })).id).toBe(r.id);
+    expect((await a.casos.mandarPix(t, { maisaAg: id })).id).toBe(r.id);
     expect(a.enviados).toHaveLength(2);
     expect(a.enviados[1].textos).toEqual(a.enviados[0].textos);
 
     await a.casos.decidir(t, { id: r.id, decisao: "pagou" });
-    await expect(a.casos.mandarPix(t, { atendimentoId: id })).rejects.toThrow(/já está pago/);
+    await expect(a.casos.mandarPix(t, { maisaAg: id })).rejects.toThrow(/já está pago/);
   });
 
   it("não cobrar solta o atendimento; sem chave, nada sai", async () => {
@@ -398,10 +398,10 @@ describe("o painel", () => {
     await a.casos.cobrarAtendimentos(new Date(AGORA + 60 * 60_000));
     const [p] = (await a.casos.lerRecebimentos(t)).paraDecidir;
     expect((await a.casos.decidir(t, { id: p.id, decisao: "nao_cobrar" })).recebimento.situacao).toBe("cancelado");
-    expect((await a.casos.mandarPix(t, { atendimentoId: id })).situacao).toBe("aberto");
+    expect((await a.casos.mandarPix(t, { maisaAg: id })).situacao).toBe("aberto");
 
     await a.casos.salvarConfig(t, { tipoDaChave: null, chave: null, nome: null, cidade: null, depoisDoAtendimento: "desligado" });
-    await expect(a.casos.mandarPix(t, { atendimentoId: id })).rejects.toThrow();
+    await expect(a.casos.mandarPix(t, { maisaAg: id })).rejects.toThrow();
   });
 
   it("a nota que falha não desfaz o pagamento; o motivo volta para a tela", async () => {

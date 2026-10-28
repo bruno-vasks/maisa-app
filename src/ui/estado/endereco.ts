@@ -51,7 +51,7 @@ export const SECOES: Partial<Record<TelaId, { validas: readonly string[]; padrao
   fiscal: { validas: ["inicio", "dados", "autorizacao", "carne-leao", "recibo", "nota"], padrao: "inicio" },
   /* Os recortes dos Ajustes (1C.11), na ordem de `RECORTES` (`telas/ajustes.ts`). `auto` é o
    * padrão e não vai para a URL: WhatsApp enquanto o canal não conectou, Horário depois. */
-  assistente: { validas: ["auto", "horarios", "duvidas", "agendamentos", "comportamento", "personalidade", "whatsapp"], padrao: "auto" },
+  assistente: { validas: ["auto", "horarios", "duvidas", "agendamentos", "comportamento", "personalidade", "whatsapp", "recebimentos"], padrao: "auto" },
 };
 
 export function secaoDoEndereco(tela: TelaId, valor: string | null | undefined): string | null {

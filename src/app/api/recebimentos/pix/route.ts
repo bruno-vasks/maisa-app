@@ -6,7 +6,9 @@ import { falha } from "@/adaptadores/entrada/http/respostas";
 // ─────────────────────────────────────────────────────────────────────────────
 // MANDAR PIX — o botão do atendimento (27/10/2026).
 //
-// POST /api/recebimentos/pix  { atendimentoId }  →  { recebimento }
+// POST /api/recebimentos/pix  { maisaAg }  →  { recebimento }
+//
+// `maisaAg` é a chave do atendimento que o painel conhece (a mesma do "Remarcar").
 //
 // Cria a cobrança daquele atendimento e manda o Pix pela fila de envios. Se ele já estava
 // perguntando ao dono, vira Pix; se o Pix já tinha ido, manda o mesmo de novo (o cliente pediu o
@@ -22,7 +24,7 @@ export async function POST(req: Request) {
 
   try {
     const corpo = await req.json().catch(() => ({}));
-    const recebimento = await app.mandarPix(porteiro.tenant, { atendimentoId: String(corpo?.atendimentoId ?? "") });
+    const recebimento = await app.mandarPix(porteiro.tenant, { maisaAg: String(corpo?.maisaAg ?? "") });
     return NextResponse.json({ ok: true, status: "ok", recebimento });
   } catch (e) {
     return falha("recebimentos/pix", e);

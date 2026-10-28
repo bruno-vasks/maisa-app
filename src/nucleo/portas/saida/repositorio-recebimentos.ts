@@ -62,8 +62,11 @@ export interface RepositorioRecebimentos {
   clientesPorMes(t: ContextoTenant): Promise<ClientePorMes[]>;
   /** As sessões de `desde` (inclusive) a `ate` (exclusive) desta pessoa, fora de cobrança. */
   sessoesDoMes(t: ContextoTenant, p: { clienteId: string; desde: string; ate: string }): Promise<AtendimentoACobrar[]>;
-  /** Um atendimento, para o botão "Mandar Pix", com a cobrança ativa em que ele já está, se estiver. */
-  atendimento(t: ContextoTenant, id: string): Promise<(AtendimentoACobrar & { recebimentoId: string | null }) | null>;
+  /**
+   * Um atendimento pela chave que o painel conhece (`maisaAg`), para o botão "Mandar Pix", com a
+   * cobrança ativa em que ele já está, se estiver. O `id` que volta é o da tabela.
+   */
+  atendimentoPorAg(t: ContextoTenant, maisaAg: string): Promise<(AtendimentoACobrar & { recebimentoId: string | null }) | null>;
   /** Os atendimentos em cobrança que ainda não foi paga. O recibo automático não os emite antes do pagamento. */
   atendimentosEmCobranca(t: ContextoTenant): Promise<string[]>;
 

@@ -195,13 +195,13 @@ export const recebimentosSupabase: RepositorioRecebimentos = {
     return ((data ?? []) as LinhaACobrar[]).map(paraCobrar);
   },
 
-  async atendimento(t, id) {
+  async atendimentoPorAg(t, maisaAg) {
     const supabase = clienteDoContexto(t);
     const { data, error } = await supabase
       .from("atendimentos")
       .select("id, cliente_id, cliente_nome, cliente_tel, servico_nome, servico_valor, data_local, fim, situacao, clientes(nome, telefone, como_paga)")
       .eq("tenant_id", t.tenantId)
-      .eq("id", id)
+      .eq("maisa_ag", maisaAg)
       .maybeSingle<{
         id: string; cliente_id: string | null; cliente_nome: string; cliente_tel: string | null; servico_nome: string;
         servico_valor: number | string; data_local: string; fim: string; situacao: string;
@@ -214,7 +214,7 @@ export const recebimentosSupabase: RepositorioRecebimentos = {
       .from("recebimento_atendimentos")
       .select("recebimento_id")
       .eq("tenant_id", t.tenantId)
-      .eq("atendimento_id", id)
+      .eq("atendimento_id", data.id)
       .eq("ativo", true)
       .maybeSingle<{ recebimento_id: string }>();
     if (erroAtivo) throw falha("recebimento do atendimento", erroAtivo);

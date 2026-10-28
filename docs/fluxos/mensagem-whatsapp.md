@@ -11,26 +11,28 @@ cliente no WhatsApp
     ├─ 1. o segredo confere?                              route.ts:60-79   → 401
     ├─ 2. normalizar o envelope                           route.ts:91      → contexto.ts
     │     descarta eco, grupo, @lid, recibo, figurinha    → 200 "ignorado"
-    │     (áudio SEGUE, com `ouvir` = composicao.ouvirAudio)
-    ├─ 3. de quem é esta linha?                           route.ts:105     → integracoes_whatsapp
-    └─ 6. 200 AGORA; o agente roda depois (waitUntil)     route.ts:156-187 → whatsapp/agente.ts
-       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:356
-       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:375
-       ├─ 1a. áudio: só ouve quem ela vai atender         agente.ts:393  → senão grava "[áudio]"
-       ├─ 1b. GRAVA a fala do cliente, uma vez por id     agente.ts:416  → reentrega para aqui
-       │      escrita há mais de 15 min?                  agente.ts:446  → para aqui, sem responder
-       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:454  → os outros calam
-       ├─ 1c. a assistente está ligada?                   agente.ts:508
-       ├─ 1d. o dono assumiu a conversa?                  agente.ts:516  → cala
-       ├─ 1e. é da vida pessoal do dono?                  agente.ts:533  → cala
-       ├─ 1f. a conversa virou laço? (disjuntor.ts)       agente.ts:559  → para e chama o dono
-       ├─ 1g. tique azul                                  agente.ts:573
-       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:607  → 429: tenta de novo dentro de 50 s, depois chama o dono
-       ├─ 2b. ela escolheu não responder?                 agente.ts:670  → termina sem mensagem, sem chamar o dono
-       ├─ 3a. o cliente escreveu ou o dono assumiu?       agente.ts:693  → descarta, salvo se marcou/cancelou/chamou
-       ├─ 3b. tentou marcar e não marcou?                 agente.ts:718  → descarta e chama o dono
-       ├─ 3c. a mesma resposta de antes?                  agente.ts:775  → não sai
-       └─ 4.  grava o que aconteceu                       agente.ts:788
+    │     (áudio SEGUE, com `ouvir` = composicao.ouvirAudio; imagem e PDF também, com `arquivo`)
+    ├─ 3. de quem é esta linha?                           route.ts:108     → integracoes_whatsapp
+    └─ 6. 200 AGORA; o agente roda depois (waitUntil)     route.ts:159-193 → whatsapp/agente.ts
+       ├─ 0-. imagem ou PDF: só de quem tem Pix aberto    agente.ts:378  → senão, sem legenda, para aqui sem gravar
+       ├─ 0.  o que a MAISA sabe do negócio               agente.ts:397
+       ├─ 1.  quem é o cliente (pelo telefone)            agente.ts:416
+       ├─ 1a. áudio: só ouve quem ela vai atender         agente.ts:434  → senão grava "[áudio]"
+       ├─ 1b. GRAVA a fala do cliente, uma vez por id     agente.ts:457  → reentrega para aqui
+       │      escrita há mais de 15 min?                  agente.ts:487  → para aqui, sem responder
+       ├─ 1b''. recebimentos: comprovante, CPF, "1"/"2"   agente.ts:495  → resposta pronta, sem o modelo
+       ├─ 1b'. espera 4 s; só segue a última fala         agente.ts:541  → os outros calam
+       ├─ 1c. a assistente está ligada?                   agente.ts:595
+       ├─ 1d. o dono assumiu a conversa?                  agente.ts:603  → cala
+       ├─ 1e. é da vida pessoal do dono?                  agente.ts:620  → cala
+       ├─ 1f. a conversa virou laço? (disjuntor.ts)       agente.ts:646  → para e chama o dono
+       ├─ 1g. tique azul                                  agente.ts:660
+       ├─ 2.  o loop: modelo ↔ ferramentas                agente.ts:694  → 429: tenta de novo dentro de 50 s, depois chama o dono
+       ├─ 2b. ela escolheu não responder?                 agente.ts:757  → termina sem mensagem, sem chamar o dono
+       ├─ 3a. o cliente escreveu ou o dono assumiu?       agente.ts:780  → descarta, salvo se marcou/cancelou/chamou
+       ├─ 3b. tentou marcar e não marcou?                 agente.ts:805  → descarta e chama o dono
+       ├─ 3c. a mesma resposta de antes?                  agente.ts:862  → não sai
+       └─ 4.  grava o que aconteceu                       agente.ts:875
           └─ canal.enviar() → saida/evolution/            "digitando…" em cada bolha, ~1,5 palavra/s
 ```
 
@@ -43,7 +45,7 @@ pelo navegador são a mesma função — esse era o teste da reorganização hex
 
 Para o provedor, resposta de erro significa "tente de novo", e ele reentrega o mesmo evento em
 laço. Por isso todo descarte sai `200 {ok: true, ignorado: true}` com um motivo dentro
-(`route.ts:100-143`). Até a falha interna sai **200** (`route.ts:180`, no formato de teste): reentregar não conserta
+(`route.ts:103-146`). Até a falha interna sai **200** (`route.ts:186`, no formato de teste): reentregar não conserta
 bug nosso, só multiplica.
 
 ### Responde 200 ANTES de responder ao cliente
@@ -83,7 +85,7 @@ no log.
 
 ### De quem é esta mensagem
 
-Vem da **instância** que recebeu (`route.ts:105` → `tenantPorDestino`), consultada em
+Vem da **instância** que recebeu (`route.ts:108` → `tenantPorDestino`), consultada em
 `integracoes_whatsapp`. A instância é preenchida pelo servidor da Evolution, não por quem
 escreveu a mensagem — é essa propriedade que importa: identidade tem que vir de algo que o
 cliente não controla.
@@ -126,6 +128,19 @@ sorteada. No painel o identificador nasce do clique, e clique é único; aqui n�
 modelo que não recebeu a resposta da ferramenta tenta de novo, que é o comportamento normal
 dele. Com valor aleatório a retentativa vira um segundo horário. Derivando, ela **encontra** o
 primeiro. A proteção funciona sem o modelo cooperar, que é o único jeito de ela funcionar.
+
+### Comprovante, CPF e o "1"/"2" do dono não passam pelo modelo (27/10/2026)
+
+Os recebimentos (`aplicacao/recebimentos.ts`) têm três mensagens com resposta certa, e o passo 1b''
+responde as três em texto pronto: o comprovante do Pix (lido pelo Gemini, registrado para o dono
+conferir), o CPF que a MAISA pediu para o recibo ou a nota sair, e o "1" ou "2" do dono à pergunta
+"já está pago?". Vêm depois do 1b (a reentrega já parou lá) e antes das travas da conversa: valem
+com a assistente desligada, porque são a cobrança que o dono ligou, mas na conversa assumida
+registram e calam.
+
+Imagem e PDF chegam ao agente desde então, e o passo 0- decide antes de qualquer outra leitura:
+sem Pix em aberto naquele telefone, tudo segue como antes (sem legenda, nada é gravado nem
+respondido, e o leitor nem é chamado).
 
 ## Onde mexer
 

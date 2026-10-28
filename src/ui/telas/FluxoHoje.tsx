@@ -55,6 +55,7 @@ import { partesDoDia, semConfirmacao } from "@/ui/estado/leitura";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore, type AgendamentoVivo, type Bloqueio } from "@/ui/estado/store";
 import { JornadaDeAtivacao } from "@/ui/componentes/JornadaDeAtivacao";
+import { PagamentosParaDecidir } from "@/ui/componentes/Recebimentos";
 import { Moldura } from "@/ui/componentes/Moldura";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 import { FRASE, TITULO_PARADA, useAcaoDoStatus } from "@/ui/componentes/StatusDaMaisa";
@@ -319,6 +320,9 @@ function PrecisaDeVoce() {
       </CabecalhoDaLateral>
 
       <div style={s("flex:1;min-height:0;overflow-y:auto;position:relative;padding:14px;display:flex;flex-direction:column;gap:10px")}>
+        {/* O que espera o dono nos recebimentos (27/10/2026): "já está pago?" e o comprovante a
+            conferir. Sozinho some quando não há nada. */}
+        <PagamentosParaDecidir />
         {estado === "carregando" ? (
           <Esqueleto linhas={2} altura={96} rotulo="Lendo o que precisa de você" />
         ) : estado === "erro" ? (
@@ -525,6 +529,7 @@ export default function FluxoHoje() {
         <JornadaDeAtivacao />
         {agora}
         <FilaResumida />
+        <PagamentosParaDecidir />
         {dia === "cheio" ? <ListaDoDia passaram={partes.passaram} depois={partes.depois} compromissos={compromissos} feitos={partes.feitos} proximosPrimeiro /> : lista}
       </Moldura>
     );

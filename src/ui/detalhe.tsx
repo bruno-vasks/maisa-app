@@ -27,6 +27,8 @@ import { faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
 import { ULTIMO_DIA_DO_MES, mesQueOReciboFecha, proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
 import { OPCOES_RECIBOS_POR_MES, rotuloRecibosPorMes } from "@/nucleo/dominio/recibos-do-mes";
 import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
+import { COMO_PAGA, type ComoPaga } from "@/nucleo/dominio/recebimentos";
+import { mandarPixDoAtendimento } from "@/ui/componentes/Recebimentos";
 
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
 
@@ -721,6 +723,24 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 onChange: (v: string) => st.editarCliente(cli.id, { recibosPorMes: Number(v) }),
               }]
               : []),
+            /* ★ COMO PAGA (27/10/2026): para a MAISA saber se e quando mandar o Pix. Vale para
+               todo negócio; quem não ligou o Pix vê a escolha e nada sai. Ausente sem a 038. */
+            ...(cli.comoPaga !== undefined
+              ? [{
+                id: "comoPaga", label: "Como paga", tipo: "select" as const,
+                valor: cli.comoPaga,
+                opcoes: [...COMO_PAGA] as string[],
+                rotuloOpcao: (v: string) => ({ padrao: "Pix depois do atendimento, como o negócio", por_mes: "Pix uma vez por mês", nao_cobrar: "Não cobrar pelo WhatsApp" } as Record<string, string>)[v] ?? v,
+                hint: cli.comoPaga === "por_mes"
+                  ? (cli.diaRecibo
+                    ? `O Pix das sessões do mês vai no dia do recibo (${cli.diaRecibo >= ULTIMO_DIA_DO_MES ? "último dia do mês" : `dia ${cli.diaRecibo}`}), e o recibo só sai depois do pagamento.`
+                    : "Escolha o dia do recibo: é nele que o Pix do mês vai.")
+                  : cli.comoPaga === "nao_cobrar"
+                    ? `A MAISA nunca manda Pix para ${primeiro}. Convênio, ou quem paga por fora.`
+                    : "Segue o que está em A MAISA → Receber por Pix.",
+                onChange: (v: string) => st.editarCliente(cli.id, { comoPaga: v as ComoPaga }),
+              }]
+              : []),
             {
               id: "canal", label: "Atendimento", valor: cli.canal, tipo: "select",
               opcoes: ["Online", "Presencial"],
@@ -1368,9 +1388,17 @@ export function useDetalhe(id: string | null): Detalhe | null {
       : principal
         ? rodape({ ...principal, primaria: true }, noRodape[0])
         : rodape(noRodape[0] && { ...noRodape[0], primaria: true }, noRodape[1]);
+    /* ── MANDAR PIX (27/10/2026) ──
+     * O Pix com o valor desta sessão, na chave do negócio, pelo WhatsApp do cliente. Só do que já
+     * aconteceu (hoje ou antes), com valor e com telefone; se o Pix já tinha ido, vai o mesmo de
+     * novo. Sem a chave Pix ligada, o servidor diz o que falta. Ver `componentes/Recebimentos.tsx`. */
+    const mandarPix: Acao | null = ag.ag && !futuro && (ag.valor ?? 0) > 0 && ag.cliente.telefone
+      ? { label: "Mandar Pix", onClick: () => mandarPixDoAtendimento(ag.ag!) }
+      : null;
     const mais: (Acao | AcaoDestrutiva)[] | undefined = remarcando ? undefined : [
       ...(remarcarAcao && principal !== remarcarAcao ? [remarcarAcao] : []),
       ...segundos.filter((a) => !noRodape.includes(a)),
+      ...(mandarPix ? [mandarPix] : []),
       cancelar,
     ];
 

@@ -18,6 +18,7 @@ Cumpre a porta [`ModeloDeConversa`](../../../nucleo/portas/saida/modelo-conversa
 | `config.ts` | `GEMINI_API_KEY`, `GEMINI_MODELO`, `GEMINI_BASE_URL`, `GEMINI_TIMEOUT_MS` e `isGeminiConfigured` |
 | `modelo-gemini.ts` | o adaptador: monta o `contents`, chama a REST, traduz a volta. `criarModeloGemini(modelo)` é a fábrica (a bancada `avaliacao/` compara modelos com ela); `modeloGemini` é o do ambiente |
 | `transcricao.ts` | `transcreverAudio`: a nota de voz do cliente (OGG/Opus do WhatsApp, direto em `inlineData`) vira texto. Modelo em `GEMINI_MODELO_TRANSCRICAO`, padrão `gemini-3.5-flash-lite` |
+| `comprovante.ts` | `leitorDeComprovanteGemini` (27/10/2026): implementa `LeitorDeComprovanteDePagamento`. A imagem ou o PDF vai inline, e a resposta volta em JSON com schema (`responseSchema`). Prompt e schema vieram do Smiller. ⚠️ Nunca lança, e confere cada campo antes de devolver (formato, teto, valor positivo): é texto que um modelo leu numa imagem de fora. Modelo em `GEMINI_MODELO_COMPROVANTE`, padrão `gemini-3.5-flash-lite`; se errar valor ou id da transação nos comprovantes reais, o degrau é `gemini-3.6-flash` |
 | `embedding.ts` | o vetor das respostas prontas e das perguntas (`responder_duvidas`) |
 
 ## REST com `fetch`, sem SDK

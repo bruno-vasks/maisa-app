@@ -1239,8 +1239,9 @@ export type PedidoDeConfigDeRecebimentos = {
 
 export type SalvarConfigDeRecebimentos = (t: ContextoTenant, p: PedidoDeConfigDeRecebimentos) => Promise<ConfigDeRecebimentos>;
 
-/** "Mandar Pix" no atendimento: cria a cobrança dele (ou usa a que estava perguntando) e manda. */
-export type MandarPix = (t: ContextoTenant, p: { atendimentoId: string }) => Promise<Recebimento>;
+/** "Mandar Pix" no atendimento (pela chave `maisaAg`, que o painel conhece): cria a cobrança dele,
+ *  ou usa a que estava perguntando, e manda. */
+export type MandarPix = (t: ContextoTenant, p: { maisaAg: string }) => Promise<Recebimento>;
 
 /** A resposta à pergunta "já está pago?", pelo painel ou pelo WhatsApp do dono. */
 export type DecisaoSobreRecebimento = "pagou" | "pix" | "nao_cobrar";

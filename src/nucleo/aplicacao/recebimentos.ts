@@ -248,7 +248,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
 
   const mandarPix: MandarPix = async (t, p) => {
     const c = await configPronta(t);
-    const a = await deps.recebimentos.atendimento(t, p.atendimentoId);
+    const a = await deps.recebimentos.atendimentoPorAg(t, p.maisaAg);
     if (!a) throw new NaoEncontrado("Atendimento não encontrado.");
 
     if (a.recebimentoId) {

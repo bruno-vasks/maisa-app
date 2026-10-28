@@ -3043,6 +3043,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ...("valorSessao" in patch ? { valorSessao: alvo.valorSessao ?? null } : {}),
           ...("diaRecibo" in patch ? { diaRecibo: alvo.diaRecibo ?? null } : {}),
           ...("recibosPorMes" in patch ? { recibosPorMes: alvo.recibosPorMes } : {}),
+          ...("comoPaga" in patch ? { comoPaga: alvo.comoPaga } : {}),
         }),
       }).then((x) => x.json());
 
