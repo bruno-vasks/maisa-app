@@ -7,7 +7,7 @@ import { memoriaNova } from "@/nucleo/dominio/memoria";
 import { atorAgente, type ContextoTenant } from "@/nucleo/dominio/tenant";
 import type { ModeloDeConversa, TurnoDeConversa } from "@/nucleo/portas/saida/modelo-conversa";
 
-import { criarAgente, type Dependencias } from "./agente";
+import { criarAgente, type Dependencias, type RecebimentosNaConversa } from "./agente";
 import type { ConfiguracaoDoAgente } from "./persona";
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -23,8 +23,11 @@ const config: ConfiguracaoDoAgente = {
 };
 
 /** Um agente com modelo falso: grava o que o modelo viu e responde depois de `pensaMs`. */
-function montar(o: number | { pensaMs?: number; pode?: boolean; respostas?: Awaited<ReturnType<ModeloDeConversa["conversar"]>>[] } = 0) {
-  const { pensaMs = 0, pode = true, respostas } = typeof o === "number" ? { pensaMs: o } : o;
+function montar(o: number | {
+  pensaMs?: number; pode?: boolean; respostas?: Awaited<ReturnType<ModeloDeConversa["conversar"]>>[];
+  recebimentos?: RecebimentosNaConversa; ativa?: boolean;
+} = 0) {
+  const { pensaMs = 0, pode = true, respostas, recebimentos, ativa = true } = typeof o === "number" ? { pensaMs: o } : o;
   const vistos: TurnoDeConversa[][] = [];
   const enviadas: string[][] = [];
   const escaladas: string[] = [];
@@ -41,7 +44,7 @@ function montar(o: number | { pensaMs?: number; pode?: boolean; respostas?: Awai
   };
   const deps = {
     modelo,
-    config: async () => config,
+    config: async () => ({ ...config, assistente: { ...config.assistente, ativa } }),
     lembrarCliente: async (_t: ContextoTenant, telefone: string) => ({
       telefone, clienteId: null, nome: null, memoria: memoriaNova(telefone, "2026-10-27T10:00:00-03:00"),
     }),
@@ -55,6 +58,7 @@ function montar(o: number | { pensaMs?: number; pode?: boolean; respostas?: Awai
     },
     oferecerHorarios: naoUsado, agendarAtendimento: naoUsado, cancelarAtendimento: naoUsado,
     lerAgenda: naoUsado, anotarFato: naoUsado, responderDuvida: naoUsado,
+    ...(recebimentos ? { recebimentos } : {}),
   } as unknown as Dependencias;
   const t: ContextoTenant = { tenantId: `teste-${randomUUID()}`, usuarioId: "teste", ator: atorAgente("teste") };
   return { responder: criarAgente(deps), vistos, t, enviadas, escaladas };
@@ -291,5 +295,100 @@ describe("a reentrega do provedor (27/10/2026)", () => {
     const r = await responder(t, { de: TEL, texto: "oi", provedorId: "A2" });
     expect(r.bolhas.length).toBeGreaterThan(0);
     expect(vistos).toHaveLength(2);
+  });
+});
+
+describe("os recebimentos (27/10/2026)", () => {
+  /** Os casos de uso dos recebimentos, falsos, anotando quem foi chamado. */
+  function recebimentos(o: { comPix?: boolean; comprovante?: string | null; dono?: string | null; cpf?: { resposta: string | null } | null } = {}) {
+    const chamadas: string[] = [];
+    const rec: RecebimentosNaConversa = {
+      temPixEmAberto: async () => { chamadas.push("temPix"); return o.comPix ?? false; },
+      receberComprovante: async () => { chamadas.push("comprovante"); return o.comprovante ? { resposta: o.comprovante } : null; },
+      guardarCpf: async () => { chamadas.push("cpf"); return o.cpf ?? null; },
+      responderAoDono: async () => { chamadas.push("dono"); return o.dono ? { resposta: o.dono } : null; },
+    };
+    return { rec, chamadas };
+  }
+  const imagem = { tipo: "imagem" as const, baixar: async () => ({ base64: "eA==", mimetype: "image/jpeg" }) };
+
+  it("imagem sem legenda de quem não tem Pix em aberto: nem lê, nem grava, nem responde, como antes", async () => {
+    const { rec, chamadas } = recebimentos({ comPix: false });
+    const { responder, t, enviadas, vistos } = montar({ recebimentos: rec });
+    const r = await responder(t, { de: TEL, texto: "", arquivo: imagem });
+    expect(r.motivo).toBe("imagem sem legenda");
+    expect(chamadas).toEqual(["temPix"]);
+    expect(enviadas).toHaveLength(0);
+    expect(vistos).toHaveLength(0);
+    expect(await historicoDemo.ler(t, TEL, 10)).toHaveLength(0);
+  });
+
+  it("o comprovante de quem tem Pix em aberto: lido, respondido sem o modelo, e a imagem fica na conversa", async () => {
+    const { rec } = recebimentos({ comPix: true, comprovante: "Recebi o comprovante de R$ 50,00, obrigada!" });
+    const { responder, t, enviadas, vistos } = montar({ recebimentos: rec });
+    const r = await responder(t, { de: TEL, texto: "", arquivo: imagem, provedorId: "IMG1" });
+    expect(r.bolhas).toEqual(["Recebi o comprovante de R$ 50,00, obrigada!"]);
+    expect(enviadas).toEqual([["Recebi o comprovante de R$ 50,00, obrigada!"]]);
+    expect(vistos).toHaveLength(0);
+    expect((await historicoDemo.ler(t, TEL, 10)).map((m) => m.txt)).toEqual(["[imagem]", "Recebi o comprovante de R$ 50,00, obrigada!"]);
+  });
+
+  it("com a assistente desligada, o comprovante ainda é respondido: é a cobrança que o dono ligou", async () => {
+    const { rec } = recebimentos({ comPix: true, comprovante: "Recebi!" });
+    const { responder, t, enviadas } = montar({ recebimentos: rec, ativa: false });
+    await responder(t, { de: TEL, texto: "", arquivo: imagem });
+    expect(enviadas).toEqual([["Recebi!"]]);
+  });
+
+  it("na conversa assumida pelo dono, o comprovante é registrado e a MAISA cala", async () => {
+    const { rec, chamadas } = recebimentos({ comPix: true, comprovante: "Recebi!" });
+    const { responder, t, enviadas } = montar({ recebimentos: rec });
+    await conversasDemo.marcar(t, TEL, { assumida: true });
+    const r = await responder(t, { de: TEL, texto: "", arquivo: imagem });
+    expect(chamadas).toContain("comprovante");
+    expect(enviadas).toHaveLength(0);
+    expect(r.motivo).toContain("assumida");
+  });
+
+  it("foto que não é comprovante, com legenda: a legenda segue para a MAISA responder", async () => {
+    const { rec } = recebimentos({ comPix: true, comprovante: null });
+    const { responder, t, vistos } = montar({ recebimentos: rec });
+    const r = await responder(t, { de: TEL, texto: "olha o corte que eu quero", arquivo: imagem });
+    expect(vistos).toHaveLength(1);
+    expect(r.bolhas.length).toBeGreaterThan(0);
+  });
+
+  it("o 1 do dono à pergunta: resposta pronta, sem o modelo", async () => {
+    const { rec } = recebimentos({ dono: "Anotado: João Silva já pagou." });
+    const { responder, t, enviadas, vistos } = montar({ recebimentos: rec, pode: false });
+    const r = await responder(t, { de: TEL, texto: "1" });
+    expect(r.bolhas).toEqual(["Anotado: João Silva já pagou."]);
+    expect(enviadas).toHaveLength(1);
+    expect(vistos).toHaveLength(0);
+  });
+
+  it("o CPF pedido: só o CPF é agradecido; com mais assunto, a MAISA responde o resto", async () => {
+    const so = recebimentos({ cpf: { resposta: "Obrigada, anotei!" } });
+    const a = montar({ recebimentos: so.rec });
+    expect((await a.responder(a.t, { de: TEL, texto: "123.456.789-09" })).bolhas).toEqual(["Obrigada, anotei!"]);
+    expect(a.vistos).toHaveLength(0);
+
+    const mais = recebimentos({ cpf: { resposta: null } });
+    const b = montar({ recebimentos: mais.rec });
+    await b.responder(b.t, { de: TEL, texto: "123.456.789-09, tem horário amanhã?" });
+    expect(b.vistos).toHaveLength(1);
+  });
+
+  it("um caso de uso que falha não derruba a conversa", async () => {
+    const rec: RecebimentosNaConversa = {
+      temPixEmAberto: async () => false,
+      receberComprovante: async () => null,
+      guardarCpf: async () => { throw new Error("banco fora"); },
+      responderAoDono: async () => { throw new Error("banco fora"); },
+    };
+    const { responder, t, vistos } = montar({ recebimentos: rec });
+    const r = await responder(t, { de: TEL, texto: "tem horário sexta?" });
+    expect(vistos).toHaveLength(1);
+    expect(r.bolhas.length).toBeGreaterThan(0);
   });
 });

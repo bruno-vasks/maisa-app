@@ -21,11 +21,14 @@
  * "digitando…" da rotina. A exceção é a resposta ao comprovante e ao dono, que o agente manda na
  * própria conversa, no ritmo dela.
  *
- * ── O DOCUMENTO SAI COMO ROTINA ──
+ * ── O QUE VEM DEPOIS DA DECISÃO RODA COMO ROTINA ──
  *
- * A emissão depois do pagamento roda num contexto de sistema, como o recibo automático: quem
- * confirmou foi o dono (no painel) ou o agente (no WhatsApp), mas quem emite é a MAISA, e as
- * claims da nota e do recibo são de service role.
+ * A decisão é de quem decidiu: a transição grava o ator do painel (ou do agente), e a função do
+ * banco confere que o negócio é dele. O que vem depois (o Pix na fila, a conversa anotada, o
+ * pedido de CPF, o recibo ou a nota) roda num contexto de sistema, como o recibo automático: quem
+ * age ali é a MAISA, e as claims da nota e do recibo e as anotações do recebimento são de service
+ * role. Rodando com a sessão do dono, a RLS (que só deixa ler) engoliria a anotação do CPF pedido
+ * sem erro, e a resposta do cliente nunca acharia o pedido.
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import type {
@@ -173,7 +176,8 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     return { tipo: "pediu_cpf" };
   }
 
-  /** O documento que a MAISA já emite para este negócio, só dos atendimentos deste pagamento. */
+  /** O documento que a MAISA já emite para este negócio, só dos atendimentos deste pagamento.
+   *  `t` já é o contexto de sistema (ver o cabeçalho). */
   async function emitirDocumento(t: ContextoTenant, r: Recebimento, podePedirCpf: boolean): Promise<DocumentoDoPagamento> {
     const hoje = hojeISO(agora());
     const config = await deps.fiscal.ler(t).catch(() => null);
@@ -190,10 +194,10 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
 
     try {
       if (recibo) {
-        await deps.emitirRecibo(comoSistema(t), { itens: r.atendimentoIds.map((id) => ({ fonte: "atendimento" as const, id })) });
+        await deps.emitirRecibo(t, { itens: r.atendimentoIds.map((id) => ({ fonte: "atendimento" as const, id })) });
         return { tipo: "recibo" };
       }
-      await deps.emitirNota(comoSistema(t), { clienteId: r.clienteId, atendimentoIds: r.atendimentoIds });
+      await deps.emitirNota(t, { clienteId: r.clienteId, atendimentoIds: r.atendimentoIds });
       return { tipo: "nota" };
     } catch (e) {
       const motivo = e instanceof Error ? e.message : String(e);
@@ -214,6 +218,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
   /* ───────────── 3 · o painel ───────────── */
 
   const decidir: DecidirRecebimento = async (t, p) => {
+    if (!["pagou", "pix", "nao_cobrar"].includes(p.decisao)) throw new DadoInvalido("Escolha: já pagou, mandar o Pix ou não cobrar.", "decisao");
     const por = rotuloDoAtor(t.ator);
     const jaFoi = () => new DadoInvalido("Esta cobrança já foi decidida. Atualize a tela.");
 
@@ -221,7 +226,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       const c = await configPronta(t);
       const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar"], para: "aberto", por });
       if (!r) throw jaFoi();
-      await mandarOPix(t, r, c);
+      await mandarOPix(comoSistema(t), r, c);
       return { recebimento: r, documento: { tipo: "nenhum" } };
     }
 
@@ -233,7 +238,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       const pixFoi = antes.situacao === "aberto";
       const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar", "aberto"], para: "pago", forma: pixFoi ? "pix" : "na_hora", por });
       if (!r) throw jaFoi();
-      return { recebimento: r, documento: await quitar(t, r, pixFoi) };
+      return { recebimento: r, documento: await quitar(comoSistema(t), r, pixFoi) };
     }
 
     const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar", "aberto"], para: "cancelado", por });
@@ -252,7 +257,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       if (r?.situacao === "perguntar") return (await decidir(t, { id: r.id, decisao: "pix" })).recebimento;
       /* Já em aberto: manda o mesmo Pix de novo. É o "o cliente pediu o código outra vez". */
       if (r?.situacao === "aberto") {
-        await mandarOPix(t, r, c);
+        await mandarOPix(comoSistema(t), r, c);
         return r;
       }
     }
@@ -261,7 +266,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     if (!(a.valor > 0)) throw new DadoInvalido("Este atendimento não tem valor. Ponha o valor e tente de novo.", "valor");
     const r = await criarRecebimento(t, [a], "aberto");
     if (!r) throw new DadoInvalido("Este atendimento acabou de entrar numa cobrança. Atualize a tela.");
-    await mandarOPix(t, r, c);
+    await mandarOPix(comoSistema(t), r, c);
     return r;
   };
 
@@ -271,7 +276,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const alvo = p.recebimentoId || comprovante.recebimentoId;
     if (!alvo) throw new DadoInvalido("Escolha qual cobrança este comprovante paga.", "recebimentoId");
     const r = await deps.recebimentos.confirmarComprovante(t, { id: p.id, recebimentoId: alvo, por: rotuloDoAtor(t.ator) });
-    return { recebimento: r, documento: await quitar(t, r, true) };
+    return { recebimento: r, documento: await quitar(comoSistema(t), r, true) };
   };
 
   const descartarComprovante: DescartarComprovante = async (t, p) => {
@@ -383,7 +388,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const cliente = await deps.negocio.cliente(t, esperando[0].clienteId!);
     if (!cliente) return null;
     await deps.negocio.atualizarCliente(t, { id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, cpf });
-    for (const r of esperando) await emitirDocumento(t, r, false);
+    for (const r of esperando) await emitirDocumento(comoSistema(t), r, false);
     return { resposta: soOCpf(p.texto) ? AGRADECIMENTO_DO_CPF : null };
   };
 

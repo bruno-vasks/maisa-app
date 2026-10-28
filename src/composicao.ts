@@ -110,6 +110,12 @@ import { embeddingDePergunta, embeddingGemini } from "@/adaptadores/saida/gemini
 import { criarAjustarFaq, criarLerFaqs, criarRemoverFaq, criarResponderDuvida } from "@/nucleo/aplicacao/faqs";
 import { lembretesSupabase } from "@/adaptadores/saida/supabase/lembretes";
 import { filaDeEnviosSupabase } from "@/adaptadores/saida/supabase/fila-de-envios";
+import { recebimentosSupabase } from "@/adaptadores/saida/supabase/recebimentos";
+import { recebimentosDemo } from "@/adaptadores/saida/demo/recebimentos";
+import { leitorDeComprovanteDemo } from "@/adaptadores/saida/demo/leitor-de-comprovante";
+import { leitorDeComprovanteGemini } from "@/adaptadores/saida/gemini/comprovante";
+import { criarRecebimentos } from "@/nucleo/aplicacao/recebimentos";
+import type { ArquivoRecebido } from "@/nucleo/dominio/recebimentos";
 import { agendaDeRecibosSupabase } from "@/adaptadores/saida/supabase/agenda-de-recibos";
 import { canalSupabase } from "@/adaptadores/saida/supabase/canal";
 import { canalDemoRepo, provisionamentoDemo } from "@/adaptadores/saida/demo/canal";
@@ -127,7 +133,7 @@ import {
 } from "@/adaptadores/saida/supabase/memoria";
 import { agendaDemo, conexoesDemo } from "@/adaptadores/saida/demo/agenda";
 import { criarCanalEvolution } from "@/adaptadores/saida/evolution/canal-evolution";
-import { getDeadline } from "@vercel/functions";
+import { getDeadline, waitUntil } from "@vercel/functions";
 import { criarContatosEvolution } from "@/adaptadores/saida/evolution/contatos-evolution";
 import { contatosSupabase } from "@/adaptadores/saida/supabase/contatos";
 import { contatosDemo, contatosDoCanalDemo, historicoDoCanalDemo } from "@/adaptadores/saida/demo/contatos";
@@ -567,6 +573,45 @@ const emitirReciboUnitario = criarEmitirRecibo({
   guarda: guardaComprovante,
 });
 
+/* A drenagem e a nota ficam em constantes, e não só dentro de `app`, pelo motivo da emissão
+ * unitária acima: os recebimentos (27/10/2026) também usam as duas. */
+const drenarFilaDoNegocio = criarDrenarFilaDoNegocio({
+  fila: filaDeEnvios, canal: canalDaRotina, guarda: guardaComprovante, livro: livroRecibos,
+});
+
+/* `aviso` desde 15/10/2026: a nota que sai vai em PDF para o WhatsApp do dono, pelo mesmo canal
+ * e o mesmo `numeroDaDona` do recibo. Ver `aplicacao/notas.ts#avisarDono`. */
+const emitirNota = criarEmitirNota({
+  emissor, fiscal: fiscalRepo, notas: notasRepo, novoId: randomUUID,
+  aviso: { canal, canalDoNegocio: canalRepo },
+});
+
+/* RECEBIMENTOS (27/10/2026): o negócio recebendo do cliente pelo Pix na chave de sempre. O que
+ * sai para o WhatsApp vai pela fila de envios, e a fila é esvaziada logo depois de enfileirar,
+ * em segundo plano (`waitUntil`), como no fechamento do lote. Ver `aplicacao/recebimentos.ts`. */
+const recebimentosRepo = isSupabaseConfigured ? recebimentosSupabase : recebimentosDemo;
+
+const recebimentos = criarRecebimentos({
+  recebimentos: recebimentosRepo,
+  /* Sem Gemini, o demo: não lê nada, e a imagem segue o caminho de sempre. */
+  leitor: isGeminiConfigured ? leitorDeComprovanteGemini : leitorDeComprovanteDemo,
+  fila: filaDeEnvios,
+  historico,
+  negocio,
+  fiscal: fiscalRepo,
+  canalDoNegocio: canalRepo,
+  emitirRecibo: emitirReciboUnitario,
+  emitirNota,
+  novoId: randomUUID,
+  drenar: (t) => {
+    try {
+      waitUntil(drenarFilaDoNegocio(t).catch((e) => console.error("[composicao] drenar a fila depois da cobrança", e)));
+    } catch (e) {
+      console.error("[composicao] drenar a fila depois da cobrança", e);
+    }
+  },
+});
+
 /** Tudo que o app sabe fazer, já montado. */
 export const app = {
   agendarAtendimento,
@@ -745,9 +790,17 @@ export const app = {
   enviarFilaDeMensagens: criarEnviarFilaDeMensagens({
     fila: filaDeEnvios, canal: canalDaRotina, guarda: guardaComprovante, livro: livroRecibos,
   }),
-  drenarFilaDoNegocio: criarDrenarFilaDoNegocio({
-    fila: filaDeEnvios, canal: canalDaRotina, guarda: guardaComprovante, livro: livroRecibos,
-  }),
+  drenarFilaDoNegocio,
+
+  /* RECEBIMENTOS (27/10/2026). A rotina (`/api/rotinas/recebimentos`, pelo `pg_cron` da 038) e o
+   * painel. Os caminhos da conversa vão para o agente, lá embaixo. */
+  cobrarAtendimentos: recebimentos.cobrarAtendimentos,
+  lerRecebimentos: recebimentos.lerRecebimentos,
+  salvarConfigDeRecebimentos: recebimentos.salvarConfig,
+  mandarPix: recebimentos.mandarPix,
+  decidirRecebimento: recebimentos.decidir,
+  confirmarComprovante: recebimentos.confirmarComprovante,
+  descartarComprovante: recebimentos.descartarComprovante,
 
   lembrarCliente: criarLembrarCliente({ negocio, memoria }),
   anotarFato: criarAnotarFato({ negocio, memoria }),
@@ -771,12 +824,7 @@ export const app = {
   /* Os três recebem `fiscal` porque o prestador vem do BANCO, por inquilino — antes vinha
    * de variável de ambiente, e uma resposta global num produto multi-inquilino é a nota de
    * um cliente saindo no CNPJ do outro. */
-  /* `aviso` desde 15/10/2026: a nota que sai vai em PDF para o WhatsApp do dono, pelo mesmo canal
-   * e o mesmo `numeroDaDona` do recibo. Ver `aplicacao/notas.ts#avisarDono`. */
-  emitirNota: criarEmitirNota({
-    emissor, fiscal: fiscalRepo, notas: notasRepo, novoId: randomUUID,
-    aviso: { canal, canalDoNegocio: canalRepo },
-  }),
+  emitirNota,
   consultarNota: criarConsultarNota({
     emissor, fiscal: fiscalRepo, notas: notasRepo, aviso: { canal, canalDoNegocio: canalRepo },
   }),
@@ -834,6 +882,8 @@ export const app = {
     recibos: recibosRepo,
     fiscal: fiscalRepo,
     emitirRecibo: emitirReciboUnitario,
+    /* Com o Pix ligado, o recibo é do pagamento: o que está em cobrança espera (27/10/2026). */
+    recebimentos: recebimentosRepo,
   }),
 
   /* O callback do canal de emissão. ⚠️ Ele grava a única cópia do desfecho que existe no mundo:
@@ -1101,6 +1151,27 @@ export async function ouvirAudio(envelope: Envelope): Promise<string> {
 }
 
 /**
+ * A imagem ou o PDF que o cliente mandou, para o leitor de comprovante (27/10/2026).
+ *
+ * Como `ouvirAudio`: o conteúdo pode já ter vindo no webhook (`webhookBase64`); se não veio,
+ * baixa pela chave da mensagem. O tipo do envelope ganha do da Evolution, que diz "audio/ogg"
+ * quando não sabe.
+ *
+ * Nunca lança: sem arquivo, o comprovante não é lido e a mensagem segue o caminho de sempre.
+ */
+export async function baixarArquivo(envelope: Envelope): Promise<ArquivoRecebido | null> {
+  try {
+    if (envelope.arquivo?.base64) return { base64: envelope.arquivo.base64, mimetype: envelope.arquivo.mimetype };
+    if (!isEvolutionConfigured || !envelope.conversaId) return null;
+    const m = await baixarMidia({ idDaMensagem: envelope.conversaId, instancia: envelope.instancia });
+    return { base64: m.base64, mimetype: envelope.arquivo?.mimetype || m.mimetype };
+  } catch (e) {
+    console.error(`[composicao] não deu para baixar o arquivo de ${envelope.de}`, e);
+    return null;
+  }
+}
+
+/**
  * Os dois tiques azuis na mensagem que chegou. O agente chama só quando vai atender (passo
  * 1g de `agente.ts`). Aqui porque é a Evolution que conhece a chave da mensagem, e o
  * webhook que a trouxe.
@@ -1144,6 +1215,14 @@ export function agenteWhatsapp() {
       conversas,
       /* No ritmo "conversa": "digitando…" em toda bolha. Ver `canal-evolution.ts`. */
       canal: canalDaConversa,
+      /* O que não passa pelo modelo (27/10/2026): o comprovante do Pix, o CPF que a MAISA pediu
+       * e o "1"/"2" do dono à pergunta "já está pago?". Ver o passo 1b'' de `agente.ts`. */
+      recebimentos: {
+        temPixEmAberto: recebimentos.temPixEmAberto,
+        receberComprovante: recebimentos.receberComprovante,
+        guardarCpf: recebimentos.guardarCpf,
+        responderAoDono: recebimentos.responderAoDono,
+      },
     });
   }
   return _agente;

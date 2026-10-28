@@ -104,6 +104,10 @@ const AVISO_015 =
   "O faturamento ainda não foi migrado neste banco. Rode `supabase/015_faturamento.sql` no "
   + "SQL Editor do Supabase — até lá não dá para emitir nem listar o que falta.";
 
+const AVISO_038 =
+  "A nota de um pagamento ainda não foi migrada neste banco. Rode `supabase/038_recebimentos.sql` "
+  + "no SQL Editor do Supabase — até lá o pagamento fica registrado, mas a nota sai pela tela.";
+
 export const notasSupabase: RepositorioNotas = {
   async aFaturar(t: ContextoTenant): Promise<AFaturar[]> {
     const supabase = clienteDoContexto(t);
@@ -162,7 +166,7 @@ export const notasSupabase: RepositorioNotas = {
           p_discriminacao: p.discriminacao,
         });
 
-    if (faltaMigracao(error)) throw new Error(AVISO_015);
+    if (faltaMigracao(error)) throw new Error(p.atendimentoIds?.length ? AVISO_038 : AVISO_015);
     if (error) throw new Error(error.message);
 
     /* ⚠️ ZERO LINHAS É "JÁ FOI", NÃO FALHA. A função devolve vazio quando o `for update skip

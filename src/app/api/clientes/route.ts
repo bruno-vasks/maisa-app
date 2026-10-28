@@ -1,3 +1,4 @@
+import type { ComoPaga } from "@/nucleo/dominio/recebimentos";
 import { NextResponse } from "next/server";
 import { app } from "@/composicao";
 import { barrou, sessaoOuDemo } from "@/adaptadores/entrada/http/contexto";
@@ -79,7 +80,7 @@ export async function PUT(req: Request) {
     );
   }
 
-  const { id, nome, telefone, email, cpf, canal, servicoId, ativo, valorSessao, diaRecibo, recibosPorMes } =
+  const { id, nome, telefone, email, cpf, canal, servicoId, ativo, valorSessao, diaRecibo, recibosPorMes, comoPaga } =
     (corpo ?? {}) as Record<string, unknown>;
 
   try {
@@ -110,6 +111,7 @@ export async function PUT(req: Request) {
         ? {}
         : { diaRecibo: diaRecibo === null || diaRecibo === "" ? null : Number(diaRecibo) }),
       ...(recibosPorMes === undefined || recibosPorMes === null ? {} : { recibosPorMes: Number(recibosPorMes) }),
+      ...(comoPaga === undefined || comoPaga === null ? {} : { comoPaga: String(comoPaga) as ComoPaga }),
     });
 
     return NextResponse.json({ ok: true, status: "ok", cliente });

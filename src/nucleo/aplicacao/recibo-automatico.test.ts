@@ -39,6 +39,8 @@ function ambiente(p: {
   /** Quanto o relógio anda a cada emissão. Para testar o teto sem esperar. */
   passoDoRelogio?: number;
   teto?: number;
+  /** O Pix ligado: o que está em cobrança e quem paga por mês (27/10/2026). */
+  cobranca?: { emCobranca: string[]; porMes: string[] };
 } = {}) {
   const emitidos: { tenantId: string; id: string; ids: string[]; fonte: string; ator: ContextoTenant["ator"] }[] = [];
   const pedidosDePendentes: { tenantId: string; ate: string }[] = [];
@@ -66,6 +68,13 @@ function ambiente(p: {
   const rodar = criarEmitirRecibosAutomaticos({
     agenda: { async comDia() { return p.agenda ?? [{ tenantId: "regina", clienteId: "ana", dia: 5, porMes: 0 }]; } },
     recibos, fiscal, emitirRecibo,
+    ...(p.cobranca ? {
+      recebimentos: {
+        async config() { return { tipoDaChave: "email" as const, chave: "a@b.com", nome: "Regina", cidade: null, depoisDoAtendimento: "direto" as const, ligadoEm: null }; },
+        async atendimentosEmCobranca() { return p.cobranca!.emCobranca; },
+        async clientesPorMes() { return p.cobranca!.porMes.map((clienteId) => ({ clienteId, diaRecibo: 5 })); },
+      },
+    } : {}),
     agora: () => relogio,
     teto: p.teto,
   });
@@ -259,5 +268,23 @@ describe("recibo automático: um recibo por mês", () => {
     const r = await a.rodar("2026-10-05");
     expect(a.emitidos.map((e) => e.ids)).toEqual([["a", "b", "c"]]);
     expect(r.semCpf).toBe(1);
+  });
+});
+
+describe("recibo automático: com o Pix ligado (27/10/2026)", () => {
+  it("a sessão numa cobrança ainda não paga espera o pagamento; as outras saem", async () => {
+    const a = ambiente({
+      pendentes: [sessao({ id: "at1" }), sessao({ id: "at2", data: "2026-09-23" })],
+      cobranca: { emCobranca: ["at1"], porMes: [] },
+    });
+    await a.rodar("2026-10-05");
+    expect(a.emitidos.map((e) => e.ids)).toEqual([["at2"]]);
+  });
+
+  it("quem paga por mês fica de fora: o recibo dela sai com o Pix do mês", async () => {
+    const a = ambiente({ cobranca: { emCobranca: [], porMes: ["ana"] } });
+    const r = await a.rodar("2026-10-05");
+    expect(a.emitidos).toHaveLength(0);
+    expect(r.pacientes).toBe(0);
   });
 });

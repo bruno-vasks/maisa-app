@@ -27,6 +27,11 @@
  * ele segue a escolha do negócio: não enviar, direto para o paciente, ou primeiro para a dona.
  * Avisar aqui prometeria um recibo que talvez seja recusado.
  *
+ * ── ⚠️ O QUE ESTÁ EM COBRANÇA ESPERA O PAGAMENTO (27/10/2026) ──
+ * Com o Pix ligado (`aplicacao/recebimentos.ts`), o recibo é do PAGAMENTO: sai quando o dono
+ * confirma. Então a sessão que está numa cobrança ainda não paga não entra aqui, e quem paga "por
+ * mês" fica de fora inteiro: no dia do recibo dele quem age é a rotina dos recebimentos, que manda
+ * o Pix do mês, e o recibo espera o pagamento. Sem o Pix ligado, nada muda.
  * ── UMA FALHA NÃO DERRUBA AS OUTRAS ──
  *
  * Igual à rotina de lembretes: um negócio com dado faltando, ou um recibo que o canal recusou, vai
@@ -39,6 +44,8 @@ import type {
 import type { AgendaDeRecibos, PacienteComDiaDeRecibo } from "../portas/saida/agenda-de-recibos";
 import type { RepositorioFiscal } from "../portas/saida/repositorio-fiscal";
 import type { RepositorioRecibos } from "../portas/saida/repositorio-recibos";
+import type { RepositorioRecebimentos } from "../portas/saida/repositorio-recebimentos";
+import { pixFaltando } from "../dominio/recebimentos";
 import type { ContextoTenant } from "../dominio/tenant";
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
 import { faltaParaEmitirRecibo } from "../dominio/checklist-recibo";
@@ -67,12 +74,24 @@ export function criarEmitirRecibosAutomaticos(deps: {
   recibos: RepositorioRecibos;
   fiscal: RepositorioFiscal;
   emitirRecibo: EmitirRecibo;
+  /** Os recebimentos (27/10/2026): o que está em cobrança e quem paga por mês. Sem eles, nada muda. */
+  recebimentos?: Pick<RepositorioRecebimentos, "config" | "atendimentosEmCobranca" | "clientesPorMes">;
   /** O relógio do teto. Injetável para o teste não depender de quanto a máquina demora. */
   agora?: () => number;
   teto?: number;
 }): EmitirRecibosAutomaticos {
   const agora = deps.agora ?? (() => Date.now());
   const teto = deps.teto ?? TETO_DA_RODADA_MS;
+
+  /** O que espera pagamento neste negócio. Sem o Pix ligado (ou sem a 038), nada. */
+  async function cobrancasDoNegocio(t: ContextoTenant): Promise<{ emCobranca: Set<string>; porMes: Set<string> }> {
+    const nada = { emCobranca: new Set<string>(), porMes: new Set<string>() };
+    if (!deps.recebimentos) return nada;
+    const config = await deps.recebimentos.config(t);
+    if (pixFaltando(config).length) return nada;
+    const [emCobranca, porMes] = await Promise.all([deps.recebimentos.atendimentosEmCobranca(t), deps.recebimentos.clientesPorMes(t)]);
+    return { emCobranca: new Set(emCobranca), porMes: new Set(porMes.map((c) => c.clienteId)) };
+  }
 
   return async (hoje): Promise<ResultadoDosRecibosAutomaticos> => {
     const inicio = agora();
@@ -107,11 +126,16 @@ export function criarEmitirRecibosAutomaticos(deps: {
 
         /* Uma leitura por negócio, até ontem; cada pessoa recorta a dela pelo próprio dia. */
         const pendentes = await deps.recibos.pendentes(t, { ate: somarDias(hoje, -1) });
+        const { emCobranca, porMes } = await cobrancasDoNegocio(t);
 
         for (const { p, dia } of devidos) {
+          /* Paga por mês, com o Pix ligado: o recibo dela sai com o pagamento. Ver o cabeçalho. */
+          if (porMes.has(p.clienteId)) continue;
           r.pacientes++;
           const corte = corteDoRecibo(p.dia, dia);
-          const dela = pendentes.filter((x) => x.clienteId === p.clienteId && x.data < corte && !x.teste);
+          const dela = pendentes.filter(
+            (x) => x.clienteId === p.clienteId && x.data < corte && !x.teste && !(x.fonte === "atendimento" && emCobranca.has(x.id)),
+          );
           /* Conta à parte, antes de chamar: `emitirRecibo` recusaria do mesmo jeito, mas como
            * falha, e "falta o CPF da Ana" é coisa que a dona resolve, não erro da rotina. */
           const comCpf = dela.filter((x) => cpfValido(x.cpf ?? ""));

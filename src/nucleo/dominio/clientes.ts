@@ -6,6 +6,8 @@
  * ninguém depende disso, mas é o motivo de o campo ser obrigatório.
  * ────────────────────────────────────────────────────────────────────────────── */
 
+import type { ComoPaga } from "./recebimentos";
+
 export type Cliente = {
   id: string;
   nome: string;
@@ -39,6 +41,12 @@ export type Cliente = {
    * `dominio/recibos-do-mes.ts`.
    */
   recibosPorMes?: number;
+  /**
+   * Como a pessoa paga, para a MAISA saber se e quando mandar o Pix (27/10/2026): segue o ajuste
+   * do negócio, um Pix por mês no dia do recibo, ou nunca. AUSENTE num banco sem a 038, e aí a
+   * ficha nem desenha a escolha. Ver `dominio/recebimentos.ts`.
+   */
+  comoPaga?: ComoPaga;
   /**
    * Cliente que existe só para validar a integração fiscal em produção.
    * A NFS-e só autoriza de verdade em produção, então testar exige emitir uma

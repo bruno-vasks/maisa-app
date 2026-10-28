@@ -353,6 +353,10 @@ export type Envelope = {
    *  (`webhookBase64` ligado na instância). Sem conteúdo, quem ouve baixa pela
    *  `conversaId`. Ver `ouvirAudio` em `composicao.ts`. */
   audio?: { mimetype: string; base64?: string };
+  /** A imagem ou o documento, quando `midia` é um dos dois (27/10/2026: o comprovante de
+   *  pagamento). Como o áudio: o tipo, e o conteúdo se o webhook já o trouxe. Sem conteúdo, quem
+   *  lê baixa pela `conversaId`. Ver `baixarArquivo` em `composicao.ts`. */
+  arquivo?: { mimetype: string; base64?: string };
   /** O `…@lid` cru, quando a mensagem chegou assim. Ver `MensagemRecebida.jid`. */
   jid?: string;
   /** De onde veio. Os provedores reentregam o evento se a resposta demora, e por isso a rota
@@ -414,7 +418,7 @@ const telefoneDoJid = (jid: string) => digitos(jid.split("@")[0]?.split(":")[0] 
  * `imageMessage.caption` se ele mandou foto escrevendo em cima. Ler só `conversation`
  * funciona no teste e perde uma fatia grande da conversa real — sem erro nenhum no log.
  */
-function conteudo(m: any, profundidade = 0): { texto: string; midia?: Midia; audio?: Envelope["audio"] } {
+function conteudo(m: any, profundidade = 0): { texto: string; midia?: Midia; audio?: Envelope["audio"]; arquivo?: Envelope["arquivo"] } {
   if (!m || profundidade > 4) return { texto: "" };
 
   // Embrulhos: a mensagem real está uma camada abaixo.
@@ -443,17 +447,23 @@ function conteudo(m: any, profundidade = 0): { texto: string; midia?: Midia; aud
     return { texto: texto(m.templateButtonReplyMessage.selectedDisplayText) };
   }
 
-  // Mídia: a legenda conta como fala; o anexo em si a MAISA não lê.
-  if (m.imageMessage) return { texto: texto(m.imageMessage.caption), midia: "imagem" };
+  /* Mídia: a legenda conta como fala. O anexo a MAISA só lê quando pode ser comprovante de um Pix
+   * em aberto (ver o passo dos recebimentos em `agente.ts`); vídeo, nunca. */
+  const base64 = texto(m.base64) || undefined;
+  if (m.imageMessage) {
+    return { texto: texto(m.imageMessage.caption), midia: "imagem", arquivo: { mimetype: texto(m.imageMessage.mimetype) || "image/jpeg", base64 } };
+  }
   if (m.videoMessage) return { texto: texto(m.videoMessage.caption), midia: "video" };
-  if (m.documentMessage) return { texto: texto(m.documentMessage.caption), midia: "documento" };
+  if (m.documentMessage) {
+    return { texto: texto(m.documentMessage.caption), midia: "documento", arquivo: { mimetype: texto(m.documentMessage.mimetype) || "application/pdf", base64 } };
+  }
   if (m.audioMessage) {
     return {
       texto: "",
       midia: "audio",
       audio: {
         mimetype: texto(m.audioMessage.mimetype) || "audio/ogg",
-        base64: texto(m.base64) || undefined,
+        base64,
       },
     };
   }
@@ -564,7 +574,7 @@ export function normalizar(corpo: any): Envelope | null {
     const de = telefoneDoJid(jidDoCliente);
     if (!de) return null;
 
-    const { texto: falado, midia, audio } = conteudo(d.message);
+    const { texto: falado, midia, audio, arquivo } = conteudo(d.message);
 
     return {
       de,
@@ -580,6 +590,7 @@ export function normalizar(corpo: any): Envelope | null {
       conversaId: texto(d.key.id) || undefined,
       midia,
       audio,
+      arquivo,
       origem: "evolution",
       enviadaEm: instanteDe(d.messageTimestamp),
       /* O `remoteJid` como chegou, e não o telefone: o tique azul vai para a conversa onde a

@@ -52,6 +52,7 @@ import { colapsarEspaco, temConteudo } from "../dominio/texto";
 import { DadoInvalido } from "../dominio/erros";
 import { diaDoReciboValido } from "../dominio/recibo-automatico";
 import { recibosPorMesValido } from "../dominio/recibos-do-mes";
+import { ehComoPaga } from "../dominio/recebimentos";
 
 export function criarLerCadastro(deps: { negocio: RepositorioNegocio }): LerCadastro {
   return async (t): Promise<CadastroDoNegocio> => {
@@ -390,6 +391,11 @@ export function criarAjustarCliente(deps: { negocio: RepositorioNegocio }): Ajus
       throw new DadoInvalido("Recibos por mês é de 1 a 4, ou um por sessão.", "recibosPorMes");
     }
 
+    /* Como a pessoa paga (27/10/2026): segue o negócio, por mês, ou não cobrar. */
+    if (p?.comoPaga !== undefined && !ehComoPaga(p.comoPaga)) {
+      throw new DadoInvalido("Escolha como a pessoa paga.", "comoPaga");
+    }
+
     return deps.negocio.atualizarCliente(t, {
       id,
       nome,
@@ -402,6 +408,7 @@ export function criarAjustarCliente(deps: { negocio: RepositorioNegocio }): Ajus
       ...(valorSessao === undefined ? {} : { valorSessao }),
       ...(diaRecibo === undefined ? {} : { diaRecibo }),
       ...(recibosPorMes === undefined ? {} : { recibosPorMes }),
+      ...(p.comoPaga === undefined ? {} : { comoPaga: p.comoPaga }),
     });
   };
 }

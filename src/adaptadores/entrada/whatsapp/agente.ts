@@ -29,7 +29,10 @@
  * (persona + catálogo) vai para o cache.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import type { AvaliarAtendimento, LembrarCliente } from "@/nucleo/portas/entrada/casos-de-uso";
+import type {
+  AvaliarAtendimento, GuardarCpfDaConversa, LembrarCliente, ReceberComprovante, ResponderAoDono, TemPixEmAberto,
+} from "@/nucleo/portas/entrada/casos-de-uso";
+import type { ArquivoRecebido } from "@/nucleo/dominio/recebimentos";
 import type { RepositorioConversas, RepositorioHistorico } from "@/nucleo/portas/saida/memoria-cliente";
 import type { CanalDeMensagens } from "@/nucleo/portas/saida/canal-mensagens";
 import type {
@@ -93,6 +96,12 @@ export type MensagemRecebida = {
    * provedor de IA: só se faz quando a MAISA vai atender essa pessoa. Ver o passo 1a.
    */
   ouvir?: () => Promise<string>;
+  /**
+   * A mensagem trouxe uma IMAGEM ou um DOCUMENTO (27/10/2026), e isto o baixa (`baixarArquivo`,
+   * em `composicao.ts`). Função pelo mesmo motivo do `ouvir`: só se baixa, e só se manda para o
+   * leitor, quando pode ser o comprovante de um Pix em aberto. Ver o passo 1b''.
+   */
+  arquivo?: { tipo: "imagem" | "documento"; baixar: () => Promise<ArquivoRecebido | null> };
   /** Quando a pessoa mandou, em ms, pelo relógio do WhatsApp. Ver `IDADE_MAXIMA_MS`. */
   enviadaEm?: number;
   /**
@@ -160,6 +169,19 @@ export type Dependencias = DepsFerramentas & {
   /** Quem conduz a conversa. O agente LÊ e nunca escreve: assumir é gesto do dono. */
   conversas: RepositorioConversas;
   canal: CanalDeMensagens;
+  /**
+   * Os recebimentos (27/10/2026): o que tem resposta certa e não passa pelo modelo. Opcional:
+   * sem ele, imagem sem legenda não é lida e nada muda. Ver o passo 1b''.
+   */
+  recebimentos?: RecebimentosNaConversa;
+};
+
+/** Os casos de uso dos recebimentos que a conversa usa. Ver `aplicacao/recebimentos.ts`. */
+export type RecebimentosNaConversa = {
+  temPixEmAberto: TemPixEmAberto;
+  receberComprovante: ReceberComprovante;
+  guardarCpf: GuardarCpfDaConversa;
+  responderAoDono: ResponderAoDono;
 };
 
 /** `Msg` do domínio → turnos da porta. "voce" (o dono assumiu) entra como assistente:
@@ -351,7 +373,26 @@ export function criarAgente(deps: Dependencias) {
 
     const prazo = Date.now() + ORCAMENTO_DO_TURNO_MS;
     let texto = limparEntrada(recebida.texto);
-    if (!texto && !recebida.ouvir) return vazia();
+    if (!texto && !recebida.ouvir && !recebida.arquivo) return vazia();
+
+    /* ── 0-. O ARQUIVO: SÓ DE QUEM TEM PIX EM ABERTO (27/10/2026) ──
+     *
+     * Imagem e PDF a MAISA não lia, e a rota descartava os que vinham sem legenda. Agora chegam
+     * aqui para uma pergunta só, antes de qualquer outra leitura: este telefone tem Pix em aberto?
+     * Se tem, pode ser o comprovante (passo 1b''). Se não tem, tudo segue como era: com legenda, a
+     * legenda é a fala; sem legenda, nada é gravado nem respondido, e o leitor nem é chamado. */
+    let arquivo = recebida.arquivo;
+    if (arquivo) {
+      const comPix = deps.recebimentos
+        ? await deps.recebimentos.temPixEmAberto(t, recebida.de).catch(() => false)
+        : false;
+      if (!comPix) {
+        if (!texto) return vazia({ motivo: `${arquivo.tipo} sem legenda` });
+        arquivo = undefined;
+      } else if (!texto) {
+        texto = `[${arquivo.tipo}]`;
+      }
+    }
 
     /* ── 0. o que a MAISA sabe deste negócio ──
      * Vem antes de tudo porque o catálogo, a equipe e o liga/desliga da assistente moram
@@ -449,6 +490,52 @@ export function criarAgente(deps: Dependencias) {
       const minutos = Math.round(atrasoMs / 60_000);
       console.warn(`[whatsapp/agente] mensagem de ${perfil.telefone} escrita há ${minutos} min: gravada, sem resposta (inquilino ${t.tenantId}).`);
       return vazia({ motivo: `mensagem atrasada: escrita há ${minutos} min` });
+    }
+
+    /* ── 1b''. O QUE NÃO PASSA PELO MODELO: OS RECEBIMENTOS (27/10/2026) ──
+     *
+     * Três mensagens que têm resposta certa, em texto pronto:
+     *   · o dono respondendo "1" ou "2" à pergunta "já está pago?", do número de avisos dele;
+     *   · o comprovante do Pix que o cliente mandou, quando ele tem Pix em aberto (passo 0-);
+     *   · o CPF que a MAISA pediu para o recibo ou a nota sair.
+     *
+     * DEPOIS do 1b: a mensagem já está gravada, uma vez só, e a reentrega parou lá. ANTES da
+     * rajada e das travas da conversa: valem com a assistente desligada, porque são a cobrança
+     * que o dono ligou, não a conversa. Mas não falam por cima dele: na conversa assumida,
+     * registram e calam. O que precisa sair espaçado (o Pix, o aviso ao dono) vai pela fila.
+     *
+     * Falha em qualquer um vira log, e a mensagem segue o caminho de sempre. */
+    if (deps.recebimentos) {
+      const rec = deps.recebimentos;
+      const semFalha = <T,>(p: Promise<T>, oQue: string) =>
+        p.catch((e) => {
+          console.error(`[whatsapp/agente] recebimentos (${oQue}) de ${perfil.telefone}, inquilino ${t.tenantId}`, e);
+          return null;
+        });
+      const dizer = async (resposta: string, motivo: string): Promise<RespostaDoAgente> => {
+        if (posse.assumidaEm) return vazia({ motivo: `${motivo}; conversa assumida pelo dono, sem resposta` });
+        if (recebida.marcarComoLida) await recebida.marcarComoLida().catch(() => {});
+        await deps.historico.anexar(t, perfil.telefone, [{ de: "bot", txt: resposta }]);
+        await deps.canal.enviar(t, perfil.telefone, [resposta]);
+        return vazia({ bolhas: [resposta], motivo });
+      };
+
+      if (arquivo) {
+        const conteudo = await arquivo.baixar();
+        const lido = conteudo
+          ? await semFalha(rec.receberComprovante(t, { telefone: perfil.telefone, arquivo: conteudo, mensagemId: recebida.provedorId }), "comprovante")
+          : null;
+        if (lido) return dizer(lido.resposta, "comprovante de pagamento");
+        /* Não era comprovante. Sem legenda, fica gravado e sem resposta; com legenda, a legenda
+         * segue para a MAISA como qualquer fala. */
+        if (!limparEntrada(recebida.texto)) return vazia({ motivo: `${arquivo.tipo} que não é comprovante` });
+      } else {
+        const doDono = await semFalha(rec.responderAoDono(t, { telefone: perfil.telefone, texto }), "resposta do dono");
+        if (doDono) return dizer(doDono.resposta, "resposta do dono à cobrança");
+        /* CPF com mais assunto (`resposta` nula): guardado, e a conversa segue para o modelo. */
+        const cpf = await semFalha(rec.guardarCpf(t, { telefone: perfil.telefone, texto }), "CPF");
+        if (cpf?.resposta) return dizer(cpf.resposta, "CPF guardado");
+      }
     }
 
     /* ── 1b'. A RAJADA: só responde quem chegou por último ──

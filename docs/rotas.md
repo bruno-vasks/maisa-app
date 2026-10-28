@@ -33,7 +33,7 @@ Definidos em [`src/adaptadores/entrada/http/contexto.ts`](../src/adaptadores/ent
 | `/api/servicos` | PUT · DELETE | `sessaoOuDemo` | `AjustarServico` — cria ou edita pelo `id` · `RemoverServico` |
 | `/api/equipe` | PUT | `sessaoOuDemo` | `AjustarProfissional` — cria ou edita quem atende. **Não mexe em expediente**: aquilo manda na grade inteira e tem rota própria, logo abaixo |
 | `/api/equipe/expediente` | PUT | `sessaoOuDemo` | `AjustarExpediente` (24/10/2026) — os dias e o horário em que UM profissional atende, que decidem o que a Agenda deixa marcar e o que a MAISA oferece. Corpo `{ profissionalId, dias, de, ate }`: `dias` de 0 (segunda) a 5 (sábado), `de`/`ate` em hora decimal de meia em meia hora, das 07:00 às 22:00. **Substitui o expediente inteiro** (por isso é PUT). Recusa 400 sem nenhum dia, com domingo, com hora fora do passo ou da janela, com `ate` que não é depois de `de`, e com profissional de outro negócio. Regrava `horario` e `folga` (a frase da tabela de Equipe) na mesma escrita. Devolve `{ profissional }` |
-| `/api/clientes` | PUT | `sessaoOuDemo` | `AjustarCliente` — **só edita**, `id` obrigatório. Nome, telefone, e-mail, CPF, canal, serviço habitual, `ativo`, `valorSessao` (030) e `diaRecibo` (032, 1 a 31 ou `null`: o dia em que a MAISA emite sozinha os recibos da pessoa) |
+| `/api/clientes` | PUT | `sessaoOuDemo` | `AjustarCliente` — **só edita**, `id` obrigatório. Nome, telefone, e-mail, CPF, canal, serviço habitual, `ativo`, `valorSessao` (030), `diaRecibo` (032, 1 a 31 ou `null`: o dia em que a MAISA emite sozinha os recibos da pessoa) e `comoPaga` (038: `padrao`, `por_mes` ou `nao_cobrar`, para o Pix dos recebimentos) |
 | `/api/clientes` | POST | `sessaoOuDemo` | `CadastrarCliente` — só `nome` obrigatório; `telefone` e `cpf` opcionais (o recibo da Rebots pede só CPF). Telefone que já existe devolve o cliente existente com `jaExistia: true` |
 
 ⚠️ **Serviço tem DELETE e profissional não**, e a assimetria vem do esquema, não de gosto:
@@ -116,6 +116,19 @@ muda o comportamento da tela — procure o nome no store antes.
 | `/api/nf/pdf/[ref]` | GET | **capacidade** (`?a=`, HMAC da `ref`) | sem caso de uso: o PDF da nota que o modo simulado emite em homologação (15/10/2026). Sem sessão — quem baixa é a Evolution, para o aviso no WhatsApp. O inquilino sai da própria nota, nunca do request. Ver `saida/focus/nota-simulada.ts` |
 | `/api/recibos/lote` | POST · PATCH | `exigirSessao` | `GerarLoteDeRecibos` · `FecharLoteDeRecibos` — o CSV do Receita Saúde, para quem atende como pessoa física. `PATCH { avisar: true }` manda a notícia do recibo aos pacientes no WhatsApp: desde 27/10/2026 pela fila de envios, um de cada vez, a partir de logo depois da resposta (`naFila: true` na resposta); sem a migração 036, na hora, como antes |
 | `/api/recibos` | GET · POST · DELETE | `exigirSessao` | `LerRecibosPendentes` · `LancarPagamentoAvulso` · `ExcluirPagamentoAvulso` — o que vai no arquivo, e o pagamento que a agenda não pegou |
+
+## Recebimentos — o cliente pagando o negócio (27/10/2026)
+
+O Pix na chave do próprio profissional, o comprovante que o cliente devolve no WhatsApp e a
+confirmação no painel. **Não é a assinatura** (a seção Cobrança, abaixo): aqui o dinheiro vai do
+cliente para o negócio e nunca passa pela MAISA. Ver `aplicacao/recebimentos.ts`.
+
+| Rota | Métodos | Porteiro | Caso de uso |
+|---|---|---|---|
+| `/api/recebimentos` | GET · PUT | `exigirSessao` | `LerRecebimentos` — os ajustes, o que falta, os atendimentos esperando "já pagou?", os Pix em aberto, os comprovantes para conferir e os recebidos dos últimos 30 dias · `SalvarConfigDeRecebimentos` — `{ tipoDaChave, chave, nome, cidade, depoisDoAtendimento }`. A chave é conferida **dentro do tipo** escolhido (onze dígitos podem ser CPF ou celular). Sem chave, o "depois do atendimento" desliga junto |
+| `/api/recebimentos/pix` | POST | `exigirSessao` | `MandarPix` — `{ atendimentoId }`: cria a cobrança daquele atendimento e manda o Pix pela fila de envios; se o Pix já tinha ido, manda o mesmo de novo. O valor sai do banco |
+| `/api/recebimentos/decidir` | POST | `exigirSessao` | `DecidirRecebimento` — `{ id, decisao: "pagou" \| "pix" \| "nao_cobrar" }`, a mesma resposta que o dono dá pelo WhatsApp. Devolve `{ recebimento, documento }`: `documento` diz se o recibo ou a nota foram pedidos, se a MAISA pediu o CPF ao cliente, ou por que o emissor recusou |
+| `/api/recebimentos/comprovante` | POST | `exigirSessao` | `ConfirmarComprovante` (`{ id, acao: "confirmar", recebimentoId? }`) · `DescartarComprovante` (`{ id, acao: "descartar", motivo }`). Confirmar é a única baixa: nada vira pago só pela imagem |
 | `/api/recibos/emitir` | POST | `exigirSessao` | `EmitirRecibo` — UM pagamento, pelo canal programático (Rebots, ou o demo quando não há credencial). Recebe só `{fonte, id}`: valor, CPF e data saem do banco. ⚠️ 200 quer dizer "o canal aceitou", **não** "emitido" — o desfecho chega no callback Desde 01/10/2026 também `{ itens: [{fonte, id}, …] }`: várias sessões da mesma pessoa e mês num recibo só (um recibo por mês); de cada item só `fonte` e `id` chegam ao núcleo. |
 | `/api/recibos/callback` | POST | **segredo** (`RECIBOS_CALLBACK_SECRET`) | o canal de emissão diz o que aconteceu com o recibo. Sem sessão: quem chama é o servidor do fornecedor. Com `avisarRecibo` ligado, avisa o paciente, ou a dona se `reciboPrimeiroParaMim` (032): a mesma mensagem, com uma linha antes, para ela encaminhar. Desde 27/10/2026 o aviso entra na fila de envios e sai espaçado dos outros retornos, a partir de logo depois da resposta |
 | `/api/rotinas/recibos` | GET · POST | `CRON_SECRET` ou `ROTINAS_SECRET` | `EmitirRecibosAutomaticos` — o cron da Vercel, 1×/dia às 9h (01/10/2026). Para quem tem `dia_recibo` hoje (ou nos 2 dias anteriores, se a rotina falhou), emite pelo mesmo `EmitirRecibo` da tela as sessões **do mês que passou** (no dia 31, "último dia do mês", as do próprio mês até a véspera; 08/10/2026) que ainda não têm recibo. Negócio sem autorização de acesso não emite. **Não manda mensagem**: quem avisa é o callback |
@@ -236,12 +249,13 @@ prometer. O Pix recorrente é justamente o motivo de a AbacatePay existir aqui:
 
 | Rota | Métodos | Porteiro | O que faz |
 |---|---|---|---|
-| `/api/whatsapp` | GET · POST | `SEGREDO` | **o webhook.** Recebe a mensagem do cliente, responde 200 na hora e roda o agente em seguida (`waitUntil`); só o formato de teste (`{ de, texto }`) espera e devolve as bolhas |
+| `/api/whatsapp` | GET · POST | `SEGREDO` | **o webhook.** Recebe a mensagem do cliente, responde 200 na hora e roda o agente em seguida (`waitUntil`); só o formato de teste (`{ de, texto }`) espera e devolve as bolhas. Imagem e PDF seguem para o agente desde 27/10/2026: de quem tem Pix em aberto, podem ser o comprovante |
 | `/api/whatsapp/conexao` | GET · POST | `SEGREDO` | pareamento da instância |
 | `/api/canal` | GET · POST · PATCH · DELETE | `exigirSessao` | `LerCanal` · `ConectarCanal` · `DesconectarCanal` — a visão do painel do mesmo canal |
 | `/api/canal/codigo` | POST | `exigirSessao` | `RenovarCodigo` — outro código de pareamento, **sem** derrubar a instância |
 | `/api/rotinas/lembretes` | POST | `SEGREDO` | `EnviarLembretes` — disparado por `pg_cron` a cada 15 min |
 | `/api/rotinas/envios` | POST | `SEGREDO` | `EnviarFilaDeMensagens` — esvazia a fila de envios (os avisos e PDFs de recibo), uma mensagem por vez por negócio, espaçadas (27/10/2026). Disparado por `pg_cron` a cada 5 min (`037`); quem enfileira (o fechamento do lote, o retorno da Receita) já dispara a drenagem na hora, em segundo plano |
+| `/api/rotinas/recebimentos` | POST | `SEGREDO` | `CobrarAtendimentos` — o atendimento que acabou vira cobrança (pergunta ao dono ou Pix direto), quem paga "por mês" ganha o Pix do mês no dia do recibo, e a pergunta "já está pago?" vai ao número de avisos do dono, uma por vez (27/10/2026). Disparado por `pg_cron` a cada 5 min (`038`). Tudo sai pela fila de envios |
 
 O webhook responde **200 mesmo quando descarta** a mensagem. Para o provedor, resposta de erro
 significa "tente de novo", e ele reentrega o mesmo evento em loop. O fluxo inteiro, com o que

@@ -13,6 +13,7 @@
  * no banco quebraria toda a cadeia de chamadas na migração.
  * ────────────────────────────────────────────────────────────────────────────── */
 
+import type { ComoPaga } from "../../dominio/recebimentos";
 import type { ContextoTenant } from "../../dominio/tenant";
 import type { Negocio } from "../../dominio/negocio";
 import type { CategoriaServico, Profissional, Servico } from "../../dominio/catalogo";
@@ -111,6 +112,8 @@ export type RascunhoDeCliente = {
   diaRecibo?: number | null;
   /** 0 a 4 (0 = um por sessão). Ausente = não mexe. */
   recibosPorMes?: number;
+  /** Como a pessoa paga (038). Ausente = não mexe. Ver `dominio/recebimentos.ts`. */
+  comoPaga?: ComoPaga;
 };
 
 export interface RepositorioNegocio {

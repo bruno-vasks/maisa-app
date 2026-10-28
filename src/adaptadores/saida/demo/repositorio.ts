@@ -240,6 +240,7 @@ export const repositorioDemo: RepositorioNegocio = {
       ...(r.valorSessao === undefined ? {} : { valorSessao: r.valorSessao }),
       ...(r.diaRecibo === undefined ? {} : { diaRecibo: r.diaRecibo }),
       ...(r.recibosPorMes === undefined ? {} : { recibosPorMes: r.recibosPorMes }),
+      ...(r.comoPaga === undefined ? {} : { comoPaga: r.comoPaga }),
     };
     CLIENTES[i] = novo;
     return novo;

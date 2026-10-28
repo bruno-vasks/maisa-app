@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { agenteConfigurado, agenteWhatsapp, app, marcarComoLida, ouvirAudio } from "@/composicao";
+import { agenteConfigurado, agenteWhatsapp, app, baixarArquivo, marcarComoLida, ouvirAudio } from "@/composicao";
 import { hojeISO } from "@/nucleo/dominio/tempo";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import { contextoDaMensagem, normalizar, numeroPermitido, SEGREDO } from "@/adaptadores/entrada/whatsapp/contexto";
@@ -89,9 +89,12 @@ export async function POST(request: Request) {
    * 200 e não 4xx: para o provedor, resposta de erro significa "tente de novo", e ele
    * reentrega o mesmo evento em loop. Aceitar e ignorar é o contrato certo. */
   const envelope = normalizar(corpo);
-  /* Áudio sem texto SEGUE: vai para o agente, que decide se transcreve (ver `ouvir` abaixo). */
+  /* Áudio sem texto SEGUE: vai para o agente, que decide se transcreve (ver `ouvir` abaixo).
+   * Imagem e documento também, desde 27/10/2026: podem ser o comprovante de um Pix em aberto, e
+   * quem decide se lê é o agente (passo 0- de `agente.ts`). */
   const ehAudio = envelope?.midia === "audio" && !envelope.texto.trim();
-  if (!envelope || (!envelope.texto.trim() && !ehAudio)) {
+  const ehArquivo = (envelope?.midia === "imagem" || envelope?.midia === "documento") && Boolean(envelope.arquivo);
+  if (!envelope || (!envelope.texto.trim() && !ehAudio && !ehArquivo)) {
     /* O tipo de mídia entra no log de propósito. "Ignorado" sem qualificação é o
      * relatório que esconde o problema: o cliente mandou uma figurinha ou uma foto sem
      * legenda, ficou esperando, e do nosso lado não há nem sinal de que ele escreveu. */
@@ -163,6 +166,9 @@ export async function POST(request: Request) {
       provedorId: envelope.conversaId,
       marcarComoLida: () => marcarComoLida(envelope),
       ...(ehAudio ? { ouvir: () => ouvirAudio(envelope) } : {}),
+      ...(ehArquivo
+        ? { arquivo: { tipo: envelope.midia as "imagem" | "documento", baixar: () => baixarArquivo(envelope) } }
+        : {}),
     },
     { esperaDaRajadaMs: ESPERA_DA_RAJADA_MS },
   ).catch((e) => {
