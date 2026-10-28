@@ -157,6 +157,15 @@ function AssinarInner({ plano }: { plano: Plano }) {
 
       if (error) {
         const m = error.message.toLowerCase();
+        /* ⚠️ E-MAIL JÁ CADASTRADO TAMBÉM VEM COMO ERRO (28/10/2026). Com "Confirm email"
+         * DESLIGADO, que é o caso de produção, o Supabase responde 422 `user_already_exists`
+         * ("User already registered"), e não o 200 de `identities` vazio tratado abaixo. Sem
+         * isto, a pessoa via "tente de novo em instantes" e tentava de novo para sempre. */
+        if (error.code === "user_already_exists" || /already registered|already exists/.test(m)) {
+          setErro(textos.jaTemConta);
+          setEstado({ fase: "entre_e_pague" });
+          return;
+        }
         if (/rate|limit|seconds/.test(m)) setErro("Muitas tentativas seguidas. Espere um minuto.");
         else if (/email|invalid/.test(m)) setErro("Confira o e-mail digitado.");
         else setErro("Não foi possível criar a conta agora. Tente de novo em instantes.");

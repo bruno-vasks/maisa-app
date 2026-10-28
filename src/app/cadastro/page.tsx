@@ -232,7 +232,10 @@ function CadastroInner() {
        * dois casos que a pessoa pode CONSERTAR, e cair numa frase honesta no resto —
        * ecoar o texto cru transformaria a resposta da API no texto da nossa tela. */
       const m = error.message.toLowerCase();
-      if (/password/.test(m)) setErro(`A senha precisa de pelo menos ${SENHA_MIN} caracteres.`);
+      /* Com "Confirm email" desligado, e-mail já cadastrado vem como erro 422, e não como o
+       * 200 de `identities` vazio tratado abaixo. Ver o ⚠️ igual em `assinar/[plano]/Assinar.tsx`. */
+      if (error.code === "user_already_exists" || /already registered|already exists/.test(m)) setErro("Este e-mail já tem uma conta. Entre por aqui embaixo.");
+      else if (/password/.test(m)) setErro(`A senha precisa de pelo menos ${SENHA_MIN} caracteres.`);
       else if (/email|invalid/.test(m)) setErro("Confira o e-mail digitado.");
       else if (/rate|limit|seconds/.test(m)) setErro("Muitas tentativas seguidas. Espere um minuto e tente de novo.");
       else setErro("Não foi possível criar a conta agora. Tente de novo em instantes.");
