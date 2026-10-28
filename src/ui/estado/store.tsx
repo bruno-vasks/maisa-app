@@ -78,7 +78,10 @@ export type TelaId =
    * rail de propósito, como `contatos` — é configuração que se faz uma vez, e um ícone
    * permanente competiria com as telas do dia. Chega-se por "Mais" e pelo Faturamento. */
   | "fiscal"
-  | "equipe" | "servicos" | "assistente" | "contatos" | "mais";
+  | "equipe" | "servicos" | "assistente" | "contatos" | "mais"
+  /* O dinheiro que entra: o Pix, os comprovantes e o que foi recebido (28/10/2026). Ver
+   * `telas/Recebimentos.tsx`. */
+  | "recebimentos";
 
 export type AbaConversa = "todas" | "espera" | "maisa" | "ok";
 

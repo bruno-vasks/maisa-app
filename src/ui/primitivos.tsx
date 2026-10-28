@@ -77,6 +77,8 @@ const ICONS: Record<string, React.ReactNode> = {
   bell: (<><path d="M5 16H19L17.5 14.5V10.5A5.5 5.5 0 0 0 6.5 10.5V14.5Z"/><path d="M12 3V5"/><path d="M10 19A2.5 2.5 0 0 0 14 19"/></>),
   "calendar-check": (<><rect x="4" y="5" width="16" height="15.5" rx="1.5"/><path d="M4 9.5H20"/><path d="M8 3V6.5M16 3V6.5"/><path d="M8.25 15L10.75 17.5L15.75 12.5"/></>),
   card: (<><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 9.5H21"/><path d="M6.5 15.5H11"/></>),
+  /* O losango do Pix, de traço, como os outros (28/10/2026: a aba Recebimentos). */
+  pix: (<><path d="M12 3L21 12L12 21L3 12Z"/><path d="M8.5 12L12 8.5L15.5 12L12 15.5Z"/></>),
   check: (<path d="M5 12.5L9.5 17L19 7.5"/>),
   "chevron-down": (<path d="M6 9 L12 15 L18 9"/>),
   "chevron-left": (<path d="M15 6 L9 12 L15 18"/>),

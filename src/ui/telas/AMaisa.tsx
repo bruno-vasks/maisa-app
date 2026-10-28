@@ -26,7 +26,6 @@ import * as D from "@/adaptadores/saida/demo";
 import { useStore } from "@/ui/estado/store";
 import { Moldura } from "@/ui/componentes/Moldura";
 import { RECORTES, falasDoPreview, recorteAtivo, type RecorteId } from "@/ui/telas/ajustes";
-import { AjustesDeRecebimentos } from "@/ui/componentes/Recebimentos";
 
 
 /* ───────────────────────────── peças ───────────────────────────── */
@@ -866,7 +865,6 @@ function Corpo({ id }: { id: RecorteId }) {
   if (id === "horarios") return <Horarios />;
   if (id === "agendamentos") return <ListaToggles itens={D.TOGGLES_AGENDAMENTO} />;
   if (id === "duvidas") return <Duvidas />;
-  if (id === "recebimentos") return <AjustesDeRecebimentos />;
   return <ListaToggles itens={D.TOGGLES_COMPORTAMENTO} />;
 }
 
@@ -968,8 +966,7 @@ function Preview({ recorte }: { recorte: RecorteId | null }) {
  * fixture. Respostas prontas tem leitura própria (`st.faqs`) e o WhatsApp também (`FaixaCanal`).
  */
 function leituraDoRecorte(id: RecorteId, st: ReturnType<typeof useStore>): { lida: boolean; erro: string | null } {
-  /* Respostas prontas, WhatsApp e o Pix têm leitura própria. */
-  if (id === "duvidas" || id === "whatsapp" || id === "recebimentos") return { lida: true, erro: null };
+  if (id === "duvidas" || id === "whatsapp") return { lida: true, erro: null };
   if (id === "horarios") return { lida: st.semanaCarregada, erro: st.semanaErro };
   if (id === "personalidade") {
     return { lida: st.ajustesCarregados && st.cadastroCarregado, erro: st.ajustesErro ?? st.cadastroErro };

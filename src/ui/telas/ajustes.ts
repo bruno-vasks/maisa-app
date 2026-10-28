@@ -23,7 +23,6 @@
 import type { ChaveCfg } from "@/nucleo/dominio/assistente";
 import { semanaEmTexto, type SemanaAnunciada } from "@/nucleo/dominio/horarios";
 import { rotuloDaAntecedencia } from "@/nucleo/dominio/lembretes";
-import { confirmacaoDoPagamento, mensagensDoPix, respostaAoComprovante } from "@/nucleo/dominio/recebimentos";
 
 export const RECORTES = [
   { id: "horarios", titulo: "Horário" },
@@ -32,8 +31,6 @@ export const RECORTES = [
   { id: "comportamento", titulo: "Quando ela chama você" },
   { id: "personalidade", titulo: "Como ela fala" },
   { id: "whatsapp", titulo: "WhatsApp e número" },
-  /* 27/10/2026: o Pix na chave do negócio. Ver `componentes/Recebimentos.tsx`. */
-  { id: "recebimentos", titulo: "Receber por Pix" },
 ] as const;
 export type RecorteId = (typeof RECORTES)[number]["id"];
 
@@ -128,19 +125,5 @@ export function falasDoPreview(recorte: RecorteId, d: DadosDoPreview): Preview {
       };
     case "whatsapp":
       return { aviso: "Esta seção não muda o que ela escreve." };
-    case "recebimentos": {
-      /* As MESMAS funções da cobrança de verdade (`dominio/recebimentos.ts`), com um cliente de
-       * exemplo. O código vai encurtado: o de verdade tem uns 150 caracteres. */
-      const [explicacao] = mensagensDoPix({ nome: "João", valor: 50, descricao: "Corte, hoje", codigo: "" });
-      return {
-        falas: [
-          { de: "bot", txt: explicacao },
-          { de: "bot", txt: "00020126580014br.gov.bcb.pix…" },
-          { de: "cliente", txt: "[comprovante]" },
-          { de: "bot", txt: respostaAoComprovante(50) },
-          { de: "bot", txt: confirmacaoDoPagamento(50) },
-        ],
-      };
-    }
   }
 }

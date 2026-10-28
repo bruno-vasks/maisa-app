@@ -737,7 +737,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
                     : "Escolha o dia do recibo: é nele que o Pix do mês vai.")
                   : cli.comoPaga === "nao_cobrar"
                     ? `A MAISA nunca manda Pix para ${primeiro}. Convênio, ou quem paga por fora.`
-                    : "Segue o que está em A MAISA → Receber por Pix.",
+                    : "Segue o que está em Recebimentos → Seu Pix.",
                 onChange: (v: string) => st.editarCliente(cli.id, { comoPaga: v as ComoPaga }),
               }]
               : []),

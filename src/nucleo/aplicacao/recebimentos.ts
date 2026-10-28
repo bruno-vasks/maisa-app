@@ -462,7 +462,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const provedor = deps.provedor;
     if (!provedor?.disponivel()) throw new NaoConfigurado(["RECEBIMENTOS_ASAAS", "ASAAS_PLATAFORMA_CHAVE"]);
     if (pixFaltando(await deps.recebimentos.config(t)).length) {
-      throw new DadoInvalido("Ligue o Pix primeiro, aqui em Receber por Pix. A conta para cartão e boleto vem depois.");
+      throw new DadoInvalido("Ligue o Pix primeiro, aqui em Recebimentos. A conta para cartão e boleto vem depois.");
     }
     return provedor.abrirConta(t, titularConferido(d));
   };

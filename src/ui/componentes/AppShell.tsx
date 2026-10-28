@@ -31,6 +31,7 @@ import FluxoHoje from "../telas/FluxoHoje";
 import Conversas from "../telas/Conversas";
 import Agenda from "../telas/Agenda";
 import AMaisa from "../telas/AMaisa";
+import Recebimentos from "../telas/Recebimentos";
 import Contatos from "../telas/Contatos";
 import { Clientes, Faturamento, Equipe, Servicos, Mais, vocabulario } from "../telas/Grades";
 import { ProgressoDeEmissao } from "./ProgressoDeEmissao";
@@ -86,6 +87,9 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: str
      `localStorage` de quem já usa e com os testes — renomeá-lo quebraria link já compartilhado
      para trocar uma palavra na tela. */
   faturamento: { rotulo: "Fiscal", titulo: "Fiscal", icone: "receipt", Comp: Faturamento },
+  /* O Pix na chave do negócio e os comprovantes (28/10/2026). Era uma seção de A MAISA; virou aba
+     porque é dinheiro, e o dono olha todo dia. */
+  recebimentos: { rotulo: "Recebimentos", titulo: "Recebimentos", icone: "pix", Comp: Recebimentos },
   // Fora do rail, como `contatos`: escolher entre nota fiscal e recibo é decisão de uma vez só.
   // Chega-se por "Mais" e pelo link "Documento fiscal" no próprio Faturamento.
   fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", tituloCelular: "Documento", icone: "documento", Comp: DocumentoFiscal },
@@ -110,7 +114,7 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: str
 /** Grupos do rail — separados por hairline: o dia, o dinheiro, a configuração. */
 const GRUPOS: TelaId[][] = [
   ["fluxo", "conversas", "agenda"],
-  ["clientes", "faturamento"],
+  ["clientes", "recebimentos", "faturamento"],
   ["equipe", "servicos", "assistente", "mais"],
 ];
 
@@ -120,7 +124,7 @@ const ABAS: { id: TelaId; rotulo: string; cobre: TelaId[] }[] = [
   { id: "conversas", rotulo: "Conversas", cobre: ["conversas"] },
   { id: "agenda", rotulo: "Agenda", cobre: ["agenda"] },
   { id: "clientes", rotulo: "Clientes", cobre: ["clientes"] },
-  { id: "mais", rotulo: "Mais", cobre: ["mais", "faturamento", "fiscal", "equipe", "servicos", "assistente", "contatos"] },
+  { id: "mais", rotulo: "Mais", cobre: ["mais", "recebimentos", "faturamento", "fiscal", "equipe", "servicos", "assistente", "contatos"] },
 ];
 
 /* ───────────────────────────── contadores ─────────────────────────────

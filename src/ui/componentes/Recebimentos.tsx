@@ -2,12 +2,12 @@
 /* ─────────────────────────────────────────────────────────────────────────────
  * RECEBIMENTOS NA TELA (27/10/2026) — o cliente pagando o negócio pelo Pix na chave de sempre.
  *
- * Três peças, cada uma onde o dono já olha:
- *   · `PagamentosParaDecidir` — na coluna "Precisa de você" da tela de hoje: o atendimento que
- *     acabou e espera "já está pago?", e o comprovante que o cliente mandou, esperando o dono
- *     conferir no extrato. Sem nada esperando, não desenha nada;
- *   · `AjustesDeRecebimentos` — em A MAISA → Receber por Pix: a chave, o nome, a cidade e o que
- *     fazer depois de cada atendimento;
+ * As peças, e onde cada uma aparece:
+ *   · a aba Recebimentos (`telas/Recebimentos.tsx`, 28/10/2026: Bruno, "importante o suficiente
+ *     para virar uma aba nova") monta a tela com os cartões e o `FormularioDoPix` daqui;
+ *   · `PagamentosParaDecidir` — também na coluna "Precisa de você" da tela de hoje: o atendimento
+ *     que acabou e espera "já está pago?", o comprovante que o cliente mandou e o Pix sem pagamento
+ *     há um dia. Sem nada esperando, não desenha nada;
  *   · `mandarPixDoAtendimento` — o "Mandar Pix" da gaveta do atendimento: manda o Pix dele, ou o
  *     mesmo de novo.
  *
@@ -68,10 +68,10 @@ const SELO: Record<Conferencia, { forma: "disco" | "triangulo" | "anel"; tom: "s
 
 /* ───────────────────────────── a leitura ───────────────────────────── */
 
-type Painel = PainelDeRecebimentos;
+export type Painel = PainelDeRecebimentos;
 
 /** Lê o painel, de novo a cada minuto e ao voltar para a aba. Sem sessão (demo), fica `null`. */
-function usePainel() {
+export function usePainel() {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const ler = useCallback(async () => {
@@ -132,7 +132,7 @@ export function PagamentosParaDecidir() {
  * O Pix que foi e não voltou pago. Sem esta saída ele ficava em aberto para sempre: a sessão fora do
  * recibo automático, e toda imagem desse cliente indo para o leitor.
  */
-function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => void }) {
+export function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => void }) {
   const [ocupado, setOcupado] = useState(false);
   const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar") => {
     setOcupado(true);
@@ -163,7 +163,7 @@ function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => void }) {
   );
 }
 
-function CartaoDaPergunta({ r, depois }: { r: Recebimento; depois: () => void }) {
+export function CartaoDaPergunta({ r, depois }: { r: Recebimento; depois: () => void }) {
   const [ocupado, setOcupado] = useState(false);
   const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar") => {
     setOcupado(true);
@@ -193,7 +193,7 @@ function CartaoDaPergunta({ r, depois }: { r: Recebimento; depois: () => void })
   );
 }
 
-function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePagamento; abertos: Recebimento[]; depois: () => void }) {
+export function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePagamento; abertos: Recebimento[]; depois: () => void }) {
   /* As cobranças em aberto deste telefone: se a MAISA não achou qual o comprovante paga, o dono
    * escolhe entre elas. */
   const doTelefone = abertos.filter((r) => chaveDe(r.telefone) === chaveDe(c.telefone));
@@ -278,8 +278,8 @@ function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePagamento
 
 /* ───────────────────────────── os ajustes ───────────────────────────── */
 
-export function AjustesDeRecebimentos() {
-  const { painel, erro, ler } = usePainel();
+/** A chave Pix, o nome, a cidade e o que fazer quando o atendimento acaba. Quem lê o painel é a tela. */
+export function FormularioDoPix({ painel, ler }: { painel: Painel; ler: () => void }) {
   const [tipo, setTipo] = useState<TipoDeChavePix | "">("");
   const [chave, setChave] = useState("");
   const [nome, setNome] = useState("");
@@ -299,12 +299,6 @@ export function AjustesDeRecebimentos() {
     setDepois(c.chave ? c.depoisDoAtendimento : "perguntar");
     setLido(true);
   }, [painel, lido]);
-
-  if (!painel) {
-    return erro
-      ? <span style={s("font-size:var(--t-sm);color:var(--muted)")}>{erro}</span>
-      : <span style={s("font-size:var(--t-sm);color:var(--muted)")}>Lendo…</span>;
-  }
 
   const colar = (v: string) => {
     setChave(v);
@@ -341,12 +335,6 @@ export function AjustesDeRecebimentos() {
 
   return (
     <div style={s("display:flex;flex-direction:column;gap:14px")}>
-      <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-ui)")}>
-        O cliente recebe um Pix com o valor certo, e o dinheiro cai direto na sua conta. Quando ele mandar o
-        comprovante, você confere no extrato e confirma em Hoje. Aí sai o recibo ou a nota, se a MAISA já emite
-        para você.
-      </span>
-
       <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
         <label style={s(`${ROTULO};flex:1;min-width:150px`)}>
           Tipo da chave
@@ -388,7 +376,7 @@ export function AjustesDeRecebimentos() {
       {depois === "perguntar" && (
         <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-ui)")}>
           A pergunta vai para o número que recebe os avisos (A MAISA → WhatsApp e número), e você responde 1 ou 2.
-          Sem esse número, ela aparece só aqui no painel, em Hoje.
+          Sem esse número, ela aparece só no painel: aqui e em Hoje.
         </span>
       )}
 
@@ -398,16 +386,6 @@ export function AjustesDeRecebimentos() {
         </Btn>
         {ligado && <Btn variant="ghost" disabled={ocupado} onClick={() => salvar(true)}>Desligar</Btn>}
       </div>
-
-      {painel.abertos.length > 0 && (
-        <div style={s("display:grid;gap:8px")}>
-          <span style={s("font-size:var(--t-label);color:var(--muted)")}>Esperando pagamento ({painel.abertos.length})</span>
-          {painel.abertos.map((r) => <CartaoDoAberto key={r.id} r={r} depois={ler} />)}
-        </div>
-      )}
-
-      {/* A opção B (Asaas), atrás de flag: só aparece com ela ligada na plataforma, e depois do Pix. */}
-      {ligado && painel.asaas.disponivel && <ContaDeCartaoEBoleto conta={painel.asaas.conta} depois={ler} />}
     </div>
   );
 }
@@ -430,7 +408,7 @@ const TIPOS_DE_EMPRESA: { valor: string; rotulo: string }[] = [
  * "Ativar recebimentos": a subconta no Asaas, no nome do profissional, sem ele ver o Asaas. Os textos
  * vieram da tela do Smiller (`CobrancaBancaria.tsx`), escrita para quem não é técnico.
  */
-function ContaDeCartaoEBoleto({ conta, depois }: { conta: ContaDeRecebimentos | null; depois: () => void }) {
+export function ContaDeCartaoEBoleto({ conta, depois }: { conta: ContaDeRecebimentos | null; depois: () => void }) {
   const [abrindo, setAbrindo] = useState(false);
   const [d, setD] = useState(TITULAR_VAZIO);
   const [ocupado, setOcupado] = useState(false);

@@ -1028,6 +1028,7 @@ export function Mais() {
 
   /** Atalhos para telas — lista compacta de links, não cartões: navegar não é "abrir e editar". */
   const atalhos: { id: TelaId; titulo: string; sub: string; icone: string }[] = [
+    { id: "recebimentos", titulo: "Recebimentos", sub: "O Pix, os comprovantes e o que entrou", icone: "pix" },
     { id: "faturamento", titulo: "Fiscal", sub: "O que falta emitir", icone: "receipt" },
     /* A configuração de qual documento sai. Fica no "Mais" porque é decisão de uma vez só — e é
      * daqui que se chega a ela no celular, onde não existe rail. */

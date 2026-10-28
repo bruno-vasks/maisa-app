@@ -33,7 +33,7 @@ import type { TelaId } from "./store";
 /** Toda tela que o `?tela=` abre. */
 export const TELAS_DO_ENDERECO = [
   "fluxo", "conversas", "agenda", "clientes", "faturamento", "fiscal",
-  "equipe", "servicos", "assistente", "contatos", "mais",
+  "equipe", "servicos", "assistente", "contatos", "mais", "recebimentos",
 ] as const satisfies readonly TelaId[];
 
 /** Nomes que já saíram em link e não podem deixar de abrir. */
@@ -51,7 +51,7 @@ export const SECOES: Partial<Record<TelaId, { validas: readonly string[]; padrao
   fiscal: { validas: ["inicio", "dados", "autorizacao", "carne-leao", "recibo", "nota"], padrao: "inicio" },
   /* Os recortes dos Ajustes (1C.11), na ordem de `RECORTES` (`telas/ajustes.ts`). `auto` é o
    * padrão e não vai para a URL: WhatsApp enquanto o canal não conectou, Horário depois. */
-  assistente: { validas: ["auto", "horarios", "duvidas", "agendamentos", "comportamento", "personalidade", "whatsapp", "recebimentos"], padrao: "auto" },
+  assistente: { validas: ["auto", "horarios", "duvidas", "agendamentos", "comportamento", "personalidade", "whatsapp"], padrao: "auto" },
 };
 
 export function secaoDoEndereco(tela: TelaId, valor: string | null | undefined): string | null {
