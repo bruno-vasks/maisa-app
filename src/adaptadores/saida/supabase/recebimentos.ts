@@ -57,12 +57,17 @@ type LinhaRecebimento = {
   perguntado_em: string | null;
   pago_em: string | null;
   cpf_pedido_em: string | null;
+  /* Só depois da 039 (a opção B). Ausentes, a cobrança é o Pix estático. */
+  meio?: "pix" | "asaas" | null;
+  id_externo?: string | null;
+  link?: string | null;
   recebimento_atendimentos?: { atendimento_id: string }[] | null;
 };
 
-const COLUNAS =
-  "id, cliente_id, telefone, nome, valor, descricao, identificador, situacao, forma, criado_em, perguntado_em, pago_em, cpf_pedido_em, " +
-  "recebimento_atendimentos(atendimento_id)";
+/* `*`, e não a lista das colunas: as da 039 (meio, id_externo, link) só existem com a opção B
+ * migrada, e pedi-las pelo nome derrubaria a opção A num banco sem ela. Mesmo motivo da leitura
+ * de `clientes` (ver `repositorio.ts`). */
+const COLUNAS = "*, recebimento_atendimentos(atendimento_id)";
 
 function paraRecebimento(l: LinhaRecebimento, atendimentoIds?: string[]): Recebimento {
   return {
@@ -75,6 +80,9 @@ function paraRecebimento(l: LinhaRecebimento, atendimentoIds?: string[]): Recebi
     identificador: l.identificador,
     situacao: l.situacao,
     forma: l.forma,
+    meio: l.meio === "asaas" ? "asaas" : "pix",
+    idExterno: l.id_externo ?? null,
+    link: l.link ?? null,
     atendimentoIds: atendimentoIds ?? (l.recebimento_atendimentos ?? []).map((a) => a.atendimento_id),
     criadoEm: l.criado_em,
     perguntadoEm: l.perguntado_em,
@@ -325,6 +333,7 @@ export const recebimentosSupabase: RepositorioRecebimentos = {
     const campos = {
       ...(p.perguntadoEm ? { perguntado_em: p.perguntadoEm } : {}),
       ...(p.cpfPedidoEm ? { cpf_pedido_em: p.cpfPedidoEm } : {}),
+      ...(p.cobranca ? { meio: "asaas", id_externo: p.cobranca.idExterno, link: p.cobranca.link } : {}),
     };
     if (!Object.keys(campos).length) return;
     const { error } = await clienteDoContexto(t)
@@ -341,7 +350,7 @@ export const recebimentosSupabase: RepositorioRecebimentos = {
       .from("recebimentos")
       .select(`${COLUNAS}, clientes(cpf)`)
       .eq("tenant_id", t.tenantId)
-      .eq("situacao", "pago")
+      .in("situacao", ["pago", "aberto"])
       .not("cliente_id", "is", null)
       .gte("cpf_pedido_em", desde)
       .like("telefone", `%${chaveDe(telefone)}`)

@@ -116,6 +116,9 @@ export const recebimentosDemo: RepositorioRecebimentos = {
       identificador: novo.identificador,
       situacao: novo.situacao,
       forma: null,
+      meio: "pix",
+      idExterno: null,
+      link: null,
       atendimentoIds: [...novo.atendimentoIds],
       criadoEm: new Date().toISOString(),
       perguntadoEm: null,
@@ -166,12 +169,13 @@ export const recebimentosDemo: RepositorioRecebimentos = {
     if (!r) return;
     if (p.perguntadoEm) r.perguntadoEm = p.perguntadoEm;
     if (p.cpfPedidoEm) r.cpfPedidoEm = p.cpfPedidoEm;
+    if (p.cobranca) Object.assign(r, { meio: "asaas", idExterno: p.cobranca.idExterno, link: p.cobranca.link });
   },
 
   async esperandoCpf(t, telefone) {
     const desde = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
     return daqui(t.tenantId)
-      .filter((r) => r.situacao === "pago" && r.cpfPedidoEm && r.cpfPedidoEm >= desde && r.clienteId)
+      .filter((r) => (r.situacao === "pago" || r.situacao === "aberto") && r.cpfPedidoEm && r.cpfPedidoEm >= desde && r.clienteId)
       .filter((r) => chaveDe(r.telefone) === chaveDe(telefone) && !CPFS[chave(t.tenantId, r.clienteId!)])
       .map(semTenant);
   },

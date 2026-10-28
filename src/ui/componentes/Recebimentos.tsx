@@ -25,6 +25,7 @@ import { TIPOS_DE_CHAVE, tipoProvavel, type TipoDeChavePix } from "@/nucleo/domi
 import type { ComprovanteDePagamento, Conferencia, DepoisDoAtendimento, Recebimento } from "@/nucleo/dominio/recebimentos";
 import { chaveDe } from "@/nucleo/dominio/contatos";
 import type { DocumentoDoPagamento, PainelDeRecebimentos } from "@/nucleo/portas/entrada/casos-de-uso";
+import type { ContaDeRecebimentos } from "@/nucleo/portas/saida/provedor-de-recebimentos";
 
 const CAMPO =
   "font-family:inherit;font-size:var(--t-sm);padding:10px 12px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box";
@@ -355,6 +356,149 @@ export function AjustesDeRecebimentos() {
         </Btn>
         {ligado && <Btn variant="ghost" disabled={ocupado} onClick={() => salvar(true)}>Desligar</Btn>}
       </div>
+
+      {/* A opção B (Asaas), atrás de flag: só aparece com ela ligada na plataforma, e depois do Pix. */}
+      {ligado && painel.asaas.disponivel && <ContaDeCartaoEBoleto conta={painel.asaas.conta} depois={ler} />}
+    </div>
+  );
+}
+
+/* ───────────────────────────── a opção B: cartão e boleto ───────────────────────────── */
+
+const TITULAR_VAZIO = {
+  documento: "", nome: "", email: "", celular: "", cep: "", endereco: "", numero: "", complemento: "", bairro: "",
+  faturamentoMensal: "", nascimento: "", tipoDeEmpresa: "",
+};
+
+const TIPOS_DE_EMPRESA: { valor: string; rotulo: string }[] = [
+  { valor: "MEI", rotulo: "MEI" },
+  { valor: "LIMITED", rotulo: "Limitada (LTDA)" },
+  { valor: "INDIVIDUAL", rotulo: "Individual (EI ou SLU)" },
+  { valor: "ASSOCIATION", rotulo: "Associação" },
+];
+
+/**
+ * "Ativar recebimentos": a subconta no Asaas, no nome do profissional, sem ele ver o Asaas. Os textos
+ * vieram da tela do Smiller (`CobrancaBancaria.tsx`), escrita para quem não é técnico.
+ */
+function ContaDeCartaoEBoleto({ conta, depois }: { conta: ContaDeRecebimentos | null; depois: () => void }) {
+  const [abrindo, setAbrindo] = useState(false);
+  const [d, setD] = useState(TITULAR_VAZIO);
+  const [ocupado, setOcupado] = useState(false);
+  const situacao = conta?.situacao ?? "sem_conta";
+  const pf = d.documento.replace(/\D/g, "").length <= 11;
+  const põe = (campo: keyof typeof TITULAR_VAZIO, v: string) => setD((a) => ({ ...a, [campo]: v }));
+
+  const abrir = async () => {
+    setOcupado(true);
+    try {
+      await postar("/api/recebimentos/conta", d, "Não consegui abrir a conta.");
+      toast("Conta aberta. Agora falta enviar os documentos.");
+      setAbrindo(false);
+      setD(TITULAR_VAZIO);
+      depois();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Não consegui abrir a conta.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const campo = (rotulo: string, chave: keyof typeof TITULAR_VAZIO, dica: string, extra = "", tipo = "text") => (
+    <label style={s(`${ROTULO}${extra}`)}>
+      {rotulo}
+      <input type={tipo} value={d[chave]} onChange={(e) => põe(chave, e.target.value)} placeholder={dica} className="n m-focus" style={s(CAMPO)} />
+    </label>
+  );
+
+  return (
+    <div style={s(`${CARTAO};gap:12px`)}>
+      <span style={s("display:flex;align-items:center;gap:10px")}>
+        <span style={s("flex:1;font-size:var(--t-sm);font-weight:var(--w-title)")}>Cartão e boleto, com a confirmação sozinha</span>
+        {situacao === "aprovada" && <Estado forma="disco" tom="success">Aprovada</Estado>}
+        {situacao === "em_analise" && <Estado forma="anel" tom="neutral">Em análise</Estado>}
+        {situacao === "pendente" && <Estado forma="triangulo" tom="warn">Falta enviar documentos</Estado>}
+        {situacao === "recusada" && <Estado forma="triangulo" tom="warn">Não aprovada</Estado>}
+      </span>
+
+      {situacao === "sem_conta" && !abrindo && (
+        <>
+          <span style={s("font-size:var(--t-sm);color:var(--muted);line-height:var(--lh-ui)")}>
+            Com uma conta de recebimentos, a cobrança vai com um link onde o cliente paga por Pix, boleto ou cartão, e o
+            pagamento é confirmado sozinho, sem comprovante. O dinheiro cai numa conta no seu nome.
+          </span>
+          <span><Btn variant="secondary" onClick={() => setAbrindo(true)}>Ativar recebimentos</Btn></span>
+        </>
+      )}
+
+      {situacao === "sem_conta" && abrindo && (
+        <div style={s("display:grid;gap:9px")}>
+          <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+            {campo("CPF ou CNPJ", "documento", "Escreva o documento…", ";flex:1;min-width:160px")}
+            {campo(pf ? "Nome completo" : "Razão social", "nome", "Como está no documento…", ";flex:2;min-width:200px")}
+          </div>
+          <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+            {campo("E-mail", "email", "Escreva o e-mail…", ";flex:2;min-width:200px", "email")}
+            {campo("Celular", "celular", "Com DDD…", ";flex:1;min-width:150px")}
+          </div>
+          <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+            {campo("CEP", "cep", "Escreva o CEP…", ";flex:1;min-width:110px")}
+            {campo("Rua", "endereco", "Sem o número…", ";flex:3;min-width:200px")}
+          </div>
+          <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+            {campo("Número", "numero", "Escreva o número…", ";flex:1;min-width:90px")}
+            {campo("Complemento", "complemento", "Opcional…", ";flex:1;min-width:120px")}
+            {campo("Bairro", "bairro", "Escreva o bairro…", ";flex:2;min-width:150px")}
+          </div>
+          <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+            {campo("Quanto entra por mês, mais ou menos", "faturamentoMensal", "Em reais…", ";flex:1;min-width:160px")}
+            {pf
+              ? campo("Data de nascimento", "nascimento", "Escolha a data…", ";flex:1;min-width:150px", "date")
+              : (
+                <label style={s(`${ROTULO};flex:1;min-width:150px`)}>
+                  Tipo da empresa
+                  <select value={d.tipoDeEmpresa} onChange={(e) => põe("tipoDeEmpresa", e.target.value)} className="n m-focus" style={s(CAMPO)}>
+                    <option value="">Escolha…</option>
+                    {TIPOS_DE_EMPRESA.map((x) => <option key={x.valor} value={x.valor}>{x.rotulo}</option>)}
+                  </select>
+                </label>
+              )}
+          </div>
+          <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-ui)")}>
+            Depois de abrir, o Asaas pede um documento com foto e uma selfie, por um link que aparece aqui.
+          </span>
+          <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+            <Btn disabled={ocupado} onClick={abrir}>{ocupado ? "Abrindo…" : "Abrir minha conta"}</Btn>
+            <Btn variant="ghost" disabled={ocupado} onClick={() => setAbrindo(false)}>Voltar</Btn>
+          </div>
+        </div>
+      )}
+
+      {situacao === "pendente" && (
+        <div style={s("display:grid;gap:8px")}>
+          {(conta?.pendencias ?? []).map((p, i) => (
+            <span key={i} style={s("display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:var(--t-sm)")}>
+              {p.titulo}
+              {p.link && (
+                <a href={p.link} target="_blank" rel="noopener noreferrer" className="m-focus" style={s("color:var(--primary-dark);font-weight:var(--w-title)")}>
+                  Enviar agora
+                </a>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {situacao === "em_analise" && (
+        <span style={s("font-size:var(--t-sm);color:var(--muted)")}>Os documentos chegaram. O Asaas costuma responder em até 2 dias úteis.</span>
+      )}
+      {situacao === "aprovada" && (
+        <span style={s("font-size:var(--t-sm);color:var(--muted)")}>
+          As cobranças já saem com o link de Pix, boleto e cartão. Para quem não tem CPF na ficha, a MAISA pede antes de cobrar.
+        </span>
+      )}
+      {situacao === "recusada" && (
+        <span style={s("font-size:var(--t-sm);color:var(--muted)")}>O Asaas não aprovou a conta. O Pix continua funcionando; fale com o suporte da MAISA.</span>
+      )}
     </div>
   );
 }

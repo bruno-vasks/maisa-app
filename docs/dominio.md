@@ -44,6 +44,7 @@ for pedir alguma mudança, usar o nome certo economiza uma rodada inteira de con
 | **recebimento** | `Recebimento`, `RepositorioRecebimentos` | o cliente pagando o negócio (27/10/2026): um Pix que a MAISA mandou, na chave do próprio profissional, e que ninguém confirmou ainda. Cobre um atendimento, ou o mês do pacote. **Não é a assinatura** (`Assinatura`, o negócio pagando a MAISA) |
 | comprovante de pagamento | `ComprovanteDePagamento`, `LeitorDeComprovanteDePagamento` | a imagem do banco que o cliente devolve depois do Pix. Lida pelo Gemini, confirmada pelo dono no extrato. ⚠️ "comprovante" sozinho, no código, é o PDF do recibo (`GuardaDeComprovante`) |
 | como paga | `ComoPaga` | na ficha: depois de cada atendimento (o padrão do negócio), uma vez por mês no dia do recibo, ou não cobrar pelo WhatsApp |
+| conta de recebimentos | `ProvedorDeRecebimentos`, `CofreDeRecebimentos` | a opção B, atrás de flag: a subconta no Asaas, no nome do profissional, para a cobrança ir com página de Pix, boleto e cartão e o pagamento ser confirmado sozinho |
 | nota fiscal | `Nota`, `EmissorFiscal` | emissão pela Focus NFe |
 | **instância** | `EVOLUTION_INSTANCIA`, `integracoes_whatsapp` | a linha de WhatsApp conectada. Uma instância = um negócio |
 

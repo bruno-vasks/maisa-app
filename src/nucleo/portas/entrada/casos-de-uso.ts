@@ -49,6 +49,7 @@ import type { CheckoutAberto, PagamentoPix, PedidoDeCheckout } from "../saida/co
 import type {
   ArquivoRecebido, ComprovanteDePagamento, ConfigDeRecebimentos, Recebimento,
 } from "../../dominio/recebimentos";
+import type { ContaDeRecebimentos, DadosDoTitular } from "../saida/provedor-de-recebimentos";
 
 /* ───────────────────────────── agenda ───────────────────────────── */
 
@@ -1224,6 +1225,8 @@ export type PainelDeRecebimentos = {
   comprovantes: ComprovanteDePagamento[];
   /** Os pagos dos últimos 30 dias. */
   recebidos: Recebimento[];
+  /** A opção B (Asaas), atrás de flag: `disponivel` falso esconde tudo dela na tela. */
+  asaas: { disponivel: boolean; conta: ContaDeRecebimentos | null };
 };
 
 export type LerRecebimentos = (t: ContextoTenant) => Promise<PainelDeRecebimentos>;
@@ -1295,3 +1298,18 @@ export type ResultadoDosRecebimentos = {
 };
 
 export type CobrarAtendimentos = (agora: Date) => Promise<ResultadoDosRecebimentos>;
+
+/* ── a opção B: a subconta no Asaas, atrás de flag ── */
+
+/** O formulário "Ativar recebimentos", conferido campo a campo antes de ir ao provedor. */
+export type AbrirContaDeRecebimentos = (t: ContextoTenant, dados: DadosDoTitular) => Promise<ContaDeRecebimentos>;
+
+export type ResultadoDoAvisoDePagamento =
+  | { status: "pago"; documento: DocumentoDoPagamento }
+  | { status: "cancelado" | "ja_estava" | "ignorado" };
+
+/**
+ * O aviso de pagamento do provedor. Quem chama é a rota, que achou o negócio pelo token do
+ * cabeçalho (dado nosso, nunca o corpo) e monta o contexto de sistema. O corpo só diz QUAL cobrança.
+ */
+export type ReceberAvisoDePagamento = (t: ContextoTenant, corpo: unknown) => Promise<ResultadoDoAvisoDePagamento>;

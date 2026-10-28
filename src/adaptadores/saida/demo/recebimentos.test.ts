@@ -21,7 +21,14 @@ import { crc16 } from "@/nucleo/dominio/pix";
 import { AGRADECIMENTO_DO_CPF, COMPROVANTE_REPETIDO, type DadosDoComprovante } from "@/nucleo/dominio/recebimentos";
 import { atorUsuario, type ContextoTenant } from "@/nucleo/dominio/tenant";
 
+import { CHAVE_DA_PLATAFORMA, criarAsaasFalso } from "@/adaptadores/saida/asaas/asaas-falso";
+import { criarClienteAsaas } from "@/adaptadores/saida/asaas/cliente";
+import { criarProvedorAsaas, hashDoToken } from "@/adaptadores/saida/asaas/recebimentos-asaas";
+import type { ProvedorDeRecebimentos } from "@/nucleo/portas/saida/provedor-de-recebimentos";
+import { titularConferido } from "@/nucleo/aplicacao/recebimentos";
+
 import { registroDemo, zerarEspelhoDemo } from "./atendimentos";
+import { cofreDeRecebimentosDemo, zerarCofreDeRecebimentosDemo } from "./cofre-de-recebimentos";
 import { cpfDaFichaDemo, pagaPorMesDemo, recebimentosDemo, zerarRecebimentosDemo } from "./recebimentos";
 
 const AGORA = Date.parse("2026-10-27T18:00:00-03:00");
@@ -81,6 +88,7 @@ function ambiente(o: {
   cpfDoCliente?: string;
   leitura?: DadosDoComprovante | null;
   falhaNaNota?: boolean;
+  provedor?: ProvedorDeRecebimentos;
 } = {}) {
   let agora = AGORA;
   const enviados: { para: string; textos: string[]; tenant: string }[] = [];
@@ -126,6 +134,7 @@ function ambiente(o: {
     },
     novoId: uuid,
     relogio: () => agora,
+    ...(o.provedor ? { provedor: o.provedor } : {}),
   });
 
   return {
@@ -139,6 +148,7 @@ function ambiente(o: {
 beforeEach(() => {
   zerarRecebimentosDemo();
   zerarEspelhoDemo();
+  zerarCofreDeRecebimentosDemo();
 });
 
 describe("a rotina, depois do atendimento", () => {
@@ -435,5 +445,102 @@ describe("por mês", () => {
     const fim = await a.casos.cobrarAtendimentos(new Date(Date.parse("2026-10-31T09:00:00-03:00")));
     expect(fim.pix).toBe(1);
     expect(a.enviados[1].textos[0]).toContain("Segue o Pix de R$ 300,00 (2 atendimentos de outubro de 2026)");
+  });
+});
+
+describe("a opção B: o Asaas, atrás de flag", () => {
+  const TITULAR = {
+    documento: "123.456.789-09", nome: "Ana Lúcia Souza", email: "ana@x.com", celular: "(11) 98888-7777", cep: "01310-100",
+    endereco: "Av. Paulista", numero: "1000", bairro: "Bela Vista", faturamentoMensal: 8000, nascimento: "1990-05-10",
+  };
+
+  function comAsaas(o: { cpfDoCliente?: string } = {}) {
+    const falso = criarAsaasFalso();
+    const provedor = criarProvedorAsaas({
+      cofre: cofreDeRecebimentosDemo,
+      config: {
+        ligado: true, ambiente: "sandbox", chavePlataforma: CHAVE_DA_PLATAFORMA, walletPlataforma: null, taxaFixa: 0, taxaPercentual: 0,
+        urlDoAviso: "https://maisa.falsa/api/recebimentos/asaas", emailDoAviso: "a@b.com",
+      },
+      cliente: criarClienteAsaas({ fetch: falso.fetch, base: { sandbox: "https://asaas.falso/v3" } }),
+      sortearToken: () => "token-do-aviso",
+    });
+    return { falso, ...ambiente({ provedor, cpfDoCliente: o.cpfDoCliente ?? "12345678909" }) };
+  }
+
+  async function aprovado(a: ReturnType<typeof comAsaas>) {
+    await a.config("direto");
+    await a.casos.abrirContaDeRecebimentos(t, TITULAR);
+    a.falso.aprovar("acc_1");
+    expect((await a.casos.lerRecebimentos(t)).asaas).toEqual({ disponivel: true, conta: { situacao: "aprovada", pendencias: [] } });
+  }
+
+  it("abrir a conta exige o Pix ligado antes, e confere os campos em português", async () => {
+    const a = comAsaas();
+    await expect(a.casos.abrirContaDeRecebimentos(t, TITULAR)).rejects.toThrow(/Ligue o Pix primeiro/);
+    await a.config("direto");
+    await expect(a.casos.abrirContaDeRecebimentos(t, { ...TITULAR, cep: "123" })).rejects.toThrow(/CEP tem 8/);
+    expect(() => titularConferido({ ...TITULAR, documento: "111.111.111-11" })).toThrow(/CPF ou o CNPJ/);
+    expect(() => titularConferido({ ...TITULAR, documento: "11222333000181", nascimento: null })).toThrow(/tipo da empresa/);
+    const conta = await a.casos.abrirContaDeRecebimentos(t, TITULAR);
+    expect(conta.situacao).toBe("pendente");
+    expect(conta.pendencias[0].link).toContain("onboarding");
+  });
+
+  it("conta aprovada e CPF na ficha: a cobrança sai pelo Asaas, e o aviso de pagamento dá baixa e emite o recibo", async () => {
+    const a = comAsaas();
+    await aprovado(a);
+    a.passar(60 * 60_000);
+    const id = await atendimento({ minutosAtras: 20 - 60 });
+    await a.casos.cobrarAtendimentos(new Date(AGORA + 60 * 60_000));
+
+    const [cobranca] = a.enviados;
+    expect(cobranca.textos[0]).toMatch(/^Oi, João! Segue a cobrança de R\$ 50,00 \(Corte, 27\/10\)\. Dá para pagar por Pix, boleto ou cartão, neste link: https:\/\/asaas\.falso\/i\/pay_/);
+    expect(cobranca.textos[1]).toMatch(/^00020126pix-pay_/);
+    const [aberto] = (await a.casos.lerRecebimentos(t)).abertos;
+    expect(aberto).toMatchObject({ meio: "asaas", idExterno: expect.stringMatching(/^pay_/), link: expect.stringContaining("asaas.falso") });
+
+    const aviso = a.falso.pagar(aberto.idExterno!);
+    expect(await cofreDeRecebimentosDemo.negocioDoToken(hashDoToken(aviso.token))).toBe(T);
+    const r = await a.casos.receberAvisoDePagamento({ ...t, ator: { tipo: "sistema", rotina: "asaas" } }, aviso.corpo);
+    expect(r).toEqual({ status: "pago", documento: { tipo: "recibo" } });
+    expect(a.recibos).toEqual([[id]]);
+    expect(a.enviados.at(-1)?.textos).toEqual(["Pagamento de R$ 50,00 confirmado. Obrigada!"]);
+    expect(await a.casos.receberAvisoDePagamento(t, aviso.corpo)).toEqual({ status: "ja_estava" });
+  });
+
+  it("sem CPF: pergunta uma vez antes de cobrar; quando chega, a cobrança sai", async () => {
+    const a = comAsaas({ cpfDoCliente: "" });
+    await aprovado(a);
+    a.passar(60 * 60_000);
+    await atendimento({ minutosAtras: 20 - 60 });
+    await a.casos.cobrarAtendimentos(new Date(AGORA + 60 * 60_000));
+    expect(a.enviados.map((e) => e.textos[0])).toEqual(["Para eu conseguir te mandar a cobrança, preciso do seu CPF. Pode me mandar por aqui?"]);
+    expect(Object.keys(a.falso.cobrancas)).toHaveLength(0);
+
+    expect(await a.casos.guardarCpf(t, { telefone: TEL_JOAO, texto: "123.456.789-09" })).toEqual({ resposta: AGRADECIMENTO_DO_CPF });
+    expect(Object.keys(a.falso.cobrancas)).toHaveLength(1);
+    expect(a.enviados.at(-1)?.textos[1]).toMatch(/^00020126pix-/);
+  });
+
+  it("o dono aperta Mandar Pix na cobrança que esperava o CPF: vai o Pix estático", async () => {
+    const a = comAsaas({ cpfDoCliente: "" });
+    await aprovado(a);
+    const id = await atendimento({ minutosAtras: 60 * 30 });
+    await a.casos.mandarPix(t, { maisaAg: id });
+    expect(a.enviados.at(-1)?.textos[0]).toMatch(/preciso do seu CPF/);
+    await a.casos.mandarPix(t, { maisaAg: id });
+    expect(a.enviados.at(-1)?.textos[0]).toMatch(/^Oi, João! Segue o Pix de R\$ 50,00/);
+    expect(Object.keys(a.falso.cobrancas)).toHaveLength(0);
+  });
+
+  it("a cobrança removida no Asaas cancela a nossa; aviso de outro evento é ignorado", async () => {
+    const a = comAsaas();
+    await aprovado(a);
+    const id = await atendimento({ minutosAtras: 60 * 30 });
+    const r = await a.casos.mandarPix(t, { maisaAg: id });
+    const [aberto] = (await a.casos.lerRecebimentos(t)).abertos;
+    expect(await a.casos.receberAvisoDePagamento(t, { event: "PAYMENT_CREATED", payment: { id: aberto.idExterno } })).toEqual({ status: "ignorado" });
+    expect(await a.casos.receberAvisoDePagamento(t, { event: "PAYMENT_DELETED", payment: { id: aberto.idExterno, externalReference: r.id } })).toEqual({ status: "cancelado" });
   });
 });

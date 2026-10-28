@@ -280,6 +280,7 @@ Honestidade sobre o estado real, para ninguém achar que está mais pronto do qu
 | `src/adaptadores/saida/stripe/` | [.../saida/stripe/LEIA-ME.md](src/adaptadores/saida/stripe/LEIA-ME.md) |
 | `src/adaptadores/saida/abacatepay/` | [.../saida/abacatepay/LEIA-ME.md](src/adaptadores/saida/abacatepay/LEIA-ME.md) |
 | `src/adaptadores/saida/resend/` | [.../saida/resend/LEIA-ME.md](src/adaptadores/saida/resend/LEIA-ME.md) |
+| `src/adaptadores/saida/asaas/` | [.../saida/asaas/LEIA-ME.md](src/adaptadores/saida/asaas/LEIA-ME.md) |
 | `src/adaptadores/saida/evolution/` | [.../saida/evolution/LEIA-ME.md](src/adaptadores/saida/evolution/LEIA-ME.md) |
 | `src/adaptadores/saida/rebots/` | [.../saida/rebots/LEIA-ME.md](src/adaptadores/saida/rebots/LEIA-ME.md) |
 | `src/adaptadores/saida/gemini/` | [.../saida/gemini/LEIA-ME.md](src/adaptadores/saida/gemini/LEIA-ME.md) |

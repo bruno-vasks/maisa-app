@@ -90,9 +90,19 @@ export interface RepositorioRecebimentos {
     /** Quem decidiu, para o histórico (`rotuloDoAtor`). */
     por: string;
   }): Promise<Recebimento | null>;
-  /** Quando a pergunta foi ao WhatsApp do dono, ou quando o CPF foi pedido ao cliente. */
-  anotar(t: ContextoTenant, id: string, p: { perguntadoEm?: string; cpfPedidoEm?: string }): Promise<void>;
-  /** Os pagos deste telefone esperando o CPF para o documento sair: pediu, e a ficha ainda não tem. */
+  /**
+   * Quando a pergunta foi ao WhatsApp do dono, quando o CPF foi pedido ao cliente, ou a cobrança
+   * que saiu pelo Asaas (o meio passa a `asaas`, com o id lá e o link).
+   */
+  anotar(t: ContextoTenant, id: string, p: {
+    perguntadoEm?: string;
+    cpfPedidoEm?: string;
+    cobranca?: { idExterno: string; link: string };
+  }): Promise<void>;
+  /**
+   * Os recebimentos deste telefone esperando o CPF, pedido há até 30 dias, de quem a ficha ainda
+   * não tem: os pagos, para o documento sair, e os abertos da opção B, para a cobrança sair.
+   */
   esperandoCpf(t: ContextoTenant, telefone: string): Promise<Recebimento[]>;
 
   /** Registra o que foi lido. `repetido`: a mesma transação ou a mesma mensagem já estava lá. */

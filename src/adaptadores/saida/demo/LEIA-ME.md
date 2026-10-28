@@ -27,6 +27,8 @@ Cumpre a porta `RepositorioNegocio` com fixtures em memória. É o antigo
 | `fila-de-envios.ts` | `filaDeEnviosDemo` (27/10/2026): a fila de envios em memória, com as regras da 036 (uma por vez por negócio, espaço desde a última que saiu, reserva vencida em 10 min volta a valer, conteúdo apagado quando sai ou desiste). Tem teste próprio: se o dublê divergir do banco, quem o usa mente |
 | `recebimentos.ts` | `recebimentosDemo` (27/10/2026): os recebimentos em memória, com as regras da 038, sobre o registro demo de atendimentos (`maisaAg` no papel do id). `recebimentos.test.ts`, ao lado, prende o demo e o caso de uso juntos: mora aqui porque o núcleo não importa adaptador nem em teste |
 | `leitor-de-comprovante.ts` | `leitorDeComprovanteDemo`: sem Gemini, não lê nada (`null`, "não é comprovante"). Inventar um valor registraria pagamento que ninguém fez. O teste passa a leitura que quer (`lerComo`) |
+| `provedor-de-recebimentos.ts` | `provedorDeRecebimentosDemo`: a opção B **desligada** (é o que roda sem `RECEBIMENTOS_ASAAS`). `disponivel()` diz que não, e abrir conta ou emitir é `NaoConfigurado` |
+| `cofre-de-recebimentos.ts` | `cofreDeRecebimentosDemo`: a subconta em memória, com as regras da 039 (uma conta por negócio, um token por conta). Serve ao teste do adaptador do Asaas |
 | `consultas.ts` | Buscas por id (`profissional`, `servico`, `cliente`) — síncronas, só para a UI. `conversa` saiu: conversa vem do servidor, não de um array de módulo. |
 
 ## Duas portas de entrada para o mesmo dado, e a diferença é o ponto

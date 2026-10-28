@@ -104,8 +104,14 @@ export function pixFaltando(c: ConfigDeRecebimentos): string[] {
 
 export type SituacaoDoRecebimento = "perguntar" | "aberto" | "pago" | "cancelado";
 
-/** Como o pagamento foi confirmado: pelo comprovante do Pix, ou "pagou na hora" (dinheiro, cartão). */
-export type FormaDoPagamento = "pix" | "na_hora";
+/**
+ * Como o pagamento foi confirmado: pelo comprovante do Pix, "pagou na hora" (dinheiro, cartão),
+ * ou pela página do Asaas, que avisa sozinho (a opção B, atrás de flag).
+ */
+export type FormaDoPagamento = "pix" | "na_hora" | "asaas";
+
+/** Por onde a cobrança saiu: o Pix estático na chave do profissional, ou a página do Asaas. */
+export type MeioDaCobranca = "pix" | "asaas";
 
 export type Recebimento = {
   id: string;
@@ -120,6 +126,11 @@ export type Recebimento = {
   identificador: string;
   situacao: SituacaoDoRecebimento;
   forma: FormaDoPagamento | null;
+  /** `asaas` quando a cobrança saiu pela página do Asaas (039). Sem a 039, sempre `pix`. */
+  meio: MeioDaCobranca;
+  /** A cobrança lá fora e a página de pagamento, quando o meio é `asaas`. */
+  idExterno: string | null;
+  link: string | null;
   atendimentoIds: string[];
   criadoEm: string;
   /** Quando a pergunta "já pagou?" foi para o WhatsApp do dono. `null`: não foi (ou só no painel). */
@@ -396,13 +407,29 @@ export const COMPROVANTE_REPETIDO = "Esse comprovante já tinha chegado, obrigad
 
 export const confirmacaoDoPagamento = (valor: number) => `Pagamento de ${reais(valor)} confirmado. Obrigada!`;
 
-/** Para que o CPF vai servir. É a primeira coisa que a pessoa quer saber antes de mandar. */
-export type MotivoDoCpf = "recibo" | "nota";
+/**
+ * Para que o CPF vai servir. É a primeira coisa que a pessoa quer saber antes de mandar.
+ * `cobranca` é a opção B: o Asaas não emite cobrança sem o documento de quem paga, e a MAISA
+ * pergunta antes de mandar (Bruno, 27/10/2026: "pergunta uma vez, e depois consegue ficar enviando").
+ */
+export type MotivoDoCpf = "recibo" | "nota" | "cobranca";
 
 export function pedidoDeCpf(motivo: MotivoDoCpf): string {
+  if (motivo === "cobranca") return "Para eu conseguir te mandar a cobrança, preciso do seu CPF. Pode me mandar por aqui?";
   return motivo === "recibo"
     ? "Para o recibo sair no seu nome, me manda seu CPF?"
     : "Para a nota fiscal sair no seu nome, me manda seu CPF?";
+}
+
+/**
+ * A cobrança pela página do Asaas: o link, onde dá para pagar por Pix, boleto ou cartão, e o Pix
+ * copia e cola SOZINHO na mensagem seguinte, quando o Asaas o devolveu.
+ */
+export function mensagensDaCobranca(p: { nome: string | null; valor: number; descricao: string; link: string; pix: string | null }): string[] {
+  const texto =
+    `${ola(p.nome)} Segue a cobrança de ${reais(p.valor)} (${p.descricao}). Dá para pagar por Pix, boleto ou cartão, neste link: ${p.link}` +
+    (p.pix ? "\n\nSe preferir o Pix, o código vai na próxima mensagem." : "");
+  return p.pix ? [texto, p.pix] : [texto];
 }
 
 export const AGRADECIMENTO_DO_CPF = "Obrigada, anotei!";

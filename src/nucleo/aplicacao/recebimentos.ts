@@ -32,10 +32,11 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import type {
-  CobrarAtendimentos, ConfirmarComprovante, DecidirRecebimento, DescartarComprovante, DocumentoDoPagamento,
-  EmitirNota, EmitirRecibo, GuardarCpfDaConversa, LerRecebimentos, MandarPix, ReceberComprovante,
-  ResponderAoDono, ResultadoDosRecebimentos, SalvarConfigDeRecebimentos, TemPixEmAberto,
+  AbrirContaDeRecebimentos, CobrarAtendimentos, ConfirmarComprovante, DecidirRecebimento, DescartarComprovante,
+  DocumentoDoPagamento, EmitirNota, EmitirRecibo, GuardarCpfDaConversa, LerRecebimentos, MandarPix, ReceberAvisoDePagamento,
+  ReceberComprovante, ResponderAoDono, ResultadoDosRecebimentos, SalvarConfigDeRecebimentos, TemPixEmAberto,
 } from "../portas/entrada/casos-de-uso";
+import type { DadosDoTitular, ProvedorDeRecebimentos } from "../portas/saida/provedor-de-recebimentos";
 import type { FilaDeEnvios } from "../portas/saida/fila-de-envios";
 import type { LeitorDeComprovanteDePagamento } from "../portas/saida/leitor-de-comprovante-de-pagamento";
 import type { RepositorioHistorico } from "../portas/saida/memoria-cliente";
@@ -44,21 +45,21 @@ import type { RepositorioFiscal } from "../portas/saida/repositorio-fiscal";
 import type { RepositorioNegocio } from "../portas/saida/repositorio-negocio";
 import type { RepositorioRecebimentos } from "../portas/saida/repositorio-recebimentos";
 import { faltaParaEmitirRecibo } from "../dominio/checklist-recibo";
-import { cpfValido } from "../dominio/clientes";
+import { cpfValido, emailPlausivel, soDigitos } from "../dominio/clientes";
 import { chaveDe } from "../dominio/contatos";
 import { DadoInvalido, NaoConfigurado, NaoEncontrado } from "../dominio/erros";
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
-import { chavePix, ehTipoDeChave, pixCopiaECola, PIX_CIDADE_MAX, PIX_NOME_MAX, textoDoPix, type TipoDeChavePix } from "../dominio/pix";
+import { chavePix, cnpjValido, ehTipoDeChave, pixCopiaECola, PIX_CIDADE_MAX, PIX_NOME_MAX, textoDoPix, type TipoDeChavePix } from "../dominio/pix";
 import {
   AGRADECIMENTO_DO_CPF, avisoDeComprovanteAoDono, codigoNaConversa, COMPROVANTE_REPETIDO, confirmacaoDoPagamento,
   conferirRecebedor, cpfNaMensagem, decisaoDoDono, descricaoDoRecebimento, ehDepoisDoAtendimento,
-  identificadorDoRecebimento, janelaDepoisDoAtendimento, mensagensDoPix, pedidoDeCpf, perguntaAoDono,
+  identificadorDoRecebimento, janelaDepoisDoAtendimento, mensagensDaCobranca, mensagensDoPix, pedidoDeCpf, perguntaAoDono,
   perguntaValendo, pixFaltando, respostaAoComprovante, respostaAoDono, soOCpf, sugerirRecebimento,
   type AtendimentoACobrar, type ConfigDeRecebimentos, type MotivoDoCpf, type Recebimento,
 } from "../dominio/recebimentos";
 import { corteDoRecibo, diaDoReciboAlcancado, mesQueOReciboFecha, numeroDaDona } from "../dominio/recibo-automatico";
 import { rotuloDoAtor, type ContextoTenant } from "../dominio/tenant";
-import { hojeISO } from "../dominio/tempo";
+import { hojeISO, somarDias } from "../dominio/tempo";
 
 export type DepsRecebimentos = {
   recebimentos: RepositorioRecebimentos;
@@ -77,6 +78,8 @@ export type DepsRecebimentos = {
   novoId: () => string;
   /** Esvaziar a fila logo depois de enfileirar, em segundo plano. Sem ele, sai no próximo tique. */
   drenar?: (t: ContextoTenant) => void;
+  /** A opção B (o Asaas), atrás de flag. Sem ele, ou desligado, tudo é o Pix estático. */
+  provedor?: ProvedorDeRecebimentos;
   /** Só o teste troca. */
   relogio?: () => number;
 };
@@ -97,6 +100,41 @@ const CHAVE_DO_TIPO: Record<TipoDeChavePix, string> = {
 };
 
 const porCriacao = (a: Recebimento, b: Recebimento) => (a.criadoEm < b.criadoEm ? -1 : 1);
+
+const TIPOS_DE_EMPRESA = ["MEI", "LIMITED", "INDIVIDUAL", "ASSOCIATION"] as const;
+
+/** O formulário de abrir conta, conferido antes de ir ao provedor: o que ele recusaria, em português. */
+export function titularConferido(d: DadosDoTitular): DadosDoTitular {
+  const documento = soDigitos(d.documento);
+  const pf = documento.length === 11;
+  if (pf ? !cpfValido(documento) : !(documento.length === 14 && cnpjValido(documento))) {
+    throw new DadoInvalido("Confira o CPF ou o CNPJ.", "documento");
+  }
+  if ((d.nome ?? "").trim().length < 3) throw new DadoInvalido(pf ? "Diga o seu nome completo." : "Diga a razão social.", "nome");
+  if (!emailPlausivel((d.email ?? "").trim())) throw new DadoInvalido("Confira o e-mail.", "email");
+  const celular = soDigitos(d.celular).replace(/^55(?=\d{10,11}$)/, "");
+  if (celular.length < 10 || celular.length > 11) throw new DadoInvalido("O celular precisa do DDD.", "celular");
+  if (soDigitos(d.cep).length !== 8) throw new DadoInvalido("O CEP tem 8 números.", "cep");
+  for (const [campo, frase] of [["endereco", "a rua"], ["numero", "o número"], ["bairro", "o bairro"]] as const) {
+    if (!String(d[campo] ?? "").trim()) throw new DadoInvalido(`Falta ${frase}.`, campo);
+  }
+  if (!(Number(d.faturamentoMensal) > 0)) throw new DadoInvalido("Diga quanto entra por mês, mais ou menos.", "faturamentoMensal");
+  if (pf && !/^\d{4}-\d{2}-\d{2}$/.test(d.nascimento ?? "")) throw new DadoInvalido("Falta a data de nascimento.", "nascimento");
+  if (!pf && !(TIPOS_DE_EMPRESA as readonly string[]).includes(d.tipoDeEmpresa ?? "")) {
+    throw new DadoInvalido("Escolha o tipo da empresa.", "tipoDeEmpresa");
+  }
+  return {
+    ...d,
+    documento,
+    nome: d.nome.trim(),
+    email: d.email.trim(),
+    celular,
+    cep: soDigitos(d.cep),
+    faturamentoMensal: Number(d.faturamentoMensal),
+    nascimento: pf ? d.nascimento : null,
+    tipoDeEmpresa: pf ? null : d.tipoDeEmpresa,
+  };
+}
 
 export function criarRecebimentos(deps: DepsRecebimentos) {
   const agora = () => (deps.relogio ?? Date.now)();
@@ -120,6 +158,37 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const codigo = pixCopiaECola({ chave: c.chave!, nome: c.nome, cidade: c.cidade, valor: r.valor, identificador: r.identificador });
     const [texto, cod] = mensagensDoPix({ nome: r.nome, valor: r.valor, descricao: r.descricao, codigo });
     await enfileirar(t, r.telefone, [texto, cod], [texto, codigoNaConversa(r.valor)]);
+  }
+
+  /**
+   * A cobrança sai pelo Asaas quando a opção B está ligada, a conta do negócio aprovada e a ficha tem
+   * CPF. Sem CPF, a MAISA pede uma vez e a cobrança espera a resposta (Bruno, 27/10/2026: "pergunta
+   * uma vez, salva, e depois consegue ficar enviando"). Fora isso (opção B desligada, sem ficha, o
+   * CPF pedido e não respondido, ou o dono apertando "Mandar Pix" de novo), o Pix estático.
+   */
+  async function mandarCobranca(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos, o: { pixDireto?: boolean } = {}): Promise<void> {
+    const provedor = deps.provedor;
+    if (!o.pixDireto && provedor?.disponivel() && (await provedor.conta(t).catch(() => null))?.situacao === "aprovada") {
+      const cliente = r.clienteId ? await deps.negocio.cliente(t, r.clienteId).catch(() => null) : null;
+      if (cliente && cpfValido(cliente.cpf)) {
+        const cobranca = await provedor.emitir(t, {
+          referencia: r.id,
+          valor: r.valor,
+          vencimento: somarDias(hojeISO(agora()), 3),
+          descricao: r.descricao,
+          pagador: { nome: cliente.nome, documento: soDigitos(cliente.cpf), telefone: r.telefone, referencia: cliente.id },
+        });
+        await deps.recebimentos.anotar(t, r.id, { cobranca: { idExterno: cobranca.idExterno, link: cobranca.link } });
+        const mensagens = mensagensDaCobranca({ nome: r.nome, valor: r.valor, descricao: r.descricao, link: cobranca.link, pix: cobranca.pixCopiaECola });
+        await enfileirar(t, r.telefone, mensagens, cobranca.pixCopiaECola ? [mensagens[0], codigoNaConversa(r.valor)] : mensagens);
+        return;
+      }
+      if (cliente && !r.cpfPedidoEm) {
+        await pedirCpf(t, r, "cobranca");
+        return;
+      }
+    }
+    await mandarOPix(t, r, c);
   }
 
   function criarRecebimento(t: ContextoTenant, atendimentos: AtendimentoACobrar[], situacao: "perguntar" | "aberto") {
@@ -226,7 +295,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       const c = await configPronta(t);
       const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar"], para: "aberto", por });
       if (!r) throw jaFoi();
-      await mandarOPix(comoSistema(t), r, c);
+      await mandarCobranca(comoSistema(t), r, c);
       return { recebimento: r, documento: { tipo: "nenhum" } };
     }
 
@@ -255,9 +324,16 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       const r = await deps.recebimentos.porId(t, a.recebimentoId);
       if (r?.situacao === "pago") throw new DadoInvalido("Este atendimento já está pago.");
       if (r?.situacao === "perguntar") return (await decidir(t, { id: r.id, decisao: "pix" })).recebimento;
-      /* Já em aberto: manda o mesmo Pix de novo. É o "o cliente pediu o código outra vez". */
+      /* Já em aberto: manda de novo. É o "o cliente pediu o código outra vez". A cobrança do Asaas
+       * vai com o mesmo link (não se emite outra); a que esperava o CPF, e o dono apertou, vai no
+       * Pix estático. */
       if (r?.situacao === "aberto") {
-        await mandarOPix(comoSistema(t), r, c);
+        if (r.meio === "asaas" && r.link) {
+          const mensagens = mensagensDaCobranca({ nome: r.nome, valor: r.valor, descricao: r.descricao, link: r.link, pix: null });
+          await enfileirar(comoSistema(t), r.telefone, mensagens, mensagens);
+        } else {
+          await mandarCobranca(comoSistema(t), r, c, { pixDireto: Boolean(r.cpfPedidoEm) });
+        }
         return r;
       }
     }
@@ -266,7 +342,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     if (!(a.valor > 0)) throw new DadoInvalido("Este atendimento não tem valor. Ponha o valor e tente de novo.", "valor");
     const r = await criarRecebimento(t, [a], "aberto");
     if (!r) throw new DadoInvalido("Este atendimento acabou de entrar numa cobrança. Atualize a tela.");
-    await mandarOPix(comoSistema(t), r, c);
+    await mandarCobranca(comoSistema(t), r, c);
     return r;
   };
 
@@ -287,11 +363,14 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
   };
 
   const lerRecebimentos: LerRecebimentos = async (t) => {
-    const [config, emAberto, comprovantes, recebidos] = await Promise.all([
+    const provedor = deps.provedor?.disponivel() ? deps.provedor : null;
+    const [config, emAberto, comprovantes, recebidos, conta] = await Promise.all([
       deps.recebimentos.config(t),
       deps.recebimentos.emAberto(t),
       deps.recebimentos.comprovantes(t, { situacao: "a_conferir" }),
       deps.recebimentos.pagos(t, { desde: new Date(agora() - 30 * DIA_MS).toISOString() }),
+      /* Conferida a cada leitura enquanto não foi aprovada: é a tela que mostra o que falta enviar. */
+      provedor ? provedor.conta(t, { conferir: true }).catch(() => null) : Promise.resolve(null),
     ]);
     return {
       config,
@@ -300,6 +379,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       abertos: emAberto.filter((r) => r.situacao === "aberto"),
       comprovantes,
       recebidos,
+      asaas: { disponivel: Boolean(provedor), conta },
     };
   };
 
@@ -337,6 +417,36 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     };
     await deps.recebimentos.salvarConfig(t, config);
     return config;
+  };
+
+  /* ───────────── a opção B: a subconta e o aviso ───────────── */
+
+  const abrirContaDeRecebimentos: AbrirContaDeRecebimentos = async (t, d) => {
+    const provedor = deps.provedor;
+    if (!provedor?.disponivel()) throw new NaoConfigurado(["RECEBIMENTOS_ASAAS", "ASAAS_PLATAFORMA_CHAVE"]);
+    if (pixFaltando(await deps.recebimentos.config(t)).length) {
+      throw new DadoInvalido("Ligue o Pix primeiro, aqui em Receber por Pix. A conta para cartão e boleto vem depois.");
+    }
+    return provedor.abrirConta(t, titularConferido(d));
+  };
+
+  const receberAvisoDePagamento: ReceberAvisoDePagamento = async (t, corpo) => {
+    const evento = deps.provedor?.lerEvento(corpo) ?? null;
+    if (!evento || evento.tipo === "ignorado" || !evento.referencia) return { status: "ignorado" };
+    const r = await deps.recebimentos.porId(t, evento.referencia);
+    if (!r) return { status: "ignorado" };
+    if (evento.tipo === "paga") {
+      const pago = await deps.recebimentos.mudar(t, r.id, { de: ["perguntar", "aberto"], para: "pago", forma: "asaas", por: "Asaas" });
+      if (!pago) return { status: "ja_estava" };
+      return { status: "pago", documento: await quitar(comoSistema(t), pago, true) };
+    }
+    if (evento.tipo === "cancelada") {
+      const cancelado = await deps.recebimentos.mudar(t, r.id, { de: ["aberto"], para: "cancelado", por: "Asaas" });
+      return { status: cancelado ? "cancelado" : "ja_estava" };
+    }
+    /* Estorno: o dinheiro voltou ao cliente pelo Asaas. O recibo ou a nota já saíram; desfazer é
+     * decisão do dono, e ela fica no painel do Asaas. */
+    return { status: "ignorado" };
   };
 
   /* ───────────── 2 · a conversa ───────────── */
@@ -388,7 +498,16 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const cliente = await deps.negocio.cliente(t, esperando[0].clienteId!);
     if (!cliente) return null;
     await deps.negocio.atualizarCliente(t, { id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, cpf });
-    for (const r of esperando) await emitirDocumento(comoSistema(t), r, false);
+    /* O que esperava o CPF: o documento de quem já pagou, e a cobrança do Asaas que ainda não saiu. */
+    const config = await deps.recebimentos.config(t);
+    for (const r of esperando) {
+      if (r.situacao === "pago") await emitirDocumento(comoSistema(t), r, false);
+      else if (!r.idExterno && !pixFaltando(config).length) {
+        await mandarCobranca(comoSistema(t), r, config).catch((e) => {
+          console.warn(`[aplicacao/recebimentos] ${t.tenantId}: o CPF chegou, mas a cobrança ${r.id} não saiu: ${e instanceof Error ? e.message : String(e)}`);
+        });
+      }
+    }
     return { resposta: soOCpf(p.texto) ? AGRADECIMENTO_DO_CPF : null };
   };
 
@@ -423,7 +542,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       for (const a of janela ? await deps.recebimentos.atendimentosQueAcabaram(t, janela) : []) {
         const novo = await criarRecebimento(t, [a], c.depoisDoAtendimento === "perguntar" ? "perguntar" : "aberto");
         if (novo?.situacao === "aberto") {
-          await mandarOPix(t, novo, c);
+          await mandarCobranca(t, novo, c);
           r.pix++;
         }
       }
@@ -442,7 +561,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
       if (!sessoes.length) continue;
       const novo = await criarRecebimento(t, sessoes, "aberto");
       if (novo) {
-        await mandarOPix(t, novo, c);
+        await mandarCobranca(t, novo, c);
         r.pix++;
       }
     }
@@ -466,6 +585,8 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
 
   return {
     cobrarAtendimentos,
+    abrirContaDeRecebimentos,
+    receberAvisoDePagamento,
     lerRecebimentos,
     salvarConfig,
     mandarPix,

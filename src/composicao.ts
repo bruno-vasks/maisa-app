@@ -115,6 +115,11 @@ import { recebimentosDemo } from "@/adaptadores/saida/demo/recebimentos";
 import { leitorDeComprovanteDemo } from "@/adaptadores/saida/demo/leitor-de-comprovante";
 import { leitorDeComprovanteGemini } from "@/adaptadores/saida/gemini/comprovante";
 import { criarRecebimentos } from "@/nucleo/aplicacao/recebimentos";
+import { criarProvedorAsaas, hashDoToken } from "@/adaptadores/saida/asaas/recebimentos-asaas";
+import { isAsaasConfigured } from "@/adaptadores/saida/asaas/config";
+import { cofreDeRecebimentosSupabase } from "@/adaptadores/saida/supabase/cofre-de-recebimentos";
+import { cofreDeRecebimentosDemo } from "@/adaptadores/saida/demo/cofre-de-recebimentos";
+import { provedorDeRecebimentosDemo } from "@/adaptadores/saida/demo/provedor-de-recebimentos";
 import type { ArquivoRecebido } from "@/nucleo/dominio/recebimentos";
 import { agendaDeRecibosSupabase } from "@/adaptadores/saida/supabase/agenda-de-recibos";
 import { canalSupabase } from "@/adaptadores/saida/supabase/canal";
@@ -591,6 +596,12 @@ const emitirNota = criarEmitirNota({
  * em segundo plano (`waitUntil`), como no fechamento do lote. Ver `aplicacao/recebimentos.ts`. */
 const recebimentosRepo = isSupabaseConfigured ? recebimentosSupabase : recebimentosDemo;
 
+/* A opção B (o Asaas), ATRÁS DE FLAG: só com `RECEBIMENTOS_ASAAS=1` e a chave da conta da
+ * plataforma. Sem elas, o provedor desligado, e tudo é o Pix estático. O cofre da subconta (a chave
+ * no Vault) é entregue aqui ao adaptador do Asaas: um não importa o outro. */
+const cofreDeRecebimentos = isAdminConfigured ? cofreDeRecebimentosSupabase : cofreDeRecebimentosDemo;
+const provedorDeRecebimentos = isAsaasConfigured ? criarProvedorAsaas({ cofre: cofreDeRecebimentos }) : provedorDeRecebimentosDemo;
+
 const recebimentos = criarRecebimentos({
   recebimentos: recebimentosRepo,
   /* Sem Gemini, o demo: não lê nada, e a imagem segue o caminho de sempre. */
@@ -603,6 +614,7 @@ const recebimentos = criarRecebimentos({
   emitirRecibo: emitirReciboUnitario,
   emitirNota,
   novoId: randomUUID,
+  provedor: provedorDeRecebimentos,
   drenar: (t) => {
     try {
       waitUntil(drenarFilaDoNegocio(t).catch((e) => console.error("[composicao] drenar a fila depois da cobrança", e)));
@@ -801,6 +813,9 @@ export const app = {
   decidirRecebimento: recebimentos.decidir,
   confirmarComprovante: recebimentos.confirmarComprovante,
   descartarComprovante: recebimentos.descartarComprovante,
+  /* A opção B, atrás de flag: a subconta e o aviso de pagamento do Asaas. */
+  abrirContaDeRecebimentos: recebimentos.abrirContaDeRecebimentos,
+  receberAvisoDePagamento: recebimentos.receberAvisoDePagamento,
 
   lembrarCliente: criarLembrarCliente({ negocio, memoria }),
   anotarFato: criarAnotarFato({ negocio, memoria }),
@@ -1148,6 +1163,16 @@ export async function ouvirAudio(envelope: Envelope): Promise<string> {
     console.error(`[composicao] não deu para ouvir o áudio de ${envelope.de}`, e);
     return textoDoAudio(null);
   }
+}
+
+/**
+ * De qual negócio é o aviso de pagamento do Asaas (27/10/2026, a opção B): pelo hash do token que
+ * veio no cabeçalho, que é dado nosso. `null` com a flag desligada ou com token desconhecido.
+ * Aqui porque junta o adaptador do Asaas (que sabe o hash) e o cofre (que sabe de quem é).
+ */
+export async function negocioDoAvisoDePagamento(token: string): Promise<string | null> {
+  if (!token || !isAsaasConfigured) return null;
+  return cofreDeRecebimentos.negocioDoToken(hashDoToken(token));
 }
 
 /**
