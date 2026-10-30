@@ -37,7 +37,8 @@ const PROMPT =
   "um boleto em aberto, não é um print de conversa. Se for, extraia exatamente o que está escrito, sem " +
   "inventar: valor pago em reais (número, ponto como decimal), data do pagamento (AAAA-MM-DD), nome de " +
   "quem recebeu, chave Pix de quem recebeu, CPF ou CNPJ de quem recebeu (como aparece, mesmo " +
-  "mascarado), nome de quem pagou, banco ou instituição, ID da transação (o identificador fim a fim do " +
+  "mascarado), nome de quem pagou, banco ou instituição DE QUEM PAGOU (a origem do Pix, não a de quem " +
+  "recebeu), ID da transação (o identificador fim a fim do " +
   "Pix, que começa com E, ou o código de autenticação) e o identificador ou a descrição do Pix, se " +
   "houver. Campo que não aparece fica nulo.";
 

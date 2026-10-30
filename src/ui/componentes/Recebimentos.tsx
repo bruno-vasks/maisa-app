@@ -23,7 +23,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { s, Btn, Estado, toast } from "@/ui/primitivos";
 import { mensagemDaFalha } from "@/ui/falhas";
 import { TIPOS_DE_CHAVE, tipoProvavel, type TipoDeChavePix } from "@/nucleo/dominio/pix";
-import type { ComprovanteDePagamento, Conferencia, DepoisDoAtendimento, Recebimento } from "@/nucleo/dominio/recebimentos";
+import { conferirCodigoDoPix, type ComprovanteDePagamento, type Conferencia, type DepoisDoAtendimento, type Recebimento } from "@/nucleo/dominio/recebimentos";
 import { chaveDe } from "@/nucleo/dominio/contatos";
 import type { DocumentoDoPagamento, PainelDeRecebimentos } from "@/nucleo/portas/entrada/casos-de-uso";
 import type { ContaDeRecebimentos } from "@/nucleo/portas/saida/provedor-de-recebimentos";
@@ -222,6 +222,8 @@ export function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePa
   const selo = SELO[c.conferencia];
 
   const detalhes = [c.banco, diaMes(c.pagoEm), c.recebedorNome ? `para ${c.recebedorNome}` : null].filter(Boolean).join(" · ");
+  const cobranca = doTelefone.find((r) => r.id === alvo) ?? null;
+  const codigo = conferirCodigoDoPix(c, { recebidoEm: c.criadoEm, cobrancaEnviadaEm: cobranca?.criadoEm ?? null });
 
   return (
     <div style={s(CARTAO)}>
@@ -237,6 +239,9 @@ export function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePa
           No comprovante, quem recebeu não parece ser você. Confira no extrato antes de confirmar.
         </span>
       )}
+      {codigo.motivos.map((m) => (
+        <span key={m} style={s("font-size:var(--t-label);color:var(--warn)")}>{m}</span>
+      ))}
       {doTelefone.length > 1 && (
         <label style={s(ROTULO)}>
           Qual cobrança ele paga?

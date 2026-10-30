@@ -36,7 +36,7 @@ import {
 } from "@/ui/componentes/Recebimentos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { chaveDe } from "@/nucleo/dominio/contatos";
-import type { ComprovanteDePagamento, FormaDoPagamento, Recebimento } from "@/nucleo/dominio/recebimentos";
+import { conferirCodigoDoPix, type ComprovanteDePagamento, type FormaDoPagamento, type Recebimento } from "@/nucleo/dominio/recebimentos";
 import type { TipoDeChavePix } from "@/nucleo/dominio/pix";
 
 type Aba = "conferir" | "esperando" | "recebidos";
@@ -235,6 +235,8 @@ function LinhaDoComprovante({ c, abertos, depois, ultima }: { c: ComprovanteDePa
   const selo = SELO[c.conferencia];
   const cobranca = doTelefone.find((r) => r.id === alvo) ?? null;
   const valorDiferente = c.valor != null && cobranca != null && Math.abs(c.valor - cobranca.valor) >= 0.01;
+  /* O código da transação contra o banco, a data e a hora da cobrança (`conferirCodigoDoPix`). */
+  const codigo = conferirCodigoDoPix(c, { recebidoEm: c.criadoEm, cobrancaEnviadaEm: cobranca?.criadoEm ?? null });
   const lido = [c.banco, c.recebedorNome ? `para ${c.recebedorNome}` : null].filter(Boolean).join(" · ");
 
   return (
@@ -244,7 +246,11 @@ function LinhaDoComprovante({ c, abertos, depois, ultima }: { c: ComprovanteDePa
           <span style={s(NOME)}>{quem(c)} mandou um comprovante</span>
           <span style={s(SUB)}>chegou {haQuanto(c.criadoEm)}{lido ? ` · ${lido}` : ""}</span>
         </span>
-        <Estado forma={selo.forma} tom={selo.tom}>{selo.texto}</Estado>
+        <span style={s("display:flex;flex-wrap:wrap;gap:6px 14px")}>
+          <Estado forma={selo.forma} tom={selo.tom}>{selo.texto}</Estado>
+          {codigo.situacao === "confere" && <Estado forma="disco" tom="success">Código do Pix confere</Estado>}
+          {codigo.situacao === "nao_confere" && <Estado forma="triangulo" tom="warn">Código do Pix não bate</Estado>}
+        </span>
       </div>
 
       <div style={s("display:flex;flex-direction:column;gap:6px;max-width:560px")}>
@@ -261,6 +267,9 @@ function LinhaDoComprovante({ c, abertos, depois, ultima }: { c: ComprovanteDePa
         {c.conferencia === "nao_confere" && (
           <span style={s("font-size:var(--t-label);color:var(--warn)")}>No comprovante, quem recebeu não parece ser você.</span>
         )}
+        {codigo.motivos.map((m) => (
+          <span key={m} style={s("font-size:var(--t-label);color:var(--warn)")}>{m}</span>
+        ))}
         {valorDiferente && (
           <span style={s("font-size:var(--t-label);color:var(--warn)")}>
             O comprovante diz {fmt(c.valor!)}, e a cobrança é de {fmt(cobranca!.valor)}.

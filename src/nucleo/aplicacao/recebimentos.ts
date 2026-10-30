@@ -51,7 +51,7 @@ import { DadoInvalido, NaoConfigurado, NaoEncontrado } from "../dominio/erros";
 import { caminhoDaNota, fiscalFaltando } from "../dominio/fiscal";
 import { chavePix, cnpjValido, ehTipoDeChave, pixCopiaECola, PIX_CIDADE_MAX, PIX_NOME_MAX, textoDoPix, type TipoDeChavePix } from "../dominio/pix";
 import {
-  AGRADECIMENTO_DO_CPF, avisoDeComprovanteAoDono, codigoNaConversa, COMPROVANTE_REPETIDO, confirmacaoDoPagamento,
+  AGRADECIMENTO_DO_CPF, avisoDeComprovanteAoDono, codigoNaConversa, conferirCodigoDoPix, COMPROVANTE_REPETIDO, confirmacaoDoPagamento,
   conferirRecebedor, cpfNaMensagem, decisaoDoDono, descricaoDoRecebimento, ehDepoisDoAtendimento,
   avisoDePagamentoForaDeHoraAoDono, identificadorDoRecebimento, janelaDepoisDoAtendimento, mensagensDaCobranca, mensagensDoPix,
   pedidoDeCpf, perguntaAoDono, resumoParaANota,
@@ -530,7 +530,8 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const canal = await deps.canalDoNegocio.ler(t).catch(() => null);
     const dono = numeroDaDona(canal);
     if (dono) {
-      const aviso = avisoDeComprovanteAoDono({ nome: sugerido?.nome ?? abertos[0].nome, telefone: p.telefone, valor: dados.valor, conferencia });
+      const codigo = conferirCodigoDoPix(dados, { recebidoEm: agoraISO(), cobrancaEnviadaEm: sugerido?.criadoEm ?? null });
+      const aviso = avisoDeComprovanteAoDono({ nome: sugerido?.nome ?? abertos[0].nome, telefone: p.telefone, valor: dados.valor, conferencia, codigo });
       await enfileirar(t, dono, [aviso]).catch(() => {});
     }
     return { resposta: respostaAoComprovante(dados.valor) };

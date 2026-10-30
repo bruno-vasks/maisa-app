@@ -181,3 +181,95 @@ export function pixCopiaECola(p: {
     "6304";
   return corpo + crc16(corpo);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O CÓDIGO DA TRANSAÇÃO — o id fim a fim que todo comprovante de Pix traz (30/10/2026).
+ *
+ * ★ PEDIDO DO BRUNO: deixar o comprovante mais difícil de falsificar, sem custo, enquanto a
+ * confirmação automática não existe. O código não prova que o dinheiro chegou (isso só o extrato),
+ * mas ele carrega dois fatos que um comprovante editado costuma errar.
+ *
+ * O formato é do Manual de Padrões para Iniciação do Pix: `E` + o ISPB de quem iniciou o Pix
+ * (8 dígitos) + data e hora em UTC (`AAAAMMDDHHmm`) + 11 caracteres. 32 ao todo.
+ *
+ * ⚠️ A HORA NÃO É EXATA. O Pix aceita o código com até 12 horas de diferença do processamento, e
+ * Pix agendado costuma levar uma hora fixa do dia da liquidação. Quem usa a hora daqui compara com
+ * folga de horas, nunca de minutos.
+ *
+ * ⚠️ O ISPB É DE QUEM INICIOU. Quase sempre é o banco de quem pagou; num Pix iniciado pelo Open
+ * Finance (uma carteira pagando a partir de outro banco), é o da iniciadora. Por isso banco
+ * diferente vira aviso para o dono olhar, nunca recusa.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+export type IdFimAFim = { ispb: string; em: Date };
+
+/** O código lido, ou `null` se não tem o formato do Pix (o código de autenticação de um banco,
+ *  por exemplo). Quem recebe `null` não conclui nada. */
+export function lerIdFimAFim(bruto: string | null | undefined): IdFimAFim | null {
+  const m = /^E(\d{8})(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})[A-Za-z0-9]{11}$/.exec((bruto ?? "").replace(/\s/g, "").toUpperCase());
+  if (!m) return null;
+  const [, ispb, a, mes, d, h, min] = m;
+  if (+h > 23 || +min > 59) return null;
+  const em = new Date(Date.UTC(+a, +mes - 1, +d, +h, +min));
+  if (em.getUTCFullYear() !== +a || em.getUTCMonth() !== +mes - 1 || em.getUTCDate() !== +d) return null;
+  return { ispb, em };
+}
+
+/**
+ * As instituições que mais aparecem num comprovante, com o ISPB conferido na lista de
+ * participantes do STR do Banco Central (`ParticipantesSTR.csv`, 30/10/2026) e os nomes como o
+ * cliente e o app do banco escrevem. ISPB fora daqui não é suspeito: só não dá para comparar.
+ *
+ * `grupo` junta marcas que pagam pelo ISPB uma da outra (o iti pelo Itaú, o Next pelo Bradesco,
+ * o PicPay e o Original). Na dúvida, mais grupo: o custo de juntar é deixar passar um aviso; o de
+ * separar é acusar um pagamento de verdade.
+ *
+ * Cooperativas (Sicoob, Sicredi, Ailos, Cresol, Unicred) ficaram de fora de propósito: cada
+ * cooperativa tem o próprio ISPB, e o nome no comprovante é o do sistema.
+ */
+const INSTITUICOES: { ispb: string; nome: string; apelidos: string[]; grupo?: string }[] = [
+  { ispb: "00000000", nome: "Banco do Brasil", apelidos: ["banco do brasil", "bb"] },
+  { ispb: "00360305", nome: "Caixa", apelidos: ["caixa"] },
+  { ispb: "60701190", nome: "Itaú", apelidos: ["itau", "iti"] },
+  { ispb: "60746948", nome: "Bradesco", apelidos: ["bradesco", "next"] },
+  { ispb: "90400888", nome: "Santander", apelidos: ["santander"] },
+  { ispb: "18236120", nome: "Nubank", apelidos: ["nubank", "nu pagamentos"] },
+  { ispb: "00416968", nome: "Inter", apelidos: ["inter", "banco inter"] },
+  { ispb: "31872495", nome: "C6", apelidos: ["c6", "c6 bank"] },
+  { ispb: "10573521", nome: "Mercado Pago", apelidos: ["mercado pago", "mercadopago"] },
+  { ispb: "22896431", nome: "PicPay", apelidos: ["picpay"], grupo: "picpay" },
+  { ispb: "92894922", nome: "Original", apelidos: ["original", "banco original"], grupo: "picpay" },
+  { ispb: "08561701", nome: "PagBank", apelidos: ["pagbank", "pagseguro"] },
+  { ispb: "16501555", nome: "Stone", apelidos: ["stone", "ton"] },
+  { ispb: "37880206", nome: "Cora", apelidos: ["cora"] },
+  { ispb: "18189547", nome: "InfinitePay", apelidos: ["infinitepay", "cloudwalk"] },
+  { ispb: "20855875", nome: "Neon", apelidos: ["neon"] },
+  { ispb: "09089356", nome: "Efí", apelidos: ["efi", "efi bank", "gerencianet"] },
+  { ispb: "19540550", nome: "Asaas", apelidos: ["asaas"] },
+  { ispb: "30306294", nome: "BTG", apelidos: ["btg", "btg pactual"] },
+  { ispb: "92702067", nome: "Banrisul", apelidos: ["banrisul"] },
+  { ispb: "59285411", nome: "Pan", apelidos: ["banco pan"] },
+  { ispb: "10664513", nome: "Agibank", apelidos: ["agibank"] },
+  { ispb: "58160789", nome: "Safra", apelidos: ["safra"] },
+];
+
+const semAcento = (v: string) => v.normalize("NFD").replace(ACENTOS, "").toLowerCase();
+
+/** A instituição deste ISPB, se ela está na tabela. */
+export const instituicaoDoIspb = (ispb: string) => INSTITUICOES.find((i) => i.ispb === ispb) ?? null;
+
+/** As instituições que o texto nomeia, por palavra inteira ("Itaú Unibanco" → Itaú; "Banco
+ *  Interior" não é o Inter). */
+export function instituicoesNoTexto(texto: string | null | undefined): typeof INSTITUICOES {
+  if (!texto) return [];
+  const t = ` ${semAcento(texto).replace(/[^a-z0-9]+/g, " ")} `;
+  return INSTITUICOES.filter((i) => i.apelidos.some((a) => t.includes(` ${a} `)));
+}
+
+/** O ISPB do código e a instituição escrita são a mesma (ou do mesmo grupo)? `null`: não dá para dizer. */
+export function mesmaInstituicao(ispb: string, texto: string | null | undefined): boolean | null {
+  const doCodigo = instituicaoDoIspb(ispb);
+  const escritas = instituicoesNoTexto(texto);
+  if (!doCodigo || !escritas.length) return null;
+  return escritas.some((i) => i.ispb === ispb || (i.grupo != null && i.grupo === doCodigo.grupo));
+}

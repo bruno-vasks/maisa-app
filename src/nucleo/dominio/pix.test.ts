@@ -4,7 +4,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  chavePix, cnpjValido, crc16, identificadorDoPix, pixCopiaECola, textoDoPix, tipoProvavel,
+  chavePix, cnpjValido, crc16, identificadorDoPix, instituicoesNoTexto, lerIdFimAFim, mesmaInstituicao,
+  pixCopiaECola, textoDoPix, tipoProvavel,
 } from "./pix";
 
 describe("o BR Code", () => {
@@ -80,5 +81,44 @@ describe("a chave, dentro do tipo que o dono escolheu", () => {
   it("CNPJ pelo dígito verificador", () => {
     expect(cnpjValido("11222333000181")).toBe(true);
     expect(cnpjValido("11111111111111")).toBe(false);
+  });
+});
+
+describe("o código da transação (id fim a fim)", () => {
+  /* Nubank (18236120), 30/10/2026 17:32 em UTC, que é 14:32 em Brasília. */
+  const CODIGO = "E18236120202610301732AbC12dE34fG";
+
+  it("lê o ISPB de quem iniciou e a hora em UTC", () => {
+    expect(lerIdFimAFim(CODIGO)).toEqual({ ispb: "18236120", em: new Date("2026-10-30T17:32:00Z") });
+  });
+
+  it("aceita espaço e minúscula, como o leitor às vezes devolve", () => {
+    expect(lerIdFimAFim(" e18236120 202610301732 abc12de34fg ")?.ispb).toBe("18236120");
+  });
+
+  it("não conclui nada do que não tem o formato: código de autenticação, tamanho errado, data que não existe", () => {
+    expect(lerIdFimAFim("A1B2C3D4E5")).toBeNull();
+    expect(lerIdFimAFim("E18236120202610301732AbC12dE34f")).toBeNull();
+    expect(lerIdFimAFim("E18236120202613301732AbC12dE34fG")).toBeNull();
+    expect(lerIdFimAFim("E18236120202602301732AbC12dE34fG")).toBeNull();
+    expect(lerIdFimAFim("E18236120202610302532AbC12dE34fG")).toBeNull();
+    expect(lerIdFimAFim(null)).toBeNull();
+  });
+
+  it("acha a instituição pela palavra inteira, sem acento", () => {
+    expect(instituicoesNoTexto("Itaú Unibanco S.A.").map((i) => i.nome)).toEqual(["Itaú"]);
+    expect(instituicoesNoTexto("NU PAGAMENTOS - IP").map((i) => i.nome)).toEqual(["Nubank"]);
+    expect(instituicoesNoTexto("Banco Interior")).toEqual([]);
+    expect(instituicoesNoTexto(null)).toEqual([]);
+  });
+
+  it("mesma instituição, do mesmo grupo, outra, ou não dá para dizer", () => {
+    expect(mesmaInstituicao("18236120", "Nubank")).toBe(true);
+    expect(mesmaInstituicao("18236120", "Itaú")).toBe(false);
+    expect(mesmaInstituicao("92894922", "PicPay")).toBe(true);
+    expect(mesmaInstituicao("60746948", "Next")).toBe(true);
+    /* ISPB fora da tabela, ou banco que ninguém reconhece: sem opinião. */
+    expect(mesmaInstituicao("99999999", "Nubank")).toBeNull();
+    expect(mesmaInstituicao("18236120", "Cooperativa Sicoob Credicitrus")).toBeNull();
   });
 });

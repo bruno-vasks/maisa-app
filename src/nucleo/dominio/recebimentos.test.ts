@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  conferirRecebedor, cpfNaMensagem, decisaoDoDono, descricaoDoRecebimento, documentoConfere,
+  avisoDeComprovanteAoDono, conferirCodigoDoPix, conferirRecebedor, cpfNaMensagem, decisaoDoDono, descricaoDoRecebimento, documentoConfere,
   identificadorDoRecebimento, janelaDepoisDoAtendimento, mensagensDoPix,
   perguntaValendo, pixFaltando, RECEBIMENTOS_DESLIGADOS, soOCpf, sugerirRecebimento,
   ESPERA_DEPOIS_DO_FIM_MS, JANELA_DE_COBRANCA_MS, PERGUNTA_VALE_MS,
@@ -130,5 +130,61 @@ describe("as mensagens", () => {
     expect(texto.startsWith("Oi, João! Segue o Pix de R$ 50,00 (Corte, 27/10).")).toBe(true);
     expect(texto).toContain("comprovante");
     expect(codigo).toBe("000201…");
+  });
+});
+
+describe("o código da transação contra o comprovante", () => {
+  /* Nubank, 30/10/2026 17:32 UTC (14:32 em Brasília). */
+  const CODIGO = "E18236120202610301732AbC12dE34fG";
+  const lido = { idTransacao: CODIGO, banco: "Nubank", pagoEm: "2026-10-30" };
+  const quando = { recebidoEm: "2026-10-30T17:40:00Z", cobrancaEnviadaEm: "2026-10-30T15:00:00Z" };
+
+  it("banco e data batem, e o Pix é entre a cobrança e o comprovante: confere", () => {
+    expect(conferirCodigoDoPix(lido, quando)).toEqual({ situacao: "confere", motivos: [] });
+  });
+
+  it("o código é de outra instituição: o dono fica sabendo qual", () => {
+    const r = conferirCodigoDoPix({ ...lido, banco: "Itaú" }, quando);
+    expect(r.situacao).toBe("nao_confere");
+    expect(r.motivos).toEqual(["O código da transação é de outra instituição: Nubank, e não Itaú."]);
+  });
+
+  it("a data do código fica em Brasília: 00:30 UTC do dia 31 ainda é o dia 30", () => {
+    const r = conferirCodigoDoPix({ ...lido, idTransacao: "E18236120202610310030AbC12dE34fG" }, { recebidoEm: "2026-10-31T01:00:00Z" });
+    expect(r.situacao).toBe("confere");
+  });
+
+  it("mais de um dia entre a data do código e a escrita no comprovante", () => {
+    const r = conferirCodigoDoPix({ ...lido, pagoEm: "2026-10-27" }, quando);
+    expect(r.motivos).toEqual(["O código da transação é de 30/10/2026, e o comprovante diz 27/10/2026."]);
+  });
+
+  it("um Pix de semanas antes da cobrança: comprovante antigo", () => {
+    const antigo = { idTransacao: "E18236120202610011732AbC12dE34fG", banco: "Nubank", pagoEm: "2026-10-01" };
+    const r = conferirCodigoDoPix(antigo, quando);
+    expect(r.motivos).toEqual(["O Pix do comprovante é de 01/10/2026, antes desta cobrança. Pode ser um comprovante antigo."]);
+  });
+
+  it("o cliente que pagou na chave ao sair, horas antes de a cobrança sair, não é acusado", () => {
+    const r = conferirCodigoDoPix(lido, { recebidoEm: "2026-10-31T10:00:00Z", cobrancaEnviadaEm: "2026-10-31T05:00:00Z" });
+    expect(r.situacao).toBe("confere");
+  });
+
+  it("um Pix de depois de o comprovante chegar não existe", () => {
+    const r = conferirCodigoDoPix({ ...lido, idTransacao: "E18236120202611021732AbC12dE34fG", pagoEm: null }, quando);
+    expect(r.motivos).toEqual(["O código da transação é de depois de o comprovante chegar."]);
+  });
+
+  it("sem código no formato do Pix, ou sem banco e data para comparar, não conclui nada", () => {
+    expect(conferirCodigoDoPix({ ...lido, idTransacao: "AUT-938271" }, quando)).toEqual({ situacao: "sem_como_saber", motivos: [] });
+    expect(conferirCodigoDoPix({ idTransacao: CODIGO, banco: null, pagoEm: null }, quando)).toEqual({ situacao: "sem_como_saber", motivos: [] });
+  });
+
+  it("o aviso ao dono leva os motivos, junto do recebedor que não confere", () => {
+    const codigo = conferirCodigoDoPix({ ...lido, banco: "Itaú" }, quando);
+    const aviso = avisoDeComprovanteAoDono({ nome: "João", telefone: "5511912345678", valor: 50, conferencia: "nao_confere", codigo });
+    expect(aviso).toContain("Atenção: No comprovante, quem recebeu não parece ser você. O código da transação é de outra instituição: Nubank, e não Itaú.");
+    expect(avisoDeComprovanteAoDono({ nome: "João", telefone: "5511912345678", valor: 50, conferencia: "confere", codigo: { situacao: "confere", motivos: [] } }))
+      .not.toContain("Atenção");
   });
 });

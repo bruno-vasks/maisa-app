@@ -43,7 +43,7 @@
 
 import { primeiroNome } from "./catalogo";
 import { cpfValido, soDigitos } from "./clientes";
-import { PIX_NOME_MAX, textoDoPix, type TipoDeChavePix } from "./pix";
+import { instituicaoDoIspb, lerIdFimAFim, mesmaInstituicao, PIX_NOME_MAX, textoDoPix, type TipoDeChavePix } from "./pix";
 import { valorBrasileiro } from "./recibo-saude";
 import { mesDe, rotuloDoMes } from "./tempo";
 
@@ -369,6 +369,69 @@ export function conferirRecebedor(
   return "sem_como_saber";
 }
 
+/** O que o código da transação diz do comprovante. Os motivos já são as frases da tela e do aviso. */
+export type ConferenciaDoCodigo = { situacao: Conferencia; motivos: string[] };
+
+const HORA_MS = 3_600_000;
+/** O Pix aceita o código com até 12 h de diferença do processamento (ver `lerIdFimAFim`). */
+const FOLGA_DO_CODIGO_MS = 12 * HORA_MS;
+/** Antes disto da cobrança, o Pix não é desta cobrança: as 12 h da janela depois do atendimento
+ *  (o cliente que pagou na chave ao sair), mais a folga do código, mais um respiro. */
+const ANTES_DA_COBRANCA_MS = 36 * HORA_MS;
+
+/** AAAA-MM-DD → DD/MM/AAAA. */
+const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+
+/**
+ * O código da transação (o id fim a fim, `E…`) bate com o resto do comprovante?
+ *
+ * Três coisas que um comprovante editado ou reaproveitado costuma errar, todas com folga, porque a
+ * hora do código pode estar até 12 h fora (ver `lerIdFimAFim` em `pix.ts`):
+ *   · o banco: o ISPB do código é de outra instituição que a escrita no comprovante;
+ *   · a data: mais de um dia entre a data do código e a escrita;
+ *   · o tempo: o Pix é de muito antes de a cobrança sair (comprovante antigo), ou de depois de o
+ *     comprovante chegar (impossível).
+ *
+ * `confere` só quando o banco ou a data foram comparados e bateram: as contas de tempo só acham
+ * problema, não confirmam nada. Sem código no formato do Pix, ou sem banco e data para comparar,
+ * `sem_como_saber`. Nada aqui recusa: quem decide é o dono, no extrato.
+ */
+export function conferirCodigoDoPix(
+  lido: Pick<DadosDoComprovante, "idTransacao" | "banco" | "pagoEm">,
+  quando: { recebidoEm: string; cobrancaEnviadaEm?: string | null },
+): ConferenciaDoCodigo {
+  const id = lerIdFimAFim(lido.idTransacao);
+  if (!id) return { situacao: "sem_como_saber", motivos: [] };
+  const motivos: string[] = [];
+  let comparou = false;
+
+  const banco = mesmaInstituicao(id.ispb, lido.banco);
+  if (banco === false) motivos.push(`O código da transação é de outra instituição: ${instituicaoDoIspb(id.ispb)!.nome}, e não ${lido.banco}.`);
+  if (banco !== null) comparou = true;
+
+  /* A data do código no horário de Brasília, que é o do comprovante. */
+  const diaDoCodigo = new Date(id.em.getTime() - 3 * HORA_MS).toISOString().slice(0, 10);
+  if (lido.pagoEm) {
+    comparou = true;
+    const dias = Math.abs(Date.parse(diaDoCodigo) - Date.parse(lido.pagoEm)) / (24 * HORA_MS);
+    if (dias > 1) motivos.push(`O código da transação é de ${dataBR(diaDoCodigo)}, e o comprovante diz ${dataBR(lido.pagoEm)}.`);
+  }
+
+  const chegou = Date.parse(quando.recebidoEm);
+  if (Number.isFinite(chegou)) {
+    if (id.em.getTime() > chegou + FOLGA_DO_CODIGO_MS) motivos.push("O código da transação é de depois de o comprovante chegar.");
+  }
+  const cobrado = quando.cobrancaEnviadaEm ? Date.parse(quando.cobrancaEnviadaEm) : NaN;
+  if (Number.isFinite(cobrado)) {
+    if (id.em.getTime() < cobrado - ANTES_DA_COBRANCA_MS) {
+      motivos.push(`O Pix do comprovante é de ${dataBR(diaDoCodigo)}, antes desta cobrança. Pode ser um comprovante antigo.`);
+    }
+  }
+
+  if (motivos.length) return { situacao: "nao_confere", motivos };
+  return { situacao: comparou ? "confere" : "sem_como_saber", motivos };
+}
+
 /**
  * Qual cobrança o comprovante paga: a do identificador, se o Pix saiu daqui e o banco o mostrou;
  * senão a mais antiga em aberto com o mesmo valor. Nenhuma: o dono escolhe na tela.
@@ -461,9 +524,15 @@ export function avisoDePagamentoForaDeHoraAoDono(r: Pick<Recebimento, "nome" | "
   return `${quem} pagou pelo link do Asaas uma cobrança de ${reais(r.valor)} que ${estava}. Confira no Asaas: talvez seja o caso de devolver.`;
 }
 
-export function avisoDeComprovanteAoDono(p: { nome: string | null; telefone: string; valor: number | null; conferencia: Conferencia }): string {
+export function avisoDeComprovanteAoDono(p: {
+  nome: string | null; telefone: string; valor: number | null; conferencia: Conferencia; codigo?: ConferenciaDoCodigo;
+}): string {
   const quem = p.nome?.trim() || p.telefone;
   const de = p.valor ? ` de ${reais(p.valor)}` : "";
-  const alerta = p.conferencia === "nao_confere" ? "\n\nAtenção: no comprovante, quem recebeu não parece ser você." : "";
+  const alertas = [
+    ...(p.conferencia === "nao_confere" ? ["No comprovante, quem recebeu não parece ser você."] : []),
+    ...(p.codigo?.motivos ?? []),
+  ];
+  const alerta = alertas.length ? `\n\nAtenção: ${alertas.join(" ")}` : "";
   return `${quem} mandou um comprovante de Pix${de}. Confira no extrato e confirme na MAISA, na tela de hoje.${alerta}`;
 }
