@@ -202,8 +202,7 @@ export const COPIA: Record<ICP, CopiaIcp> = {
     lead: "Todos atendem no WhatsApp que a barbearia já usa e começam a marcar horário no mesmo dia. Cadeira é ilimitada nos três — a diferença é quantos agendamentos a maisa fecha no mês.",
     extras: [],
     garantias: [
-      "No ar em cerca de 30 minutos",
-      "Se não se pagar no primeiro mês, a gente devolve",
+      "No ar em 5 minutos",
       "Sem fidelidade — cancele quando quiser",
     ],
     nota: "Barbeiro é ilimitado em todos os planos: contrate quantos quiser, você paga pelo que a maisa agenda. Um lembrete por agendamento, sempre. Ela atende no número que a barbearia já tem — você não troca de WhatsApp nem avisa cliente nenhum. Passou do limite do mês, você paga só o excedente; nada trava.",
@@ -230,8 +229,7 @@ export const COPIA: Record<ICP, CopiaIcp> = {
        NFS-e, e um cartão de preço que não a menciona parece esconder um adicional. */
     extras: [{ rotulo: "Nota fiscal e recibo", valor: "incluídos" }],
     garantias: [
-      "No ar em cerca de 30 minutos",
-      "Se não se pagar no primeiro mês, a gente devolve",
+      "No ar em 5 minutos",
       "Sem fidelidade — cancele quando quiser",
     ],
     nota: "Terapeuta é ilimitado em todos os planos: traga quem quiser pra clínica, você paga pelo que a maisa agenda. Um lembrete por agendamento, sempre. Ela atende no número que você já usa e emite a nota de cada sessão. Passou do limite do mês, você paga só o excedente; nada trava.",

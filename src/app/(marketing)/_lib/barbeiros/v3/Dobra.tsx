@@ -1,6 +1,7 @@
 import React from "react";
 import { GlassButton } from "../../GlassButton";
 import { Maisa } from "./Maisa";
+import { Marca } from "./Marca";
 import { CTA_ROTULO, FRASE_DOBRA, HREF_PLANOS, SUB_DOBRA, frase } from "./dados";
 
 /* ----------------------------------------------------------------------------
@@ -98,7 +99,7 @@ export function Dobra() {
           página redefine para virar azul no tema claro (ver o topo do v3.css). Um
           wordmark com cor escrita à mão teria continuado dourado sobre branco. */}
       <p className="lp3-assinatura">
-        <Maisa escala="grande" />
+        <Marca />
       </p>
 
       <div className="lp3-miolo">

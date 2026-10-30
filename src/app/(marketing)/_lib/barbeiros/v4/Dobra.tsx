@@ -1,6 +1,7 @@
 import React from "react";
 import { GlassButton } from "../../GlassButton";
 import { Maisa } from "../v3/Maisa";
+import { Marca } from "../v3/Marca";
 import { CTA_ROTULO, FRASE_DOBRA, HREF_PLANOS, SUB_DOBRA, frase } from "../v3/dados";
 import { VideoDobra } from "./VideoDobra";
 
@@ -53,14 +54,14 @@ export function Dobra() {
       <VideoDobra
         className="lp3-foto lp4-video"
         src="/dobra-barbearia.mp4"
-        poster="/dobra-barbearia.jpg"
+        poster="/dobra-barbearia-video.jpg"
       />
 
       {/* ── O VÉU ── piso de legibilidade, idêntico ao da v3 (ver ⚠️ acima). */}
       <div className="lp3-veu" aria-hidden="true" />
 
       <p className="lp3-assinatura">
-        <Maisa escala="grande" />
+        <Marca />
       </p>
 
       <div className="lp3-miolo">

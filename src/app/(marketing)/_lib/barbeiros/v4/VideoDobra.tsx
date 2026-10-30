@@ -51,7 +51,7 @@ import { useEffect, useRef } from "react";
  *
  * ── MOVIMENTO REDUZIDO: O PÔSTER VOLTA A SER FOTO.
  * Com `prefers-reduced-motion: reduce` o vídeo não toca e o que fica na tela é o
- * `poster` — que é a MESMA `/dobra-barbearia.jpg` da v3. Não é um degradê inventado
+ * `poster` — `/dobra-barbearia-video.jpg`, a foto que a v3 usava até 30/10/2026. Não é um degradê inventado
  * para a ocasião: é literalmente a dobra da v3, que já passou pela régua de
  * contraste. A preferência é reavaliada em tempo real (o listener), porque quem a
  * liga no meio da sessão espera que a página obedeça na hora.

@@ -4,6 +4,7 @@ import { Dobra } from "../_lib/barbeiros/v3/Dobra";
 import { Telas } from "../_lib/barbeiros/v3/Telas";
 import { Duelo } from "../_lib/barbeiros/v3/Duelo";
 import { Planos } from "../_lib/barbeiros/v3/Planos";
+import { Faq } from "../_lib/barbeiros/v3/Faq";
 import { OFERTA } from "../_lib/barbeiros/v3/dados";
 import "../_lib/barbeiros/v3/v3.css";
 
@@ -158,6 +159,7 @@ export default function LpBarbeirosV3() {
         <Telas />
         <Duelo />
         <Planos />
+        <Faq />
       </main>
     </World>
   );
