@@ -1069,6 +1069,9 @@ function modeloDaConversa() {
 export const modeloEmUso = () =>
   anthropicConfigurado() ? MODELO_ANTHROPIC : isGeminiConfigured ? GEMINI.modelo : null;
 
+/** O mesmo, pelo nome do provedor: é o que o laboratório mostra. */
+export const provedorEmUso = () => (anthropicConfigurado() ? "anthropic" : isGeminiConfigured ? "gemini" : null);
+
 /** A rota checa isto para devolver 503 explicando o que falta, em vez de estourar. */
 export const agenteConfigurado = () => isGeminiConfigured || anthropicConfigurado();
 

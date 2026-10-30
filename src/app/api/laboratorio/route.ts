@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { agenteConfigurado, agenteWhatsapp, modeloEmUso, servicos } from "@/composicao";
+import { agenteConfigurado, agenteWhatsapp, modeloEmUso, provedorEmUso, servicos } from "@/composicao";
 import { atorAgente, type ContextoTenant } from "@/nucleo/dominio/tenant";
 import { barrou, exigirSessao, type Porteiro } from "@/adaptadores/entrada/http/contexto";
 import { espiarMemoriaDemo, limparDemo } from "@/adaptadores/saida/demo/memoria";
@@ -7,7 +7,6 @@ import { espiarAgendaDemo, limparAgendaDemo } from "@/adaptadores/saida/demo/age
 import { espelhoDemo, zerarEspelhoDemo } from "@/adaptadores/saida/demo/atendimentos";
 import { isGoogleConfigured } from "@/adaptadores/saida/google/config";
 import { isEvolutionConfigured } from "@/adaptadores/saida/evolution/config";
-import { isGeminiConfigured } from "@/adaptadores/saida/gemini/config";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
 import { hhmm } from "@/nucleo/dominio/tempo";
 
@@ -162,7 +161,7 @@ export async function GET() {
     ok: true,
     pronto: agenteConfigurado(),
     modelo: modeloEmUso(),
-    provedor: isGeminiConfigured ? "gemini" : process.env.ANTHROPIC_API_KEY ? "anthropic" : null,
+    provedor: provedorEmUso(),
     /* Os três avisos que explicam qualquer estranheza no comportamento. Sem eles, um
      * horário que "não existe" parece bug do agente quando é só a agenda de mentira. */
     agenda: isGoogleConfigured ? "google" : "demonstração (em memória)",
