@@ -1,14 +1,16 @@
-# `saida/anthropic/` — o modelo de produção
+# `saida/anthropic/` — o modelo da conversa
 
 Cumpre a porta [`ModeloDeConversa`](../../../nucleo/portas/saida/modelo-conversa.ts).
 **⚠️ Só servidor.**
 
-Era o corpo do `agente.ts` até o Gemini entrar. **Não foi apagado de propósito:** a chave do
-Gemini em uso é de teste e será revogada na ida para produção. Manter os dois adaptadores faz
-a decisão "quem responde em produção" ser uma linha em `composicao.ts`, e não uma reescrita do
-loop sob pressão de prazo.
+Era o corpo do `agente.ts` até o Gemini entrar. Ficou guardado, e desde 30/10/2026 voltou a
+responder: `composicao.ts` escolhe este sempre que há `ANTHROPIC_API_KEY`, e o Gemini fica com o
+áudio, a busca e o comprovante. Voltar a conversa para o Gemini é apagar a chave.
 
-`composicao.ts` escolhe este quando **não** há `GEMINI_API_KEY` e há `ANTHROPIC_API_KEY`.
+| Arquivo | O que é |
+|---|---|
+| `modelo-anthropic.ts` | `criarModeloAnthropic` (a fábrica; recebe um cliente, para o teste), `paraMensagens` (o histórico no formato da Anthropic) e `MODELO_ANTHROPIC` |
+| `modelo-anthropic.test.ts` | O pedido (modelo, raciocínio, esforço, fallback, cache) e o turno com ferramentas voltando igual, contra um cliente falso |
 
 ## O que não é óbvio
 
@@ -17,10 +19,11 @@ loop sob pressão de prazo.
 a nota fiscal pararem de funcionar num ambiente sem chave de modelo. Só quem escolhe este
 adaptador paga por construí-lo.
 
-**Modelo fixo no código (`claude-opus-5`), e de propósito.** Cache de prompt é **por modelo**:
+**Modelo fixo no código (`claude-sonnet-5-5`), e de propósito.** Cache de prompt é **por modelo**:
 trocar o modelo invalida o cache, então ele não pode variar por requisição sem jogar fora o
 desconto do prefixo estável. Mudança de modelo aqui é deploy, não configuração — diferente do
-[`gemini/`](../gemini/LEIA-ME.md), que lê `GEMINI_MODELO` do ambiente.
+[`gemini/`](../gemini/LEIA-ME.md), que lê `GEMINI_MODELO` do ambiente. Sonnet, e não Opus: na
+bancada de 26/10/2026 o Opus não ganhou do Sonnet.
 
 **`effort: "low"` é decisão de produto embutida numa string.** Cada segundo é o cliente olhando
 "digitando..." no WhatsApp, e a parte difícil aqui não é raciocínio: é seguir instrução e
@@ -35,10 +38,19 @@ cada mensagem.
 escreve a chamada de ferramenta como texto visível — o turno "dá certo", a ferramenta nunca
 roda, e o cliente recebe a intenção em vez do agendamento.
 
-**Estado opaco.** A Anthropic também exige que o estado de raciocínio volte intacto no turno
-seguinte. Viaja como `ChamadaDeFerramenta.estadoOpaco`, o mesmo campo que carrega o
-`thoughtSignature` do Gemini. O nome é genérico porque os dois provedores têm a coisa, com
-nomes diferentes.
+**O turno com ferramentas volta igual.** A Anthropic pede que o raciocínio do modelo volte
+intacto entre um passo e o seguinte. O conteúdo inteiro da resposta (raciocínio, texto e
+chamadas) viaja em `ChamadaDeFerramenta.estadoOpaco` da primeira chamada, o mesmo campo que
+carrega o `thoughtSignature` do Gemini, e `paraMensagens` o devolve sem tocar. Só existe dentro
+do laço de uma mensagem: o `agente.ts` não guarda turno de ferramenta, e a parte volátil do
+prompt (a data, a memória do cliente) muda de uma mensagem para outra. Um bloco de raciocínio
+reenviado depois de o prompt mudar é recusado (400) nas contas novas da Anthropic, então ele
+nunca sai do laço.
+
+**Fallback no servidor.** `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`): uma
+recusa dos classificadores é refeita por outro modelo dentro da mesma chamada. No Sonnet 5.5 isso
+só cobre `cyber` e `frontier_llm`; as outras recusas voltam como `recusou`, e o agente trata.
+Quando outro modelo terminou a resposta, o turno volta reconstruído, sem o estado.
 
 ## O que NÃO fazer aqui
 

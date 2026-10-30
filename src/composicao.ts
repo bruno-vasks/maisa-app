@@ -767,10 +767,10 @@ export const app = {
   avaliarAtendimento: criarAvaliarAtendimento({
     contatos: contatosRepo,
     canal: historicoDoCanal,
-    /* O MESMO modelo do agente, resolvido na hora: os imports dele vêm mais abaixo neste
-     * arquivo, e o Anthropic só se monta quando o Gemini não está configurado. */
+    /* O MESMO modelo do agente, resolvido na hora (`modeloDaConversa`, mais abaixo): o
+     * Anthropic só se monta quando há chave dele. */
     pedeHorario: criarDetectarPedidoDeHorario({
-      modelo: () => (isGeminiConfigured ? modeloGemini : criarModeloAnthropic()),
+      modelo: () => modeloDaConversa(),
     }),
   }),
   lerContatos: criarLerContatos({ contatos: contatosRepo }),
@@ -1037,7 +1037,7 @@ import { baixarMidia, confirmarLeitura } from "@/adaptadores/saida/evolution/cli
 import { transcreverAudio } from "@/adaptadores/saida/gemini/transcricao";
 import { modeloGemini } from "@/adaptadores/saida/gemini/modelo-gemini";
 import { GEMINI, isGeminiConfigured } from "@/adaptadores/saida/gemini/config";
-import { criarModeloAnthropic } from "@/adaptadores/saida/anthropic/modelo-anthropic";
+import { criarModeloAnthropic, MODELO_ANTHROPIC } from "@/adaptadores/saida/anthropic/modelo-anthropic";
 /* Negócio, equipe, serviços e expediente NÃO são importados aqui de propósito: era
  * justamente esse import que criava o bug de id descrito acima. Eles chegam pelo
  * `repositorioDemo`, que é o fallback do `negocio` quando não há banco — pela porta, como
@@ -1045,21 +1045,32 @@ import { criarModeloAnthropic } from "@/adaptadores/saida/anthropic/modelo-anthr
 import { ASSISTENTE_PADRAO, CFG_PADRAO } from "@/adaptadores/saida/demo/assistente";
 
 /**
- * QUEM RESPONDE. Gemini quando há chave dele; senão, Anthropic.
+ * QUEM RESPONDE. Anthropic quando há chave dela; senão, Gemini.
  *
- * ⚠️ A chave do Gemini em uso hoje é de TESTE e será revogada na ida para produção.
- * Trocar de volta é apagar `GEMINI_API_KEY` do ambiente — nenhuma linha de código, e
- * nada no agente sabe a diferença (ele fala `ModeloDeConversa`, não fala provedor).
+ * Invertido em 30/10/2026, com a chave da Anthropic do Bruno: qualidade antes de custo na
+ * conversa (decisão dele de 26/10). O Gemini NÃO sai do ambiente: ele continua com o áudio
+ * (`transcreverAudio`), a busca nas respostas prontas (`embeddingGemini`) e a leitura de
+ * comprovante. Apagar `GEMINI_API_KEY` desliga os três.
+ *
+ * Voltar para o Gemini na conversa é apagar `ANTHROPIC_API_KEY` do ambiente: nenhuma linha de
+ * código, e nada no agente sabe a diferença (ele fala `ModeloDeConversa`, não fala provedor).
  * É para isso que a porta existe.
- *
- * Gemini primeiro, e não o contrário, porque é a decisão de HOJE: com as duas chaves
- * presentes, quem responde é o barato. Inverter a ordem em produção é mover esta linha.
  */
+function anthropicConfigurado() {
+  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+}
+
+/** As duas são funções declaradas, e não `const`: o `pedeHorario`, lá em cima, é montado antes
+ *  desta linha, e uma `const` ainda não existiria se ele fosse chamado durante a carga. */
+function modeloDaConversa() {
+  return anthropicConfigurado() ? criarModeloAnthropic() : modeloGemini;
+}
+
 export const modeloEmUso = () =>
-  isGeminiConfigured ? GEMINI.modelo : process.env.ANTHROPIC_API_KEY ? "claude-opus-5" : null;
+  anthropicConfigurado() ? MODELO_ANTHROPIC : isGeminiConfigured ? GEMINI.modelo : null;
 
 /** A rota checa isto para devolver 503 explicando o que falta, em vez de estourar. */
-export const agenteConfigurado = () => isGeminiConfigured || !!process.env.ANTHROPIC_API_KEY;
+export const agenteConfigurado = () => isGeminiConfigured || anthropicConfigurado();
 
 /**
  * O que a MAISA sabe do negócio, resolvido do MESMO repositório que os casos de uso usam.
@@ -1218,7 +1229,7 @@ export async function marcarComoLida(envelope: Envelope): Promise<void> {
 export function agenteWhatsapp() {
   if (!_agente) {
     _agente = criarAgente({
-      modelo: isGeminiConfigured ? modeloGemini : criarModeloAnthropic(),
+      modelo: modeloDaConversa(),
       config: configuracaoDoAgente,
       // As MESMAS funções que o painel usa. É o teste de que a arquitetura funcionou:
       // marcar horário pelo WhatsApp e pela tela é literalmente a mesma chamada.

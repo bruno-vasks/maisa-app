@@ -1,15 +1,15 @@
-# `saida/gemini/` — o modelo que responde hoje
+# `saida/gemini/` — áudio, busca, comprovante e a conversa reserva
 
 Cumpre a porta [`ModeloDeConversa`](../../../nucleo/portas/saida/modelo-conversa.ts).
 **⚠️ Só servidor.**
 
-É o adaptador **em uso**: `composicao.ts` escolhe este quando há `GEMINI_API_KEY`, e cai no
-[`anthropic/`](../anthropic/LEIA-ME.md) quando só há `ANTHROPIC_API_KEY`.
+Desde 30/10/2026 a conversa é do [`anthropic/`](../anthropic/LEIA-ME.md) sempre que há
+`ANTHROPIC_API_KEY`; o `modelo-gemini.ts` daqui só responde quando ela falta. O resto desta
+pasta segue em uso com a chave do Gemini: a transcrição de áudio, o embedding da busca nas
+respostas prontas e a leitura de comprovante. Por isso `GEMINI_API_KEY` não sai do ambiente.
 
-> ⚠️ **A chave em uso é de TESTE e será revogada na ida para produção.** Voltar para a
-> Anthropic é apagar `GEMINI_API_KEY` do ambiente — nenhuma linha de código. A porta existe
-> por causa disso: antes, `agente.ts` importava o SDK da Anthropic e falava `tool_use`,
-> `stop_reason`, `TextBlock`, e trocar de provedor era reescrever o loop.
+> ⚠️ A chave do `.env.local` é do plano gratuito, em que o Google pode usar o que recebe. Com
+> comprovante de cliente (nome, CPF, banco) passando por aqui, a de produção tem de ser paga.
 
 ## Arquivos
 

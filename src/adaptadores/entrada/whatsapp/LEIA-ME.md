@@ -337,15 +337,17 @@ quem responde é uma linha em `composicao.ts`:
 
 | Provedor | Adaptador | Quando |
 |---|---|---|
-| Gemini | `saida/gemini/` | Há `GEMINI_API_KEY` — é o caso de **hoje** |
-| Anthropic | `saida/anthropic/` | Só `ANTHROPIC_API_KEY` |
+| Anthropic (Claude Sonnet 5.5) | `saida/anthropic/` | Há `ANTHROPIC_API_KEY`: é o caso desde 30/10/2026 |
+| Gemini | `saida/gemini/` | Só `GEMINI_API_KEY` |
 
-⚠️ **A chave do Gemini em uso é de TESTE e será revogada na ida para produção.** Trocar de
-volta é apagar `GEMINI_API_KEY` do ambiente — nenhuma linha de código. A porta existe por
-causa disso: antes o `agente.ts` importava o SDK da Anthropic e falava `tool_use`,
-`stop_reason`, `TextBlock`, e trocar de provedor era reescrever o loop.
+A ordem inverteu em 30/10/2026, quando a chave da Anthropic chegou (o Bruno pediu qualidade
+antes de custo na conversa). O Gemini continua no ambiente: ele transcreve o áudio, busca nas
+respostas prontas e lê o comprovante. Voltar a conversa para o Gemini é apagar
+`ANTHROPIC_API_KEY`, nenhuma linha de código. A porta existe por causa disso: antes o
+`agente.ts` importava o SDK da Anthropic e falava `tool_use`, `stop_reason`, `TextBlock`, e
+trocar de provedor era reescrever o loop.
 
-**Modelo hoje:** `gemini-3.5-flash-lite`, US$ 0,30 / 2,50 por 1M tokens (entrada/saída) —
+**Modelo do Gemini, quando ele responde:** `gemini-3.5-flash-lite`, US$ 0,30 / 2,50 por 1M tokens (entrada/saída) —
 mesmo preço da 2.5 Flash, uma geração depois. Dá ~US$ 0,001 por mensagem. Se ele tropeçar
 na disciplina que importa (chamar `oferecer_horarios` antes de afirmar qualquer coisa
 sobre agenda), o degrau é `GEMINI_MODELO=gemini-3.6-flash`, não prompt novo.
