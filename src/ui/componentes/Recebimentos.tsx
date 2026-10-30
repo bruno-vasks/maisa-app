@@ -4,7 +4,8 @@
  *
  * As peças, e onde cada uma aparece:
  *   · a aba Recebimentos (`telas/Recebimentos.tsx`, 28/10/2026: Bruno, "importante o suficiente
- *     para virar uma aba nova") monta a tela com os cartões e o `FormularioDoPix` daqui;
+ *     para virar uma aba nova") desenha as próprias linhas, em forma de extrato, e usa daqui as
+ *     ações (`useDecisao`, `useComprovante`), o `SELO`, o `FormularioDoPix` e o Asaas;
  *   · `PagamentosParaDecidir` — também na coluna "Precisa de você" da tela de hoje: o atendimento
  *     que acabou e espera "já está pago?", o comprovante que o cliente mandou e o Pix sem pagamento
  *     há um dia. Sem nada esperando, não desenha nada;
@@ -60,7 +61,7 @@ export function fraseDoDocumento(d: DocumentoDoPagamento): string {
   }
 }
 
-const SELO: Record<Conferencia, { forma: "disco" | "triangulo" | "anel"; tom: "success" | "warn" | "neutral"; texto: string }> = {
+export const SELO: Record<Conferencia, { forma: "disco" | "triangulo" | "anel"; tom: "success" | "warn" | "neutral"; texto: string }> = {
   confere: { forma: "disco", tom: "success", texto: "Recebedor confere" },
   nao_confere: { forma: "triangulo", tom: "warn", texto: "Recebedor não confere" },
   sem_como_saber: { forma: "anel", tom: "neutral", texto: "Confira no extrato" },
@@ -100,6 +101,47 @@ async function postar(url: string, corpo: unknown, padrao: string) {
   return r;
 }
 
+/** "Já pagou", "Mandar o Pix" e "Não cobrar" de uma cobrança. `aberto`: o Pix já foi, e o aviso
+ *  diz "de novo" em vez de "agora". Os cartões de Hoje e as linhas da aba usam o mesmo. */
+export function useDecisao(id: string, aberto: boolean, depois: () => void) {
+  const [ocupado, setOcupado] = useState(false);
+  const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar") => {
+    setOcupado(true);
+    try {
+      const resp = await postar("/api/recebimentos/decidir", { id, decisao }, "Não consegui registrar.");
+      toast(decisao === "pix"
+        ? (aberto ? "A cobrança vai de novo para o cliente." : "O Pix vai para o cliente agora.")
+        : decisao === "nao_cobrar"
+          ? (aberto ? "Cobrança cancelada." : "Sem cobrança para este atendimento.")
+          : fraseDoDocumento(resp.documento));
+      depois();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Não consegui registrar.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return { ocupado, decidir };
+}
+
+/** Confirmar ou descartar um comprovante. */
+export function useComprovante(id: string, depois: () => void) {
+  const [ocupado, setOcupado] = useState(false);
+  const agir = async (corpo: Record<string, unknown>, ok: (r: { documento?: DocumentoDoPagamento }) => string) => {
+    setOcupado(true);
+    try {
+      const r = await postar("/api/recebimentos/comprovante", { id, ...corpo }, "Não consegui registrar.");
+      toast(ok(r));
+      depois();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Não consegui registrar.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return { ocupado, agir };
+}
+
 /* ───────────────────────────── o que espera o dono ───────────────────────────── */
 
 /** Pix enviado há mais que isto, sem pagamento, volta para a coluna "Precisa de você". */
@@ -133,19 +175,7 @@ export function PagamentosParaDecidir() {
  * recibo automático, e toda imagem desse cliente indo para o leitor.
  */
 export function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => void }) {
-  const [ocupado, setOcupado] = useState(false);
-  const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar") => {
-    setOcupado(true);
-    try {
-      const resp = await postar("/api/recebimentos/decidir", { id: r.id, decisao }, "Não consegui registrar.");
-      toast(decisao === "pix" ? "A cobrança vai de novo para o cliente." : decisao === "nao_cobrar" ? "Cobrança cancelada." : fraseDoDocumento(resp.documento));
-      depois();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Não consegui registrar.");
-    } finally {
-      setOcupado(false);
-    }
-  };
+  const { ocupado, decidir } = useDecisao(r.id, true, depois);
   return (
     <div style={s(CARTAO)}>
       <span style={s("display:flex;flex-direction:column;gap:3px")}>
@@ -164,19 +194,7 @@ export function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => vo
 }
 
 export function CartaoDaPergunta({ r, depois }: { r: Recebimento; depois: () => void }) {
-  const [ocupado, setOcupado] = useState(false);
-  const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar") => {
-    setOcupado(true);
-    try {
-      const resp = await postar("/api/recebimentos/decidir", { id: r.id, decisao }, "Não consegui registrar.");
-      toast(decisao === "pix" ? "O Pix vai para o cliente agora." : decisao === "nao_cobrar" ? "Sem cobrança para este atendimento." : fraseDoDocumento(resp.documento));
-      depois();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Não consegui registrar.");
-    } finally {
-      setOcupado(false);
-    }
-  };
+  const { ocupado, decidir } = useDecisao(r.id, false, depois);
   return (
     <div style={s(CARTAO)}>
       <span style={s("display:flex;flex-direction:column;gap:3px")}>
@@ -200,21 +218,8 @@ export function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePa
   const [alvo, setAlvo] = useState(c.recebimentoId ?? doTelefone[0]?.id ?? "");
   const [descartando, setDescartando] = useState(false);
   const [motivo, setMotivo] = useState("");
-  const [ocupado, setOcupado] = useState(false);
+  const { ocupado, agir } = useComprovante(c.id, depois);
   const selo = SELO[c.conferencia];
-
-  const agir = async (corpo: Record<string, unknown>, ok: (r: { documento?: DocumentoDoPagamento }) => string) => {
-    setOcupado(true);
-    try {
-      const r = await postar("/api/recebimentos/comprovante", { id: c.id, ...corpo }, "Não consegui registrar.");
-      toast(ok(r));
-      depois();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Não consegui registrar.");
-    } finally {
-      setOcupado(false);
-    }
-  };
 
   const detalhes = [c.banco, diaMes(c.pagoEm), c.recebedorNome ? `para ${c.recebedorNome}` : null].filter(Boolean).join(" · ");
 
@@ -373,12 +378,8 @@ export function FormularioDoPix({ painel, ler }: { painel: Painel; ler: () => vo
         ))}
       </fieldset>
 
-      {depois === "perguntar" && (
-        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-ui)")}>
-          A pergunta vai para o número que recebe os avisos (A MAISA → WhatsApp e número), e você responde 1 ou 2.
-          Sem esse número, ela aparece só no painel: aqui e em Hoje.
-        </span>
-      )}
+      {/* Sem a nota "a pergunta vai para o número que recebe os avisos": o Bruno a tirou em
+          30/10/2026 ("não precisa"). Para onde a pergunta vai está em `whatsDoDono`. */}
 
       <div style={s("display:flex;gap:9px;align-items:center;flex-wrap:wrap")}>
         <Btn disabled={ocupado || !chave.trim()} motivo="Cole a sua chave Pix primeiro." onClick={() => salvar()}>

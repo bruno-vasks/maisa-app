@@ -88,8 +88,9 @@ const TELA: Record<TelaId, { rotulo: string; titulo: string; tituloCelular?: str
      para trocar uma palavra na tela. */
   faturamento: { rotulo: "Fiscal", titulo: "Fiscal", icone: "receipt", Comp: Faturamento },
   /* O Pix na chave do negócio e os comprovantes (28/10/2026). Era uma seção de A MAISA; virou aba
-     porque é dinheiro, e o dono olha todo dia. */
-  recebimentos: { rotulo: "Recebimentos", titulo: "Recebimentos", icone: "pix", Comp: Recebimentos },
+     porque é dinheiro, e o dono olha todo dia. No celular, "Cobranças": "Recebimentos" virava
+     "Recebimen…" ao lado do "Sem WhatsApp" (30/10/2026), e "Cobranças" tem a largura de "Documento". */
+  recebimentos: { rotulo: "Recebimentos", titulo: "Recebimentos", tituloCelular: "Cobranças", icone: "pix", Comp: Recebimentos },
   // Fora do rail, como `contatos`: escolher entre nota fiscal e recibo é decisão de uma vez só.
   // Chega-se por "Mais" e pelo link "Documento fiscal" no próprio Faturamento.
   fiscal: { rotulo: "Documento fiscal", titulo: "Documento fiscal", tituloCelular: "Documento", icone: "documento", Comp: DocumentoFiscal },
