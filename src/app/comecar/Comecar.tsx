@@ -56,8 +56,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { s, Icon, Toggle, toast, Toaster } from "@/ui/primitivos";
-import type { CategoriaServico, PassoDeAtivacao, Servico, UsoDoWhatsApp, Vertical } from "@/nucleo/dominio";
+import { s, Icon, toast, Toaster } from "@/ui/primitivos";
+import type { PassoDeAtivacao, Servico, UsoDoWhatsApp, Vertical } from "@/nucleo/dominio";
 import { PASSOS_DE_ATIVACAO, passosQueValem, usoDoWhatsApp } from "@/nucleo/dominio";
 import { sugestoes, type ExemploDoNegocio } from "./sugestoes";
 import {
@@ -67,18 +67,26 @@ import { useIsMobile } from "@/ui/useIsMobile";
 import { OpcoesDoNumero, useCaderno } from "@/ui/componentes/EscolhaDoNumero";
 import type { ModoDoNumero } from "@/nucleo/dominio/contatos";
 import { ajustesDosModos, alternarModo, type Modo } from "./modos";
+import { createClient } from "@/adaptadores/saida/supabase/client";
+import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
+import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
+import { AcaoDiscreta, MolduraDeEntrada, TituloDaEntrada } from "@/ui/componentes/MolduraDeEntrada";
+import { DESENHO_DO_ICONE, IconeVivo } from "./IconeVivo";
+import { InterruptorVivo } from "./InterruptorVivo";
 
 /* ───────────────────────────── as etapas ───────────────────────────── */
 
 type EtapaId = "negocio" | "catalogo" | "whatsapp" | "ver" | "fiscal";
 
-const ETAPAS: { id: EtapaId; titulo: string; sub: string }[] = [
-  { id: "negocio", titulo: "Seu negócio", sub: "Como ele se chama e o que você faz" },
-  { id: "catalogo", titulo: "O que você faz", sub: "Confira preços e quem atende" },
-  /* "Um código" e não "um QR code": no celular não há QR a ler, e prometer câmera na
-   * lista de etapas é começar a perder a pessoa antes de ela chegar no passo. */
-  { id: "whatsapp", titulo: "Conectar o WhatsApp", sub: "Um código e a MAISA começa a responder" },
-  { id: "ver", titulo: "Ver funcionando", sub: "Fale com ela como se fosse seu cliente" },
+/* `rotulo` é o nome curto na barra de etapas da `MolduraDeEntrada`; `titulo`, a pergunta da tela.
+ * Um título só, sem subtítulo (emenda 5 do `maisa-design`), desde 31/10/2026: o `sub` de cada
+ * etapa saiu junto com a trilha de bolinhas. A etapa do negócio desenha os próprios títulos,
+ * porque virou três telas. */
+const ETAPAS: { id: EtapaId; rotulo: string; titulo: string }[] = [
+  { id: "negocio", rotulo: "Negócio", titulo: "Seu negócio" },
+  { id: "catalogo", rotulo: "Serviços", titulo: "Seus serviços e preços" },
+  { id: "whatsapp", rotulo: "WhatsApp", titulo: "Conecte o WhatsApp do seu negócio" },
+  { id: "ver", rotulo: "Testar", titulo: "Fale com a maisa como se fosse seu cliente" },
   /* ★ ETAPA 5, e ela é uma PERGUNTA — não um formulário.
    *
    * A nota fiscal é o maior diferencial do produto, e ela é o único passo que depende de o
@@ -92,7 +100,7 @@ const ETAPAS: { id: EtapaId; titulo: string; sub: string }[] = [
   /* "Nota fiscal" sozinho mentia para metade do ICP: quem atende como pessoa física emite
    * RECIBO (Receita Saúde), não nota — e o certificado digital, que a frase antiga prometia
    * implicitamente, não existe nesse caminho. */
-  { id: "fiscal", titulo: "Nota fiscal ou recibo", sub: "O documento que sai depois do atendimento" },
+  { id: "fiscal", rotulo: "Nota", titulo: "Nota fiscal ou recibo?" },
 ];
 
 const VERTICAIS: { id: Vertical; rotulo: string; desc: string; icone: string }[] = [
@@ -168,36 +176,6 @@ const CAMPO =
   "width:100%;height:46px;padding:0 14px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none";
 
 /* ───────────────────────────── peças ───────────────────────────── */
-
-function Trilha({ atual, etapas }: { atual: EtapaId; etapas: typeof ETAPAS }) {
-  const i = etapas.findIndex((e) => e.id === atual);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      {etapas.map((e, j) => (
-        <React.Fragment key={e.id}>
-          {/* Bolinha com NÚMERO e não só cor: a etapa cumprida vira ✓, a atual mostra o
-              número, e a futura fica apagada. Cor sozinha é o sinal mais frágil que existe
-              — é a mesma regra que o rail do painel já segue. */}
-          <span
-            aria-current={j === i ? "step" : undefined}
-            style={s(`display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0;border-radius:999px;font-size:var(--t-micro);font-weight:var(--w-title);${
-              j < i
-                ? "background:var(--success);color:var(--surface)"
-                : j === i
-                  ? "background:var(--primary);color:var(--on-primary)"
-                  : "background:var(--line);color:var(--muted)"
-            }`)}
-          >
-            {j < i ? <Icon name="check" size={14} stroke="var(--surface)" /> : j + 1}
-          </span>
-          {j < etapas.length - 1 && (
-            <span style={s(`flex:1;height:2px;border-radius:2px;background:${j < i ? "var(--success)" : "var(--line)"}`)} />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * O PÉ DO WIZARD — onde mora a ação que fecha a etapa (28/09/2026, T1 e 2.41).
@@ -326,41 +304,112 @@ const aplicarModos = async (modos: readonly Modo[]): Promise<UsoDoWhatsApp | und
  *  (vários, `checkbox`). O papel é o que o leitor de tela anuncia: sem ele, os dois grupos
  *  soavam iguais e ninguém sabia que os modos se somam. */
 function Escolha({
-  on, icone, rotulo, desc, onClick, papel,
-}: { on: boolean; icone: string; rotulo: string; desc: string; onClick: () => void; papel: "radio" | "checkbox" }) {
+  on, icone, rotulo, desc, onClick, papel, indice = 0,
+}: { on: boolean; icone: string; rotulo: string; desc: string; onClick: () => void; papel: "radio" | "checkbox"; indice?: number }) {
+  /* Cada hover e cada toque fazem o ícone tocar de novo (`IconeVivo`): marcar "lembretes" faz o
+     sino tocar. */
+  const [toque, setToque] = useState(0);
   return (
     <button
       type="button" role={papel} aria-checked={on}
-      onClick={onClick} className="m-press m-focus"
+      onClick={() => { setToque((t) => t + 1); onClick(); }} onMouseEnter={() => setToque((t) => t + 1)}
+      className="m-cartao-anima m-focus"
       style={s(`display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--r-painel);cursor:pointer;text-align:left;font-family:inherit;border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"}`)}
     >
-      <Icon name={icone} size={22} stroke={on ? "var(--primary-dark)" : "var(--muted)"} />
+      <IconeVivo desenho={DESENHO_DO_ICONE[icone] ?? "conversa"} tamanho={24} cor={on ? "var(--primary-dark)" : "var(--muted)"} toque={toque} atraso={520 + indice * 160} />
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={s("display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{rotulo}</span>
         <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:2px;line-height:1.4")}>{desc}</span>
       </span>
-      {on && <Icon name="check" size={18} stroke="var(--primary-dark)" />}
+      {on && <span className="m-pop"><Icon name="check" size={18} stroke="var(--primary-dark)" /></span>}
     </button>
   );
 }
 
+/** O cartão grande do tipo de negócio: ícone solto em cima (sem quadrado, emenda 3 do DS), o nome
+ *  e o exemplo. Um clique escolhe e já passa para a próxima tela, como no cadastro da Wise. */
+function CartaoDeTipo({
+  on, icone, rotulo, desc, onClick, indice,
+}: { on: boolean; icone: string; rotulo: string; desc: string; onClick: () => void; indice: number }) {
+  const [toque, setToque] = useState(0);
+  return (
+    <button
+      type="button" role="radio" aria-checked={on}
+      onClick={onClick} onMouseEnter={() => setToque((t) => t + 1)}
+      className="m-cartao-tipo m-cartao-anima m-hov-bg m-focus"
+      style={s(`border-radius:var(--r-painel);cursor:pointer;font-family:inherit;border:1.5px solid ${on ? "var(--primary)" : "var(--border)"};background:${on ? "var(--primary-soft)" : "var(--surface)"}`)}
+    >
+      <IconeVivo desenho={DESENHO_DO_ICONE[icone] ?? "loja"} tamanho={34} cor={on ? "var(--primary-dark)" : "var(--primary)"} toque={toque} atraso={460 + indice * 180} />
+      <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <span style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>{rotulo}</span>
+        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.4")}>{desc}</span>
+      </span>
+    </button>
+  );
+}
+
+const CAMPO_DO_NOME: Record<Vertical, string> = {
+  barbeiros: "Escreva o nome da barbearia…",
+  terapeutas: "Escreva o nome da clínica ou o seu…",
+  generico: "Escreva o nome do seu negócio…",
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ★ A ETAPA 1 EM TRÊS TELAS (31/10/2026).
+ *
+ * Era um formulário só: nome, tipo e modos, com três rótulos de seção e um "Criar meu negócio"
+ * no pé. Virou uma pergunta por tela (o tipo, o nome, o que a maisa faz), com a Wise de
+ * referência. O negócio continua nascendo UMA vez, no fim da terceira: as duas primeiras só
+ * guardam a resposta no estado, e "Voltar" não perde nada.
+ *
+ * ★ "SEU NOME" SAIU DO CATÁLOGO E VEIO PARA CÁ. O nome de quem atende ia como "Quem atende" na
+ * etapa 2, adivinhado pelo começo do e-mail (`005_provisionar.sql`), e quase sempre chegava
+ * errado. Agora ele vai no `POST /api/negocio` como `profissional`, igual ao `/assinar`, e o
+ * primeiro profissional já nasce com o nome certo. Ver o ⚠️ de 30/09/2026 no `Assinar.tsx`.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+type PassoDoNegocio = "tipo" | "nome" | "modos";
+
 function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) => void }) {
+  const [passo, setPasso] = useState<PassoDoNegocio>("tipo");
   const [nome, setNome] = useState("");
+  const [profissional, setProfissional] = useState("");
   const [vertical, setVertical] = useState<Vertical | null>(null);
   const [modos, setModos] = useState<Modo[]>([]);
   const [recado, setRecado] = useState<Recado>(null);
   const [ocupado, setOcupado] = useState(false);
 
+  /* O nome de quem atende, quando a conta já traz um (o `full_name` do Google). Só sugere: o
+   * campo continua editável, e vazio ele não passa. */
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let vivo = true;
+    createClient().auth.getUser()
+      .then(({ data }) => {
+        const n = data.user?.user_metadata?.full_name;
+        if (vivo && typeof n === "string" && n.trim()) setProfissional((atual) => atual || n.trim());
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  const irParaModos = useCallback(() => {
+    if (nome.trim().length < NOME_NEGOCIO_MIN) { setRecado(falhou("Escreva o nome do seu negócio.")); return; }
+    if (profissional.trim().length < 2) { setRecado(falhou("Escreva o seu nome.")); return; }
+    setRecado(null);
+    setPasso("modos");
+  }, [nome, profissional]);
+
   const criar = useCallback(async () => {
-    if (!vertical) { setRecado(falhou("Escolha o tipo do seu negócio.")); return; }
-    if (!modos.length) { setRecado(falhou("Marque pelo menos uma coisa que a MAISA vai fazer.")); return; }
+    if (!vertical) { setPasso("tipo"); return; }
+    if (!modos.length) { setRecado(falhou("Marque pelo menos uma coisa que a maisa vai fazer.")); return; }
     setRecado(null);
     setOcupado(true);
     try {
       const r = await fetch("/api/negocio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, vertical }),
+        body: JSON.stringify({ nome, vertical, profissional: profissional.trim() }),
       }).then((x) => x.json());
 
       if (!r?.ok) {
@@ -379,72 +428,91 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
        * "A MAISA", que é onde ela conserta em dois cliques. */
       const uso = await aplicarModos(modos);
       if (!uso) {
-        toast("Criei seu negócio, mas não consegui gravar como a MAISA vai trabalhar — ajuste em “A MAISA”.");
+        toast("Criei seu negócio, mas não consegui gravar como a maisa vai trabalhar. Ajuste em “A MAISA”.");
       }
       aoCriar(uso);
     } catch {
       setRecado(falhou("Sem conexão com o servidor. Tente de novo."));
       setOcupado(false);
     }
-  }, [nome, vertical, modos, aoCriar]);
+  }, [nome, profissional, vertical, modos, aoCriar]);
+
+  if (passo === "tipo") {
+    return (
+      <div key={passo} className="m-cascata" style={{ display: "contents" }}>
+        <TituloDaEntrada>Que tipo de negócio é o seu?</TituloDaEntrada>
+        {/* Três lado a lado no computador e empilhados no celular (`.m-tipos`, em `globals.css`):
+            em 390px o grade fazia 2 + 1, com "Outro tipo" sozinho embaixo. */}
+        <div role="radiogroup" aria-label="Tipo de negócio" className="m-tipos">
+          {VERTICAIS.map((v, i) => (
+            <CartaoDeTipo
+              key={v.id} indice={i} on={vertical === v.id} icone={v.icone} rotulo={v.rotulo} desc={v.desc}
+              onClick={() => { setVertical(v.id); setRecado(null); setPasso("nome"); }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (passo === "nome") {
+    return (
+      <div key={passo} className="m-cascata" style={{ display: "contents" }}>
+        <TituloDaEntrada>Como o seu negócio se chama?</TituloDaEntrada>
+        <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>Nome do negócio</span>
+          <input
+            autoFocus value={nome} onChange={(e) => setNome(e.target.value)}
+            placeholder={CAMPO_DO_NOME[vertical ?? "generico"]} className="m-focus" style={s(CAMPO)}
+            onKeyDown={(e) => { if (e.key === "Enter") irParaModos(); }}
+          />
+          {/* Diz a CONSEQUÊNCIA, não a regra. Este campo entra no prompt do agente a cada
+              mensagem e no texto de todo lembrete — foi assim que um negócio de teste passou
+              três dias se apresentando como "bruno.vaskevicius" no WhatsApp dos clientes. */}
+          <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
+            É como a MAISA vai se apresentar: “Aqui é a MAISA, assistente do {nome.trim() || "…"}”.
+          </span>
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>Seu nome</span>
+          <input
+            value={profissional} onChange={(e) => setProfissional(e.target.value)}
+            placeholder="Escreva como seus clientes te chamam…" className="m-focus" style={s(CAMPO)}
+            onKeyDown={(e) => { if (e.key === "Enter") irParaModos(); }}
+          />
+          <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
+            A maisa fala esse nome ao confirmar um horário.
+          </span>
+        </label>
+        <NoPe>
+          <Aviso recado={recado} />
+          <Botao onClick={irParaModos} full>Continuar</Botao>
+          <AcaoDiscreta onClick={() => { setRecado(null); setPasso("tipo"); }}>Voltar</AcaoDiscreta>
+        </NoPe>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-          Nome do negócio
-        </span>
-        <input
-          autoFocus value={nome} onChange={(e) => setNome(e.target.value)}
-          placeholder="Escreva o nome do seu negócio…" className="m-focus" style={s(CAMPO)}
-          onKeyDown={(e) => { if (e.key === "Enter" && nome.trim() && vertical && modos.length) void criar(); }}
-        />
-        {/* Diz a CONSEQUÊNCIA, não a regra. Este campo entra no prompt do agente a cada
-            mensagem e no texto de todo lembrete — foi assim que um negócio de teste passou
-            três dias se apresentando como "bruno.vaskevicius" no WhatsApp dos clientes. */}
-        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
-          É como a MAISA vai se apresentar: “Aqui é a MAISA, assistente do {nome.trim() || "…"}”.
-        </span>
-      </label>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-          Que tipo de negócio é?
-        </span>
-        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45;margin-bottom:2px")}>
-          Serve para já deixar seus serviços e horários preenchidos — dá para mudar tudo depois.
-        </span>
-        {VERTICAIS.map((v) => (
+    <div key={passo} className="m-cascata" style={{ display: "contents" }}>
+      <TituloDaEntrada>O que a maisa vai fazer por você?</TituloDaEntrada>
+      <div role="group" aria-label="O que a maisa vai fazer" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {modosPara(vertical).map((m, i) => (
           <Escolha
-            key={v.id} on={vertical === v.id} icone={v.icone} rotulo={v.rotulo} desc={v.desc} papel="radio"
-            onClick={() => { setVertical(v.id); setRecado(null); }}
-          />
-        ))}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-          O que a MAISA vai fazer?
-        </span>
-        {/* Diz que dá para mudar depois pela mesma razão do bloco de cima: a escolha tem
-            consequência grande (ela fala ou não fala com seus clientes) e ninguém decide bem
-            uma coisa dessas achando que é definitiva. */}
-        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45;margin-bottom:2px")}>
-          Marque tudo o que quiser. Dá para trocar depois, na tela “A MAISA”.
-        </span>
-        {modosPara(vertical).map((m) => (
-          <Escolha
-            key={m.id} on={modos.includes(m.id)} icone={m.icone} rotulo={m.rotulo} desc={m.desc} papel="checkbox"
+            key={m.id} indice={i} on={modos.includes(m.id)} icone={m.icone} rotulo={m.rotulo} desc={m.desc} papel="checkbox"
             onClick={() => { setModos((atual) => alternarModo(atual, m.id)); setRecado(null); }}
           />
         ))}
       </div>
-
+      {/* Diz que dá para mudar depois: a escolha tem consequência grande (ela fala ou não fala
+          com seus clientes) e ninguém decide bem uma coisa dessas achando que é definitiva. */}
+      <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
+        Marque quantas quiser. Dá para trocar depois, na tela “A MAISA”.
+      </span>
       <NoPe>
         <Aviso recado={recado} />
-        <Botao onClick={() => void criar()} ocupado={ocupado} full>
-          Criar meu negócio
-        </Botao>
+        <Botao onClick={() => void criar()} ocupado={ocupado} full>Criar meu negócio</Botao>
+        <AcaoDiscreta onClick={() => { setRecado(null); setPasso("nome"); }} desligada={ocupado}>Voltar</AcaoDiscreta>
       </NoPe>
     </div>
   );
@@ -452,51 +520,29 @@ function EtapaNegocio({ aoCriar }: { aoCriar: (uso: UsoDoWhatsApp | undefined) =
 
 /* ───────────────────────────── etapa 2 · o catálogo ───────────────────────────── */
 
-const CATEGORIAS: CategoriaServico[] = ["Recorrente", "Pacote", "Extra"];
-
-function LinhaServico({ sv, aoMudar }: { sv: Servico; aoMudar: (p: Partial<Servico>) => void }) {
+/** Uma linha do catálogo, do jeito mais curto (31/10/2026): ligar ou desligar, o nome e o preço.
+ *  Duração, tipo e o próprio nome ficam na tela Serviços do painel. Aqui o dono só confere o que a
+ *  maisa vai oferecer, e cada campo a mais era uma pergunta a mais no primeiro minuto de uso
+ *  (Bruno: "deixar realmente bem simples essa parte, para não confundir ninguém"). */
+function LinhaServico({ sv, aoMudar, primeira }: { sv: Servico; aoMudar: (p: Partial<Servico>) => void; primeira: boolean }) {
   return (
-    <div style={s(`display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);opacity:${sv.ativo ? "1" : ".6"}`)}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div style={s(`display:flex;align-items:center;gap:10px;padding:4px 12px 4px 6px;${primeira ? "" : "border-top:1px solid var(--line);"}`)}>
+      <InterruptorVivo on={sv.ativo} onChange={(v) => aoMudar({ ativo: v })} rotulo={`Oferecer ${sv.nome}`} />
+      <span style={s(`flex:1;min-width:0;font-size:var(--t-body);color:${sv.ativo ? "var(--ink)" : "var(--muted)"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color var(--dur-slow) var(--ease-out)`)}>
+        {sv.nome}
+      </span>
+      <span style={s(`display:flex;align-items:center;gap:6px;flex-shrink:0;opacity:${sv.ativo ? "1" : ".5"};transition:opacity var(--dur-slow) var(--ease-out)`)}>
+        <span aria-hidden style={s("font-size:var(--t-sm);color:var(--muted)")}>R$</span>
+        {/* `type="text"` e `inputMode="decimal"`: o `type="number"` do Chrome recusa a
+            vírgula no teclado brasileiro, e o caso de uso já aceita "59,90". */}
         <input
-          value={sv.nome} onChange={(e) => aoMudar({ nome: e.target.value })}
-          className="m-focus"
-          style={s("flex:1;min-width:0;height:38px;padding:0 11px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);outline:none")}
+          type="text" inputMode="decimal" value={String(sv.preco)} disabled={!sv.ativo}
+          aria-label={`Preço de ${sv.nome}, em reais`}
+          onChange={(e) => aoMudar({ preco: e.target.value as unknown as number })}
+          className="m-focus n"
+          style={s("width:88px;height:40px;padding:0 10px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-body);color:var(--ink);outline:none;text-align:right")}
         />
-        <Toggle on={sv.ativo} onChange={(v) => aoMudar({ ativo: v })} rotulo={`${sv.nome} ativo`} />
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={s("font-size:var(--t-micro);color:var(--muted);font-weight:var(--w-title)")}>Preço (R$)</span>
-          {/* `type="text"` e `inputMode="decimal"`: o `type="number"` do Chrome recusa a
-              vírgula no teclado brasileiro, e o caso de uso já aceita "59,90". */}
-          <input
-            type="text" inputMode="decimal" value={String(sv.preco)}
-            onChange={(e) => aoMudar({ preco: e.target.value as unknown as number })}
-            className="m-focus n"
-            style={s("width:100%;height:38px;padding:0 11px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
-          />
-        </label>
-        <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={s("font-size:var(--t-micro);color:var(--muted);font-weight:var(--w-title)")}>Duração (min)</span>
-          <input
-            type="text" inputMode="numeric" value={String(sv.duracao)}
-            onChange={(e) => aoMudar({ duracao: e.target.value as unknown as number })}
-            className="m-focus n"
-            style={s("width:100%;height:38px;padding:0 11px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
-          />
-        </label>
-        <label style={{ flex: 1.2, display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={s("font-size:var(--t-micro);color:var(--muted);font-weight:var(--w-title)")}>Tipo</span>
-          <select
-            value={sv.categoria} onChange={(e) => aoMudar({ categoria: e.target.value as CategoriaServico })}
-            className="m-focus"
-            style={s("width:100%;height:38px;padding:0 8px;border-radius:var(--r-controle);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none")}
-          >
-            {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
-      </div>
+      </span>
     </div>
   );
 }
@@ -517,8 +563,6 @@ function EtapaCatalogo({ aoSeguir }: { aoSeguir: () => void }) {
    * do banco com `atualizado_em` mexido, e o passo `catalogo_ajustado` acendeu para quem
    * só tinha clicado em continuar. Um checklist que se marca sozinho não é checklist. */
   const original = useRef<Servico[]>([]);
-  const nomeOriginal = useRef<string>("");
-  const [profissional, setProfissional] = useState<{ id: string; nome: string } | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [recado, setRecado] = useState<Recado>(null);
@@ -532,8 +576,6 @@ function EtapaCatalogo({ aoSeguir }: { aoSeguir: () => void }) {
         if (r?.ok) {
           setServicos(r.servicos ?? []);
           original.current = r.servicos ?? [];
-          const p = (r.profissionais ?? [])[0];
-          if (p) { setProfissional({ id: p.id, nome: p.nome }); nomeOriginal.current = p.nome; }
         }
       })
       .catch(() => {})
@@ -561,6 +603,8 @@ function EtapaCatalogo({ aoSeguir }: { aoSeguir: () => void }) {
    * `atualizado_em` de todas se move, e `catalogo_ajustado` — que é derivado exatamente
    * dessa comparação — acende para quem só clicou em continuar. O checklist passaria a se
    * marcar sozinho, que é o defeito que a derivação existe para não ter.
+   *
+   * O nome de quem atende saiu daqui em 31/10/2026: ele nasce certo na etapa 1 ("Seu nome").
    */
   const salvar = useCallback(async () => {
     setOcupado(true);
@@ -588,56 +632,27 @@ function EtapaCatalogo({ aoSeguir }: { aoSeguir: () => void }) {
         }
       }
 
-      /* Mesma regra para quem atende: só grava se o nome mudou. Regravar o nome adivinhado
-       * marcaria o profissional como conferido sem que ninguém o tivesse conferido. */
-      if (profissional && profissional.nome.trim() && profissional.nome !== nomeOriginal.current) {
-        const r = await fetch("/api/equipe", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: profissional.id, nome: profissional.nome }),
-        }).then((x) => x.json());
-        if (!r?.ok) { setRecado(falhou(r?.info ?? "Não foi possível salvar quem atende.")); setOcupado(false); return; }
-      }
-
       aoSeguir();
     } catch {
       setRecado(falhou("Sem conexão com o servidor. Tente de novo."));
       setOcupado(false);
     }
-  }, [servicos, profissional, aoSeguir]);
+  }, [servicos, aoSeguir]);
 
   if (carregando) {
-    return <div style={s("padding:40px 0;text-align:center;color:var(--muted);font-size:var(--t-sm)")}>Carregando seu catálogo…</div>;
+    return <div style={s("padding:40px 0;text-align:center;color:var(--muted);font-size:var(--t-sm)")}>Carregando seus serviços…</div>;
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <p style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5;margin:0")}>
-        Já deixamos preenchido com o comum do seu ramo. <strong style={s("color:var(--ink);font-weight:var(--w-title)")}>Ajuste os preços</strong> e
-        desligue o que você não faz — é isso que a MAISA vai oferecer aos seus clientes.
-      </p>
-
-      {profissional && (
-        <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>Quem atende</span>
-          <input
-            value={profissional.nome}
-            onChange={(e) => setProfissional({ ...profissional, nome: e.target.value })}
-            className="m-focus" style={s(CAMPO)}
-          />
-          {/* Este campo quase sempre chega errado, e o motivo está em `005_provisionar.sql`:
-              sem nome no cadastro do usuário, a RPC usa o que vem antes do @ do e-mail. */}
-          <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
-            Adivinhamos pelo seu e-mail. A MAISA fala esse nome ao confirmar um horário.
-          </span>
-        </label>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {servicos.map((sv) => (
-          <LinhaServico key={sv.id} sv={sv} aoMudar={(p) => mudar(sv.id, p)} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={s("border:1px solid var(--border);border-radius:var(--r-painel);background:var(--surface)")}>
+        {servicos.map((sv, i) => (
+          <LinhaServico key={sv.id} sv={sv} primeira={i === 0} aoMudar={(p) => mudar(sv.id, p)} />
         ))}
       </div>
+      <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
+        Desligue o que você não faz. Duração e pacotes ficam no painel, em Serviços.
+      </span>
 
       <NoPe>
         <Aviso recado={recado} />
@@ -1465,7 +1480,10 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
  * era para a metade errada do ICP. */
 const IR_AO_FISCAL = (secao: "recibo" | "nota") => `/?tela=fiscal&secao=${secao}`;
 
-function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
+/** Para onde a pessoa vai depois da comemoração: configurar o recibo, a nota, ou o painel. */
+type Destino = "recibo" | "nota" | "painel";
+
+function EtapaNotaFiscal({ aoEscolher }: { aoEscolher: (destino: Destino) => void }) {
   const [estado, setEstado] = useState<{ falta: string[]; ligado: boolean } | null>(null);
   /** O que já sai pelo WhatsApp: muda a frase do "decidir depois". `null` enquanto não se sabe. */
   const [uso, setUso] = useState<{ agente: boolean; lembrete: boolean } | null>(null);
@@ -1494,60 +1512,112 @@ function EtapaNotaFiscal({ aoPainel }: { aoPainel: () => void }) {
 
   if (!estado) return <div style={{ minHeight: 200 }} aria-busy="true" />;
 
-  /* Já está tudo ligado: só a despedida. */
+  /* Já está tudo ligado: não há o que escolher, e o caminho segue para a comemoração. */
   if (estado.falta.length === 0 && estado.ligado) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 18, alignItems: "center", textAlign: "center" }}>
         <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:999px;background:var(--success-soft)")}>
           <Icon name="check" size={27} stroke="var(--success)" />
         </div>
-        <div>
-          <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>
-            Seu documento fiscal já está ligado
-          </p>
-          <p style={s("font-size:var(--t-sm);color:var(--muted);margin:8px 0 0;line-height:1.55")}>
-            Você acompanha tudo em Fiscal, atendimento por atendimento.
-          </p>
-        </div>
-        <Botao onClick={aoPainel} full>Abrir meu painel</Botao>
+        <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>
+          Seu documento fiscal já está ligado
+        </p>
+        <NoPe>
+          <Botao onClick={() => aoEscolher("painel")} full>Continuar</Botao>
+        </NoPe>
       </div>
     );
   }
 
-  const opcao = "display:flex;align-items:center;gap:13px;width:100%;min-height:64px;padding:16px 15px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);font-family:inherit;text-align:left;cursor:pointer;text-decoration:none;color:inherit";
-  const caminhos: { rotulo: string; sub: string; href?: string }[] = [
-    { rotulo: "Atendo como pessoa física", sub: "Recibo do Receita Saúde, no seu CPF. Sem certificado.", href: IR_AO_FISCAL("recibo") },
-    { rotulo: "Tenho CNPJ", sub: "Nota fiscal de serviço. Pede o certificado digital A1.", href: IR_AO_FISCAL("nota") },
+  const opcao = "display:flex;align-items:center;gap:13px;width:100%;min-height:64px;padding:16px 15px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);font-family:inherit;text-align:left;cursor:pointer;color:inherit";
+  const caminhos: { rotulo: string; sub: string; destino: Destino }[] = [
+    { rotulo: "Atendo como pessoa física", sub: "Recibo do Receita Saúde, no seu CPF. Sem certificado.", destino: "recibo" },
+    { rotulo: "Tenho CNPJ", sub: "Nota fiscal de serviço. Pede o certificado digital A1.", destino: "nota" },
     {
       rotulo: "Decidir depois, na tela Fiscal",
       /* O que já funciona sem isto, dito pelo que está ligado de verdade: sem agente ela não
          "atende e marca", e sem lembrete ligado dizer que os lembretes saem seria mentir. */
       sub: uso?.agente ? "Ela já atende e marca pelo WhatsApp." : uso?.lembrete ? "Os lembretes já saem pelo WhatsApp." : "Fica esperando na tela Fiscal.",
+      destino: "painel",
     },
   ];
 
+  /* A frase "A MAISA emite o seu documento fiscal" que abria a etapa saiu em 31/10/2026: o
+   * título já pergunta, e os três rótulos dizem os caminhos (emenda 5, um título só). Escolher
+   * leva à comemoração, e o botão de lá é que abre o Fiscal na seção certa. */
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <p style={s("font-size:var(--t-sm);color:var(--muted);margin:0;line-height:1.6")}>
-        A MAISA emite o seu documento fiscal: nota fiscal ou recibo do Receita Saúde.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {caminhos.map((c) => {
-          const conteudo = (
-            <>
-              {/* Sem ícone em quadrado (emenda 3 do DS): o rótulo diz o caminho. */}
-              <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, flex: 1 }}>
-                <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{c.rotulo}</span>
-                <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>{c.sub}</span>
-              </span>
-            </>
-          );
-          /* `<a>` e não `router.push`: o painel é outra árvore (com `StoreProvider`), e a navegação
-             inteira garante que ele nasce lendo o `?tela=` e o `?secao=`. */
-          return c.href
-            ? <a key={c.rotulo} href={c.href} className="m-hov-bg m-press m-focus" style={s(opcao)}>{conteudo}</a>
-            : <button key={c.rotulo} type="button" onClick={aoPainel} className="m-hov-bg m-press m-focus" style={s(opcao)}>{conteudo}</button>;
-        })}
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {caminhos.map((c) => (
+        <button key={c.rotulo} type="button" onClick={() => aoEscolher(c.destino)} className="m-cartao-anima m-hov-bg m-focus" style={s(opcao)}>
+          {/* Sem ícone em quadrado (emenda 3 do DS): o rótulo diz o caminho. */}
+          <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, flex: 1 }}>
+            <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{c.rotulo}</span>
+            <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>{c.sub}</span>
+          </span>
+          <span className="m-seta"><Icon name="chevron-right" size={18} stroke="var(--muted)" /></span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * A COMEMORAÇÃO — o fim do wizard em tela cheia (31/10/2026).
+ *
+ * Pedido do Bruno, com o "Email confirmed" da Wise de referência: o fim do onboarding ganha uma
+ * tela só dele, no navy da marca.
+ *
+ * ⚠️ A FRASE DIZ O QUE ESTÁ LIGADO DE VERDADE, e não "a maisa está no ar". Quem pulou o WhatsApp
+ * chega aqui com ela sem canal, e a promessa seria falsa: só o `StatusDaMaisa` afirma que ela está
+ * atendendo (guarda G11). Por isso o título fala da conta, que existe, e a linha de baixo lê
+ * `feitos` (o que aconteceu) e `valem` (o que esta conta usa).
+ *
+ * ⚠️ O BOTÃO É `--primary`, NÃO ÂMBAR: âmbar não é ação (emenda 2 do `maisa-design`). O âmbar
+ * aqui é só a marca, sobre o navy, que é um dos dois empregos dele.
+ * ───────────────────────────────────────────────────────────────────────────── */
+function Comemoracao({ destino, feitos, valem, aoPainel }: {
+  destino: Destino; feitos: readonly PassoDeAtivacao[]; valem: readonly PassoDeAtivacao[]; aoPainel: () => void;
+}) {
+  const usaWhatsApp = valem.includes("whatsapp_conectado");
+  const conectado = feitos.includes("whatsapp_conectado");
+  const frase = !usaWhatsApp
+    ? "Seus recibos saem pelo painel, na tela Fiscal."
+    : !conectado
+      ? "Falta conectar o WhatsApp do seu negócio. Dá pra fazer pelo painel, quando quiser."
+      : valem.includes("primeira_conversa")
+        ? "A maisa já atende e marca pelo WhatsApp do seu negócio."
+        : "Os lembretes já saem pelo WhatsApp do seu negócio.";
+  const botao = destino === "recibo" ? "Configurar o recibo" : destino === "nota" ? "Configurar a nota fiscal" : "Abrir meu painel";
+  /* `location` e não `router.push` para o Fiscal: o painel é outra árvore (com `StoreProvider`),
+     e a navegação inteira garante que ele nasce lendo o `?tela=` e o `?secao=`. */
+  const seguir = () => { if (destino === "painel") aoPainel(); else window.location.href = IR_AO_FISCAL(destino); };
+
+  return (
+    <div className="m-altura-tela" style={s("display:flex;align-items:center;justify-content:center;padding:24px 16px;background:var(--nav);overflow-y:auto")}>
+      <div style={s("width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center;gap:26px;text-align:center")}>
+        <span className="m-enter" style={{ ...s("font-size:var(--t-title);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line)" }}>maisa</span>
+        {/* O anel, as duas ondas que saem dele e o check que se desenha (`.m-festa-*`, em
+            `globals.css`). O check é um `polyline` próprio, e não o `Icon`, porque precisa do
+            `pathLength` para o traço ser desenhado do começo ao fim. */}
+        <span style={s("position:relative;width:96px;height:96px;flex-shrink:0")}>
+          <span aria-hidden className="m-festa-onda" style={s("position:absolute;inset:0;border-radius:999px;border:2px solid var(--nav-soft)")} />
+          <span aria-hidden className="m-festa-onda" style={s("position:absolute;inset:0;border-radius:999px;border:2px solid var(--nav-soft)")} />
+          <span className="m-festa-anel" style={s("position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:999px;border:3px solid var(--nav-ink)")}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--nav-ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <polyline className="m-festa-check" pathLength={1} points="20 6 9 17 4 12" />
+            </svg>
+          </span>
+        </span>
+        <div className="m-festa-texto" style={s("width:100%;display:flex;flex-direction:column;align-items:center;gap:18px")}>
+          <h1 style={s("margin:0;font-size:var(--t-data);line-height:1.15;font-weight:var(--w-emph);color:var(--nav-ink)")}>Sua conta está pronta</h1>
+          <p style={s("margin:0;font-size:var(--t-body);line-height:1.5;color:var(--nav-soft)")}>{frase}</p>
+          <button
+            type="button" onClick={seguir} className="m-hov-primary m-press m-focus"
+            style={s("width:100%;max-width:320px;height:48px;border:1px solid var(--nav-line);border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-family:inherit;font-weight:var(--w-title);font-size:var(--t-body);cursor:pointer")}
+          >
+            {botao}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1657,6 +1727,8 @@ function EtapaVerFuncionando({ feitos, aoVoltarParaWhatsApp, aoSeguir }: {
 export default function Comecar() {
   const router = useRouter();
   const [etapa, setEtapa] = useState<EtapaId | null>(null);
+  /** A etapa 5 escolhida: com ela, a tela é a comemoração (`Comemoracao`). */
+  const [fim, setFim] = useState<Destino | null>(null);
   /** O pé da moldura, onde `NoPe` desenha o primário da etapa. Estado (e não `ref`) para a etapa
    *  repintar no pé assim que ele montar. */
   const [pe, setPe] = useState<HTMLDivElement | null>(null);
@@ -1762,72 +1834,60 @@ export default function Comecar() {
   if (etapa === null) {
     return <div className="m-altura-tela" />;
   }
+  if (fim) {
+    return <Comemoracao destino={fim} feitos={feitos} valem={valem} aoPainel={aoPainelDoWizard} />;
+  }
 
   const meta = ETAPAS.find((e) => e.id === etapa)!;
   const podePular = etapa === "catalogo" || etapa === "whatsapp";
-  /* A trilha mostra só o que vai acontecer. Deixar a bolinha de uma etapa que o wizard vai
-   * pular é prometer um passo a mais e depois sumir com ele — o contador andaria de 3 para 5. */
+  /* A barra mostra só o que vai acontecer. Deixar a etapa que o wizard vai pular é prometer um
+   * passo a mais e depois sumir com ele. */
   const etapas = ETAPAS.filter((e) => (e.id === "whatsapp" ? temWhatsApp : e.id === "ver" ? temVer : true));
   /** Depois do WhatsApp: demonstrar a conversa, ou o documento fiscal para quem não tem agente. */
   const depoisDoWhatsApp: EtapaId = temVer ? "ver" : "fiscal";
   /** Depois do catálogo: o WhatsApp, ou — para quem só emite recibo — direto ao que importa. */
   const depoisDoCatalogo: EtapaId = temWhatsApp ? "whatsapp" : depoisDoWhatsApp;
 
+  /* Sair da conta, e não do wizard: quem está aqui ainda não tem para onde ir no painel. Serve a
+   * quem entrou na conta errada. */
+  const sair = async () => {
+    if (isSupabaseConfigured) await createClient().auth.signOut().catch(() => {});
+    window.location.replace("/login");
+  };
+
   return (
-    /* ⚠️ A MOLDURA DO WIZARD (28/09/2026, T1 e 2.41). O documento tem a altura da janela e só o
-       cartão da etapa rola: cabeçalho (marca, trilha, título) em cima e o pé com o primário e o
-       "Pular por agora" embaixo, os dois parados. Era `minHeight:100vh` com tudo empilhado, e o
-       catálogo empurrava o "Salvar e continuar" para y 1487 (1440x900) e 1525 (390x844). O fundo
-       em gradiente saiu junto (o DS proíbe): a entrada é `--bg` chapado. */
-    <div className="m-altura-tela" style={s("display:flex;justify-content:center;padding:16px 16px 12px;background:var(--bg);overflow:hidden")}>
-      <Toaster />
+    /* ⚠️ A MOLDURA DO WIZARD (28/09/2026, T1 e 2.41; desde 31/10/2026 a `MolduraDeEntrada`). O
+       documento tem a altura da janela e só o meio rola: a barra (marca, etapas, "Sair") em cima e
+       o pé com o primário e o "Pular por agora" embaixo, os dois parados. Era `minHeight:100vh` com
+       tudo empilhado, e o catálogo empurrava o "Salvar e continuar" para y 1487 (1440x900). */
+    <>
+    <Toaster />
+    <MolduraDeEntrada
+      etapas={etapas.map((e) => ({ id: e.id, rotulo: e.rotulo }))} atual={etapa} chave={etapa}
+      aoSair={() => void sair()} largura={etapa === "catalogo" || etapa === "fiscal" ? 480 : 520}
+      refDoPe={setPe}
+      /* ⚠️ "Pular" NÃO aparece na etapa 1, e é a única assimetria da tela: as outras configuram,
+         esta CRIA. Sem inquilino não há o que pular para — o painel responde 409 em toda rota.
+         Vai em `pe`, a vaga de baixo do pé, e nunca fica acima do primário da etapa. */
+      pe={podePular ? (
+        <AcaoDiscreta onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar(etapa === "catalogo" ? depoisDoCatalogo : depoisDoWhatsApp); }}>
+          Pular por agora
+        </AcaoDiscreta>
+      ) : undefined}
+    >
+      {etapa !== "negocio" && <TituloDaEntrada>{meta.titulo}</TituloDaEntrada>}
 
-      <div className="m-enter" style={s("width:100%;max-width:520px;display:flex;flex-direction:column;gap:14px;min-height:0")}>
-        <div style={s("flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:12px")}>
-          <div style={s("width:100%;display:flex;align-items:center;gap:16px")}>
-            <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel);flex-shrink:0")}>
-              <span style={{ ...s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line)" }}>maisa</span>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}><Trilha atual={etapa} etapas={etapas} /></div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink);margin:0")}>{meta.titulo}</h1>
-            <p style={s("font-size:var(--t-sm);color:var(--muted);margin:4px 0 0")}>{meta.sub}</p>
-          </div>
-        </div>
+      <PeDoWizard.Provider value={pe}>
+        {etapa === "negocio" && (
+          <EtapaNegocio aoCriar={(uso) => { setValem(passosQueValem(uso)); avancar("catalogo"); }} />
+        )}
+        {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar(depoisDoCatalogo)} />}
+        {etapa === "whatsapp" && <EtapaWhatsApp aoSeguir={() => avancar(depoisDoWhatsApp)} />}
+        {etapa === "ver" && <EtapaVerFuncionando feitos={feitos} aoVoltarParaWhatsApp={() => avancar("whatsapp")} aoSeguir={() => avancar("fiscal")} />}
+        {etapa === "fiscal" && <EtapaNotaFiscal aoEscolher={setFim} />}
 
-        {/* A única região que rola. `flex:0 1 auto`: a etapa curta não estica o cartão até o pé. */}
-        <div style={s("flex:0 1 auto;min-height:0;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-card);padding:22px 20px")}>
-          <PeDoWizard.Provider value={pe}>
-            {etapa === "negocio" && (
-              <EtapaNegocio aoCriar={(uso) => { setValem(passosQueValem(uso)); avancar("catalogo"); }} />
-            )}
-            {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar(depoisDoCatalogo)} />}
-            {etapa === "whatsapp" && <EtapaWhatsApp aoSeguir={() => avancar(depoisDoWhatsApp)} />}
-            {etapa === "ver" && <EtapaVerFuncionando feitos={feitos} aoVoltarParaWhatsApp={() => avancar("whatsapp")} aoSeguir={() => avancar("fiscal")} />}
-            {etapa === "fiscal" && <EtapaNotaFiscal aoPainel={aoPainelDoWizard} />}
-          </PeDoWizard.Provider>
-        </div>
-
-        {/* O pé: o primário da etapa chega aqui por `NoPe`. Vazio (etapa sem primário próprio,
-            como o documento fiscal, cujos caminhos são a ação), ele não ocupa nada. */}
-        <div style={s("flex-shrink:0;display:flex;flex-direction:column;gap:6px")}>
-          <div ref={setPe} style={s("display:flex;flex-direction:column;gap:10px")} />
-
-          {/* ⚠️ "Pular" NÃO aparece na etapa 1, e é a única assimetria da tela: as outras três
-              configuram, esta CRIA. Sem inquilino não há o que pular para — o painel
-              responde 409 em toda rota. */}
-          {podePular && (
-            <button
-              onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar(etapa === "catalogo" ? depoisDoCatalogo : depoisDoWhatsApp); }}
-              className="m-focus"
-              style={s("align-self:center;background:none;border:none;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--muted);cursor:pointer;padding:0 12px;min-height:44px")}
-            >
-              Pular por agora
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+      </PeDoWizard.Provider>
+    </MolduraDeEntrada>
+    </>
   );
 }

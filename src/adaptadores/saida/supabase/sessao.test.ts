@@ -14,7 +14,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
-import { isPublic } from "./sessao";
+import { desvioParaWhatsapp, isPublic } from "./sessao";
 
 describe("o funil é público", () => {
   /* A LP oficial de terapeutas é um bundle estático em `public/lp/` — não é rota do
@@ -187,4 +187,44 @@ describe("tutorial da Autorização de Acesso", () => {
     expect(isPublic("/autorizarem")).toBe(false);
     expect(isPublic("/autorizacoes")).toBe(false);
   });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * SEM WHATSAPP, NINGUÉM ENTRA NO APP (30/10/2026).
+ *
+ * Uma conta nasceu pelo `/cadastro` com e-mail e mais nada, e o Bruno não tinha como chamar a
+ * pessoa para ajudar. O desvio tem dois modos de falha, e os dois estão aqui: pegar rota pública
+ * (a `/api` passaria a devolver redirect em vez de JSON, e a LP mandaria visitante para uma tela
+ * de quem já tem conta) e laço (a própria `/whatsapp` desviando para ela mesma).
+ * ────────────────────────────────────────────────────────────────────────────── */
+describe("logado sem WhatsApp", () => {
+  const semNumero = { email: "a@b.com", email_verified: true, sub: "x" };
+  const comNumero = { email: "a@b.com", telefone: "11944470703" };
+
+  it.each(["/", "/agenda", "/comecar", "/financeiro", "/nova-senha"])("%s desvia para /whatsapp", (rota) => {
+    expect(desvioParaWhatsapp(rota, "", semNumero)).toBe(`/whatsapp?next=${encodeURIComponent(rota)}`);
+  });
+
+  it("guarda a busca junto, para voltar exatamente para onde ia", () => {
+    expect(desvioParaWhatsapp("/agenda", "?dia=2026-10-30", semNumero)).toBe("/whatsapp?next=%2Fagenda%3Fdia%3D2026-10-30");
+  });
+
+  it("com número, segue", () => {
+    expect(desvioParaWhatsapp("/", "", comNumero)).toBeNull();
+  });
+
+  it("a própria /whatsapp não desvia para ela mesma", () => {
+    expect(desvioParaWhatsapp("/whatsapp", "?next=%2F", semNumero)).toBeNull();
+  });
+
+  it("/whatsapp exige login", () => {
+    expect(isPublic("/whatsapp")).toBe(false);
+  });
+
+  it.each(["/api/cadastro", "/api/negocio", "/auth/callback", "/login", "/lp/maisa", "/assinar/essencial", "/termos"])(
+    "%s é pública e passa direto",
+    (rota) => {
+      expect(desvioParaWhatsapp(rota, "", semNumero)).toBeNull();
+    },
+  );
 });

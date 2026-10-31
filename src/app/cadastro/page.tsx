@@ -22,6 +22,14 @@
  * caixa de entrada". Um formulário com dois conjuntos de estado é o formulário onde uma
  * das mensagens sai no lugar da outra.
  *
+ * ── ★ DUAS TELAS, DESDE 31/10/2026 ──
+ *
+ * E-mail e senha numa, o WhatsApp na outra, na moldura das telas de entrada
+ * (`ui/componentes/MolduraDeEntrada.tsx`), com o cadastro da Wise como referência. A conta só
+ * nasce no fim da segunda, já com o número no metadata: é o que faz o aviso de cadastro novo
+ * chegar ao Bruno com um WhatsApp para chamar. O "Repita a senha" saiu na mesma mudança, porque
+ * o olho do `CampoSenha` mostra o que foi digitado e o `/esqueci` existe desde 17/08/2026.
+ *
  * ⚠️ ROTA PÚBLICA. Precisa estar em `PUBLIC_PREFIXES` (`saida/supabase/sessao.ts`), senão
  * o middleware manda para o login quem estava indo criar conta — o laço perfeito. A
  * checagem é por SEGMENTO, então `/cadastro` não herda nada de outro prefixo. Há teste.
@@ -37,6 +45,9 @@ import { createClient } from "@/adaptadores/saida/supabase/client";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
 import { BotaoGoogle } from "@/ui/componentes/BotaoGoogle";
 import { empurrar } from "@/ui/medicao";
+import { whatsappDaConta } from "@/nucleo/dominio/whatsapp-da-conta";
+import { AcaoDiscreta, MolduraDeEntrada, TituloDaEntrada } from "@/ui/componentes/MolduraDeEntrada";
+import { CAMPO_DE_AUTH, CampoWhatsapp } from "@/ui/componentes/CampoWhatsapp";
 
 /**
  * Piso da senha.
@@ -48,8 +59,15 @@ import { empurrar } from "@/ui/medicao";
  */
 const SENHA_MIN = 8;
 
-const inputCss =
-  "width:100%;border:1px solid var(--border);border-radius:var(--r-painel);padding:13px 14px;font-size:var(--t-body);background:var(--surface);color:var(--ink);outline:none;font-family:inherit";
+/** O primário das duas telas. `<button>` cru pelo `disabled`, como o `Botao` do wizard. */
+function BotaoPrincipal({ children, carregando, travado }: { children: React.ReactNode; carregando: boolean; travado: boolean }) {
+  return (
+    <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
+      {carregando && <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} />}
+      {children}
+    </button>
+  );
+}
 
 function CadastroInner() {
   const params = useSearchParams();
@@ -62,8 +80,10 @@ function CadastroInner() {
   const veioDoPagamento = params.get("origem") === "stripe";
 
   const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [senha, setSenha] = useState("");
-  const [confirma, setConfirma] = useState("");
+  /** As duas telas do formulário: e-mail e senha, depois o WhatsApp. */
+  const [passo, setPasso] = useState<"conta" | "whatsapp">("conta");
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
@@ -183,21 +203,18 @@ function CadastroInner() {
 
     const alvo = email.trim();
 
-    if (senha.length < SENHA_MIN) {
-      setErro(`A senha precisa de pelo menos ${SENHA_MIN} caracteres.`);
+    /* O WhatsApp é obrigatório desde 30/10/2026: é por ele que a equipe chama quem acabou de
+     * entrar. Pedir aqui faz o número chegar no aviso de cadastro novo, que sai no instante em
+     * que a conta nasce. Quem entra pelo Google é pedido depois, no `/whatsapp`. Ver
+     * `nucleo/dominio/whatsapp-da-conta.ts`. */
+    const whatsapp = whatsappDaConta(telefone);
+    if (!whatsapp) {
+      setErro("Confira o WhatsApp e escreva com o DDD.");
       return;
     }
-    /* A confirmação existe por causa de um beco sem saída, não por formalidade: a conta
-     * só nasce depois de a pessoa sair do app e clicar no e-mail. Com a senha digitada
-     * errado, ela confirma o e-mail, volta e não consegue entrar. O erro só apareceria
-     * minutos depois, longe do campo que o causou.
-     *
-     * ⚠️ Este comentário dizia "e este produto AINDA NÃO TEM tela de recuperar senha".
-     * Passou a ter em 17/08/2026 (`/esqueci`), então o beco deixou de ser sem saída — mas
-     * a confirmação FICA: descobrir o erro aqui, no campo que o causou, continua sendo
-     * muito melhor que descobrir dez minutos depois e ter que pedir outro e-mail. */
-    if (senha !== confirma) {
-      setErro("As duas senhas não são iguais.");
+    if (senha.length < SENHA_MIN) {
+      setErro(`A senha precisa de pelo menos ${SENHA_MIN} caracteres.`);
+      setPasso("conta");
       return;
     }
 
@@ -207,6 +224,7 @@ function CadastroInner() {
       email: alvo,
       password: senha,
       options: {
+        data: { telefone: whatsapp },
         /* Para onde o link do e-mail devolve. `/auth/callback` transforma o que veio na
          * URL em sessão — é o MESMO caminho do OAuth, e o comentário de lá diz isso.
          *
@@ -234,9 +252,10 @@ function CadastroInner() {
       const m = error.message.toLowerCase();
       /* Com "Confirm email" desligado, e-mail já cadastrado vem como erro 422, e não como o
        * 200 de `identities` vazio tratado abaixo. Ver o ⚠️ igual em `assinar/[plano]/Assinar.tsx`. */
-      if (error.code === "user_already_exists" || /already registered|already exists/.test(m)) setErro("Este e-mail já tem uma conta. Entre por aqui embaixo.");
-      else if (/password/.test(m)) setErro(`A senha precisa de pelo menos ${SENHA_MIN} caracteres.`);
-      else if (/email|invalid/.test(m)) setErro("Confira o e-mail digitado.");
+      /* Erro de e-mail ou de senha volta para a tela onde está o campo que o causou. */
+      if (error.code === "user_already_exists" || /already registered|already exists/.test(m)) { setErro("Este e-mail já tem uma conta. Entre por aqui embaixo."); setPasso("conta"); }
+      else if (/password/.test(m)) { setErro(`A senha precisa de pelo menos ${SENHA_MIN} caracteres.`); setPasso("conta"); }
+      else if (/email|invalid/.test(m)) { setErro("Confira o e-mail digitado."); setPasso("conta"); }
       else if (/rate|limit|seconds/.test(m)) setErro("Muitas tentativas seguidas. Espere um minuto e tente de novo.");
       else setErro("Não foi possível criar a conta agora. Tente de novo em instantes.");
       setCarregando(false);
@@ -257,158 +276,169 @@ function CadastroInner() {
      */
     if (data.user && (data.user.identities?.length ?? 0) === 0) {
       setErro("Este e-mail já tem uma conta. Entre por aqui embaixo.");
+      setPasso("conta");
       setCarregando(false);
       return;
     }
 
     empurrar({ event: "maisa_sign_up", maisa_method: "email", maisa_origem: "cadastro" });
+    /* Com "Confirm email" desligado (produção), o `signUp` já devolve a sessão: não há o que
+     * esperar na caixa de entrada, e a tela de "Confirme seu e-mail" só piscava até o relógio
+     * de 2s perceber o cookie. */
+    if (data.session) { irParaComecar(); return; }
     setEnviadoPara(alvo);
     setCarregando(false);
   };
 
+  /** A primeira tela só confere a senha e passa adiante: a conta nasce no fim da segunda. */
+  const continuar = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro(null);
+    if (senha.length < SENHA_MIN) {
+      setErro(`A senha precisa de pelo menos ${SENHA_MIN} caracteres.`);
+      return;
+    }
+    setPasso("whatsapp");
+  };
+
   const travado = !isSupabaseConfigured || carregando;
 
-  return (
-    <div style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", overflow: "hidden" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "radial-gradient(60% 55% at 25% 12%, var(--primary-soft) 0%, transparent 60%), radial-gradient(55% 55% at 88% 92%, var(--warm-soft) 0%, transparent 58%)" }} />
+  const caixaDeErro = erro && (
+    <div role="alert" style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>{erro}</div>
+  );
 
-      <div className="m-enter" style={{ width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 22 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <div style={s("display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;background:var(--nav);border:1px solid var(--nav-line);border-radius:var(--r-painel);box-shadow:0 10px 30px oklch(0.22 0.03 262 / 0.22)")}>
-            <span style={{ ...s("font-size:var(--t-data);font-weight:var(--w-title);color:var(--warm);line-height:1"), textShadow: "0 1.5px 0 var(--warm-line), 0 3px 5px rgba(0,0,0,.22)" }}>maisa</span>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <h1 style={s("font-size:var(--t-title);font-weight:var(--w-title);color:var(--ink)")}>
-              {enviadoPara ? "Confirme seu e-mail" : "Criar sua conta"}
-            </h1>
-            <p style={s("font-size:var(--t-sm);color:var(--muted);margin-top:3px")}>
-              {enviadoPara ? "Falta um clique para começar" : "14 dias grátis — sem cartão"}
-            </p>
-          </div>
+  /* ── estado de sucesso: SUBSTITUI o formulário ──
+     Não é toast e não é faixa acima dos campos. A pessoa vai SAIR do app agora, abrir outro
+     aplicativo e voltar — e o que ela precisa levar na cabeça é "procure um e-mail da maisa".
+     Um formulário ainda visível ao lado disso convida a tentar de novo, o que só gera um
+     segundo e-mail e mais confusão sobre qual link vale. */
+  if (enviadoPara) {
+    return (
+      <MolduraDeEntrada chave="confirmar">
+        <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:999px;background:var(--success-soft);align-self:center")}>
+          <Icon name="check" size={26} stroke="var(--success)" />
         </div>
-
-        <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-card);padding:26px 24px;display:flex;flex-direction:column;gap:16px")}>
-          {/* ── estado de sucesso: SUBSTITUI o formulário ──
-              Não é toast e não é faixa acima dos campos. A pessoa vai SAIR do app agora,
-              abrir outro aplicativo e voltar — e o que ela precisa levar na cabeça é
-              "procure um e-mail da maisa". Um formulário ainda visível ao lado disso
-              convida a tentar de novo, o que só gera um segundo e-mail e mais confusão
-              sobre qual link vale. */}
-          {enviadoPara ? (
-            <>
-              <div style={s("display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:999px;background:var(--success-soft);align-self:center")}>
-                <Icon name="check" size={24} stroke="var(--success)" />
-              </div>
-              <p style={s("font-size:var(--t-body);color:var(--ink);line-height:1.5;text-align:center")}>
-                Enviamos um link de confirmação para<br />
-                <strong style={s("font-weight:var(--w-title)")}>{enviadoPara}</strong>
-              </p>
-              <p style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5;text-align:center")}>
-                Clique no link para entrar e configurar seu negócio. Se ele não aparecer em
-                alguns minutos, <strong style={s("font-weight:var(--w-title);color:var(--ink)")}>olhe o spam</strong> — é
-                onde e-mail de confirmação costuma cair.
-              </p>
-              {/* ── "PODE DEIXAR ABERTA" É PROMESSA, E O CÓDIGO CUMPRE ──
-                  Ver o bloco `A ABA QUE FICOU PARA TRÁS`, acima. Esta frase existe para a
-                  pessoa NÃO fechar a aba: fechar é o que a obrigava a redigitar tudo. O
-                  ponto pulsando é o sinal de que algo está acontecendo — sem ele, "eu entro
-                  sozinho" é uma afirmação que a tela não sustenta. */}
-              <div style={s("display:flex;align-items:center;justify-content:center;gap:9px;font-size:var(--t-label);color:var(--muted);line-height:1.5;text-align:center")}>
-                <span
-                  aria-hidden
-                  style={{ ...s("width:7px;height:7px;border-radius:999px;background:var(--primary);flex-shrink:0"), animation: "mpulse 1.6s ease-in-out infinite" }}
-                />
-                <span>Pode deixar esta aba aberta — assim que você confirmar, eu entro sozinho.</span>
-              </div>
-
-              {erro && (
-                <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--warn);background:var(--warn-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>
-                  {erro}
-                </div>
-              )}
-
-              {/* O caminho manual existe desde o primeiro segundo, e não como resgate depois
-                  de o relógio parar: quem confirmou em outro aparelho e voltou não deveria
-                  esperar 15s para descobrir que já podia entrar. */}
-              <button
-                onClick={() => void conferirSePodeEntrar(true)}
-                disabled={entrando}
-                className="m-hov-primary m-press m-focus"
-                style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:46px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-sm);cursor:${entrando ? "not-allowed" : "pointer"};opacity:${entrando ? ".6" : "1"};font-family:inherit`)}
-              >
-                {entrando && <span style={{ ...s("width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} />}
-                Já confirmei — entrar
-              </button>
-
-              <button
-                onClick={() => { setEnviadoPara(null); setSenha(""); setConfirma(""); setErro(null); }}
-                className="m-hov-bg m-press m-focus"
-                style={s("height:44px;border:1px solid var(--border);border-radius:var(--r-painel);background:var(--surface);color:var(--ink);font-weight:var(--w-title);font-size:var(--t-sm);cursor:pointer;font-family:inherit")}
-              >
-                Digitei o e-mail errado
-              </button>
-            </>
-          ) : (
-            <>
-              {!isSupabaseConfigured && (
-                <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
-                  <Icon name="alert" size={16} style={s("flex-shrink:0")} />
-                  <span><strong>Cadastro indisponível neste ambiente.</strong></span>
-                </div>
-              )}
-
-              {veioDoPagamento && (
-                <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--success-soft);color:var(--success);font-size:var(--t-label);line-height:1.45")}>
-                  <Icon name="check" size={16} />
-                  <span><strong>Pagamento recebido.</strong> Crie sua conta com o mesmo e-mail da compra para a gente ligar as duas.</span>
-                </div>
-              )}
-
-              <form onSubmit={criar} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                  <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>E-mail</span>
-                  <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Escreva seu e-mail…" className="m-focus" style={s(inputCss)} disabled={travado} />
-                </label>
-                <CampoSenha
-                  rotulo="Senha" valor={senha} aoMudar={setSenha}
-                  autoComplete="new-password" minLength={SENHA_MIN}
-                  placeholder={`Pelo menos ${SENHA_MIN} caracteres…`} desabilitado={travado}
-                />
-                {/* ⚠️ NÃO usa o placeholder de bolinhas que estava aqui. Com o olho ao lado,
-                    `••••••••` passou a parecer um campo JÁ PREENCHIDO cuja senha bastava
-                    revelar — e a pessoa clica no olho, não vê nada e conclui que quebrou. */}
-                <CampoSenha
-                  rotulo="Repita a senha" valor={confirma} aoMudar={setConfirma}
-                  autoComplete="new-password" desabilitado={travado}
-                  placeholder="Escreva a senha de novo…"
-                />
-
-                {erro && <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--danger);background:var(--danger-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>{erro}</div>}
-
-                <button type="submit" disabled={travado} className="m-hov-primary m-press m-focus" style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${travado ? "not-allowed" : "pointer"};opacity:${travado ? ".6" : "1"};font-family:inherit`)}>
-                  {carregando && <span style={{ ...s("width:17px;height:17px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} />}
-                  Criar conta grátis
-                </button>
-              </form>
-
-              {/* Entrar e cadastrar são a MESMA chamada no Google — o provedor não
-                  distingue, e a conta nasce no primeiro acesso. Por isso não há um
-                  `signUp` social: o que muda aqui é só o texto do botão (`modo`) e o
-                  destino, `/comecar`, porque quem chega pelo cadastro não tem negócio. */}
-              <BotaoGoogle modo="criar" destino="/comecar" desabilitado={travado} />
-            </>
-          )}
-        </div>
-
-        <p style={s("text-align:center;font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-          Já tem conta?{" "}
-          <Link href="/login" className="m-focus" style={s("color:var(--primary);font-weight:var(--w-title)")}>
-            Entrar
-          </Link>
+        <TituloDaEntrada>Confirme seu e-mail</TituloDaEntrada>
+        <p style={s("margin:0;font-size:var(--t-body);color:var(--ink);line-height:1.5;text-align:center")}>
+          Enviamos um link de confirmação para<br />
+          <strong style={s("font-weight:var(--w-title)")}>{enviadoPara}</strong>
         </p>
+        <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5;text-align:center")}>
+          Clique no link para entrar e configurar seu negócio. Se ele não aparecer em alguns
+          minutos, <strong style={s("font-weight:var(--w-title);color:var(--ink)")}>olhe o spam</strong>: é
+          onde e-mail de confirmação costuma cair.
+        </p>
+        {/* ── "PODE DEIXAR ABERTA" É PROMESSA, E O CÓDIGO CUMPRE ──
+            Ver o bloco `A ABA QUE FICOU PARA TRÁS`, acima. Esta frase existe para a pessoa NÃO
+            fechar a aba: fechar é o que a obrigava a redigitar tudo. O ponto pulsando é o sinal
+            de que algo está acontecendo. */}
+        <div style={s("display:flex;align-items:center;justify-content:center;gap:9px;font-size:var(--t-label);color:var(--muted);line-height:1.5;text-align:center")}>
+          <span
+            aria-hidden
+            style={{ ...s("width:7px;height:7px;border-radius:999px;background:var(--primary);flex-shrink:0"), animation: "mpulse 1.6s ease-in-out infinite" }}
+          />
+          <span>Pode deixar esta aba aberta: assim que você confirmar, eu entro sozinho.</span>
+        </div>
+
+        {erro && (
+          <div style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--warn);background:var(--warn-soft);padding:10px 12px;border-radius:var(--r-controle);line-height:1.45")}>
+            {erro}
+          </div>
+        )}
+
+        {/* O caminho manual existe desde o primeiro segundo, e não como resgate depois de o
+            relógio parar: quem confirmou em outro aparelho e voltou não deveria esperar 15s
+            para descobrir que já podia entrar. */}
+        <button
+          onClick={() => void conferirSePodeEntrar(true)}
+          disabled={entrando}
+          className="m-hov-primary m-press m-focus"
+          style={s(`display:flex;align-items:center;justify-content:center;gap:9px;height:48px;border:none;border-radius:var(--r-painel);background:var(--primary);color:var(--on-primary);font-weight:var(--w-title);font-size:var(--t-body);cursor:${entrando ? "not-allowed" : "pointer"};opacity:${entrando ? ".6" : "1"};font-family:inherit`)}
+        >
+          {entrando && <span style={{ ...s("width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:var(--on-primary);border-radius:50%"), animation: "mspin .7s linear infinite" }} />}
+          Já confirmei, entrar
+        </button>
+        <AcaoDiscreta onClick={() => { setEnviadoPara(null); setPasso("conta"); setSenha(""); setErro(null); }}>
+          Digitei o e-mail errado
+        </AcaoDiscreta>
+      </MolduraDeEntrada>
+    );
+  }
+
+  /* ── a segunda tela: o WhatsApp ──
+     A conta nasce aqui, no "Criar minha conta". Voltar não perde nada: e-mail e senha ficam
+     no estado. */
+  if (passo === "whatsapp") {
+    return (
+      <MolduraDeEntrada chave="whatsapp">
+        <TituloDaEntrada>Qual é o seu WhatsApp?</TituloDaEntrada>
+        <form onSubmit={criar} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <CampoWhatsapp valor={telefone} aoMudar={setTelefone} desabilitado={travado} autoFocus />
+          {caixaDeErro}
+          <BotaoPrincipal carregando={carregando} travado={travado}>Criar minha conta</BotaoPrincipal>
+        </form>
+        <AcaoDiscreta onClick={() => { setPasso("conta"); setErro(null); }} desligada={carregando}>Voltar</AcaoDiscreta>
         <LinhaLegal />
+      </MolduraDeEntrada>
+    );
+  }
+
+  return (
+    <MolduraDeEntrada chave="conta">
+      <TituloDaEntrada>Crie sua conta na maisa</TituloDaEntrada>
+
+      {!isSupabaseConfigured && (
+        <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--warm-soft);color:var(--warn);font-size:var(--t-label);line-height:1.45")}>
+          <Icon name="alert" size={16} style={s("flex-shrink:0")} />
+          <span><strong>Cadastro indisponível neste ambiente.</strong></span>
+        </div>
+      )}
+
+      {veioDoPagamento && (
+        <div style={s("display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-painel);background:var(--success-soft);color:var(--success);font-size:var(--t-label);line-height:1.45")}>
+          <Icon name="check" size={16} />
+          <span><strong>Pagamento recebido.</strong> Crie sua conta com o mesmo e-mail da compra para a gente ligar as duas.</span>
+        </div>
+      )}
+
+      <form onSubmit={continuar} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>E-mail</span>
+          <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Escreva seu e-mail…" className="m-focus" style={s(CAMPO_DE_AUTH)} disabled={travado} />
+        </label>
+        {/* ⚠️ NÃO usa o placeholder de bolinhas: com o olho ao lado, `••••••••` parece um campo
+            JÁ PREENCHIDO cuja senha bastava revelar. */}
+        <CampoSenha
+          rotulo="Crie uma senha" valor={senha} aoMudar={setSenha}
+          autoComplete="new-password" minLength={SENHA_MIN}
+          placeholder={`Pelo menos ${SENHA_MIN} caracteres…`} desabilitado={travado}
+        />
+        {caixaDeErro}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <BotaoPrincipal carregando={false} travado={travado}>Continuar</BotaoPrincipal>
+          <span style={s("text-align:center;font-size:var(--t-label);color:var(--muted)")}>14 dias grátis, sem cartão.</span>
+        </div>
+      </form>
+
+      <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={s("flex:1;height:1px;background:var(--line)")} />
+        <span style={s("font-size:var(--t-label);color:var(--muted)")}>ou</span>
+        <span style={s("flex:1;height:1px;background:var(--line)")} />
       </div>
-    </div>
+
+      {/* Entrar e cadastrar são a MESMA chamada no Google — o provedor não distingue, e a conta
+          nasce no primeiro acesso. Quem vem por aqui não passou pela tela do WhatsApp: o
+          middleware pede o número logo depois (`desvioParaWhatsapp`). */}
+      <BotaoGoogle modo="criar" destino="/comecar" desabilitado={travado} />
+
+      <p style={s("margin:0;text-align:center;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
+        Já tem conta?{" "}
+        <Link href="/login" className="m-focus" style={s("color:var(--primary);font-weight:var(--w-title)")}>
+          Entrar
+        </Link>
+      </p>
+      <LinhaLegal />
+    </MolduraDeEntrada>
   );
 }
 
@@ -416,7 +446,7 @@ function CadastroInner() {
  * inteira vira renderização sob demanda no build. Mesmo arranjo do `/login`. */
 export default function CadastroPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh" }} />}>
+    <Suspense fallback={<div className="m-altura-tela" />}>
       <CadastroInner />
     </Suspense>
   );

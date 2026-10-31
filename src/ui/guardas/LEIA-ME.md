@@ -1,7 +1,7 @@
 # `src/ui/guardas/` — o que a tela não pode voltar a fazer
 
-Testes de vitest (ambiente `node`) que leem a **fonte** do painel e das cinco rotas de entrada
-(`/login`, `/cadastro`, `/esqueci`, `/nova-senha`, `/comecar`) e reprovam o defeito que a
+Testes de vitest (ambiente `node`) que leem a **fonte** do painel e das seis rotas de entrada
+(`/login`, `/cadastro`, `/esqueci`, `/nova-senha`, `/comecar` e, desde 31/10/2026, `/whatsapp`) e reprovam o defeito que a
 auditoria do front de 24/09/2026 achou, com arquivo, linha e trecho. Rodam no `npm test` e no
 CI, como `arquitetura.test.ts` e `documentacao.test.ts`.
 

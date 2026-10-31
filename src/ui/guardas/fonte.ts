@@ -41,7 +41,8 @@ export function arquivosDe(dir: string): string[] {
 }
 
 /**
- * Onde mora o que o dono lê: o painel inteiro e as cinco rotas de entrada.
+ * Onde mora o que o dono lê: o painel inteiro e as rotas de entrada. A sexta, `/whatsapp` (a tela
+ * que pede o número de quem entrou sem ele), entrou em 31/10/2026.
  *
  * As LPs (`src/app/(marketing)`) ficam de fora: têm design system e voz próprios, e o backlog
  * do front não é sobre elas.
@@ -53,6 +54,7 @@ export const RAIZES_DE_TELA = [
   "src/app/esqueci",
   "src/app/nova-senha",
   "src/app/comecar",
+  "src/app/whatsapp",
   "src/app/page.tsx",
 ] as const;
 

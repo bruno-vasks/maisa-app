@@ -96,7 +96,7 @@ Baixas e **quentes** — construídas sobre `rgba(23,21,18,…)`, nunca preto pu
 - **Desabilitado**: `opacity .42`, cursor `not-allowed`, sem sombra.
 
 ### Movimento
-Rápido e discreto: 120ms para cor e hover, 180ms para abrir/fechar, 280ms para modal e toast, 420ms só em entrada de página. Curva padrão `--ease-out`. **Bounce (`--ease-spring`) existe em exatamente um lugar: o knob do switch.** Nada de parallax, número contando, confete ou elemento entrando de longe. `prefers-reduced-motion` zera todas as durações.
+Rápido e discreto: 120ms para cor e hover, 180ms para abrir/fechar, 280ms para modal e toast, 420ms só em entrada de página. Curva padrão `--ease-out`. **Bounce (`--ease-spring`) existe em exatamente um lugar: o knob do switch.** Nada de parallax, número contando, confete ou elemento entrando de longe. `prefers-reduced-motion` zera todas as durações. Nas telas de entrada vale a emenda 7 (o onboarding se mexe mais).
 
 Esses tetos governam **resposta a interação** — hover, abrir, fechar, entrar. O **respiro ambiente da ilustração** é a única coisa que roda em ciclo longo, porque a 420ms um loop viraria tremor; ele tem limite próprio em **Ilustração**, abaixo. Fora dele, nada na interface fica em loop.
 
@@ -215,6 +215,34 @@ texto, um exemplo realista é igual a um campo preenchido.
   única explicação de por que não dá para escrever (o composer de Conversas).
 - **Limite medido:** o guarda G23 (`src/ui/guardas/placeholder.test.ts`) reprova placeholder sem
   reticências ou com cara de dado no painel e nas rotas de entrada.
+
+### 7. O onboarding se mexe mais (31/10/2026)
+Pedido do Bruno, quando o cadastro e o `/comecar` passaram a ser uma pergunta por tela: *"parece
+meio morto sem as animações. Quero manter o estilo de light animation, mas na página de
+onboarding podemos ousar um pouco mais."* Isto amplia *Movimento* só nas telas de entrada
+(`/cadastro`, `/whatsapp`, `/comecar`). O painel continua com a regra original.
+
+1. **Cascata de entrada** (`.m-cascata`, nas três telas): cada tela entra com os filhos subindo
+   8px, 420ms cada, com 60ms entre um e o próximo (até 300ms). É a entrada de página de
+   *Movimento*, dividida por item.
+2. **Cartão de escolha que responde** (`.m-cartao-anima`, só no `/comecar`): sobe 2px no hover, e
+   o ícone faz o que o objeto faz (`app/comecar/IconeVivo.tsx`): a tesoura corta, o estetoscópio
+   bate, a loja desenrola o toldo e abre a porta, a conversa digita, o sino toca, o recibo se
+   escreve e carimba. Toca ao entrar na tela e de novo a cada hover ou toque. Inclinar qualquer
+   ícone do mesmo jeito foi vetado pelo Bruno ("seja mais criativo e ousado"). A seta dos
+   cartões de caminho anda 4px.
+3. **A mola sai do interruptor**, no `/comecar`: o check de escolhido entra com `--ease-spring`
+   (`.m-pop`) e o anel da comemoração também.
+4. **A comemoração** (fim do wizard): o anel cresce, o check se desenha, duas ondas saem do anel
+   e o texto sobe depois. Tudo dura até 2,2s e acontece uma vez.
+
+5. **O interruptor da lista de serviços** (`app/comecar/InterruptorVivo.tsx`): a cor enche a
+   trilha e a bolinha estica no aperto e desliza com a mola. Sem check dentro da bolinha e sem
+   risco no nome do serviço desligado (o Bruno tirou os dois). O `Toggle` do painel não muda.
+
+- **Limite:** continuam proibidos confete, parallax, número contando e elemento entrando de
+  longe; nada se mexe em loop, fora o ponto de "esperando" que já existia. O
+  `prefers-reduced-motion` de `globals.css` zera duração e atraso de tudo isto.
 
 ---
 

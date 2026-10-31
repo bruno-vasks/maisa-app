@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from "./config";
+import { contaTemWhatsapp, ROTA_DO_WHATSAPP } from "@/nucleo/dominio/whatsapp-da-conta";
 
 // Rotas que NÃO exigem login: a própria tela de login, o callback de OAuth, as APIs
 // (as rotas /api fazem a própria checagem de sessão e devolvem 401 em JSON) e as
@@ -63,6 +64,21 @@ const PUBLIC_PREFIXES = [
 export const isPublic = (path: string) =>
   PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
 
+/**
+ * Para onde mandar quem está LOGADO e ainda não deixou o WhatsApp; `null` = segue (30/10/2026).
+ *
+ * Pega todo caminho de cadastro de uma vez: `/cadastro`, o botão do Google (que não deixa pedir
+ * campo nenhum) e as contas que nasceram antes desta regra. O porquê está em
+ * `nucleo/dominio/whatsapp-da-conta.ts`. Rota pública passa direto: `/api` responde JSON e não
+ * pode virar redirect, e as LPs e o `/assinar` atendem quem ainda nem tem conta.
+ *
+ * Exportada para o teste, pelo mesmo motivo do `isPublic`.
+ */
+export function desvioParaWhatsapp(path: string, busca: string, metadata: unknown): string | null {
+  if (isPublic(path) || path === ROTA_DO_WHATSAPP || contaTemWhatsapp(metadata)) return null;
+  return `${ROTA_DO_WHATSAPP}?next=${encodeURIComponent(path + busca)}`;
+}
+
 export async function updateSession(request: NextRequest) {
   // Auth desligado (sem chaves) → não bloqueia nada. App segue como demo aberta.
   if (!isSupabaseConfigured) return NextResponse.next();
@@ -92,6 +108,18 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/login";
     url.searchParams.set("next", path);
     return NextResponse.redirect(url);
+  }
+
+  /* Logado sem WhatsApp → pede o número antes de qualquer tela. Ver `desvioParaWhatsapp`.
+   *
+   * ⚠️ OS COOKIES VÃO JUNTO NO REDIRECT. Se o `getUser()` acima renovou a sessão, os cookies
+   * novos estão em `response`, e um redirect sem eles faria o navegador voltar com o token velho,
+   * que o Supabase já trocou. */
+  const desvio = user ? desvioParaWhatsapp(path, request.nextUrl.search, user.user_metadata) : null;
+  if (desvio) {
+    const redirect = NextResponse.redirect(new URL(desvio, request.url));
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
   }
 
   // Já logado tentando ver o /login → manda pro app.

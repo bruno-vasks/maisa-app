@@ -147,7 +147,7 @@
 
   /* ===== MOTION — easings ===== */
   /* --ease-out (acima) = cubic-bezier(0.16,1,0.3,1) — reusar em TUDO que entra/hover/focus/press */
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* overshoot ~5% · SÓ no knob do toggle */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* overshoot ~5% · no knob do toggle e, desde 31/10/2026, no onboarding (emenda 7) */
 
   /* ===== responsividade — estilos inline (s()) não aceitam @media, então o
      layout de 2 colunas troca por variáveis que viram single-column no breakpoint ===== */
@@ -468,3 +468,115 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 /* A altura da casca (T11, 25/09/2026, guarda G9). `vh` de reserva para navegador sem `dvh`;
    no Safari do iPhone `100vh` conta a barra de endereço recolhida e as abas iam para trás dela. */
 .m-altura-tela { height: 100vh; height: 100dvh; }
+
+/* Os cartões do tipo de negócio no `/comecar`: três colunas com o ícone em cima; no celular,
+ * uma coluna com o ícone ao lado do texto. */
+.m-tipos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.m-cartao-tipo { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 14px; text-align: center; }
+@media (max-width: 640px) {
+  .m-tipos { grid-template-columns: 1fr; gap: 10px; }
+  .m-cartao-tipo { flex-direction: row; gap: 16px; padding: 16px; text-align: left; }
+}
+
+/* ── O MOVIMENTO DAS TELAS DE ENTRADA (31/10/2026, emenda 7 do `maisa-design`) ──
+ * Bruno: "parece meio morto sem as animações. Quero manter o estilo de light animation, mas na
+ * página de onboarding podemos ousar um pouco mais." O limite está escrito na emenda; o
+ * `prefers-reduced-motion` lá de cima zera tudo isto, inclusive os atrasos.
+ *
+ * `.m-cascata`: cada tela entra com os filhos subindo um depois do outro (60ms entre eles), em
+ * vez de a coluna inteira de uma vez. Vale para o cadastro e para o wizard; a moldura troca a
+ * `key` da coluna a cada tela, e é a remontagem que dispara a entrada de novo. */
+.m-cascata > * { animation: mrise 420ms var(--ease-out) both; }
+.m-cascata > :nth-child(2) { animation-delay: 60ms; }
+.m-cascata > :nth-child(3) { animation-delay: 120ms; }
+.m-cascata > :nth-child(4) { animation-delay: 180ms; }
+.m-cascata > :nth-child(5) { animation-delay: 240ms; }
+.m-cascata > :nth-child(n+6) { animation-delay: 300ms; }
+
+/* Só no wizard: o cartão de escolha sobe 2px no hover, a seta do cartão anda para o lado e a marca
+ * de escolhido entra com a mola. */
+.m-cartao-anima { transition: var(--tr-ui); }
+.m-cartao-anima:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
+.m-cartao-anima:active { transform: translateY(0) scale(0.985); transition-duration: 90ms; }
+.m-seta { display: inline-flex; transition: transform var(--dur-slow) var(--ease-out); }
+.m-cartao-anima:hover .m-seta { transform: translateX(4px); }
+.m-pop { display: inline-flex; animation: mpop var(--dur-slow) var(--ease-spring) both; }
+.m-progresso { transition: width 520ms var(--ease-out); }
+
+/* Os ícones que fazem o que são (`app/comecar/IconeVivo.tsx`). A inclinação genérica saiu em
+ * 31/10/2026 ("não gosto desse tilt pro lado"): cada desenho se mexe do jeito do objeto. Tocam
+ * ao entrar na tela (depois de `--iv-atraso`) e de novo a cada hover ou toque, porque o `svg`
+ * remonta. O pivô de cada peça é o ponto do desenho, em unidades do `viewBox`. */
+.m-iv { overflow: visible; }
+.m-iv-tesoura .m-iv-lamina-a,
+.m-iv-tesoura .m-iv-lamina-b { transform-box: view-box; transform-origin: 12px 12px; }
+.m-iv-tesoura .m-iv-lamina-a { animation: iv-corta-a 900ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+.m-iv-tesoura .m-iv-lamina-b { animation: iv-corta-b 900ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+@keyframes iv-corta-a { 0%, 42%, 84%, 100% { transform: rotate(0deg); } 21%, 63% { transform: rotate(-24deg); } }
+@keyframes iv-corta-b { 0%, 42%, 84%, 100% { transform: rotate(0deg); } 21%, 63% { transform: rotate(24deg); } }
+
+.m-iv-estetoscopio .m-iv-batida,
+.m-iv-estetoscopio .m-iv-onda { transform-box: fill-box; transform-origin: center; }
+.m-iv-estetoscopio .m-iv-batida { animation: iv-bate 1200ms ease-in-out var(--iv-atraso, 0ms) both; }
+.m-iv-estetoscopio .m-iv-onda { animation: iv-onda 1200ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+@keyframes iv-bate {
+  0%, 20%, 42%, 65%, 87%, 100% { transform: scale(1); }
+  10%, 55% { transform: scale(1.45); }
+  30%, 75% { transform: scale(1.25); }
+}
+@keyframes iv-onda {
+  0% { transform: scale(1); opacity: 0; } 10% { opacity: 0.7; } 45% { transform: scale(2.4); opacity: 0; }
+  50% { transform: scale(1); opacity: 0; } 55% { opacity: 0.7; } 100% { transform: scale(2.4); opacity: 0; }
+}
+
+.m-iv-loja .m-iv-toldo { transform-box: fill-box; transform-origin: 50% 0; animation: iv-toldo 900ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+.m-iv-loja .m-iv-porta { transform-box: fill-box; transform-origin: 0 50%; animation: iv-porta 1200ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+/* Parte do toldo aberto: com `both`, o primeiro quadro vale durante o `--iv-atraso`, e um toldo
+ * enrolado ali parecia desenho quebrado na entrada da tela. */
+@keyframes iv-toldo { 0% { transform: scaleY(1); } 22% { transform: scaleY(0.25); } 62% { transform: scaleY(1.14); } 82% { transform: scaleY(0.95); } 100% { transform: scaleY(1); } }
+@keyframes iv-porta { 0%, 30% { transform: scaleX(1); } 52%, 76% { transform: scaleX(0.2); } 100% { transform: scaleX(1); } }
+
+.m-iv-conversa .m-iv-ponto { transform-box: fill-box; transform-origin: center; animation: iv-digita 560ms ease-in-out var(--iv-atraso, 0ms) 3 both; }
+.m-iv-conversa .m-iv-ponto:nth-of-type(2) { animation-delay: calc(var(--iv-atraso, 0ms) + 110ms); }
+.m-iv-conversa .m-iv-ponto:nth-of-type(3) { animation-delay: calc(var(--iv-atraso, 0ms) + 220ms); }
+@keyframes iv-digita { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-3px); } }
+
+.m-iv-sino .m-iv-corpo,
+.m-iv-sino .m-iv-badalo { transform-box: view-box; transform-origin: 12px 2px; }
+.m-iv-sino .m-iv-corpo { animation: iv-balanca 1000ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+.m-iv-sino .m-iv-badalo { animation: iv-badala 1000ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+.m-iv-sino .m-iv-som { animation: iv-som 1000ms var(--ease-out) var(--iv-atraso, 0ms) both; }
+@keyframes iv-balanca { 0%, 100% { transform: rotate(0deg); } 12% { transform: rotate(16deg); } 28% { transform: rotate(-14deg); } 44% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 76% { transform: rotate(3deg); } }
+@keyframes iv-badala { 0%, 100% { transform: rotate(0deg); } 16% { transform: rotate(-10deg); } 32% { transform: rotate(12deg); } 48% { transform: rotate(-8deg); } 64% { transform: rotate(5deg); } 80% { transform: rotate(-2deg); } }
+@keyframes iv-som { 0% { opacity: 0; } 15%, 55% { opacity: 1; } 80%, 100% { opacity: 0; } }
+
+.m-iv-recibo .m-iv-linha,
+.m-iv-recibo .m-iv-selo { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.m-iv-recibo .m-iv-linha { animation: iv-escreve 420ms var(--ease-out) calc(var(--iv-atraso, 0ms) + 100ms) both; }
+.m-iv-recibo .m-iv-linha + .m-iv-linha { animation-delay: calc(var(--iv-atraso, 0ms) + 440ms); }
+.m-iv-recibo .m-iv-selo { animation: iv-escreve 380ms var(--ease-out) calc(var(--iv-atraso, 0ms) + 820ms) both; }
+@keyframes iv-escreve { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* O interruptor da lista de serviços (`app/comecar/InterruptorVivo.tsx`): a cor enche a trilha e a
+ * bolinha estica no aperto e desliza com a mola. */
+.m-chave { width: 44px; height: 44px; flex-shrink: 0; padding: 9px 0; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.m-chave-trilho { position: relative; display: block; width: 44px; height: 26px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.m-chave-cheio { position: absolute; inset: 0; border-radius: 999px; background: var(--primary); transform: scaleX(0); transform-origin: left center; transition: transform 320ms var(--ease-out); }
+.m-chave[aria-checked="true"] .m-chave-cheio { transform: scaleX(1); }
+.m-chave-bola { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: var(--on-primary); box-shadow: 0 1px 3px oklch(0.22 0.03 262 / 0.25); transition: transform 380ms var(--ease-spring), width 160ms var(--ease-out); }
+.m-chave[aria-checked="true"] .m-chave-bola { transform: translateX(18px); }
+.m-chave:active .m-chave-bola { width: 25px; }
+.m-chave[aria-checked="true"]:active .m-chave-bola { transform: translateX(13px); }
+
+/* A comemoração do fim do wizard: o anel cresce com a mola, o check se desenha, duas ondas saem
+ * do anel e o texto sobe depois. Sem confete: a regra de movimento continua proibindo. */
+.m-festa-anel { animation: mfesta-anel var(--dur-mola) var(--ease-spring) 80ms both; }
+.m-festa-check { stroke-dasharray: 1; stroke-dashoffset: 1; animation: mfesta-check 420ms var(--ease-out) 420ms forwards; }
+.m-festa-onda { animation: mfesta-onda 1400ms var(--ease-out) 520ms both; }
+.m-festa-onda + .m-festa-onda { animation-delay: 820ms; }
+.m-festa-texto > * { animation: mrise 420ms var(--ease-out) both; animation-delay: 640ms; }
+.m-festa-texto > :nth-child(2) { animation-delay: 740ms; }
+.m-festa-texto > :nth-child(3) { animation-delay: 860ms; }
+@keyframes mfesta-anel { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes mfesta-check { to { stroke-dashoffset: 0; } }
+@keyframes mfesta-onda { from { transform: scale(1); opacity: 0.5; } to { transform: scale(2.1); opacity: 0; } }

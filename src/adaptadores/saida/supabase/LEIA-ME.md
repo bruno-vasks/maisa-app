@@ -12,7 +12,7 @@ renovar sessão.
 | `config.ts` | ambos | Lê `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Expõe `isSupabaseConfigured`. |
 | `client.ts` | navegador | Cliente para login, `signOut`, `getUser` no client. |
 | `server.ts` | servidor | Cliente para Server Components e route handlers. Lê/escreve sessão via cookies. |
-| `sessao.ts` | middleware | `updateSession()`: renova o token e redireciona quem não está logado. Era `lib/supabase/middleware.ts`. |
+| `sessao.ts` | middleware | `updateSession()`: renova o token, redireciona quem não está logado e, desde 30/10/2026, manda para o `/whatsapp` quem está logado sem WhatsApp no `user_metadata` (`desvioParaWhatsapp`; a regra mora em `nucleo/dominio/whatsapp-da-conta.ts`). Era `lib/supabase/middleware.ts`. |
 | `admin.ts` | servidor | Cliente com **service role** — ignora RLS. Só `contexto-cliente.ts` importa. |
 | `contexto-cliente.ts` | servidor | Decide sessão vs. service role a partir do `ator` do contexto. |
 | `repositorio.ts` | servidor | `RepositorioNegocio`: negócio, equipe, catálogo, carteira. Lê das **views**. `salvarExpediente` (24/10/2026) é um `update` em `profissionais` com cinco colunas (`expediente_folga`, `_de`, `_ate`, `horario`, `folga`), todas do 002 e projetadas pela `v_profissionais` desde o 004: nenhuma migração nova. As frases de reserva vêm de `dominio/expediente.ts`. |
@@ -67,6 +67,14 @@ deles filtra por tenant, inclusive as que "obviamente" só têm uma linha.
 Definidas em `sessao.ts`: `/login`, `/auth`, `/api` (cada rota faz a própria checagem e
 responde 401 em JSON), `/barbeiros`, `/terapeutas` (as landing pages são públicas por
 natureza).
+
+## Logado sem WhatsApp não passa (30/10/2026)
+
+Depois do login, o middleware confere `user_metadata.telefone`. Sem um número com DDD, toda rota
+que não é pública desvia para `/whatsapp?next=<para onde ia>`, que pede o número, grava com
+`updateUser({ data: { telefone } })` e volta. Rota pública (inclusive `/api`) nunca desvia. O
+redirect leva os cookies que o `getUser()` renovou, senão o navegador voltaria com um token que o
+Supabase já trocou.
 
 ## Confirmação de e-mail — o que precisa estar certo no PAINEL
 
