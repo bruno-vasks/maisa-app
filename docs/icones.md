@@ -385,6 +385,13 @@ desta família, reduzido**: um só `path` com no máximo 2 arcos e 4 retas, sim�
 e com 1.5 de vão para o balão. · *Cheio:* null. · *Evitar:* o fone antigo (Bézier com 30
 decimais, o pior caso de "cara de IA"), fone solto flutuando torto, verde (cor é do botão).
 
+**ajustes** · *Onde:* "Configurar" da aba Recebimentos (04/11/2026), que abre os ajustes do Pix
+no lugar da lista. · *Metáfora:* dois controles deslizantes, um em cada trilho. · *Base:*
+paisagem, x 4..20. Duas trilhas em y 8 e 16, cada uma cortada 2 antes e 2 depois do botão
+(círculo r 2); os botões em posições opostas (x 15 em cima, x 9 embaixo), para não formarem
+coluna. · *Cheio:* null. · *Evitar:* engrenagem (os dentes viram serrilha no traço 1.5 a 16px),
+trilha passando por dentro do botão (lê como contas num fio).
+
 **alert** · *Onde:* 29 usos. Avisos âmbar, erros, "falta", impedimentos, troca com check/clock
 em estados. Significa "atenção, falta algo". · *Metáfora:* triângulo de aviso com exclamação.
 · *Base:* diagonal. O triângulo usa a área viva inteira na largura (as pontas perdem massa). Os

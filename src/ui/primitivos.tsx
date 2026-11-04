@@ -72,6 +72,7 @@ const ICONS: Record<string, React.ReactNode> = {
   bot: (<><path d="M5 11A7 7 0 0 1 19 11"/><rect x="3" y="11" width="4" height="6" rx="1.5"/><rect x="17" y="11" width="4" height="6" rx="1.5"/><path d="M19 17A3 3 0 0 1 16 20H13"/><circle cx="13" cy="20" r="0.25"/></>),
   dots: (<><circle cx="6" cy="12" r="0.75"/><circle cx="12" cy="12" r="0.75"/><circle cx="18" cy="12" r="0.75"/></>),
   // botões, avisos e ações (só linha)
+  ajustes: (<><path d="M4 8H13M17 8H20"/><circle cx="15" cy="8" r="2"/><path d="M4 16H7M11 16H20"/><circle cx="9" cy="16" r="2"/></>),
   alert: (<><path d="M12 3.75L21 19.25H3Z"/><path d="M12 10V12.5"/><circle cx="12" cy="15.75" r="0.25"/></>),
   "arrow-right": (<path d="M4.5 12H19.5M13.5 6L19.5 12L13.5 18"/>),
   bell: (<><path d="M5 16H19L17.5 14.5V10.5A5.5 5.5 0 0 0 6.5 10.5V14.5Z"/><path d="M12 3V5"/><path d="M10 19A2.5 2.5 0 0 0 14 19"/></>),

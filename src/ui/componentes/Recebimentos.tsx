@@ -19,12 +19,13 @@
  * tela só põe o que a MAISA leu ao lado, para ele comparar.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import React, { useCallback, useEffect, useState } from "react";
-import { s, Btn, Estado, toast } from "@/ui/primitivos";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { s, Btn, Estado, IconBtn, toast } from "@/ui/primitivos";
 import { mensagemDaFalha } from "@/ui/falhas";
 import { TIPOS_DE_CHAVE, tipoProvavel, type TipoDeChavePix } from "@/nucleo/dominio/pix";
 import { conferirCodigoDoPix, type ComprovanteDePagamento, type Conferencia, type DepoisDoAtendimento, type Recebimento } from "@/nucleo/dominio/recebimentos";
 import { chaveDe } from "@/nucleo/dominio/contatos";
+import { telefoneBonito } from "@/nucleo/dominio/clientes";
 import type { DocumentoDoPagamento, PainelDeRecebimentos } from "@/nucleo/portas/entrada/casos-de-uso";
 import type { ContaDeRecebimentos } from "@/nucleo/portas/saida/provedor-de-recebimentos";
 
@@ -43,12 +44,6 @@ const NOME_DO_TIPO: Record<TipoDeChavePix, string> = {
   email: "E-mail",
   aleatoria: "Chave aleatória",
 };
-
-const DEPOIS: { valor: DepoisDoAtendimento; titulo: string; desc: string }[] = [
-  { valor: "perguntar", titulo: "Me perguntar se já pagou", desc: "Quando o atendimento acaba, a MAISA pergunta. Se ainda não pagou, ela manda o Pix." },
-  { valor: "direto", titulo: "Mandar o Pix direto", desc: "Quando o atendimento acaba, o cliente recebe o Pix com o valor certo." },
-  { valor: "desligado", titulo: "Não mandar sozinha", desc: "O Pix só sai quando você aperta \"Mandar Pix\" no atendimento." },
-];
 
 /** O que aconteceu com o documento, na frase do aviso. */
 export function fraseDoDocumento(d: DocumentoDoPagamento): string {
@@ -140,6 +135,49 @@ export function useComprovante(id: string, depois: () => void) {
     }
   };
   return { ocupado, agir };
+}
+
+/**
+ * O "⋯" de um item: as ações que não são a principal nem a do lado (versão A, 04/11/2026: um botão
+ * com o verbo, um discreto, e o resto aqui). Fecha ao clicar fora, no Esc e ao escolher.
+ */
+export function MaisAcoes({ acoes, disabled }: { acoes: { label: string; onClick: () => void }[]; disabled?: boolean }) {
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e: MouseEvent) => { if (!caixa.current?.contains(e.target as Node)) setAberto(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setAberto(false); };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
+  }, [aberto]);
+  if (!acoes.length) return null;
+  return (
+    <span ref={caixa} style={s("position:relative;display:inline-flex")}>
+      <IconBtn icon="dots" title="Mais ações" disabled={disabled} onClick={() => setAberto((x) => !x)} />
+      {aberto && (
+        <div
+          role="menu"
+          className="m-reveal"
+          style={s("position:absolute;left:0;top:calc(100% + 6px);z-index:5;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}
+        >
+          {acoes.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              role="menuitem"
+              onClick={() => { setAberto(false); a.onClick(); }}
+              className="m-hov-bg m-focus"
+              style={s("text-align:left;border:none;background:transparent;padding:9px 10px;border-radius:var(--r-controle);font-family:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer;white-space:nowrap")}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
 }
 
 /* ───────────────────────────── o que espera o dono ───────────────────────────── */
@@ -288,51 +326,93 @@ export function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePa
 
 /* ───────────────────────────── os ajustes ───────────────────────────── */
 
-/** A chave Pix, o nome, a cidade e o que fazer quando o atendimento acaba. Quem lê o painel é a tela. */
-export function FormularioDoPix({ painel, ler }: { painel: Painel; ler: () => void }) {
-  const [tipo, setTipo] = useState<TipoDeChavePix | "">("");
-  const [chave, setChave] = useState("");
-  const [nome, setNome] = useState("");
-  const [cidade, setCidade] = useState("");
-  const [depois, setDepois] = useState<DepoisDoAtendimento>("perguntar");
-  const [lido, setLido] = useState(false);
-  const [ocupado, setOcupado] = useState(false);
+/** "Celular (11) 98765-4321": a chave como o dono a reconhece, sem o +55 colado. */
+export const chaveNaTela = (tipo: TipoDeChavePix | null, chave: string | null) =>
+  `${tipo ? `${NOME_CURTO_DO_TIPO[tipo]} ` : ""}${tipo === "telefone" ? telefoneBonito(chave) : (chave ?? "")}`;
 
-  /* Preenche uma vez, com o que está gravado. Depois disso o formulário é do dono. */
-  useEffect(() => {
-    if (!painel || lido) return;
-    const c = painel.config;
-    setTipo(c.tipoDaChave ?? "");
-    setChave(c.chave ?? "");
-    setNome(c.nome ?? "");
-    setCidade(c.cidade ?? "");
-    setDepois(c.chave ? c.depoisDoAtendimento : "perguntar");
-    setLido(true);
-  }, [painel, lido]);
+const NOME_CURTO_DO_TIPO: Record<TipoDeChavePix, string> = { ...NOME_DO_TIPO, aleatoria: "Chave" };
 
-  const colar = (v: string) => {
-    setChave(v);
-    /* Sugere o tipo ao colar, sem escolher por cima de quem já escolheu. Onze dígitos que podem
-     * ser CPF ou celular ficam sem sugestão: ver `tipoProvavel`. */
-    if (!tipo) {
-      const provavel = tipoProvavel(v);
-      if (provavel) setTipo(provavel);
-    }
+/* As descrições ficam só onde dizem o que o título não diz (Bruno, 04/11/2026: nada de texto que
+   repete o que a tela já mostra). */
+const DEPOIS: { valor: DepoisDoAtendimento; titulo: string; desc?: string }[] = [
+  { valor: "perguntar", titulo: "Me perguntar se já pagou", desc: "Se ainda não pagou, eu mando o Pix." },
+  { valor: "direto", titulo: "Mandar o Pix direto" },
+  { valor: "desligado", titulo: "Não mandar sozinha", desc: "O Pix só sai quando você aperta \"Mandar Pix\" no atendimento." },
+];
+
+type CamposDoPix = { tipo: TipoDeChavePix | ""; chave: string; nome: string; cidade: string };
+const camposDe = (c: Painel["config"]): CamposDoPix => ({ tipo: c.tipoDaChave ?? "", chave: c.chave ?? "", nome: c.nome ?? "", cidade: c.cidade ?? "" });
+
+/** Grava a configuração inteira: a rota recebe tudo junto, então cada bloco manda o que não mexeu também. */
+async function gravarPix(corpo: { tipoDaChave: TipoDeChavePix | null; chave: string | null; nome: string | null; cidade: string | null; depoisDoAtendimento: DepoisDoAtendimento }) {
+  const r = await fetch("/api/recebimentos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) }).then((x) => x.json());
+  if (!r?.ok) throw new Error(mensagemDaFalha(r, "Não consegui salvar."));
+}
+
+/** O tipo, a chave, o nome e a cidade. O tipo provável só é sugerido ao colar, sem escolher por cima. */
+function CamposDaChave({ v, mudar }: { v: CamposDoPix; mudar: (p: Partial<CamposDoPix>) => void }) {
+  const colar = (chave: string) => {
+    /* Onze dígitos que podem ser CPF ou celular ficam sem sugestão: ver `tipoProvavel`. */
+    const provavel = v.tipo ? null : tipoProvavel(chave);
+    mudar(provavel ? { chave, tipo: provavel } : { chave });
   };
+  return (
+    <>
+      <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+        <label style={s(`${ROTULO};flex:1;min-width:150px`)}>
+          Tipo da chave
+          <select value={v.tipo} onChange={(e) => mudar({ tipo: e.target.value as TipoDeChavePix | "" })} className="n m-focus" style={s(CAMPO)}>
+            <option value="">Escolha…</option>
+            {TIPOS_DE_CHAVE.map((t) => <option key={t} value={t}>{NOME_DO_TIPO[t]}</option>)}
+          </select>
+        </label>
+        <label style={s(`${ROTULO};flex:2;min-width:200px`)}>
+          Sua chave Pix
+          <input value={v.chave} onChange={(e) => colar(e.target.value)} placeholder="Cole a chave como está no banco…" className="n m-focus" style={s(CAMPO)} />
+        </label>
+      </div>
+      <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
+        <label style={s(`${ROTULO};flex:2;min-width:200px`)}>
+          Nome de quem recebe
+          <input value={v.nome} maxLength={40} onChange={(e) => mudar({ nome: e.target.value })} placeholder="Como aparece no banco…" className="n m-focus" style={s(CAMPO)} />
+        </label>
+        <label style={s(`${ROTULO};flex:1;min-width:130px`)}>
+          Cidade
+          <input value={v.cidade} maxLength={30} onChange={(e) => mudar({ cidade: e.target.value })} placeholder="Opcional…" className="n m-focus" style={s(CAMPO)} />
+        </label>
+      </div>
+    </>
+  );
+}
 
-  const salvar = async (desligar = false) => {
+function OpcoesDoDepois({ depois, mudar }: { depois: DepoisDoAtendimento; mudar: (d: DepoisDoAtendimento) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Quando o atendimento acaba" style={s("display:grid;gap:8px")}>
+      {DEPOIS.map((o) => (
+        <label key={o.valor} style={s(`display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-controle);border:1px solid ${depois === o.valor ? "var(--primary)" : "var(--border)"};cursor:pointer`)}>
+          <input type="radio" name="depois-do-atendimento" checked={depois === o.valor} onChange={() => mudar(o.valor)} style={s("margin-top:3px")} />
+          <span style={s("display:grid;gap:2px")}>
+            <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{o.titulo}</span>
+            {o.desc && <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-ui)")}>{o.desc}</span>}
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** A primeira vez: a chave e o que fazer quando o atendimento acaba, num formulário só. */
+export function FormularioDoPix({ painel, ler }: { painel: Painel; ler: () => void }) {
+  const [v, setV] = useState<CamposDoPix>(() => camposDe(painel.config));
+  const [depois, setDepois] = useState<DepoisDoAtendimento>(painel.config.chave ? painel.config.depoisDoAtendimento : "perguntar");
+  const [ocupado, setOcupado] = useState(false);
+  /* Sem a nota "a pergunta vai para o número que recebe os avisos": o Bruno a tirou em 30/10/2026
+     ("não precisa"). Para onde a pergunta vai está em `whatsDoDono`. */
+  const ligar = async () => {
     setOcupado(true);
     try {
-      const r = await fetch("/api/recebimentos", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(desligar
-          ? { tipoDaChave: null, chave: null, nome: null, cidade: null, depoisDoAtendimento: "desligado" }
-          : { tipoDaChave: tipo || null, chave, nome, cidade, depoisDoAtendimento: depois }),
-      }).then((x) => x.json());
-      if (!r?.ok) throw new Error(mensagemDaFalha(r, "Não consegui salvar."));
-      setLido(false);
-      toast(desligar ? "O Pix foi desligado." : "Pronto: a MAISA já pode mandar o Pix.");
+      await gravarPix({ tipoDaChave: v.tipo || null, chave: v.chave, nome: v.nome, cidade: v.cidade, depoisDoAtendimento: depois });
+      toast("Pronto: a MAISA já pode mandar o Pix.");
       ler();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Não consegui salvar.");
@@ -340,59 +420,132 @@ export function FormularioDoPix({ painel, ler }: { painel: Painel; ler: () => vo
       setOcupado(false);
     }
   };
-
-  const ligado = Boolean(painel.config.chave);
-
   return (
     <div style={s("display:flex;flex-direction:column;gap:14px")}>
-      <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
-        <label style={s(`${ROTULO};flex:1;min-width:150px`)}>
-          Tipo da chave
-          <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDeChavePix | "")} className="n m-focus" style={s(CAMPO)}>
-            <option value="">Escolha…</option>
-            {TIPOS_DE_CHAVE.map((t) => <option key={t} value={t}>{NOME_DO_TIPO[t]}</option>)}
-          </select>
-        </label>
-        <label style={s(`${ROTULO};flex:2;min-width:200px`)}>
-          Sua chave Pix
-          <input value={chave} onChange={(e) => colar(e.target.value)} placeholder="Cole a chave como está no banco…" className="n m-focus" style={s(CAMPO)} />
-        </label>
-      </div>
-
-      <div style={s("display:flex;gap:9px;flex-wrap:wrap")}>
-        <label style={s(`${ROTULO};flex:2;min-width:200px`)}>
-          Nome de quem recebe
-          <input value={nome} maxLength={40} onChange={(e) => setNome(e.target.value)} placeholder="Como aparece no banco…" className="n m-focus" style={s(CAMPO)} />
-        </label>
-        <label style={s(`${ROTULO};flex:1;min-width:130px`)}>
-          Cidade
-          <input value={cidade} maxLength={30} onChange={(e) => setCidade(e.target.value)} placeholder="Opcional…" className="n m-focus" style={s(CAMPO)} />
-        </label>
-      </div>
-
+      <CamposDaChave v={v} mudar={(p) => setV((a) => ({ ...a, ...p }))} />
       <fieldset style={s("border:none;margin:0;padding:0;display:grid;gap:8px")}>
         <legend style={s("font-size:var(--t-label);color:var(--muted);margin-bottom:6px")}>Quando o atendimento acaba</legend>
-        {DEPOIS.map((o) => (
-          <label key={o.valor} style={s(`display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-controle);border:1px solid ${depois === o.valor ? "var(--primary)" : "var(--border)"};cursor:pointer`)}>
-            <input type="radio" name="depois-do-atendimento" checked={depois === o.valor} onChange={() => setDepois(o.valor)} style={s("margin-top:3px")} />
-            <span style={s("display:grid;gap:2px")}>
-              <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{o.titulo}</span>
-              <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-ui)")}>{o.desc}</span>
-            </span>
-          </label>
-        ))}
+        <OpcoesDoDepois depois={depois} mudar={setDepois} />
       </fieldset>
-
-      {/* Sem a nota "a pergunta vai para o número que recebe os avisos": o Bruno a tirou em
-          30/10/2026 ("não precisa"). Para onde a pergunta vai está em `whatsDoDono`. */}
-
-      <div style={s("display:flex;gap:9px;align-items:center;flex-wrap:wrap")}>
-        <Btn disabled={ocupado || !chave.trim()} motivo="Cole a sua chave Pix primeiro." onClick={() => salvar()}>
-          {ligado ? "Salvar" : "Ligar o Pix"}
-        </Btn>
-        {ligado && <Btn variant="ghost" disabled={ocupado} onClick={() => salvar(true)}>Desligar</Btn>}
-      </div>
+      <span><Btn disabled={ocupado || !v.chave.trim()} motivo="Cole a sua chave Pix primeiro." onClick={ligar}>Ligar o Pix</Btn></span>
     </div>
+  );
+}
+
+/**
+ * Os ajustes do Pix ligado (04/11/2026), no mesmo desenho da aba, que o Bruno escolheu numa
+ * prévia de três: à esquerda os assuntos, à direita o escolhido, já para editar. Sem a linha de
+ * estado embaixo de cada assunto e sem o título repetido no detalhe (*"não precisa dos subtítulos
+ * novamente"*): o detalhe mostra o que está gravado, e o assunto marcado na lista diz qual é. No
+ * celular, a lista sozinha, e o toque abre o assunto no lugar dela.
+ */
+const ASSUNTOS = [
+  { id: "chave", titulo: "Sua chave Pix" },
+  { id: "depois", titulo: "Quando o atendimento acaba" },
+] as const;
+type Assunto = (typeof ASSUNTOS)[number]["id"];
+
+export function AjustesDoPix({ painel, ler, mobile }: { painel: Painel; ler: () => void; mobile: boolean }) {
+  const [escolhido, setEscolhido] = useState<Assunto | null>(mobile ? null : "chave");
+  const detalhe = (a: Assunto) => (a === "chave"
+    ? <EditarChave key={`chave-${painel.config.chave}`} painel={painel} ler={ler} />
+    : <EditarDepois key={`depois-${painel.config.depoisDoAtendimento}`} painel={painel} ler={ler} />);
+  const lista = (
+    <div style={s("display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);overflow:hidden;flex-shrink:0")}>
+      {ASSUNTOS.map((a, k) => {
+        const on = a.id === escolhido;
+        return (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => setEscolhido(a.id)}
+            aria-current={on ? "true" : undefined}
+            className="m-hov-bg m-focus"
+            style={s(`border:none;border-left:3px solid ${on ? "var(--primary)" : "transparent"};${k === ASSUNTOS.length - 1 ? "" : "border-bottom:1px solid var(--line);"}display:flex;align-items:center;gap:12px;padding:12px 16px 12px 13px;min-height:56px;text-align:left;font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);cursor:pointer;background:${on ? "var(--primary-soft)" : "transparent"}`)}
+          >
+            <span style={s("flex:1;min-width:0")}>{a.titulo}</span>
+            <span aria-hidden style={s("color:var(--muted)")}>›</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+  const PAINEL_DO_ASSUNTO = "border:1px solid var(--border);border-radius:var(--r-painel);background:var(--surface);display:flex;flex-direction:column;gap:14px;min-width:0";
+
+  if (mobile) {
+    if (!escolhido) return lista;
+    return (
+      <div style={s("display:flex;flex-direction:column;gap:10px;flex-shrink:0")}>
+        <span><Btn variant="ghost" size="sm" icon="chevron-left" onClick={() => setEscolhido(null)}>{ASSUNTOS.find((a) => a.id === escolhido)!.titulo}</Btn></span>
+        <div style={s(`${PAINEL_DO_ASSUNTO};padding:18px`)}>{detalhe(escolhido)}</div>
+      </div>
+    );
+  }
+  const atual = escolhido ?? "chave";
+  return (
+    <div style={s("display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:18px;align-items:start;flex-shrink:0")}>
+      {lista}
+      <div key={atual} style={s(`${PAINEL_DO_ASSUNTO};padding:24px 26px`)}>{detalhe(atual)}</div>
+    </div>
+  );
+}
+
+/** A chave, editável direto. "Cancelar" só aparece com algo mudado, e volta ao que está gravado. */
+function EditarChave({ painel, ler }: { painel: Painel; ler: () => void }) {
+  const gravado = camposDe(painel.config);
+  const [v, setV] = useState<CamposDoPix>(gravado);
+  const [ocupado, setOcupado] = useState(false);
+  const mudou = (Object.keys(gravado) as (keyof CamposDoPix)[]).some((k) => v[k] !== gravado[k]);
+  const gravar = async (desligar: boolean) => {
+    setOcupado(true);
+    try {
+      await gravarPix(desligar
+        ? { tipoDaChave: null, chave: null, nome: null, cidade: null, depoisDoAtendimento: "desligado" }
+        : { tipoDaChave: v.tipo || null, chave: v.chave, nome: v.nome, cidade: v.cidade, depoisDoAtendimento: painel.config.depoisDoAtendimento });
+      toast(desligar ? "O Pix foi desligado." : "Chave salva.");
+      ler();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Não consegui salvar.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <>
+      <CamposDaChave v={v} mudar={(p) => setV((a) => ({ ...a, ...p }))} />
+      <div style={s("display:flex;gap:9px;align-items:center;flex-wrap:wrap")}>
+        <Btn disabled={ocupado || !v.chave.trim()} motivo="Cole a sua chave Pix primeiro." onClick={() => gravar(false)}>Salvar a chave</Btn>
+        {mudou && <Btn variant="ghost" disabled={ocupado} onClick={() => setV(gravado)}>Cancelar</Btn>}
+        <span style={s("margin-left:auto")}><Btn variant="ghost" disabled={ocupado} onClick={() => gravar(true)}>Desligar o Pix</Btn></span>
+      </div>
+    </>
+  );
+}
+
+function EditarDepois({ painel, ler }: { painel: Painel; ler: () => void }) {
+  const c = painel.config;
+  const [depois, setDepois] = useState<DepoisDoAtendimento>(c.depoisDoAtendimento);
+  const [ocupado, setOcupado] = useState(false);
+  const salvar = async () => {
+    setOcupado(true);
+    try {
+      await gravarPix({ tipoDaChave: c.tipoDaChave, chave: c.chave, nome: c.nome, cidade: c.cidade, depoisDoAtendimento: depois });
+      toast("Salvo.");
+      ler();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Não consegui salvar.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <>
+      <OpcoesDoDepois depois={depois} mudar={setDepois} />
+      <div style={s("display:flex;gap:9px;align-items:center;flex-wrap:wrap")}>
+        <Btn disabled={ocupado} onClick={salvar}>Salvar</Btn>
+        {depois !== c.depoisDoAtendimento && <Btn variant="ghost" disabled={ocupado} onClick={() => setDepois(c.depoisDoAtendimento)}>Cancelar</Btn>}
+      </div>
+    </>
   );
 }
 
