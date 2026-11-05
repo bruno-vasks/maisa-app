@@ -23,7 +23,9 @@
  *   · cada item tem um botão principal com o verbo ("Confirmar pagamento", "Mandar de novo"), um
  *     com contorno ao lado ("Não entrou", "Já pagou") e o resto no "⋯" (`MaisAcoes`);
  *   · sem os selos "Recebedor confere" e "Código do Pix confere": *"pra que escrever isso"*. O
- *     que confere não muda o que o dono faz; só o que não bate aparece, em âmbar, com o motivo.
+ *     que confere não muda o que o dono faz; só o que não bate aparece, em âmbar, com o motivo;
+ *   · sem subtítulo no detalhe (o banco, "Sessão, 28/10"): o Bruno vetou a linha cinza embaixo do
+ *     título duas vezes em 04/11/2026, e pediu a aba igual à coluna de Hoje.
  *
  * No celular a lista ocupa a tela, e tocar num item abre o detalhe no lugar dela.
  *
@@ -41,7 +43,7 @@ import { s, fmt, Btn, Estado, EmptyState, Filtros } from "@/ui/primitivos";
 import { Moldura, Contagem, type MarcoDaContagem } from "@/ui/componentes/Moldura";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 import {
-  AjustesDoPix, ContaDeCartaoEBoleto, FormularioDoPix, MaisAcoes, fraseDoDocumento, useComprovante, useDecisao, usePainel, type Painel,
+  AjustesDoPix, ContaDeCartaoEBoleto, FormularioDoPix, MaisAcoes, diasSemPagar, fraseDoDocumento, plural, useComprovante, useDecisao, usePainel, type Painel,
 } from "@/ui/componentes/Recebimentos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { chaveDe } from "@/nucleo/dominio/contatos";
@@ -67,7 +69,6 @@ const borda = (ultima: boolean) => (ultima ? "" : "border-bottom:1px solid var(-
 
 const quem = (x: { nome: string | null; telefone: string }) => x.nome?.trim() || telefoneBonito(x.telefone);
 const diaMes = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : null);
-const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 const DIA_MS = 86_400_000;
 const inicioDoDia = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -82,9 +83,6 @@ function quandoFoi(iso: string): [string, string] {
   if (dias === 1) return ["Ontem", semana(d)];
   return [`${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`, semana(d)];
 }
-
-/** Há quantos dias o Pix foi e não voltou pago. 0 enquanto não passou um dia inteiro. */
-const diasSemPagar = (iso: string) => (Date.now() - Date.parse(iso) > DIA_MS ? Math.max(1, diasDesde(iso)) : 0);
 
 /** O cabeçalho do dia no extrato: "Hoje", "Ontem", "27/10, segunda". */
 function nomeDoDia(chave: string): string {
@@ -364,10 +362,7 @@ function DetalheDoComprovante({ c, abertos, depois, mobile }: { c: ComprovanteDe
 
   return (
     <>
-      <span style={s("display:flex;flex-direction:column;gap:2px")}>
-        <span style={s(TITULO)}>{quem(c)} mandou um comprovante</span>
-        {c.banco && <span style={s("font-size:var(--t-sm);color:var(--muted)")}>{c.banco}</span>}
-      </span>
+      <span style={s(TITULO)}>{quem(c)} mandou um comprovante</span>
 
       <div style={s("display:flex;flex-direction:column;gap:6px")}>
         <span style={s("font-size:var(--t-label);color:var(--muted)")}>Procure no seu extrato</span>
@@ -433,10 +428,7 @@ function DetalheDaPergunta({ r, depois }: { r: Recebimento; depois: () => void }
   const { ocupado, decidir } = useDecisao(r.id, false, depois);
   return (
     <>
-      <span style={s("display:flex;flex-direction:column;gap:2px")}>
-        <span style={s(TITULO)}>{quem(r)}: já está pago?</span>
-        <span style={s("font-size:var(--t-sm);color:var(--muted)")}>{r.descricao}</span>
-      </span>
+      <span style={s(TITULO)}>{quem(r)}: já está pago?</span>
       <span className="n" style={s("font-size:var(--t-data);font-weight:var(--w-emph);letter-spacing:var(--ls-data);line-height:1")}>{fmt(r.valor)}</span>
       <span style={s("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
         <Btn icon="check" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
@@ -457,10 +449,7 @@ function DetalheDoAberto({ r, dias, comComprovante, depois }: { r: Recebimento; 
   const naoCobrar = { label: "Não cobrar", onClick: () => decidir("nao_cobrar") };
   return (
     <>
-      <span style={s("display:flex;flex-direction:column;gap:2px")}>
-        <span style={s(TITULO)}>{quem(r)}</span>
-        <span style={s("font-size:var(--t-sm);color:var(--muted)")}>{r.descricao}</span>
-      </span>
+      <span style={s(TITULO)}>{quem(r)}</span>
       <span className="n" style={s("font-size:var(--t-data);font-weight:var(--w-emph);letter-spacing:var(--ls-data);line-height:1")}>{fmt(r.valor)}</span>
       {comComprovante
         ? <Estado forma="anel" tom="primary">Mandou comprovante</Estado>

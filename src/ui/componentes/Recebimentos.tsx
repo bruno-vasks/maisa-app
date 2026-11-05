@@ -5,7 +5,7 @@
  * As peças, e onde cada uma aparece:
  *   · a aba Recebimentos (`telas/Recebimentos.tsx`, 28/10/2026: Bruno, "importante o suficiente
  *     para virar uma aba nova") desenha as próprias linhas, em forma de extrato, e usa daqui as
- *     ações (`useDecisao`, `useComprovante`), o `SELO`, o `FormularioDoPix` e o Asaas;
+ *     ações (`useDecisao`, `useComprovante`), o "⋯" (`MaisAcoes`), os ajustes e o Asaas;
  *   · `PagamentosParaDecidir` — também na coluna "Precisa de você" da tela de hoje: o atendimento
  *     que acabou e espera "já está pago?", o comprovante que o cliente mandou e o Pix sem pagamento
  *     há um dia. Sem nada esperando, não desenha nada;
@@ -23,7 +23,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { s, Btn, Estado, IconBtn, toast } from "@/ui/primitivos";
 import { mensagemDaFalha } from "@/ui/falhas";
 import { TIPOS_DE_CHAVE, tipoProvavel, type TipoDeChavePix } from "@/nucleo/dominio/pix";
-import { conferirCodigoDoPix, type ComprovanteDePagamento, type Conferencia, type DepoisDoAtendimento, type Recebimento } from "@/nucleo/dominio/recebimentos";
+import { conferirCodigoDoPix, type ComprovanteDePagamento, type DepoisDoAtendimento, type Recebimento } from "@/nucleo/dominio/recebimentos";
 import { chaveDe } from "@/nucleo/dominio/contatos";
 import { telefoneBonito } from "@/nucleo/dominio/clientes";
 import type { DocumentoDoPagamento, PainelDeRecebimentos } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -35,7 +35,6 @@ const ROTULO = "display:grid;gap:5px;font-size:var(--t-label);color:var(--muted)
 const CARTAO = "border:1px solid var(--border);border-radius:var(--r-painel);background:var(--bg);padding:14px;display:flex;flex-direction:column;gap:10px";
 
 const reais = (v: number | null) => (v == null ? "—" : `R$ ${v.toFixed(2).replace(".", ",")}`);
-const diaMes = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : null);
 
 const NOME_DO_TIPO: Record<TipoDeChavePix, string> = {
   cpf: "CPF",
@@ -55,12 +54,6 @@ export function fraseDoDocumento(d: DocumentoDoPagamento): string {
     default: return "Pago.";
   }
 }
-
-export const SELO: Record<Conferencia, { forma: "disco" | "triangulo" | "anel"; tom: "success" | "warn" | "neutral"; texto: string }> = {
-  confere: { forma: "disco", tom: "success", texto: "Recebedor confere" },
-  nao_confere: { forma: "triangulo", tom: "warn", texto: "Recebedor não confere" },
-  sem_como_saber: { forma: "anel", tom: "neutral", texto: "Confira no extrato" },
-};
 
 /* ───────────────────────────── a leitura ───────────────────────────── */
 
@@ -141,7 +134,12 @@ export function useComprovante(id: string, depois: () => void) {
  * O "⋯" de um item: as ações que não são a principal nem a do lado (versão A, 04/11/2026: um botão
  * com o verbo, um discreto, e o resto aqui). Fecha ao clicar fora, no Esc e ao escolher.
  */
-export function MaisAcoes({ acoes, disabled }: { acoes: { label: string; onClick: () => void }[]; disabled?: boolean }) {
+export function MaisAcoes({ acoes, disabled, abreParaEsquerda }: {
+  acoes: { label: string; onClick: () => void }[];
+  disabled?: boolean;
+  /** O "⋯" encostado na borda direita (a coluna de Hoje): o menu cresce para dentro, senão a borda o corta. */
+  abreParaEsquerda?: boolean;
+}) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -160,7 +158,7 @@ export function MaisAcoes({ acoes, disabled }: { acoes: { label: string; onClick
         <div
           role="menu"
           className="m-reveal"
-          style={s("position:absolute;left:0;top:calc(100% + 6px);z-index:5;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column")}
+          style={s(`position:absolute;${abreParaEsquerda ? "right:0" : "left:0"};top:calc(100% + 6px);z-index:5;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:6px;display:flex;flex-direction:column`)}
         >
           {acoes.map((a) => (
             <button
@@ -182,12 +180,30 @@ export function MaisAcoes({ acoes, disabled }: { acoes: { label: string; onClick
 
 /* ───────────────────────────── o que espera o dono ───────────────────────────── */
 
-/** Pix enviado há mais que isto, sem pagamento, volta para a coluna "Precisa de você". */
-const SEM_PAGAMENTO_HA_MS = 24 * 60 * 60_000;
+const DIA_MS = 24 * 60 * 60_000;
+const inicioDoDia = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
+export const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/**
+ * Há quantos dias o Pix foi e não voltou pago, em dias do calendário. 0 enquanto não passou um dia
+ * inteiro: até lá não há o que cobrar. A aba e a coluna de Hoje contam igual.
+ */
+export function diasSemPagar(iso: string): number {
+  if (Date.now() - Date.parse(iso) <= DIA_MS) return 0;
+  return Math.max(1, Math.round((inicioDoDia(new Date()) - inicioDoDia(new Date(iso))) / DIA_MS));
+}
+
+/**
+ * A coluna "Precisa de você" de Hoje: os mesmos itens da aba, com os mesmos botões (versão A,
+ * 04/11/2026). O comprovante, o "já está pago?" e o Pix há mais de um dia sem pagamento, que vem
+ * para cá sozinho. O Pix que já tem comprovante esperando não entra de novo como atrasado: o
+ * comprovante é o item, e ele já está aqui.
+ */
 export function PagamentosParaDecidir() {
   const { painel, ler } = usePainel();
-  const atrasados = (painel?.abertos ?? []).filter((r) => Date.now() - Date.parse(r.criadoEm) > SEM_PAGAMENTO_HA_MS);
+  const comComprovante = new Set((painel?.comprovantes ?? []).map((c) => c.recebimentoId));
+  const atrasados = (painel?.abertos ?? []).filter((r) => diasSemPagar(r.criadoEm) > 0 && !comComprovante.has(r.id));
   if (!painel || (!painel.paraDecidir.length && !painel.comprovantes.length && !atrasados.length)) return null;
   return (
     <section aria-label="Pagamentos" style={s("display:flex;flex-direction:column;gap:10px")}>
@@ -209,23 +225,36 @@ export function PagamentosParaDecidir() {
 }
 
 /**
+ * O topo do cartão: a frase e o valor na mesma linha, como na lista da aba. Sem a linha cinza
+ * embaixo (Bruno, 04/11/2026, de novo: *"não gostei dos subtítulos, não acho que faz sentido"*):
+ * o que ela dizia (o serviço, o banco, a data) mora na aba, e aqui não muda o que o dono faz.
+ */
+function Topo({ titulo, valor }: { titulo: string; valor: number | null }) {
+  return (
+    <span style={s("display:flex;align-items:baseline;gap:12px")}>
+      <span style={s("flex:1;min-width:0;font-size:var(--t-sm);font-weight:var(--w-title);line-height:var(--lh-ui)")}>{titulo}</span>
+      {valor != null && <span className="n" style={s("font-size:var(--t-sm);font-weight:var(--w-title);white-space:nowrap")}>{reais(valor)}</span>}
+    </span>
+  );
+}
+
+const AVISO = "font-size:var(--t-label);color:var(--warn);line-height:var(--lh-ui)";
+const BOTOES = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+
+/**
  * O Pix que foi e não voltou pago. Sem esta saída ele ficava em aberto para sempre: a sessão fora do
  * recibo automático, e toda imagem desse cliente indo para o leitor.
  */
 export function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => void }) {
   const { ocupado, decidir } = useDecisao(r.id, true, depois);
+  const dias = diasSemPagar(r.criadoEm);
   return (
     <div style={s(CARTAO)}>
-      <span style={s("display:flex;flex-direction:column;gap:3px")}>
-        <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{r.nome?.trim() || r.telefone}</span>
-        <span style={s("font-size:var(--t-label);color:var(--muted)")}>
-          {r.descricao} · {reais(r.valor)} · {r.meio === "asaas" ? "link" : "Pix"} enviado em {diaMes(r.criadoEm.slice(0, 10))}, ainda sem pagamento
-        </span>
-      </span>
-      <div style={s("display:flex;gap:8px;flex-wrap:wrap")}>
-        <Btn size="sm" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
-        <Btn size="sm" variant="secondary" disabled={ocupado} onClick={() => decidir("pix")}>Mandar de novo</Btn>
-        <Btn size="sm" variant="ghost" disabled={ocupado} onClick={() => decidir("nao_cobrar")}>Não cobrar</Btn>
+      <Topo titulo={`${r.nome?.trim() || telefoneBonito(r.telefone)} está há ${plural(dias, "dia", "dias")} sem pagar`} valor={r.valor} />
+      <div style={s(BOTOES)}>
+        <Btn size="sm" disabled={ocupado} onClick={() => decidir("pix")}>Mandar de novo</Btn>
+        <Btn size="sm" variant="secondary" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
+        <span style={s("margin-left:auto")}><MaisAcoes abreParaEsquerda disabled={ocupado} acoes={[{ label: "Não cobrar", onClick: () => decidir("nao_cobrar") }]} /></span>
       </div>
     </div>
   );
@@ -235,86 +264,71 @@ export function CartaoDaPergunta({ r, depois }: { r: Recebimento; depois: () => 
   const { ocupado, decidir } = useDecisao(r.id, false, depois);
   return (
     <div style={s(CARTAO)}>
-      <span style={s("display:flex;flex-direction:column;gap:3px")}>
-        <span style={s("font-size:var(--t-sm);font-weight:var(--w-title)")}>{r.nome?.trim() || r.telefone}</span>
-        <span style={s("font-size:var(--t-label);color:var(--muted)")}>{r.descricao} · {reais(r.valor)}</span>
-      </span>
-      <span style={s("font-size:var(--t-sm)")}>Já está pago?</span>
-      <div style={s("display:flex;gap:8px;flex-wrap:wrap")}>
+      <Topo titulo={`${r.nome?.trim() || telefoneBonito(r.telefone)}: já está pago?`} valor={r.valor} />
+      <div style={s(BOTOES)}>
         <Btn size="sm" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
         <Btn size="sm" variant="secondary" disabled={ocupado} onClick={() => decidir("pix")}>Mandar Pix</Btn>
-        <Btn size="sm" variant="ghost" disabled={ocupado} onClick={() => decidir("nao_cobrar")}>Não cobrar</Btn>
+        <span style={s("margin-left:auto")}><MaisAcoes abreParaEsquerda disabled={ocupado} acoes={[{ label: "Não cobrar", onClick: () => decidir("nao_cobrar") }]} /></span>
       </div>
     </div>
   );
 }
 
+/**
+ * O comprovante na coluna estreita: sem a linha do extrato da aba, então a frase do extrato fica
+ * colada no botão (nenhum pagamento é confirmado só pela imagem). Do que a MAISA conferiu, só o
+ * que não bate aparece, em âmbar; o que confere não muda o que o dono faz.
+ */
 export function CartaoDoComprovante({ c, abertos, depois }: { c: ComprovanteDePagamento; abertos: Recebimento[]; depois: () => void }) {
-  /* As cobranças em aberto deste telefone: se a MAISA não achou qual o comprovante paga, o dono
-   * escolhe entre elas. */
-  const doTelefone = abertos.filter((r) => chaveDe(r.telefone) === chaveDe(c.telefone));
+  /* As cobranças em aberto deste telefone, a mais antiga primeiro: com mais de uma, a data separa
+   * uma da outra, e o dono escolhe qual o comprovante paga. */
+  const doTelefone = abertos.filter((r) => chaveDe(r.telefone) === chaveDe(c.telefone)).sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
   const [alvo, setAlvo] = useState(c.recebimentoId ?? doTelefone[0]?.id ?? "");
   const [descartando, setDescartando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const { ocupado, agir } = useComprovante(c.id, depois);
-  const selo = SELO[c.conferencia];
-
-  const detalhes = [c.banco, diaMes(c.pagoEm), c.recebedorNome ? `para ${c.recebedorNome}` : null].filter(Boolean).join(" · ");
   const cobranca = doTelefone.find((r) => r.id === alvo) ?? null;
+  const valorDiferente = c.valor != null && cobranca != null && Math.abs(c.valor - cobranca.valor) >= 0.01;
   const codigo = conferirCodigoDoPix(c, { recebidoEm: c.criadoEm, cobrancaEnviadaEm: cobranca?.criadoEm ?? null });
 
   return (
     <div style={s(CARTAO)}>
-      <span style={s("display:flex;align-items:center;gap:10px")}>
-        <span style={s("flex:1;min-width:0;font-size:var(--t-sm);font-weight:var(--w-title)")}>
-          {(c.nome?.trim() || c.telefone)} mandou um comprovante de {reais(c.valor)}
-        </span>
-        <Estado forma={selo.forma} tom={selo.tom}>{selo.texto}</Estado>
-      </span>
-      {detalhes && <span style={s("font-size:var(--t-label);color:var(--muted)")}>{detalhes}</span>}
-      {c.conferencia === "nao_confere" && (
-        <span style={s("font-size:var(--t-label);color:var(--warn)")}>
-          No comprovante, quem recebeu não parece ser você. Confira no extrato antes de confirmar.
-        </span>
-      )}
-      {codigo.motivos.map((m) => (
-        <span key={m} style={s("font-size:var(--t-label);color:var(--warn)")}>{m}</span>
-      ))}
+      <Topo titulo={`${c.nome?.trim() || telefoneBonito(c.telefone)} mandou um comprovante`} valor={c.valor} />
+      {c.conferencia === "nao_confere" && <span style={s(AVISO)}>No comprovante, quem recebeu não parece ser você.</span>}
+      {codigo.motivos.map((m) => <span key={m} style={s(AVISO)}>{m}</span>)}
+      {valorDiferente && <span style={s(AVISO)}>O comprovante diz {reais(c.valor)}, e a cobrança é de {reais(cobranca!.valor)}.</span>}
       {doTelefone.length > 1 && (
         <label style={s(ROTULO)}>
-          Qual cobrança ele paga?
+          Paga
           <select value={alvo} onChange={(e) => setAlvo(e.target.value)} className="n m-focus" style={s(CAMPO)}>
             {doTelefone.map((r) => <option key={r.id} value={r.id}>{r.descricao} · {reais(r.valor)}</option>)}
           </select>
         </label>
       )}
       {!descartando ? (
-        <div style={s("display:flex;gap:8px;flex-wrap:wrap")}>
-          <Btn
-            size="sm"
-            disabled={ocupado || !alvo}
-            motivo="Este telefone não tem cobrança em aberto: descarte, ou mande o Pix primeiro."
-            onClick={() => agir({ acao: "confirmar", recebimentoId: alvo }, (r) => fraseDoDocumento(r.documento ?? { tipo: "nenhum" }))}
-          >
-            Vi no extrato, confirmar
-          </Btn>
-          <Btn size="sm" variant="ghost" disabled={ocupado} onClick={() => setDescartando(true)}>Descartar</Btn>
-        </div>
+        <>
+          <span style={s("font-size:var(--t-label);color:var(--ink)")}>Veja no extrato do banco se o dinheiro entrou.</span>
+          <div style={s(BOTOES)}>
+            <Btn
+              size="sm"
+              disabled={ocupado || !alvo}
+              motivo="Este telefone não tem cobrança em aberto: marque que não entrou, ou mande o Pix primeiro."
+              onClick={() => agir({ acao: "confirmar", recebimentoId: alvo }, (r) => fraseDoDocumento(r.documento ?? { tipo: "nenhum" }))}
+            >
+              Confirmar pagamento
+            </Btn>
+            <Btn size="sm" variant="secondary" disabled={ocupado} onClick={() => setDescartando(true)}>Não entrou</Btn>
+          </div>
+        </>
       ) : (
         <div style={s("display:grid;gap:8px")}>
           <label style={s(ROTULO)}>
-            Por que descartar? Fica anotado, para quando você procurar.
-            <input
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Escreva o motivo…"
-              className="n m-focus"
-              style={s(CAMPO)}
-            />
+            O que aconteceu? Fica anotado.
+            <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Escreva o motivo…" className="n m-focus" style={s(CAMPO)} />
           </label>
-          <div style={s("display:flex;gap:8px;flex-wrap:wrap")}>
-            <Btn size="sm" variant="danger" disabled={ocupado || !motivo.trim()} onClick={() => agir({ acao: "descartar", motivo }, () => "Comprovante descartado.")}>
-              Descartar
+          <div style={s(BOTOES)}>
+            <Btn size="sm" variant="danger" disabled={ocupado || !motivo.trim()} onClick={() => agir({ acao: "descartar", motivo }, () => "Anotei que o dinheiro não entrou.")}>
+              Confirmar que não entrou
             </Btn>
             <Btn size="sm" variant="ghost" disabled={ocupado} onClick={() => setDescartando(false)}>Voltar</Btn>
           </div>
