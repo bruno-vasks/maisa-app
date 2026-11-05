@@ -7,10 +7,11 @@ import type { DecisaoSobreRecebimento } from "@/nucleo/portas/entrada/casos-de-u
 // ─────────────────────────────────────────────────────────────────────────────
 // A RESPOSTA À PERGUNTA "JÁ ESTÁ PAGO?" — pelo painel (27/10/2026).
 //
-// POST /api/recebimentos/decidir  { id, decisao: "pagou" | "pix" | "nao_cobrar" }
+// POST /api/recebimentos/decidir  { id, decisao: "pagou" | "pix" | "nao_cobrar", texto? }
 //   →  { recebimento, documento }
 //
-// A mesma decisão que o dono dá pelo WhatsApp ("1" ou "2"). `documento` diz o que aconteceu
+// A mesma decisão que o dono dá pelo WhatsApp ("1" ou "2"). `texto` é a mensagem do Pix que ele
+// editou na janela do painel (04/11/2026); quem confere é o caso de uso. `documento` diz o que aconteceu
 // depois do pagamento: recibo ou nota pedidos, CPF pedido ao cliente, nada, ou a recusa do
 // emissor. Quem confere a decisão é o caso de uso.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
     const r = await app.decidirRecebimento(porteiro.tenant, {
       id: String(corpo?.id ?? ""),
       decisao: String(corpo?.decisao ?? "") as DecisaoSobreRecebimento,
+      ...(typeof corpo?.texto === "string" ? { texto: corpo.texto } : {}),
     });
     return NextResponse.json({ ok: true, status: "ok", ...r });
   } catch (e) {

@@ -595,6 +595,41 @@ describe("o que a revisão de 27/10/2026 achou", () => {
   });
 });
 
+describe("a janela do Mandar Pix (04/11/2026)", () => {
+  async function pergunta() {
+    const a = ambiente();
+    await a.config("perguntar");
+    a.passar(60 * 60_000);
+    await atendimento({ minutosAtras: 20 - 60 });
+    await a.casos.cobrarAtendimentos(new Date(AGORA + 60 * 60_000));
+    const [r] = (await a.casos.lerRecebimentos(t)).paraDecidir;
+    a.enviados.length = 0;
+    return { a, r };
+  }
+
+  it("vai o texto que o dono escreveu, e o código sozinho na mensagem seguinte; de novo, o mesmo", async () => {
+    const { a, r } = await pergunta();
+    await a.casos.decidir(t, { id: r.id, decisao: "pix", texto: "  Oi, João! Segue o Pix do corte de hoje.  " });
+    expect(a.enviados).toHaveLength(1);
+    const [texto, codigo] = a.enviados[0].textos;
+    expect(texto).toBe("Oi, João! Segue o Pix do corte de hoje.");
+    expect(codigo).toMatch(/^000201/);
+    expect(a.naConversa.map((m) => m.txt)).toContain("Oi, João! Segue o Pix do corte de hoje.");
+    expect(a.naConversa.some((m) => m.txt.includes("000201"))).toBe(false);
+
+    await a.casos.decidir(t, { id: r.id, decisao: "pix", texto: "João, mando de novo o Pix." });
+    expect(a.enviados[1].textos).toEqual(["João, mando de novo o Pix.", codigo]);
+  });
+
+  it("texto vazio ou comprido demais não manda nada, e a cobrança segue perguntando", async () => {
+    const { a, r } = await pergunta();
+    await expect(a.casos.decidir(t, { id: r.id, decisao: "pix", texto: "   " })).rejects.toThrow(/Escreva a mensagem/);
+    await expect(a.casos.decidir(t, { id: r.id, decisao: "pix", texto: "x".repeat(1001) })).rejects.toThrow(/passou de 1000/);
+    expect(a.enviados).toHaveLength(0);
+    expect((await a.casos.lerRecebimentos(t)).paraDecidir.map((x) => x.id)).toEqual([r.id]);
+  });
+});
+
 describe("o que a revisão achou na opção B", () => {
   const TITULAR = {
     documento: "123.456.789-09", nome: "Ana Lúcia Souza", email: "ana@x.com", celular: "(11) 98888-7777", cep: "01310-100",

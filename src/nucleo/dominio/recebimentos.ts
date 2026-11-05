@@ -460,11 +460,20 @@ const ola = (nome: string | null) => (nome?.trim() ? `Oi, ${primeiroNome(nome.tr
  * As duas mensagens do Pix: a explicação, e o código SOZINHO na seguinte, para o cliente copiar
  * inteiro com um toque. Junto do texto, o "copiar" do WhatsApp pega o parágrafo todo.
  */
-export function mensagensDoPix(p: { nome: string | null; valor: number; descricao: string; codigo: string }): [string, string] {
-  return [
-    `${ola(p.nome)} Segue o Pix de ${reais(p.valor)} (${p.descricao}). É só copiar o código da próxima mensagem e colar no app do banco, em Pix copia e cola: o valor já vem preenchido.\n\nDepois, se puder, me manda o comprovante por aqui.`,
-    p.codigo,
-  ];
+/**
+ * A primeira das duas mensagens, sem o código. É também o que a janela do "Mandar Pix" mostra
+ * preenchido para o dono mudar antes de mandar (04/11/2026); o código vai sempre na segunda,
+ * sozinho, para o cliente copiar sem pegar texto junto.
+ */
+export function textoDoPixAoCliente(p: { nome: string | null; valor: number; descricao: string }): string {
+  return `${ola(p.nome)} Segue o Pix de ${reais(p.valor)} (${p.descricao}). É só copiar o código da próxima mensagem e colar no app do banco, em Pix copia e cola: o valor já vem preenchido.\n\nDepois, se puder, me manda o comprovante por aqui.`;
+}
+
+/** Até onde o dono pode escrever na janela. Um Pix não pede mais que isso. */
+export const TEXTO_DO_PIX_MAX = 1000;
+
+export function mensagensDoPix(p: { nome: string | null; valor: number; descricao: string; codigo: string; texto?: string }): [string, string] {
+  return [p.texto ?? textoDoPixAoCliente(p), p.codigo];
 }
 
 /** O que entra na conversa no lugar do código: o código é para o banco, não para a thread. */

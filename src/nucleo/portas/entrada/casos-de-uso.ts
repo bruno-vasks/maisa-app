@@ -1271,7 +1271,11 @@ export type DocumentoDoPagamento =
 
 export type RecebimentoDecidido = { recebimento: Recebimento; documento: DocumentoDoPagamento };
 
-export type DecidirRecebimento = (t: ContextoTenant, p: { id: string; decisao: DecisaoSobreRecebimento }) => Promise<RecebimentoDecidido>;
+/**
+ * `texto`: só com `pix`, a mensagem que o dono deixou na janela do painel (04/11/2026). Sem ele (o
+ * "2" pelo WhatsApp), vai o texto da MAISA. O código Pix vai sempre na mensagem seguinte, sozinho.
+ */
+export type DecidirRecebimento = (t: ContextoTenant, p: { id: string; decisao: DecisaoSobreRecebimento; texto?: string }) => Promise<RecebimentoDecidido>;
 
 /** O dono conferiu no extrato. Sem `recebimentoId`, vale a cobrança que a MAISA sugeriu. */
 export type ConfirmarComprovante = (t: ContextoTenant, p: { id: string; recebimentoId?: string | null }) => Promise<RecebimentoDecidido>;

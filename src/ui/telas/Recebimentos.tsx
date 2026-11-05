@@ -43,7 +43,7 @@ import { s, fmt, Btn, Estado, EmptyState, Filtros } from "@/ui/primitivos";
 import { Moldura, Contagem, type MarcoDaContagem } from "@/ui/componentes/Moldura";
 import { Esqueleto, FalhaDeLeitura } from "@/ui/componentes/EstadoDeLeitura";
 import {
-  AjustesDoPix, ContaDeCartaoEBoleto, FormularioDoPix, MaisAcoes, diasSemPagar, fraseDoDocumento, plural, useComprovante, useDecisao, usePainel, type Painel,
+  AjustesDoPix, ContaDeCartaoEBoleto, FormularioDoPix, MaisAcoes, diasSemPagar, fraseDoDocumento, plural, useComprovante, usePainel, usePixComJanela, type Painel,
 } from "@/ui/componentes/Recebimentos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { chaveDe } from "@/nucleo/dominio/contatos";
@@ -425,14 +425,15 @@ function DetalheDoComprovante({ c, abertos, depois, mobile }: { c: ComprovanteDe
 
 /** O atendimento que acabou e espera o dono dizer se foi pago (o barbeiro que recebe na hora). */
 function DetalheDaPergunta({ r, depois }: { r: Recebimento; depois: () => void }) {
-  const { ocupado, decidir } = useDecisao(r.id, false, depois);
+  const { ocupado, decidir, abrirPix, janelaDoPix } = usePixComJanela(r, false, depois);
   return (
     <>
+      {janelaDoPix}
       <span style={s(TITULO)}>{quem(r)}: já está pago?</span>
       <span className="n" style={s("font-size:var(--t-data);font-weight:var(--w-emph);letter-spacing:var(--ls-data);line-height:1")}>{fmt(r.valor)}</span>
       <span style={s("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
         <Btn icon="check" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
-        <Btn variant="secondary" icon="send" disabled={ocupado} onClick={() => decidir("pix")}>Mandar Pix</Btn>
+        <Btn variant="secondary" icon="send" disabled={ocupado} onClick={abrirPix}>Mandar Pix</Btn>
         <MaisAcoes disabled={ocupado} acoes={[{ label: "Não cobrar", onClick: () => decidir("nao_cobrar") }]} />
       </span>
     </>
@@ -444,11 +445,12 @@ function DetalheDaPergunta({ r, depois }: { r: Recebimento; depois: () => void }
  * não há o que fazer além de esperar, e nenhum botão grita.
  */
 function DetalheDoAberto({ r, dias, comComprovante, depois }: { r: Recebimento; dias: number; comComprovante: boolean; depois: () => void }) {
-  const { ocupado, decidir } = useDecisao(r.id, true, depois);
+  const { ocupado, decidir, abrirPix, janelaDoPix } = usePixComJanela(r, true, depois);
   const cobrar = dias > 0 && !comComprovante;
   const naoCobrar = { label: "Não cobrar", onClick: () => decidir("nao_cobrar") };
   return (
     <>
+      {janelaDoPix}
       <span style={s(TITULO)}>{quem(r)}</span>
       <span className="n" style={s("font-size:var(--t-data);font-weight:var(--w-emph);letter-spacing:var(--ls-data);line-height:1")}>{fmt(r.valor)}</span>
       {comComprovante
@@ -459,14 +461,14 @@ function DetalheDoAberto({ r, dias, comComprovante, depois }: { r: Recebimento; 
       <span style={s("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
         {cobrar ? (
           <>
-            <Btn icon="send" disabled={ocupado} onClick={() => decidir("pix")}>Mandar de novo</Btn>
+            <Btn icon="send" disabled={ocupado} onClick={abrirPix}>Mandar de novo</Btn>
             <Btn variant="secondary" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
             <MaisAcoes disabled={ocupado} acoes={[naoCobrar]} />
           </>
         ) : (
           <>
             <Btn variant="secondary" icon="check" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
-            <MaisAcoes disabled={ocupado} acoes={[{ label: "Mandar de novo", onClick: () => decidir("pix") }, naoCobrar]} />
+            <MaisAcoes disabled={ocupado} acoes={[{ label: "Mandar de novo", onClick: abrirPix }, naoCobrar]} />
           </>
         )}
       </span>

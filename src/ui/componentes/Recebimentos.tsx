@@ -19,11 +19,15 @@
  * tela só põe o que a MAISA leu ao lado, para ele comparar.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { s, Btn, Estado, IconBtn, toast } from "@/ui/primitivos";
 import { mensagemDaFalha } from "@/ui/falhas";
 import { TIPOS_DE_CHAVE, tipoProvavel, type TipoDeChavePix } from "@/nucleo/dominio/pix";
-import { conferirCodigoDoPix, type ComprovanteDePagamento, type DepoisDoAtendimento, type Recebimento } from "@/nucleo/dominio/recebimentos";
+import {
+  conferirCodigoDoPix, TEXTO_DO_PIX_MAX, textoDoPixAoCliente,
+  type ComprovanteDePagamento, type DepoisDoAtendimento, type Recebimento,
+} from "@/nucleo/dominio/recebimentos";
 import { chaveDe } from "@/nucleo/dominio/contatos";
 import { telefoneBonito } from "@/nucleo/dominio/clientes";
 import type { DocumentoDoPagamento, PainelDeRecebimentos } from "@/nucleo/portas/entrada/casos-de-uso";
@@ -90,26 +94,112 @@ async function postar(url: string, corpo: unknown, padrao: string) {
 }
 
 /** "Já pagou", "Mandar o Pix" e "Não cobrar" de uma cobrança. `aberto`: o Pix já foi, e o aviso
- *  diz "de novo" em vez de "agora". Os cartões de Hoje e as linhas da aba usam o mesmo. */
+ *  diz "de novo" em vez de "agora". Os cartões de Hoje e as linhas da aba usam o mesmo. `texto`:
+ *  a mensagem da janela do Pix. Devolve se deu certo. */
 export function useDecisao(id: string, aberto: boolean, depois: () => void) {
   const [ocupado, setOcupado] = useState(false);
-  const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar") => {
+  const decidir = async (decisao: "pagou" | "pix" | "nao_cobrar", texto?: string): Promise<boolean> => {
     setOcupado(true);
     try {
-      const resp = await postar("/api/recebimentos/decidir", { id, decisao }, "Não consegui registrar.");
+      const resp = await postar("/api/recebimentos/decidir", { id, decisao, ...(texto === undefined ? {} : { texto }) }, "Não consegui registrar.");
       toast(decisao === "pix"
         ? (aberto ? "A cobrança vai de novo para o cliente." : "O Pix vai para o cliente agora.")
         : decisao === "nao_cobrar"
           ? (aberto ? "Cobrança cancelada." : "Sem cobrança para este atendimento.")
           : fraseDoDocumento(resp.documento));
       depois();
+      return true;
     } catch (e) {
       toast(e instanceof Error ? e.message : "Não consegui registrar.");
+      return false;
     } finally {
       setOcupado(false);
     }
   };
   return { ocupado, decidir };
+}
+
+/**
+ * `useDecisao` com a janela do Pix: `abrirPix` é o "Mandar Pix" e o "Mandar de novo", e quem
+ * manda é a janela. Quem usa desenha `janelaDoPix` em qualquer lugar (ela vai para o body).
+ */
+export function usePixComJanela(r: Recebimento, aberto: boolean, depois: () => void) {
+  const { ocupado, decidir } = useDecisao(r.id, aberto, depois);
+  const [aberta, setAberta] = useState(false);
+  const fechar = useCallback(() => setAberta(false), []);
+  const janelaDoPix = aberta ? (
+    <JanelaDoPix r={r} deNovo={aberto} ocupado={ocupado} fechar={fechar} mandar={async (texto) => { if (await decidir("pix", texto)) setAberta(false); }} />
+  ) : null;
+  return { ocupado, decidir, abrirPix: () => setAberta(true), janelaDoPix };
+}
+
+/**
+ * A janela antes de mandar o Pix (04/11/2026, como no Smiller; Bruno: "gosto da janela de texto
+ * para confirmar, ainda mais porque dá para editar"). Vem com o texto da MAISA já escrito para
+ * aquele cliente; o que o dono deixar aqui é o que vai. O código vai depois, numa mensagem só dele.
+ *
+ * O campo cresce com o texto em vez de rolar por dentro: em 768 px de altura a janela cabe
+ * inteira, e no celular quem rola é a janela, nunca um campo dentro dela.
+ */
+function JanelaDoPix({ r, deNovo, ocupado, fechar, mandar }: {
+  r: Recebimento; deNovo: boolean; ocupado: boolean; fechar: () => void; mandar: (texto: string) => void;
+}) {
+  const [texto, setTexto] = useState(() => textoDoPixAoCliente(r));
+  const campo = useRef<HTMLTextAreaElement>(null);
+  const quem = r.nome?.trim() || telefoneBonito(r.telefone);
+  const titulo = deNovo ? `Mandar o Pix de novo para ${quem}` : `Mandar o Pix para ${quem}`;
+
+  useLayoutEffect(() => {
+    const el = campo.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [texto]);
+  useEffect(() => {
+    const el = campo.current;
+    el?.focus();
+    el?.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => { if (e.key === "Escape" && !ocupado) fechar(); };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [fechar, ocupado]);
+
+  return createPortal(
+    <div
+      onClick={() => { if (!ocupado) fechar(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={titulo}
+      /* o mesmo véu do ConfirmDialog; `margin:auto` no filho centraliza e, quando não cabe, rola do topo */
+      style={{ ...s("position:fixed;inset:0;z-index:70;overflow-y:auto;display:flex;padding:28px 16px;background:oklch(0.22 0.03 262 / 0.38)"), backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", animation: "mfade .2s ease" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ ...s("margin:auto;width:520px;max-width:100%;box-sizing:border-box;background:var(--surface);border-radius:var(--r-painel);box-shadow:var(--shadow-pop);padding:22px 24px;display:flex;flex-direction:column;gap:12px"), animation: "mrise .25s var(--ease-out)" }}
+      >
+        <div style={s("display:flex;align-items:flex-start;gap:12px")}>
+          <h2 style={s("flex:1;min-width:0;font-size:var(--t-lg);font-weight:var(--w-title);letter-spacing:var(--ls-lg);line-height:1.3;padding-top:5px")}>{titulo}</h2>
+          <IconBtn icon="x" size="sm" title="Fechar" onClick={fechar} disabled={ocupado} />
+        </div>
+        <textarea
+          ref={campo}
+          aria-label="Mensagem"
+          value={texto}
+          maxLength={TEXTO_DO_PIX_MAX}
+          onChange={(e) => setTexto(e.target.value)}
+          style={s(`${CAMPO};background:var(--surface);line-height:1.5;resize:none;overflow:hidden;min-height:132px`)}
+        />
+        <span style={s("font-size:var(--t-label);color:var(--muted)")}>O código Pix vai logo depois, numa mensagem só dele.</span>
+        <div style={s("display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:4px")}>
+          <Btn variant="secondary" disabled={ocupado} onClick={fechar}>Cancelar</Btn>
+          <Btn variant="whats" icon="whatsapp" disabled={ocupado || !texto.trim()} onClick={() => mandar(texto)}>Mandar no WhatsApp</Btn>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 /** Confirmar ou descartar um comprovante. */
@@ -246,13 +336,14 @@ const BOTOES = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
  * recibo automático, e toda imagem desse cliente indo para o leitor.
  */
 export function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => void }) {
-  const { ocupado, decidir } = useDecisao(r.id, true, depois);
+  const { ocupado, decidir, abrirPix, janelaDoPix } = usePixComJanela(r, true, depois);
   const dias = diasSemPagar(r.criadoEm);
   return (
     <div style={s(CARTAO)}>
+      {janelaDoPix}
       <Topo titulo={`${r.nome?.trim() || telefoneBonito(r.telefone)} está há ${plural(dias, "dia", "dias")} sem pagar`} valor={r.valor} />
       <div style={s(BOTOES)}>
-        <Btn size="sm" disabled={ocupado} onClick={() => decidir("pix")}>Mandar de novo</Btn>
+        <Btn size="sm" disabled={ocupado} onClick={abrirPix}>Mandar de novo</Btn>
         <Btn size="sm" variant="secondary" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
         <span style={s("margin-left:auto")}><MaisAcoes abreParaEsquerda disabled={ocupado} acoes={[{ label: "Não cobrar", onClick: () => decidir("nao_cobrar") }]} /></span>
       </div>
@@ -261,13 +352,14 @@ export function CartaoDoAberto({ r, depois }: { r: Recebimento; depois: () => vo
 }
 
 export function CartaoDaPergunta({ r, depois }: { r: Recebimento; depois: () => void }) {
-  const { ocupado, decidir } = useDecisao(r.id, false, depois);
+  const { ocupado, decidir, abrirPix, janelaDoPix } = usePixComJanela(r, false, depois);
   return (
     <div style={s(CARTAO)}>
+      {janelaDoPix}
       <Topo titulo={`${r.nome?.trim() || telefoneBonito(r.telefone)}: já está pago?`} valor={r.valor} />
       <div style={s(BOTOES)}>
         <Btn size="sm" disabled={ocupado} onClick={() => decidir("pagou")}>Já pagou</Btn>
-        <Btn size="sm" variant="secondary" disabled={ocupado} onClick={() => decidir("pix")}>Mandar Pix</Btn>
+        <Btn size="sm" variant="secondary" disabled={ocupado} onClick={abrirPix}>Mandar Pix</Btn>
         <span style={s("margin-left:auto")}><MaisAcoes abreParaEsquerda disabled={ocupado} acoes={[{ label: "Não cobrar", onClick: () => decidir("nao_cobrar") }]} /></span>
       </div>
     </div>

@@ -54,7 +54,7 @@ import {
   AGRADECIMENTO_DO_CPF, avisoDeComprovanteAoDono, codigoNaConversa, conferirCodigoDoPix, COMPROVANTE_REPETIDO, confirmacaoDoPagamento,
   conferirRecebedor, cpfNaMensagem, decisaoDoDono, descricaoDoRecebimento, ehDepoisDoAtendimento,
   avisoDePagamentoForaDeHoraAoDono, identificadorDoRecebimento, janelaDepoisDoAtendimento, mensagensDaCobranca, mensagensDoPix,
-  pedidoDeCpf, perguntaAoDono, resumoParaANota,
+  pedidoDeCpf, perguntaAoDono, resumoParaANota, TEXTO_DO_PIX_MAX,
   perguntaValendo, pixFaltando, respostaAoComprovante, respostaAoDono, soOCpf, sugerirRecebimento,
   type AtendimentoACobrar, type ConfigDeRecebimentos, type MotivoDoCpf, type Recebimento,
 } from "../dominio/recebimentos";
@@ -156,9 +156,10 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     return c;
   }
 
-  async function mandarOPix(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos): Promise<void> {
+  /** `textoDoDono`: o que ele escreveu na janela do "Mandar Pix". Sem ele, o texto da MAISA. */
+  async function mandarOPix(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos, textoDoDono?: string): Promise<void> {
     const codigo = pixCopiaECola({ chave: c.chave!, nome: c.nome, cidade: c.cidade, valor: r.valor, identificador: r.identificador });
-    const [texto, cod] = mensagensDoPix({ nome: r.nome, valor: r.valor, descricao: r.descricao, codigo });
+    const [texto, cod] = mensagensDoPix({ nome: r.nome, valor: r.valor, descricao: r.descricao, codigo, texto: textoDoDono });
     await enfileirar(t, r.telefone, [texto, cod], [texto, codigoNaConversa(r.valor)]);
   }
 
@@ -168,7 +169,7 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
    * uma vez, salva, e depois consegue ficar enviando"). Fora isso (opção B desligada, sem ficha, o
    * CPF pedido e não respondido, ou o dono apertando "Mandar Pix" de novo), o Pix estático.
    */
-  async function mandarCobranca(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos, o: { pixDireto?: boolean } = {}): Promise<void> {
+  async function mandarCobranca(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos, o: { pixDireto?: boolean; texto?: string } = {}): Promise<void> {
     const provedor = deps.provedor;
     if (!o.pixDireto && provedor?.disponivel() && (await provedor.conta(t).catch(() => null))?.situacao === "aprovada") {
       const cliente = r.clienteId ? await deps.negocio.cliente(t, r.clienteId).catch(() => null) : null;
@@ -198,20 +199,20 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
         return;
       }
     }
-    await mandarOPix(t, r, c);
+    await mandarOPix(t, r, c, o.texto);
   }
 
   /**
    * A mesma cobrança, de novo. A do Asaas vai com o mesmo link (não se emite outra); a que esperava o
    * CPF, e o dono apertou, vai no Pix estático; o resto, o mesmo Pix.
    */
-  async function reenviar(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos): Promise<void> {
+  async function reenviar(t: ContextoTenant, r: Recebimento, c: ConfigDeRecebimentos, texto?: string): Promise<void> {
     if (r.meio === "asaas" && r.link) {
       const mensagens = mensagensDaCobranca({ nome: r.nome, valor: r.valor, descricao: r.descricao, link: r.link, pix: null });
       await enfileirar(t, r.telefone, mensagens, mensagens);
       return;
     }
-    await mandarCobranca(t, r, c, { pixDireto: Boolean(r.cpfPedidoEm) });
+    await mandarCobranca(t, r, c, { pixDireto: Boolean(r.cpfPedidoEm), texto });
   }
 
   /**
@@ -327,16 +328,21 @@ export function criarRecebimentos(deps: DepsRecebimentos) {
     const jaFoi = () => new DadoInvalido("Esta cobrança já foi decidida. Atualize a tela.");
 
     if (p.decisao === "pix") {
+      /* O texto da janela do painel (04/11/2026). Vale para o Pix na chave; a cobrança do Asaas
+       * segue com a mensagem dela. Sem texto (o "2" do dono no WhatsApp), o texto da MAISA. */
+      const texto = p.texto === undefined ? undefined : p.texto.trim();
+      if (texto !== undefined && !texto) throw new DadoInvalido("Escreva a mensagem do Pix.", "texto");
+      if (texto && texto.length > TEXTO_DO_PIX_MAX) throw new DadoInvalido(`A mensagem passou de ${TEXTO_DO_PIX_MAX} letras.`, "texto");
       const c = await configPronta(t);
       /* Já em aberto: é o "Mandar de novo" da tela. */
       const atual = await deps.recebimentos.porId(t, p.id);
       if (atual?.situacao === "aberto") {
-        await reenviar(comoSistema(t), atual, c);
+        await reenviar(comoSistema(t), atual, c, texto);
         return { recebimento: atual, documento: { tipo: "nenhum" } };
       }
       const r = await deps.recebimentos.mudar(t, p.id, { de: ["perguntar"], para: "aberto", por });
       if (!r) throw jaFoi();
-      await mandarCobranca(comoSistema(t), r, c);
+      await mandarCobranca(comoSistema(t), r, c, { texto });
       return { recebimento: r, documento: { tipo: "nenhum" } };
     }
 
