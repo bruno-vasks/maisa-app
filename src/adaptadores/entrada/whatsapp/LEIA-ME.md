@@ -33,6 +33,7 @@ conhecem: encontram-se em `composicao.ts`.
 |---|---|
 | `contexto.ts` | Valida o segredo, resolve o inquilino **pelo destino da mensagem**, normaliza o envelope de três formatos de webhook e diz como um áudio entra na conversa (`textoDoAudio`) |
 | `persona.ts` | Monta o system prompt em duas partes: estável (cacheável) e volátil (hoje + memória) |
+| `persona-vendas.ts` | Só no negócio da casa: o prompt da maisa vendendo a própria maisa (o que ela faz, os planos, como qualificar, como ajudar quem travou no cadastro) e a parte volátil do lead (a conta no app, o que a conversa já registrou) |
 | `ferramentas.ts` | As ferramentas, o executor e a camada que desconfia do modelo |
 | `bolhas.ts` | Quebra a resposta em mensagens, converte Markdown, põe hora e preço do jeito falado (`comoSeFala`), corta a fala que o modelo inventou para o cliente (`semFalaInventada`), aplica os tetos |
 | `disjuntor.ts` | Diz, só pela thread, se a conversa virou laço: a mesma mensagem longa pela terceira vez, ou 12 respostas em 10 minutos |
@@ -367,6 +368,33 @@ Três coisas valem para os dois provedores:
   Gemini 3 é o `thoughtSignature`; sem ele a API responde **400** e o agente morre na
   primeira consulta de agenda. Descoberto testando, não lendo. Nunca inspecione nem
   reconstrua esse valor — só carregue.
+
+## A casa: a maisa vendendo a própria maisa (05/11/2026)
+
+Um negócio do próprio app, apontado por `MAISA_NEGOCIO_DA_CASA`, atende os leads da maisa num
+número só dele. O loop, as travas e as bolhas são os de sempre; o que muda quando a config traz
+`vendas` (só nesse negócio):
+
+- **O prompt** é o de `persona-vendas.ts`, e o jeito de escrever (`COMO_VOCE_ESCREVE`) é o MESMO da
+  secretária: a pessoa tem de reconhecer na vendedora o atendimento que vai ter.
+- **Três ferramentas a mais** (`FERRAMENTAS_DE_VENDAS`): `registrar_lead`, cujo resultado traz o
+  próximo passo decidido em código (`proximoPasso`), `mandar_link_do_teste` (só depois do registro,
+  e nunca para quem já tem conta) e `mandar_link_do_pagamento` (só para quem já tem conta: abre a
+  tela do plano no app).
+- **O link sai como bolha própria**, depois da fala, montado pelo código; o link que o modelo
+  escrever cai (`semLinks`, em `bolhas.ts`). Link de modelo sai plausível e quebrado.
+- **Quem vende não é lead** (passo 1e'): o resumo de cada lead vai do número da casa para o
+  WhatsApp do dono, e a resposta dele ali não pode virar qualificação.
+- **Horário marcado na casa é conversa de venda**: o `agendar` que deu certo chama `ConversaMarcada`
+  (passo CONVERSA e aviso ao vendedor com dia e hora), sem depender de `registrar_lead`.
+- **Quem já tem conta** é qualificado também, mas não recebe link (`EstadoDoTurno.temConta`): o passo
+  dele é terminar a configuração ou a conversa com o vendedor.
+- **Quem puxou a conversa**: quando a ficha mostra que saiu uma automática (boas-vindas, lembrete,
+  retomada), a parte volátil diz que a pessoa está respondendo a ela.
+- **A ficha do lead** entra na parte volátil, e abri-la registra o telefone inteiro para a rotina
+  de retomada (`/api/rotinas/vendas`).
+
+Para ver no laboratório: `MAISA_NEGOCIO_DA_CASA=<id do negócio do laboratório>` no `.env.local`.
 
 ## Testar sem número de WhatsApp
 

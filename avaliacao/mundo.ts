@@ -27,6 +27,11 @@ import { criarAgendarAtendimento } from "@/nucleo/aplicacao/agendar-atendimento"
 import { criarResponderDuvida } from "@/nucleo/aplicacao/faqs";
 import { criarAnotarFato, criarLembrarCliente } from "@/nucleo/aplicacao/memoria";
 import { criarOferecerHorarios } from "@/nucleo/aplicacao/oferecer-horarios";
+import { criarAbrirFichaDoLead, criarConversaMarcada, criarLinkDoPagamentoDoLead, criarLinkDoTesteDoLead, criarQualificarLead } from "@/nucleo/aplicacao/vendas";
+import { etapaDoCadastro, textoDeBoasVindas, textoDeLembrete, textoDeRetomada } from "@/nucleo/dominio/vendas";
+import { leadsDemo } from "@/adaptadores/saida/demo/leads";
+import { planosAVenda } from "@/app/(marketing)/_lib/planos";
+import type { CadastrosDoApp } from "@/nucleo/portas/saida/cadastros-do-app";
 import type { Cliente } from "@/nucleo/dominio/clientes";
 import { CORTE_DE_SIMILARIDADE, type FaqEncontrada } from "@/nucleo/dominio/faq";
 import { atorAgente, type ContextoTenant } from "@/nucleo/dominio/tenant";
@@ -177,6 +182,8 @@ function sorteador(semente: string) {
 
 export type Mundo = {
   t: ContextoTenant;
+  /** O que já estava na conversa antes do lead escrever (só na casa). */
+  falasIniciais: { de: "cliente" | "maisa"; texto: string }[];
   negocio: NegocioDeTeste;
   responder: ReturnType<typeof criarAgente>;
   /** Mensagens que o canal entregou ao cliente, e chamadas ao dono. */
@@ -250,6 +257,22 @@ export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
     escalar: async (_t, p) => void escalacoes.push(p.motivo),
   };
 
+  /* A CASA (05/11/2026): a maisa vendendo a maisa. Os casos de uso de venda são os de produção, a
+   * ficha é a demo, e a conta no app é a do cenário. O que a ficha registrou entra no desfecho, e o
+   * aviso ao vendedor é contado (sai pelo canal falso, para o número de mentira abaixo). */
+  const VENDEDOR = "5511900000000";
+  const venda = { passo: null as "teste" | "conversa" | null, link: false, pagamento: false, avisosAoVendedor: 0 };
+  const ehCasa = n.chave === "casa";
+  const cadastros: CadastrosDoApp = {
+    faltando: () => [],
+    recentes: async () => (c.cadastro ? [c.cadastro] : []),
+    porTelefone: async (tel) => (c.cadastro && ultimos8(c.cadastro.telefone ?? "") === ultimos8(tel) ? c.cadastro : null),
+  };
+  const canalDaVenda: CanalDeMensagens = { ...canal, enviar: async (_t, para) => void (ultimos8(para) === ultimos8(VENDEDOR) && venda.avisosAoVendedor++) };
+  const qualificar = criarQualificarLead({ leads: leadsDemo, planos: planosAVenda(), canal: canalDaVenda, vendedorDe: async () => VENDEDOR });
+  const link = criarLinkDoTesteDoLead({ leads: leadsDemo, base: "https://app.maisasecretary.com.br" });
+  const conversaMarcada = criarConversaMarcada({ leads: leadsDemo, canal: canalDaVenda, vendedorDe: async () => VENDEDOR });
+
   const configuracao: ConfiguracaoDoAgente = {
     negocio: n.negocio,
     assistente: n.assistente,
@@ -258,6 +281,7 @@ export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
     expedientes: Object.fromEntries(n.profissionais.map((p) => [p.id, p.expediente])),
     semana: n.semana,
     cfg: n.cfg,
+    ...(ehCasa ? { vendas: { planos: planosAVenda(), vendedor: VENDEDOR } } : {}),
   };
 
   const deps: DepsDoAgente = {
@@ -281,6 +305,32 @@ export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
     historico: historicoDemo,
     conversas: conversasDemo,
     canal,
+    ...(ehCasa
+      ? {
+          vendas: {
+            abrirFicha: criarAbrirFichaDoLead({ leads: leadsDemo, cadastros }),
+            qualificarLead: async (tt, p) => {
+              const r = await qualificar(tt, p);
+              venda.passo = r.passo;
+              return r;
+            },
+            linkDoTeste: async (tt, p) => {
+              const r = await link(tt, p);
+              venda.link = true;
+              return r;
+            },
+            linkDoPagamento: async (tt, p) => {
+              const r = await criarLinkDoPagamentoDoLead({ base: "https://app.maisasecretary.com.br" })(tt, p);
+              venda.pagamento = true;
+              return r;
+            },
+            conversaMarcada: async (tt, p) => {
+              await conversaMarcada(tt, p);
+              venda.passo = "conversa";
+            },
+          },
+        }
+      : {}),
   };
 
   const visto = (a: ReturnType<typeof espelhoDemo>[number]): AtendimentoVisto => ({
@@ -292,8 +342,27 @@ export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
     situacao: a.situacao,
   });
 
+  /* A conversa que já existe (06/11/2026): o que foi dito antes e a mensagem automática, com o
+   * texto e a marca na ficha que a rotina de produção deixaria. */
+  const falasIniciais: Mundo["falasIniciais"] = [];
+  if (ehCasa && c.antes) {
+    const nome = c.antes.nome ?? c.cadastro?.nome ?? null;
+    const anteriores = c.antes.conversa ?? [];
+    let automatica: string[] = [];
+    if (c.antes.automatica === "boas_vindas") automatica = textoDeBoasVindas(nome, Date.now());
+    if (c.antes.automatica === "lembrete" && c.cadastro) automatica = textoDeLembrete(nome, etapaDoCadastro(c.cadastro, hojeISO())) ?? [];
+    if (c.antes.automatica === "retomada") automatica = textoDeRetomada(nome, false);
+    const msgs = [...anteriores, ...automatica.map((txt) => ({ de: "bot" as const, txt }))];
+    if (msgs.length) await historicoDemo.anexar(t, c.telefone, msgs);
+    if (c.antes.automatica) {
+      await leadsDemo.reservarAutomatica(t, { telefone: c.telefone, nome, tipo: c.antes.automatica, em: new Date().toISOString() });
+    }
+    for (const m of msgs) falasIniciais.push({ de: m.de === "cliente" ? "cliente" : "maisa", texto: m.txt });
+  }
+
   return {
     t,
+    falasIniciais,
     negocio: n,
     responder: criarAgente(deps),
     escalacoes,
@@ -304,6 +373,7 @@ export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
         cancelados: meus.filter((a) => jaTinha.has(a.maisaAg) && a.situacao === "cancelado").map(visto),
         escalou: escalacoes.length > 0,
         motivosDeEscalada: [...escalacoes],
+        ...(ehCasa ? { venda: { ...venda } } : {}),
       };
     },
   };

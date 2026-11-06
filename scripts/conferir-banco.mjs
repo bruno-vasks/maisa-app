@@ -82,6 +82,9 @@ export const MARCADORES = [
   { migracao: "038_recebimentos", tabela: "clientes", coluna: "como_paga" },
   /* A opção B, atrás de flag: só falta mesmo para quem vai ligar o Asaas. */
   { migracao: "039_recebimentos_asaas", tabela: "contas_de_recebimento", coluna: null },
+  /* A maisa da maisa: a tabela é o marcador. A origem nova da fila e o agendador do fim do
+   * arquivo não se enxergam daqui, como o da 037. */
+  { migracao: "040_vendas_da_casa", tabela: "leads_da_casa", coluna: null },
 ];
 
 const FALTA = new Set(["42703", "PGRST204", "42P01", "PGRST205", "PGRST200"]);

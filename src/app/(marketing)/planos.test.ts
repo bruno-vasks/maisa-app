@@ -41,7 +41,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AUTOATENDIDOS, COPIA, PLANOS, specsDoPlano } from "./_lib/planos";
+import { AUTOATENDIDOS, COPIA, PLANOS, planosAVenda, specsDoPlano } from "./_lib/planos";
 import { CAMPANHA, levarCampanha } from "@/ui/medicao";
 import { WHATSAPP_NUMERO } from "./_lib/icp";
 
@@ -230,5 +230,22 @@ describe("o cartão do negócio genérico não promete o que é de terapeuta", (
     const specs = specsDoPlano(plano, "generico");
     expect(specs).toEqual(plano.specs);
     expect(specs.map((s) => s.rotulo).join(" ")).not.toMatch(/nota|recibo/i);
+  });
+});
+
+/* A vendedora da casa (05/11/2026) lê os planos daqui. Se uma spec mudar de rótulo ou de formato, a
+ * leitura vira 0 e ela diria "0 agendamentos por mês": este teste reprova antes. */
+describe("planosAVenda — os planos que a maisa da maisa fala", () => {
+  it("cada plano tem cota e excedente lidos das specs, em ordem crescente de cota", () => {
+    const planos = planosAVenda();
+    expect(planos.map((p) => p.chave)).toEqual(PLANOS.map((p) => p.chave));
+    for (const p of planos) {
+      expect(p.agendamentosPorMes).toBeGreaterThan(0);
+      expect(p.excedente).toMatch(/^R\$ \d+,\d{2}$/);
+      expect(p.preco).toMatch(/^R\$ \d+$/);
+    }
+    const cotas = planos.map((p) => p.agendamentosPorMes);
+    expect([...cotas].sort((a, b) => a - b)).toEqual(cotas);
+    expect(cotas).toContain(1700);
   });
 });

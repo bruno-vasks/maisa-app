@@ -7,7 +7,7 @@
  * achar um Supabase de produção no ambiente e escrever nele.
  *
  *   --modelo      gemini:<modelo> | claude:<modelo>      (padrão: gemini:gemini-3.5-flash-lite)
- *   --cenarios    ids separados por vírgula, ou "todos"
+ *   --cenarios    ids separados por vírgula, "todos" (os da secretária) ou "casa" (a maisa vendendo a maisa)
  *   --rotulo      nome da rodada no relatório
  *   --paralelo    conversas ao mesmo tempo                (padrão: 5)
  *   --cliente     modelo do cliente simulado              (padrão: claude-haiku-5-5)
@@ -78,7 +78,14 @@ function rodarUma(tarefa: Tarefa, chave: string, log: string, embedding: string)
 async function principal() {
   const a = argumentos();
   const modelo = a.modelo ?? "gemini:gemini-3.5-flash-lite";
-  const ids = !a.cenarios || a.cenarios === "todos" ? CENARIOS.map((c) => c.id) : a.cenarios.split(",");
+  /* "todos" são os da secretária, para as rodadas antigas continuarem comparáveis; "casa" são os da
+   * maisa vendendo a maisa (05/11/2026). */
+  const ids =
+    !a.cenarios || a.cenarios === "todos"
+      ? CENARIOS.filter((c) => c.negocio !== "casa").map((c) => c.id)
+      : a.cenarios === "casa"
+        ? CENARIOS.filter((c) => c.negocio === "casa").map((c) => c.id)
+        : a.cenarios.split(",");
   const rotulo = a.rotulo ?? modelo.replace(/[^a-z0-9.-]+/gi, "-");
   const paralelo = Number(a.paralelo ?? 5);
   const repeticoes = Number(a.repeticoes ?? 1);

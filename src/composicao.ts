@@ -110,6 +110,14 @@ import { embeddingDePergunta, embeddingGemini } from "@/adaptadores/saida/gemini
 import { criarAjustarFaq, criarLerFaqs, criarRemoverFaq, criarResponderDuvida } from "@/nucleo/aplicacao/faqs";
 import { lembretesSupabase } from "@/adaptadores/saida/supabase/lembretes";
 import { filaDeEnviosSupabase } from "@/adaptadores/saida/supabase/fila-de-envios";
+import { leadsSupabase } from "@/adaptadores/saida/supabase/leads";
+import { cadastrosDoAppSupabase } from "@/adaptadores/saida/supabase/cadastros-do-app";
+import { leadsDemo } from "@/adaptadores/saida/demo/leads";
+import { cadastrosDoAppDemo } from "@/adaptadores/saida/demo/cadastros-do-app";
+import {
+  criarAbrirFichaDoLead, criarAcompanharLeads, criarConversaMarcada, criarLinkDoPagamentoDoLead, criarLinkDoTesteDoLead, criarQualificarLead,
+} from "@/nucleo/aplicacao/vendas";
+import { planosAVenda } from "@/app/(marketing)/_lib/planos";
 import { recebimentosSupabase } from "@/adaptadores/saida/supabase/recebimentos";
 import { recebimentosDemo } from "@/adaptadores/saida/demo/recebimentos";
 import { leitorDeComprovanteDemo } from "@/adaptadores/saida/demo/leitor-de-comprovante";
@@ -624,6 +632,33 @@ const recebimentos = criarRecebimentos({
   },
 });
 
+/* ── A MAISA DA MAISA (05/11/2026) ──
+ *
+ * Um negócio do próprio app, a "casa", atende os leads da maisa num número só dele, com a persona
+ * de vendas (`entrada/whatsapp/persona-vendas.ts`) e as três mensagens automáticas da rotina
+ * `/api/rotinas/vendas`. Qual negócio é a casa vem de `MAISA_NEGOCIO_DA_CASA` (o id dele em
+ * `negocios`); sem ela, nada disto liga, e todo inquilino segue igual. Ver `dominio/vendas.ts`.
+ *
+ * Quem vende é o dono da casa, achado como o "WhatsApp do dono" de qualquer negócio
+ * (`donoDoInquilino`): é para lá que vai o resumo de cada lead qualificado. */
+const NEGOCIO_DA_CASA = /^[0-9a-f-]{36}$/i.test((process.env.MAISA_NEGOCIO_DA_CASA ?? "").trim())
+  ? (process.env.MAISA_NEGOCIO_DA_CASA ?? "").trim().toLowerCase()
+  : null;
+const ehCasa = (t: ContextoTenant) => NEGOCIO_DA_CASA !== null && t.tenantId.toLowerCase() === NEGOCIO_DA_CASA;
+const PLANOS_A_VENDA = planosAVenda();
+const leads = isAdminConfigured ? leadsSupabase : leadsDemo;
+/* Como as contas novas: com banco e sem service role, o adaptador lança dizendo o que falta, em
+ * vez de o demo responder "ninguém tem conta" e esconder a causa. */
+const cadastrosDoApp = isSupabaseConfigured ? cadastrosDoAppSupabase : cadastrosDoAppDemo;
+
+const vendasNaConversa = {
+  abrirFicha: criarAbrirFichaDoLead({ leads, cadastros: cadastrosDoApp }),
+  qualificarLead: criarQualificarLead({ leads, planos: PLANOS_A_VENDA, canal: canalDaRotina, vendedorDe: donoDoInquilino }),
+  linkDoTeste: criarLinkDoTesteDoLead({ leads, base: URL_CANONICA || "https://app.maisasecretary.com.br" }),
+  linkDoPagamento: criarLinkDoPagamentoDoLead({ base: URL_CANONICA || "https://app.maisasecretary.com.br" }),
+  conversaMarcada: criarConversaMarcada({ leads, canal: canalDaRotina, vendedorDe: donoDoInquilino }),
+};
+
 /** Tudo que o app sabe fazer, já montado. */
 export const app = {
   agendarAtendimento,
@@ -968,6 +1003,20 @@ export const app = {
    *
    * O destinatário é `AVISO_CADASTRO_PARA` (lista por vírgula), e sem ela o Bruno: funciona sem
    * ninguém mexer na Vercel. Ver `destinatariosDoAviso`. */
+  /* ── A MAISA DA MAISA: as mensagens automáticas (05/11/2026) ──
+   * Boas-vindas a quem cria conta, lembrete a quem travou, retomada a quem conversou e sumiu. Pela
+   * fila de envios, no negócio da casa. Chamada pelo pg_cron da 040, de 10 em 10 minutos; sem
+   * `MAISA_NEGOCIO_DA_CASA`, responde `ligada: false` e não olha nada. */
+  acompanharLeads: criarAcompanharLeads({
+    casa: () => NEGOCIO_DA_CASA,
+    cadastros: cadastrosDoApp,
+    leads,
+    fila: filaDeEnvios,
+    historico,
+    drenar: drenarFilaDoNegocio,
+    vendedorDe: donoDoInquilino,
+  }),
+
   avisarNovoCadastro: criarAvisarNovoCadastro({
     contas: isSupabaseConfigured ? contasNovasSupabase : contasNovasDemo,
     correio,
@@ -1145,6 +1194,9 @@ const configuracaoDoAgente: ResolvedorDeConfiguracao = async (t) => {
      * cadastrou. Agora é a ferramenta `responder_duvidas`, com busca por sentido. Era o
      * último caso vivo da família "o dono configura e o produto ignora". */
     cfg: ajustes?.cfg ?? CFG_PADRAO,
+    /* Só a casa vende. O vendedor é lido a cada mensagem, como o resto da config: trocar o
+     * "WhatsApp do dono" na tela vale na próxima mensagem. */
+    ...(ehCasa(t) ? { vendas: { planos: PLANOS_A_VENDA, vendedor: await donoDoInquilino(t).catch(() => null) } } : {}),
   };
 };
 
@@ -1247,6 +1299,8 @@ export function agenteWhatsapp() {
       avaliarAtendimento: app.avaliarAtendimento,
       anotarFato: app.anotarFato,
       responderDuvida: app.responderDuvida,
+      /* Só são usadas quando a config traz `vendas`, isto é, na casa. */
+      vendas: vendasNaConversa,
       historico,
       /* Ele só LÊ daqui, e o que lê é uma pergunta: "esta conversa é do dono?". Se for, cala.
        * Ver o passo 1d de `agente.ts` — é o que faz o botão "Assumir" do painel parar de

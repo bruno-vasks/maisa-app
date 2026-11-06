@@ -41,12 +41,14 @@ import type {
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
 import type { Msg } from "@/nucleo/dominio/conversas";
 import { hojeISO } from "@/nucleo/dominio/tempo";
+import { soDigitos } from "@/nucleo/dominio/clientes";
 import { FalhaDoProvedor, LimiteDoProvedor } from "@/nucleo/dominio/erros";
 
-import { bolhas, limparEntrada, semFalaInventada } from "./bolhas";
+import { bolhas, limparEntrada, semFalaInventada, semLinks } from "./bolhas";
 import { pareceLaco } from "./disjuntor";
-import { criarExecutor, FERRAMENTAS, novoEstado, type Dependencias as DepsFerramentas } from "./ferramentas";
+import { criarExecutor, ferramentasDe, novoEstado, type Dependencias as DepsFerramentas } from "./ferramentas";
 import { parteDoCliente, parteEstavel, type ConfiguracaoDoAgente } from "./persona";
+import { parteDoLead, parteEstavelDeVendas } from "./persona-vendas";
 
 /** Voltas de ferramenta antes de desistir. Seis cobre o caminho mais longo real
  *  (oferecer → marcar) com folga; acima disso o modelo está girando, e girar custa
@@ -366,7 +368,8 @@ const promptPorInquilino: Record<string, { texto: string; em: number }> = {};
 function promptEstavel(tenantId: string, config: ConfiguracaoDoAgente): string {
   const cacheado = promptPorInquilino[tenantId];
   if (cacheado && Date.now() - cacheado.em < VALIDADE_PROMPT_MS) return cacheado.texto;
-  const texto = parteEstavel(config);
+  /* A casa (a maisa vendendo a maisa) tem outro prompt; todo assinante, o de sempre. */
+  const texto = config.vendas ? parteEstavelDeVendas(config) : parteEstavel(config);
   promptPorInquilino[tenantId] = { texto, em: Date.now() };
   return texto;
 }
@@ -655,6 +658,15 @@ export function criarAgente(deps: Dependencias) {
       return vazia({ motivo: atendimento.motivo ?? "contato pessoal do dono" });
     }
 
+    /* ── 1e'. NA CASA, QUEM VENDE NÃO É LEAD (05/11/2026) ──
+     *
+     * O resumo de cada lead qualificado sai do número da casa para o WhatsApp do Bruno. Quando ele
+     * responde ali ("valeu", "vou chamar"), a mensagem chega à casa como de qualquer pessoa, e sem
+     * esta trava a vendedora começaria a qualificá-lo. A fala dele fica na conversa (passo 1b). */
+    if (config.vendas?.vendedor && soDigitos(config.vendas.vendedor).slice(-8) === soDigitos(perfil.telefone).slice(-8)) {
+      return vazia({ motivo: "mensagem de quem vende, no número da casa" });
+    }
+
     /* ── 1f. A CONVERSA VIROU LAÇO ──
      *
      * Ver `disjuntor.ts`: outro robô respondendo a ela, ou um ritmo que gente não tem. A
@@ -685,19 +697,30 @@ export function criarAgente(deps: Dependencias) {
      * escolheu ("Fernanda cabelo", "João pneu"). */
     if (!perfil.nome && atendimento.nome) perfil.nome = atendimento.nome;
 
-    const sistemaVolatil = parteDoCliente({
+    /* Na casa: quem é esta pessoa para a maisa (a conta no app, o que a conversa já descobriu).
+     * Abre a ficha também, para a rotina de retomada saber o telefone inteiro de quem conversou. */
+    const fichaDoLead = config.vendas && deps.vendas
+      ? await deps.vendas.abrirFicha(t, { telefone: perfil.telefone, nome: perfil.nome ?? null })
+      : null;
+    if (!perfil.nome && fichaDoLead?.cadastro?.nome) perfil.nome = fichaDoLead.cadastro.nome;
+
+    let sistemaVolatil = parteDoCliente({
       perfil,
       hojeISO: hojeISO(),
       agoraISO: new Date().toISOString(),
       servicos: config.servicos,
       profissionais: config.profissionais,
     });
+    if (fichaDoLead) sistemaVolatil += `\n${parteDoLead(fichaDoLead, hojeISO())}`;
     const turnos: TurnoDeConversa[] = paraTurnos([...thread, { de: "cliente", txt: texto }]);
 
     const estado = novoEstado();
     /* Silêncio só depois de a conversa já ter tido resposta (da MAISA ou do dono). Quem
      * escreve pela primeira vez sempre recebe resposta. Ver `nao_responder`. */
     estado.podeCalar = thread.some((m) => m.de !== "cliente");
+    /* Na casa: o lead já qualificado num turno anterior pode receber o link direto. */
+    estado.leadRegistrado = !!fichaDoLead?.ficha?.qualificadoEm;
+    estado.temConta = !!fichaDoLead?.cadastro;
     const trilha: PassoDaTrilha[] = [];
     let ultimoTexto = "";
     let falaDaEscalada = "";
@@ -714,7 +737,7 @@ export function criarAgente(deps: Dependencias) {
         resposta = await conversarComPaciencia(deps.modelo, {
           sistemaEstavel: promptEstavel(t.tenantId, config),
           sistemaVolatil,
-          ferramentas: FERRAMENTAS,
+          ferramentas: ferramentasDe(config),
           turnos,
           maxTokens: MAX_TOKENS,
         }, prazo);
@@ -802,7 +825,10 @@ export function criarAgente(deps: Dependencias) {
      *
      * Vem ANTES do 3b de propósito: um turno que já ficou velho não tem por que chamar o
      * dono por uma tentativa de marcar que o turno seguinte vai refazer. */
-    const agiu = !!estado.marcou || !!estado.escalou || trilha.some((p) => p.ferramenta === "cancelar" && !p.erro);
+    /* `link` (05/11/2026, a casa): o link do teste é um fato do turno como marcar. A ficha já o
+     * registrou como enviado; descartar a resposta deixaria a vendedora dizendo "já te mandei" a
+     * quem nunca recebeu. */
+    const agiu = !!estado.marcou || !!estado.escalou || !!estado.link || trilha.some((p) => p.ferramenta === "cancelar" && !p.erro);
     if (espera > 0 && !agiu) {
       const [lidas, posseNoFim] = await Promise.all([
         deps.historico.ler(t, perfil.telefone, 5),
@@ -865,7 +891,14 @@ export function criarAgente(deps: Dependencias) {
       falaDaEscalada && falaDaEscalada.length > ultimoTexto.length && !parecidas(falaDaEscalada, ultimoTexto)
         ? `${falaDaEscalada}\n\n${ultimoTexto}`
         : ultimoTexto;
-    const saida = bolhas(final);
+    /* Na casa, link escrito pelo modelo sai, e o do teste (montado pelo código) entra como a última
+     * bolha. Ver `semLinks` e `mandar_link_do_teste`. */
+    const falaFinal = config.vendas ? semLinks(final) : final;
+    if (falaFinal !== final) {
+      console.warn(`[whatsapp/agente] a vendedora escreveu um link; saiu sem ele (inquilino ${t.tenantId}): ${final.slice(0, 200).replace(/\n+/g, " ⏎ ")}`);
+    }
+    const saida = bolhas(falaFinal);
+    if (estado.link) saida.push(estado.link);
     /* `bolhas` já cortou a fala inventada (ver `semFalaInventada`); aqui só fica o rastro. */
     if (semFalaInventada(final) !== final.trim()) {
       console.warn(`[whatsapp/agente] a resposta trazia rótulo de quem fala ("Cliente:", "maisa:"); saiu sem ele (inquilino ${t.tenantId}): ${final.slice(0, 200).replace(/\n+/g, " ⏎ ")}`);
