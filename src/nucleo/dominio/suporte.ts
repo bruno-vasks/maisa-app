@@ -6,5 +6,9 @@
  * reexporta. ⚠️ A LP oficial de terapeutas é HTML estático e redigita o número: trocar aqui é
  * trocar lá também (`planos.test.ts` confere).
  *
- * Suporte e vendas no mesmo número até o Bruno dizer outro. */
-export const WHATSAPP_DA_MAISA = "5511994294906";
+ * Suporte e vendas no mesmo número até o Bruno dizer outro.
+ *
+ * Desde 08/11/2026 é a CONTA OFICIAL da maisa: um negócio comum do app, com o número só dela,
+ * em que a própria maisa atende (respostas prontas sobre o produto, "Conversar com o Bruno" na
+ * agenda dele) e chama o Bruno quando não sabe. Até então era o WhatsApp pessoal dele. */
+export const WHATSAPP_DA_MAISA = "5511927491903";

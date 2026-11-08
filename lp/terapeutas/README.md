@@ -84,7 +84,7 @@ Não há config: é HTML estático, tudo literal no `index.html`.
 | o quê | onde |
 | --- | --- |
 | checkout do plano Completo (R$ 197, 15 dias) | `href` do botão em `#planos`, card do meio |
-| WhatsApp (Essencial, Clínica, rodapé) | `wa.me/5511994294906` — 4 ocorrências |
+| WhatsApp (Essencial, Clínica, rodapé) | `wa.me/5511927491903` — 4 ocorrências |
 | "Entrar" (porta do app) | `<a href="/login">` fixo, logo depois de `<body>` |
 | bonecos da hero | `assets/open-peeps-sheet.png`, regerado por `scripts/recolor_peeps_sheet.py` |
 
