@@ -145,38 +145,13 @@ Seja exigente. 5 = o que uma ótima secretária humana faria. 4 = boa, com detal
 
 Responda em português. Em "falas_roboticas", cite trechos exatos da MAISA que denunciam robô. Em "problemas", frases curtas e concretas.`;
 
-/* A CASA (05/11/2026): a mesma régua de critérios, com outro objetivo. Lá, sair com o horário
- * marcado; aqui, entender o negócio do lead e levá-lo ao próximo passo que a REGRA decide. */
-const REGUA_VENDAS = `Você avalia conversas de WhatsApp entre uma pessoa interessada na maisa e a própria maisa, a secretária de IA por WhatsApp, atendendo os leads dela mesma.
-
-O que o dono do produto quer: que a maisa atenda o lead como uma ótima vendedora humana atenderia, e que a conversa já sirva de demonstração do produto. Não um robô, não um formulário, não um vendedor insistente.
-
-A regra do próximo passo, que não é da maisa decidir: quem atende sozinho recebe o link do teste grátis de 14 dias; equipe de 2 ou mais pessoas, ou quem pede para falar com alguém, ganha uma conversa de 15 minutos com o Bruno, marcada na agenda dele. Quem já tem conta e travou num passo do cadastro recebe ajuda naquele passo, não a venda de novo.
-
-Seja exigente. 5 = o que uma ótima vendedora humana faria. 4 = boa, com detalhe a melhorar. 3 = aceitável, mas com cara de robô ou com falhas visíveis. 2 = atrapalha. 1 = ruim.
-
-## Os critérios
-- clareza: o lead entende sem esforço o que a maisa faz, quanto custa e qual é o próximo passo.
-- naturalidade: soa como gente no WhatsApp? Penalize frases de praxe, repetição, abrir com "Entendi!"/"Perfeito!", formalidade de e-mail, bloco de texto, lista, se reapresentar, parecer formulário.
-- prestatividade: responde de verdade o que foi perguntado antes de perguntar qualquer coisa; resolve a dúvida ou o problema do cadastro.
-- objetividade: uma pergunta por vez; qualifica sem interrogatório (não pergunta o que já sabe, não faz quatro perguntas antes de responder); quem pede o link recebe o link.
-- tom: acompanha o jeito do lead, sem perder a simpatia.
-- conducao: leva ao próximo passo certo (link ou conversa marcada) sem pressionar, recupera o "vou pensar" uma vez, não deixa a conversa morrer.
-- correcao: não inventa funcionalidade, desconto, plano, preço ou prazo; o passo seguido bate com a regra acima (use o DESFECHO); não escreve link (o link do teste sai como mensagem própria, e é a única URL aceitável); admite ser a própria maisa quando perguntam.
-
-Responda em português. Em "falas_roboticas", cite trechos exatos da maisa que denunciam robô. Em "problemas", frases curtas e concretas.`;
-
-/* O que a vendedora da casa sabe pelo prompt (e não pelas respostas prontas). Sem isto, o juiz
- * chamava de "inventado" o que é verdade, e a nota de correção media a ignorância dele. */
-const FATOS_DA_CASA = `Fatos do produto que a maisa sabe pelo prompt (são verdade, não invenção): planos Essencial R$ 127 (300 agendamentos/mês), Profissional R$ 197 (700), Escala R$ 397 (1.700); profissionais ilimitados em todos; excedente por agendamento; cobrança mensal, sem plano anual nem desconto; teste de 14 dias sem cartão, que não cobra sozinho; a conversa com o Bruno é uma ligação de 15 minutos pelo WhatsApp no horário marcado; o app tem, na tela do WhatsApp, o botão "Estou no celular — conectar com código" (ou "Não consigo ler o QR — conectar com código"), que conecta digitando um código de 8 caracteres em Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone; no iPhone, Aparelhos conectados fica em Configurações (engrenagem embaixo); no Android, nos três pontinhos.`;
-
 function contexto(n: NegocioDeTeste): string {
   const servicos = n.servicos.map((s) => `${s.nome} R$ ${s.preco} (${s.duracao} min)`).join("; ");
   const quem = n.profissionais.map((p) => {
     const dias = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"].filter((_, i) => !p.expediente.folga.includes(i)).join(", ");
     return `${p.nome} (${p.papel}): ${dias}, ${p.expediente.de}h às ${p.expediente.ate}h`;
   }).join("; ");
-  return `Negócio: ${n.negocio.nome}. Tom configurado: ${n.assistente.tom}.\nServiços: ${servicos}.\nQuem atende: ${quem}.\nRespostas cadastradas pelo dono: ${n.faqs.map((f) => f.pergunta).join(" | ")}.${n.chave === "casa" ? `\n${FATOS_DA_CASA}` : ""}`;
+  return `Negócio: ${n.negocio.nome}. Tom configurado: ${n.assistente.tom}.\nServiços: ${servicos}.\nQuem atende: ${quem}.\nRespostas cadastradas pelo dono: ${n.faqs.map((f) => f.pergunta).join(" | ")}.`;
 }
 
 function transcrito(falas: Fala[], silencios: { rajada: number; ms: number; motivo: string }[] = []): string {
@@ -223,8 +198,7 @@ ${trilhaEmTexto(p.trilha)}
 ## O desfecho no sistema
 Marcados nesta conversa: ${p.desfecho.novos.map((a) => `${a.servicoNome} ${a.data} ${a.inicio}h ${a.profissionalId}`).join("; ") || "nenhum"}.
 Cancelados: ${p.desfecho.cancelados.map((a) => `${a.servicoNome} ${a.data} ${a.inicio}h`).join("; ") || "nenhum"}.
-Chamou o dono: ${p.desfecho.escalou ? `sim (${p.desfecho.motivosDeEscalada.join(" / ")})` : "não"}.${p.desfecho.venda ? `
-Venda: próximo passo registrado ${p.desfecho.venda.passo ?? "nenhum"}; link do teste ${p.desfecho.venda.link ? "enviado" : "não enviado"}; avisos ao Bruno ${p.desfecho.venda.avisosAoVendedor}.` : ""}
+Chamou o dono: ${p.desfecho.escalou ? `sim (${p.desfecho.motivosDeEscalada.join(" / ")})` : "não"}.
 Verificação automática do objetivo: ${p.verificacao.ok ? "OK" : "FALHOU"} (${p.verificacao.motivo}).
 
 Avalie.`;
@@ -232,7 +206,7 @@ Avalie.`;
   const nota = { type: "integer", minimum: 1, maximum: 5 };
   const r = await perguntarAoClaude({
     modelo: p.modelo,
-    sistema: p.negocio.chave === "casa" ? REGUA_VENDAS : REGUA,
+    sistema: REGUA,
     prompt,
     esquema: {
       type: "object",

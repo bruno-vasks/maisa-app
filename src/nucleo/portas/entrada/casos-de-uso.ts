@@ -35,7 +35,6 @@ import type { AjustesDaAssistente, AjustesParciais } from "../saida/repositorio-
 import type { Canal, Pareamento } from "../../dominio/canal";
 import type { DesfechoDeRecibo } from "../../dominio/recibo-unitario";
 import type { SemanaAnunciada } from "../../dominio/horarios";
-import type { CadastroNoApp, FichaDeLead, PlanoAVenda, ProximoPasso, Qualificacao } from "../../dominio/vendas";
 import type {
   AFaturar, AmbienteFiscal, CadastroDoCnpj, CaminhoFiscal, ConfigFiscal, NotaGravada,
   ResultadoDeNota,
@@ -1321,57 +1320,3 @@ export type ResultadoDoAvisoDePagamento =
  * cabeçalho (dado nosso, nunca o corpo) e monta o contexto de sistema. O corpo só diz QUAL cobrança.
  */
 export type ReceberAvisoDePagamento = (t: ContextoTenant, corpo: unknown) => Promise<ResultadoDoAvisoDePagamento>;
-
-/* ───────────────────────────── a maisa da maisa (05/11/2026) ─────────────────────────────
- * O negócio da casa vendendo a própria maisa. Ver `dominio/vendas.ts` e `aplicacao/vendas.ts`.
- *
- * Os três de conversa recebem o `ContextoTenant` do turno, como qualquer ferramenta do agente: só
- * o agente da casa os chama (a persona de vendas só existe lá). `AcompanharLeads` é a OITAVA
- * exceção à regra do `ContextoTenant`, irmã de `EnviarFilaDeMensagens`: o pg_cron (040) chama sem
- * sessão, e o inquilino da casa sai da configuração (`MAISA_NEGOCIO_DA_CASA`), nunca do pedido. Ela
- * lê as contas do app pela porta `CadastrosDoApp`, cujo limite está escrito lá. */
-
-/** O que a conversa da casa precisa saber de quem escreveu, antes do primeiro token. */
-export type FichaNaConversa = { ficha: FichaDeLead | null; cadastro: CadastroNoApp | null };
-
-/** Registra o contato (cria a ficha, guarda o nome) e devolve o que se sabe dele. */
-export type AbrirFichaDoLead = (t: ContextoTenant, p: { telefone: string; nome?: string | null }) => Promise<FichaNaConversa>;
-
-export type LeadQualificado = {
-  passo: ProximoPasso;
-  /** O plano que cabe no volume dito. `null` = a pessoa não disse o volume. */
-  plano: PlanoAVenda | null;
-  /** Esta qualificação mudou o que se sabia (é a primeira, ou o passo mudou) e o vendedor foi avisado. */
-  avisou: boolean;
-};
-
-/**
- * A qualificação chega CRUA, como o modelo a mandou (`{ [campo]?: unknown }`), e é o caso de uso
- * que a confere: texto curto, número plausível, vertical da lista. Tipar a entrada como
- * `Qualificacao` empurraria a validação para o adaptador, que é a camada que desconfia do modelo,
- * mas não a que decide o que é válido.
- */
-export type QualificarLead = (
-  t: ContextoTenant,
-  p: { telefone: string; nome?: string | null; qualificacao: { [K in keyof Qualificacao]?: unknown } },
-) => Promise<LeadQualificado>;
-
-/** A casa marcou uma conversa com o vendedor: passo `conversa` na ficha e aviso a ele com dia e hora. */
-export type ConversaMarcada = (t: ContextoTenant, p: { telefone: string; nome?: string | null; quando: string }) => Promise<void>;
-
-/** O link que abre o app na tela do plano, para quem já tem conta pagar. Montado pelo código. */
-export type LinkDoPagamentoDoLead = (t: ContextoTenant, p: { telefone: string }) => Promise<{ link: string }>;
-
-/** O link do teste grátis para este lead. Montado pelo código, nunca pelo modelo. */
-export type LinkDoTesteDoLead = (t: ContextoTenant, p: { telefone: string; vertical: Vertical }) => Promise<{ link: string }>;
-
-export type ResultadoDoAcompanhamento = {
-  /** `false` = a casa não está configurada, e nada foi olhado. */
-  ligada: boolean;
-  boasVindas: number;
-  lembretes: number;
-  retomadas: number;
-  falhas: string[];
-};
-
-export type AcompanharLeads = (agora: Date) => Promise<ResultadoDoAcompanhamento>;

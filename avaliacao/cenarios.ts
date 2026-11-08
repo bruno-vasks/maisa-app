@@ -15,8 +15,6 @@
  * com quem. O resto (soa humana? adaptou o tom?) é do juiz.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import type { CadastroNoApp } from "@/nucleo/dominio/vendas";
-
 export const RELOGIO_PADRAO = "2026-10-27T10:12:00-03:00";
 
 /** Um atendimento que o cenário viu nascer, cancelar ou que já existia. */
@@ -38,8 +36,6 @@ export type Desfecho = {
   cancelados: AtendimentoVisto[];
   escalou: boolean;
   motivosDeEscalada: string[];
-  /** Só na casa (a maisa vendendo a maisa): o que a ficha do lead registrou. */
-  venda?: { passo: "teste" | "conversa" | null; link: boolean; pagamento?: boolean; avisosAoVendedor: number };
 };
 
 export type Verificacao = { ok: boolean; motivo: string };
@@ -49,16 +45,8 @@ export type FalaVista = { de: "cliente" | "maisa"; texto: string };
 
 export type Cenario = {
   id: string;
-  negocio: "consultorio" | "barbearia" | "casa";
+  negocio: "consultorio" | "barbearia";
   titulo: string;
-  /** Só na casa: a conta que esta pessoa já tem no app, como a casa a enxerga. */
-  cadastro?: CadastroNoApp;
-  /**
-   * Só na casa (06/11/2026): a conversa que JÁ EXISTE quando o lead escreve. `conversa` é o que
-   * foi dito antes (a retomada pressupõe uma conversa que parou); `automatica` é a mensagem que a
-   * maisa mandou sozinha, com o texto de produção. A `abertura` vira a RESPOSTA do lead a ela.
-   */
-  antes?: { conversa?: { de: "cliente" | "bot"; txt: string }[]; automatica?: "boas_vindas" | "lembrete" | "retomada"; nome?: string };
   relogio?: string;
   /** Telefone do cliente. Único por cenário: memória e agenda são separadas por ele. */
   telefone: string;
@@ -135,43 +123,6 @@ const calouDepoisDe = (padrao: RegExp) => (_d: Desfecho, falas: FalaVista[]): Ve
 /* ───────────────────────────── as pessoas ───────────────────────────── */
 
 const ESCRITA_JOVEM = "Escreve tudo em minúsculas, sem acento e quase sem pontuação, com abreviações (vc, q, hj, amanha, blz, tmj, pq).";
-
-/* ───────────────────────────── a casa: verificações de venda ───────────────────────────── */
-
-const mandouLink = (passo: "teste" | "conversa" | null = "teste") => (d: Desfecho): Verificacao => {
-  const v = d.venda;
-  if (!v) return { ok: false, motivo: "sem desfecho de venda" };
-  if (!v.link) return { ok: false, motivo: `não mandou o link (passo ${v.passo ?? "não registrado"})` };
-  /* Depois do link, a pessoa pode pedir ajuda e marcar a conversa (o passo vira CONVERSA): é o
-   * comportamento certo, e não falha. Achado na rodada 7 (06/11/2026). */
-  const marcouDepois = v.passo === "conversa" && d.novos.some((a) => a.servicoId === "sv-conversa");
-  if (passo && v.passo !== passo && !marcouDepois) return { ok: false, motivo: `mandou o link, mas o passo registrado foi ${v.passo ?? "nenhum"}` };
-  return { ok: true, motivo: marcouDepois ? "mandou o link e, depois, marcou a conversa que a pessoa pediu" : `registrou ${v.passo ?? "sem passo"} e mandou o link` };
-};
-
-const marcouConversa = (d: Desfecho): Verificacao => {
-  const conversa = d.novos.filter((a) => a.servicoId === "sv-conversa");
-  if (conversa.length && d.venda?.passo === "conversa") return { ok: true, motivo: `registrou CONVERSA e marcou ${conversa[0].data} ${conversa[0].inicio}h` };
-  if (conversa.length) return { ok: false, motivo: `marcou a conversa, mas o passo registrado foi ${d.venda?.passo ?? "nenhum"}` };
-  return { ok: false, motivo: `não marcou a conversa (passo ${d.venda?.passo ?? "não registrado"}${d.venda?.link ? ", mandou o link" : ""})` };
-};
-
-const ajudouSemRecomecar = (d: Desfecho): Verificacao =>
-  d.venda?.link
-    ? { ok: false, motivo: "mandou o link do teste para quem já tem conta" }
-    : d.novos.length
-      ? { ok: false, motivo: "marcou conversa sem ninguém pedir" }
-      : { ok: true, motivo: d.escalou ? "ajudou e chamou o responsável" : "ajudou no passo, sem recomeçar a venda" };
-
-/** Quem já tem conta: o lead foi registrado, e o link do teste NÃO saiu (ela já está dentro). */
-const registrouSemLink = (passo: "teste" | "conversa" | null = null) => (d: Desfecho): Verificacao => {
-  const v = d.venda;
-  if (!v) return { ok: false, motivo: "sem desfecho de venda" };
-  if (v.link) return { ok: false, motivo: "mandou o link do teste para quem já tem conta" };
-  if (!v.passo) return { ok: false, motivo: "não registrou o lead (sem qualificação nem conversa)" };
-  if (passo && v.passo !== passo) return { ok: false, motivo: `registrou ${v.passo}, e o esperado era ${passo}` };
-  return { ok: true, motivo: `registrou ${v.passo}, sem link` };
-};
 
 export const CENARIOS: Cenario[] = [
   {
@@ -499,199 +450,6 @@ export const CENARIOS: Cenario[] = [
     abertura: ["Oi! Queria marcar uma sessão com a Ana amanhã de manhã."],
     esperado: "Marca com a Ana na quarta de manhã; ao 'obrigada' pode responder curto uma vez, ou não responder; ao '👍' não responde.",
     verificar: todas(marcou({ profissionais: ["pr-ana"], dias: ["2026-10-28"], de: 8, ate: 12 }), calouDepoisDe(/👍|obrigad/i)),
-  },
-  /* ── a casa: a maisa vendendo a maisa (05/11/2026) ──
-   * Todo cenário daqui começa como os leads reais começam: com a frase que o botão da LP preenche,
-   * ou com o que a pessoa escreve depois de ver um anúncio. */
-  {
-    id: "casa-terapeuta-solo",
-    negocio: "casa",
-    titulo: "Psicóloga sozinha, vinda da LP",
-    telefone: "11970000001",
-    persona: "Fernanda, 34 anos, psicóloga, atende sozinha em consultório próprio, uns 25 pacientes por semana. Marca tudo pelo WhatsApp, à mão, e perde a noite respondendo. Escreve direito, com acento, simpática, sem emoji.",
-    objetivo: "Clicou no botão da LP. Quer saber se precisa trocar de número e quanto custa. Se as respostas forem claras, topa testar e pede o link. Responde as perguntas que fizerem sobre o consultório.",
-    abertura: ["Quero saber mais sobre a maisa"],
-    esperado: "Responde as dúvidas com o que a maisa faz, descobre que ela atende sozinha, registra TESTE e manda o link sem interrogatório.",
-    verificar: mandouLink("teste"),
-  },
-  {
-    id: "casa-clinica-equipe",
-    negocio: "casa",
-    titulo: "Dona de clínica com 6 psicólogas",
-    telefone: "11970000002",
-    persona: "Renata, 45 anos, dona de uma clínica de psicologia com 6 psicólogas e uma recepcionista. Formal e objetiva. Preocupada com cada psicóloga ter a própria agenda.",
-    objetivo: "Clicou no plano Escala na LP. Quer saber se a maisa funciona com várias profissionais, cada uma com seus horários. Aceita conversar com alguém da maisa se oferecerem, de preferência amanhã (quarta) à tarde. Nome: Renata.",
-    abertura: ["Oi! Sou terapeuta e quero ativar a maisa no plano Escala (R$ 397/mês)"],
-    esperado: "Entende que é uma clínica com equipe, registra CONVERSA e marca 15 minutos com o Bruno, de preferência quarta à tarde.",
-    verificar: marcouConversa,
-  },
-  {
-    id: "casa-barbeiro-desconfiado",
-    negocio: "casa",
-    titulo: "Barbeiro desconfiado de robô",
-    telefone: "11970000003",
-    persona: `Thiago, 29 anos, barbeiro, trabalha sozinho, uns 60 cortes por semana. ${ESCRITA_JOVEM} Desconfiado: acha que robô vai espantar cliente.`,
-    objetivo: "Viu um anúncio. Pergunta o preço, depois pergunta se está falando com um robô, e se o cliente pedir desconto o que acontece. Se as respostas forem honestas e curtas, aceita testar. Se ela enrolar ou parecer robô, desiste.",
-    abertura: ["qnto custa isso ai"],
-    esperado: "Diz o preço sem rodeio, admite ser a própria maisa (a demonstração), explica que desconto vai para o dono, registra TESTE e manda o link.",
-    verificar: mandouLink("teste"),
-  },
-  {
-    id: "casa-so-o-link",
-    negocio: "casa",
-    titulo: "Quer só o link",
-    telefone: "11970000004",
-    persona: `Paula, 31 anos, nutricionista, atende sozinha, com pressa. ${ESCRITA_JOVEM}`,
-    objetivo: "Já leu o site e quer testar. Pede o link. Se perguntarem o que ela faz, responde em uma palavra. Se fizerem mais de uma pergunta antes de mandar o link, reclama.",
-    abertura: ["me manda o link pra testar"],
-    esperado: "No máximo uma pergunta (o que ela faz) e manda o link.",
-    verificar: mandouLink(null),
-  },
-  {
-    id: "casa-travou-no-qr",
-    negocio: "casa",
-    titulo: "Criou a conta ontem e travou no QR",
-    telefone: "11970000005",
-    cadastro: {
-      contaId: "conta-carla", nome: "Carla", telefone: "11970000005", criadaEm: "2026-10-26T19:40:00-03:00",
-      emailConfirmado: true, negocio: "Carla Psicologia", vertical: "terapeutas", whatsapp: "pareando",
-      testeAte: "2026-11-09", pagoAte: null,
-    },
-    persona: "Carla, 38 anos, psicóloga. Criou a conta ontem à noite e não conseguiu conectar o WhatsApp: o QR apareceu, mas ela não achou onde ler no celular. Escreve normal, um pouco frustrada.",
-    objetivo: "Quer conseguir conectar o WhatsApp. Se explicarem o caminho no celular, diz que deu certo e agradece. Não quer ouvir sobre planos de novo.",
-    abertura: ["oi, criei minha conta ontem mas nao consegui conectar o whatsapp"],
-    esperado: "Sabe que ela parou no QR, explica o caminho (Aparelhos conectados → Conectar um aparelho) sem recomeçar a venda e sem mandar o link do teste.",
-    verificar: ajudouSemRecomecar,
-  },
-  {
-    id: "casa-quer-humano",
-    negocio: "casa",
-    titulo: "Quer falar com uma pessoa",
-    telefone: "11970000006",
-    persona: "Marcos, 52 anos, dono de uma barbearia com 3 barbeiros. Direto, meio impaciente, não gosta de conversar com robô.",
-    objetivo: "Quer falar com uma pessoa antes de decidir qualquer coisa. Se oferecerem uma conversa com alguém da maisa, aceita, qualquer horário de quinta. Nome: Marcos.",
-    abertura: ["boa tarde", "quero falar com uma pessoa, nao com robo"],
-    esperado: "Não insiste em qualificar: registra CONVERSA (pediu, e tem equipe) e marca com o Bruno, quinta.",
-    verificar: marcouConversa,
-  },
-  {
-    id: "casa-desconto",
-    negocio: "casa",
-    titulo: "Pede desconto e plano anual",
-    telefone: "11970000007",
-    persona: "Júlia, 27 anos, psicóloga recém-formada, atende sozinha, uns 10 pacientes por semana. Educada, preocupada com dinheiro.",
-    objetivo: "Acha caro. Pergunta se tem desconto ou plano anual mais barato. Se disserem que não, pergunta se dá para testar antes de pagar. Topa testar se puder sem cartão.",
-    abertura: ["Oi! Vocês têm desconto pra quem tá começando? Ou plano anual?"],
-    esperado: "Não inventa desconto nem plano anual, mostra que o Essencial cabe no volume dela e oferece o teste grátis sem cartão, mandando o link.",
-    verificar: mandouLink("teste"),
-  },
-  /* ── a casa: quando é a maisa que puxa a conversa (06/11/2026) ──
-   * Pedido do Bruno: a maisa vai atrás de quem cria conta, no molde da mensagem que ele mandava à
-   * mão, e a resposta da pessoa abre a qualificação. Aqui a conversa já começa com a mensagem
-   * automática (texto de produção), e a `abertura` é a resposta do lead. */
-  {
-    id: "casa-boas-vindas-recibo",
-    negocio: "casa",
-    titulo: "Boas-vindas: psicóloga que veio pelo recibo",
-    telefone: "11970000011",
-    cadastro: {
-      contaId: "conta-ana", nome: "Ana Lima", telefone: "11970000011", criadaEm: "2026-10-27T10:00:00-03:00",
-      emailConfirmado: true, negocio: "Ana Lima Psicologia", vertical: "terapeutas", whatsapp: null,
-      testeAte: "2026-11-10", pagoAte: null,
-    },
-    antes: { automatica: "boas_vindas" },
-    persona: "Ana, 36 anos, psicóloga, atende como pessoa física, sozinha, uns 30 pacientes por semana. Marca pelo WhatsApp. Procurou a maisa por causa do recibo do Receita Saúde: emite um por um no e-CAC e perde a noite de domingo nisso. Também tem paciente que atrasa o pagamento. Escreve direito, simpática.",
-    objetivo: "Criou a conta há pouco e recebeu a mensagem da maisa. Quer entender como funciona o recibo do Receita Saúde na maisa e se ela pode cobrar os pacientes. Responde o que perguntarem sobre o consultório. Se a explicação fizer sentido, diz que vai continuar a configuração.",
-    abertura: ["oi! tudo sim", "to gostando, mas queria entender como funciona a parte do recibo do receita saude"],
-    esperado: "Explica o recibo do Receita Saúde (procuração no e-CAC, emissão sozinha no dia escolhido) e a cobrança por Pix, conhece o negócio dela e registra com o interesse, sem mandar link (ela já tem conta), e indica o próximo passo no app.",
-    verificar: registrouSemLink("teste"),
-  },
-  {
-    id: "casa-boas-vindas-clinica",
-    negocio: "casa",
-    titulo: "Boas-vindas: dono de clínica com equipe",
-    telefone: "11970000012",
-    cadastro: {
-      contaId: "conta-paulo", nome: "Paulo Mendes", telefone: "11970000012", criadaEm: "2026-10-27T10:02:00-03:00",
-      emailConfirmado: true, negocio: "Espaço Viver", vertical: "terapeutas", whatsapp: null,
-      testeAte: "2026-11-10", pagoAte: null,
-    },
-    antes: { automatica: "boas_vindas" },
-    persona: "Paulo, 50 anos, dono de uma clínica com 4 terapeutas e uma recepcionista. Formal, objetivo, sem emoji.",
-    objetivo: "Criou a conta e ainda está entendendo. Quer saber como cadastrar as outras terapeutas, cada uma com o seu horário. Se oferecerem uma conversa para configurar junto, aceita, de preferência quinta de manhã. Nome: Paulo.",
-    abertura: ["Bom dia. Tudo bem.", "Ainda estou entendendo. Como faço para cadastrar as outras terapeutas?"],
-    esperado: "Explica que cada profissional entra na Equipe com o próprio horário, entende que é uma clínica com equipe, registra CONVERSA e marca com o Bruno para configurar junto (quinta de manhã).",
-    verificar: marcouConversa,
-  },
-  {
-    id: "casa-lembrete-so-celular",
-    negocio: "casa",
-    titulo: "Lembrete: travou no QR e só tem o celular",
-    telefone: "11970000013",
-    cadastro: {
-      contaId: "conta-rafa", nome: "Rafael", telefone: "11970000013", criadaEm: "2026-10-26T09:00:00-03:00",
-      emailConfirmado: true, negocio: "Rafa Barber", vertical: "barbeiros", whatsapp: "pareando",
-      testeAte: "2026-11-09", pagoAte: null,
-    },
-    antes: { automatica: "lembrete" },
-    persona: `Rafael, 24 anos, barbeiro, trabalha sozinho, uns 40 cortes por semana. ${ESCRITA_JOVEM} Só tem o celular, nenhum computador.`,
-    objetivo: "Recebeu o lembrete. Tentou conectar ontem, mas o QR aparece no próprio celular e não dá para ler. Se ensinarem um jeito só pelo celular, diz que vai tentar e agradece. Responde o que perguntarem da barbearia.",
-    abertura: ["opa", "tentei ontem mas o qr aparece no proprio celular nao tem como ler"],
-    esperado: "Ensina o caminho pelo código (o botão do app e Conectar com número de telefone no WhatsApp), sem mandar link, e conhece a barbearia no meio da ajuda.",
-    verificar: ajudouSemRecomecar,
-  },
-  {
-    id: "casa-retomada-pix",
-    negocio: "casa",
-    titulo: "Retomada: barbeiro sumiu e volta perguntando do Pix",
-    telefone: "11970000014",
-    antes: {
-      nome: "Diego",
-      conversa: [
-        { de: "cliente", txt: "Quero saber mais sobre a maisa" },
-        { de: "bot", txt: "Bom dia! Me conta, o que você faz?" },
-        { de: "cliente", txt: "sou barbeiro" },
-        { de: "bot", txt: "Legal! Você atende sozinho ou tem mais gente na barbearia?" },
-      ],
-      automatica: "retomada",
-    },
-    persona: `Diego, 31 anos, barbeiro, trabalha sozinho, uns 50 cortes por semana. ${ESCRITA_JOVEM} Sumiu da conversa porque estava atendendo. O que mais quer é parar de correr atrás de cliente que fica devendo.`,
-    objetivo: "Respondeu a retomada. Quer saber se a maisa cobra o cliente pelo Pix. Se sim, quer testar. Responde o que perguntarem.",
-    abertura: ["opa foi mal tava no corte", "sozinho. ela cobra o cliente no pix tbm?"],
-    esperado: "Explica a cobrança pelo Pix (na chave dele, comprovante conferido), registra TESTE com o interesse e manda o link.",
-    verificar: mandouLink("teste"),
-  },
-  {
-    id: "casa-nota-fiscal",
-    negocio: "casa",
-    titulo: "Lead da LP que veio pela nota fiscal",
-    telefone: "11970000015",
-    persona: "Carla, 33 anos, nutricionista com CNPJ, atende sozinha, uns 20 pacientes por semana. Emite nota fiscal na mão no site da prefeitura e odeia. Escreve direito, objetiva.",
-    objetivo: "Viu no anúncio que a maisa emite nota fiscal. Quer saber se é verdade e como funciona. Se fizer sentido, quer testar e pede o link.",
-    abertura: ["Oi! Vi no anúncio que a maisa emite nota fiscal. É isso mesmo?"],
-    esperado: "Confirma e explica a nota (PDF no WhatsApp dela, mês fechado para o contador), sem inventar detalhe que não sabe, registra TESTE com o interesse e manda o link.",
-    verificar: mandouLink("teste"),
-  },
-  {
-    id: "casa-fim-do-teste",
-    negocio: "casa",
-    titulo: "Fim do teste: quer continuar e pagar",
-    telefone: "11970000016",
-    cadastro: {
-      contaId: "conta-lu", nome: "Luciana", telefone: "11970000016", criadaEm: "2026-10-14T15:00:00-03:00",
-      emailConfirmado: true, negocio: "Lu Nutrição", vertical: "terapeutas", whatsapp: "conectado",
-      testeAte: "2026-10-28", pagoAte: null,
-    },
-    persona: "Luciana, 41 anos, nutricionista, atende sozinha, uns 15 pacientes por semana. Está no teste, que acaba amanhã, e gostou. Escreve direito, prática.",
-    objetivo: "Quer continuar depois do teste. Pergunta como paga, se tem taxa de implantação e, se um dia quiser parar, como cancela. Se mandarem o link de pagar, agradece.",
-    abertura: ["Oi! Meu teste acaba amanhã e quero continuar. Como faço pra pagar? Tem taxa de implantação?"],
-    esperado: "Diz que é só a mensalidade, sem taxa, que paga e cancela pelo app, e manda o link que abre a tela do plano (não o do teste).",
-    verificar: (d) =>
-      d.venda?.link
-        ? { ok: false, motivo: "mandou o link do teste para quem já está no teste" }
-        : d.venda?.pagamento
-          ? { ok: true, motivo: "mandou o link de pagar" }
-          : { ok: false, motivo: "não mandou o link de pagar" },
   },
 ];
 

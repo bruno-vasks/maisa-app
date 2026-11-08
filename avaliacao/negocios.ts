@@ -18,7 +18,7 @@ import type { SemanaAnunciada } from "@/nucleo/dominio/horarios";
 import type { Negocio } from "@/nucleo/dominio/negocio";
 
 export type NegocioDeTeste = {
-  chave: "consultorio" | "barbearia" | "casa";
+  chave: "consultorio" | "barbearia";
   negocio: Negocio;
   assistente: Assistente;
   cfg: Record<ChaveCfg, boolean>;
@@ -151,38 +151,4 @@ export const BARBEARIA: NegocioDeTeste = {
   ],
 };
 
-/**
- * A CASA (05/11/2026): a maisa vendendo a própria maisa. O negócio que o Bruno vai criar no app:
- * um serviço só, a conversa de 15 minutos com ele, e as respostas prontas tiradas das perguntas
- * frequentes das LPs. Os planos e o prompt de vendas vêm do código (`mundo.ts` liga `vendas`).
- */
-export const CASA: NegocioDeTeste = {
-  chave: "casa",
-  negocio: { ...NEGOCIO_BASE, nome: "maisa" },
-  assistente: { nome: "MAISA", tom: "amigável", saudacao: "", ativa: true, lembreteHoras: 3 },
-  cfg: { ...CFG_BASE, precoCatalogo: false },
-  servicos: [
-    { id: "sv-conversa", nome: "Conversa com o Bruno", categoria: "Recorrente", preco: 0, duracao: 15, profissionalIds: ["pr-bruno"], ativo: true },
-  ],
-  profissionais: [
-    profissional({
-      id: "pr-bruno", nome: "Bruno", papel: "Fundador da maisa",
-      servicoIds: ["sv-conversa"],
-      expediente: { folga: [5, 6], de: 9, ate: 18 },
-    }),
-  ],
-  semana: semana([
-    ["09:00", "18:00"], ["09:00", "18:00"], ["09:00", "18:00"], ["09:00", "18:00"], ["09:00", "18:00"], null, null,
-  ]),
-  faqs: [
-    { pergunta: "Preciso trocar meu número de WhatsApp?", resposta: "Não. A maisa atende no número que você já usa. Seus clientes continuam falando com você no mesmo contato." },
-    { pergunta: "Quanto tempo leva para começar?", resposta: "No ar em 5 minutos. Você conecta o WhatsApp e ela já começa a atender, com a gente do lado na configuração." },
-    { pergunta: "E se o cliente perguntar algo que ela não sabe?", resposta: "Ela não inventa resposta. Passa a conversa para você, e no painel você vê todas as conversas e pode assumir qualquer uma." },
-    { pergunta: "A maisa substitui o meu contador?", resposta: "Não. Ela emite a nota de cada sessão e deixa o mês fechado para ele." },
-    { pergunta: "Tem fidelidade?", resposta: "Não. Você cancela quando quiser." },
-    { pergunta: "E os dados dos meus clientes?", resposta: "Ficam no Brasil, e o sigilo profissional é respeitado." },
-    { pergunta: "Funciona com o Google Agenda?", resposta: "Sim. Conectando o Google Agenda, compromisso seu bloqueia o horário para os clientes. Sem Google Agenda, ela usa a agenda do painel." },
-  ],
-};
-
-export const NEGOCIOS = { consultorio: CONSULTORIO, barbearia: BARBEARIA, casa: CASA } as const;
+export const NEGOCIOS = { consultorio: CONSULTORIO, barbearia: BARBEARIA } as const;

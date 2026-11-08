@@ -6,7 +6,7 @@
  * mais comum de escrever no WhatsApp) e decide sozinho quando a conversa acabou.
  * ────────────────────────────────────────────────────────────────────────────── */
 
-import { RELOGIO_PADRAO, type Cenario } from "./cenarios";
+import type { Cenario } from "./cenarios";
 import { perguntarAoClaude } from "./claude-cli";
 
 /** O que aparece na tela do cliente, na ordem em que chegou. */
@@ -14,17 +14,8 @@ export type Fala = { de: "cliente" | "maisa"; texto: string; ms: number; rajada:
 
 export type ProximaRajada = { mensagens: string[]; fim: boolean };
 
-/** "terça-feira, 27 de outubro de 2026, 10:12": o dia da cena. Sem ele, o cliente simulado usa a
- *  data real e briga com a atendente pelo calendário (bancada de 06/11/2026). */
-function agoraDaCena(c: Cenario): string {
-  const d = new Date(c.relogio ?? RELOGIO_PADRAO);
-  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
 function sistema(c: Cenario, nomeDoNegocio: string): string {
   return `Você vai fazer o papel de uma pessoa de verdade conversando pelo WhatsApp com a atendente de "${nomeDoNegocio}". Você é o CLIENTE, não a atendente.
-
-Agora é ${agoraDaCena(c)}. É essa a data de hoje para você, no seu celular e no seu calendário.
 
 ## Quem você é
 ${c.persona}

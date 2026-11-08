@@ -143,27 +143,3 @@ export function bolhas(texto: string): string[] {
  *  o cliente que colou um texto enorme ainda merece resposta. */
 export const limparEntrada = (texto: string): string =>
   texto.replace(/\s+/g, " ").trim().slice(0, MAX_ENTRADA);
-
-/**
- * Tira os links que o modelo escreveu (05/11/2026). Só na vendedora da casa: lá o link do teste
- * sai como bolha própria, montado pelo código (`mandar_link_do_teste`), e um link escrito pelo
- * modelo sai plausível e quebrado — sem o `?teste=1`, o lead cai no Pix em vez do teste.
- *
- * Tira endereço com `http(s)://` e domínio solto da maisa ("app.maisasecretary.com.br/..."). O do
- * CVV fica: numa crise, ele é a coisa mais importante da mensagem. O que sobra da frase ("Segue o
- * link: ") perde os dois-pontos pendurados.
- */
-const LINK = /\bhttps?:\/\/[^\s)]+|\b[\w.-]*maisa[\w.-]*\.(?:com\.br|com|app|br)(?:\/[^\s)]*)?/gi;
-
-export function semLinks(texto: string): string {
-  return texto
-    .split("\n")
-    .map((linha) => {
-      const sem = linha.replace(LINK, (url) => (/cvv\.org\.br/i.test(url) ? url : ""));
-      if (sem === linha) return linha;
-      return sem.replace(/[ \t]{2,}/g, " ").replace(/\s+([.,!?])/g, "$1").replace(/\s*:\s*$/, ".").replace(/^\s*\.$/, "").trimEnd();
-    })
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}

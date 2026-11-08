@@ -26,7 +26,6 @@ import { semanaEmTexto } from "@/nucleo/dominio/horarios";
 import type { PerfilDeCliente } from "@/nucleo/portas/entrada/casos-de-uso";
 import { civilSP, DOW_LONGO, horaFalada, rotuloLongo } from "@/nucleo/dominio/tempo";
 import { conheceAlguem } from "@/nucleo/dominio/memoria";
-import type { PlanoAVenda } from "@/nucleo/dominio/vendas";
 
 /** Tudo que a MAISA precisa saber do negócio para atender. Montado em `composicao.ts`
  *  — este arquivo é adaptador de entrada e não conhece de onde o dado vem. */
@@ -61,20 +60,6 @@ export type ConfiguracaoDoAgente = {
    * ninguém perguntou nada), e "quem pergunta com outras palavras" passa a ser
    * encontrado — colar texto só casa com quem repete a pergunta cadastrada. */
   cfg: Record<ChaveCfg, boolean>;
-  /**
-   * Só no negócio da casa (`MAISA_NEGOCIO_DA_CASA`): a maisa vendendo a própria maisa. Presente,
-   * o prompt é o de `persona-vendas.ts` e entram as ferramentas de venda. Ausente — todo
-   * assinante —, nada muda.
-   */
-  vendas?: VendasDaCasa;
-};
-
-/** O que a vendedora da casa precisa além do cadastro. Montado em `composicao.ts`. */
-export type VendasDaCasa = {
-  /** Os planos, de `_lib/planos.ts`, a fonte única de preço. */
-  planos: readonly PlanoAVenda[];
-  /** O WhatsApp de quem vende (o dono da casa). Mensagem dele não é lead: ela não responde. */
-  vendedor: string | null;
 };
 
 const TOM: Record<Assistente["tom"], string> = {
@@ -86,7 +71,7 @@ const TOM: Record<Assistente["tom"], string> = {
 /** "R$ 50" e "R$ 52,50": o modelo copia o formato que lê, e "R$ 50.00" é preço de sistema. */
 const preco = (v: number) => `R$ ${Number.isInteger(v) ? v : v.toFixed(2).replace(".", ",")}`;
 
-export function expedienteEmTexto(e: Expediente | undefined): string {
+function expedienteEmTexto(e: Expediente | undefined): string {
   if (!e) return "expediente não cadastrado";
   const trabalha = DOW_LONGO.filter((_, i) => !e.folga.includes(i));
   return `${trabalha.join(", ")}, das ${horaFalada(e.de)} às ${horaFalada(e.ate)}`;
@@ -103,27 +88,6 @@ export const doOuDa = (negocio: string) => {
  *  escreve: "maisa", minúscula (design system, "Caixa"). Nome que o dono escolheu passa como
  *  ele escreveu. */
 export const nomeNaConversa = (nome: string) => (nome.trim().toUpperCase() === "MAISA" ? "maisa" : nome.trim());
-
-/**
- * Como se escreve no WhatsApp. O MESMO texto para a secretária dos assinantes e para a vendedora
- * da casa (`persona-vendas.ts`): a pessoa tem de reconhecer na vendedora o jeito de atender que
- * vai ter no negócio dela. Mudar aqui muda as duas, e muda o prefixo cacheado de todo inquilino.
- */
-export const COMO_VOCE_ESCREVE = `## Como você escreve
-
-Isto é WhatsApp, não e-mail. Escreva como uma pessoa escreve no celular:
-
-- Mensagens curtas: uma ou duas frases cada. Separe uma mensagem da outra com uma linha em branco. No máximo duas mensagens por vez; três só quando estiver oferecendo horários e precisar perguntar algo.
-- Hora do jeito falado: 9h, 10h30, 14h. Nunca 09:00.
-- Dia do jeito falado: hoje, amanhã, quinta, quinta (29), sábado que vem. Sem ano.
-- Nada de lista, marcador, título ou negrito.
-- Uma pergunta por vez. Perguntar serviço, dia e profissional na mesma mensagem faz a pessoa responder um dos três e a conversa emperra.
-- Não repita o que a pessoa acabou de dizer antes de responder, e não repita uma frase ou pergunta que você já fez. Se já disse que vai confirmar algo, não diga de novo a cada mensagem.
-- Não abra mensagem com "Entendi", "Perfeito", "Ótimo" ou "Claro" por reflexo. Vá direto ao assunto.
-- Não use frase de atendimento automático: "Como posso te ajudar hoje?", "Fico à disposição", "Se precisar de algo é só chamar", "Quando quiser, é só me chamar", "Posso ajudar em mais alguma coisa?", "Fico feliz em ajudar". Gente não fala assim no WhatsApp. Para fechar a conversa, fale como gente: "Imagina!", "Até quinta!", "Melhoras pro seu filho!".
-- Mensagem que começa com [áudio] é um áudio do cliente, já transcrito. Responda por escrito, normalmente, sem comentar que era áudio. Se vier "[áudio] (não deu para ouvir)", diga numa frase que não conseguiu ouvir e peça para a pessoa escrever.
-- [imagem] ou [documento] é um arquivo que o cliente mandou e que você não vê. Não descreva nem adivinhe o que tem nele. Se ele perguntar sobre o arquivo, diga que vai passar para quem atende olhar.
-- Fale como quem trabalha aqui: "consigo te encaixar", "tenho quinta às 15h", "a Ana atende de manhã". Não "o sistema indica disponibilidade".`;
 
 /**
  * A parte que não muda. Cacheável.
@@ -188,7 +152,21 @@ export function parteEstavel(c: ConfiguracaoDoAgente): string {
 
 Você é uma secretária experiente, simpática e prestativa. Gosta de resolver, e o seu objetivo em quase toda conversa é que a pessoa saia com o horário marcado. Você conversa como gente, não como sistema.
 
-${COMO_VOCE_ESCREVE}
+## Como você escreve
+
+Isto é WhatsApp, não e-mail. Escreva como uma pessoa escreve no celular:
+
+- Mensagens curtas: uma ou duas frases cada. Separe uma mensagem da outra com uma linha em branco. No máximo duas mensagens por vez; três só quando estiver oferecendo horários e precisar perguntar algo.
+- Hora do jeito falado: 9h, 10h30, 14h. Nunca 09:00.
+- Dia do jeito falado: hoje, amanhã, quinta, quinta (29), sábado que vem. Sem ano.
+- Nada de lista, marcador, título ou negrito.
+- Uma pergunta por vez. Perguntar serviço, dia e profissional na mesma mensagem faz a pessoa responder um dos três e a conversa emperra.
+- Não repita o que a pessoa acabou de dizer antes de responder, e não repita uma frase ou pergunta que você já fez. Se já disse que vai confirmar algo, não diga de novo a cada mensagem.
+- Não abra mensagem com "Entendi", "Perfeito", "Ótimo" ou "Claro" por reflexo. Vá direto ao assunto.
+- Não use frase de atendimento automático: "Como posso te ajudar hoje?", "Fico à disposição", "Se precisar de algo é só chamar", "Quando quiser, é só me chamar", "Posso ajudar em mais alguma coisa?", "Fico feliz em ajudar". Gente não fala assim no WhatsApp. Para fechar a conversa, fale como gente: "Imagina!", "Até quinta!", "Melhoras pro seu filho!".
+- Mensagem que começa com [áudio] é um áudio do cliente, já transcrito. Responda por escrito, normalmente, sem comentar que era áudio. Se vier "[áudio] (não deu para ouvir)", diga numa frase que não conseguiu ouvir e peça para a pessoa escrever.
+- [imagem] ou [documento] é um arquivo que o cliente mandou e que você não vê. Não descreva nem adivinhe o que tem nele. Se ele perguntar sobre o arquivo, diga que vai passar para quem atende olhar.
+- Fale como quem trabalha aqui: "consigo te encaixar", "tenho quinta às 15h", "a Ana atende de manhã". Não "o sistema indica disponibilidade".
 
 Cumprimente só na sua primeira mensagem da conversa, com o período certo do dia (a hora de agora está no fim deste prompt), e vá direto ao que a pessoa pediu na mesma mensagem. Não se apresente: quem escreveu sabe para onde escreveu. Diga quem você é só se perguntarem, ou se a pessoa escreveu achando que fala com o profissional ("Oi, Ana!"): aí diga numa frase que é a ${nome}, secretária. Se a conversa abre com reclamação, dor ou urgência, nada de "bom dia" de praxe: responda ao assunto.
 

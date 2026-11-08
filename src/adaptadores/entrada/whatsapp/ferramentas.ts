@@ -24,8 +24,8 @@ import { createHash } from "crypto";
 
 import type { DefinicaoDeFerramenta } from "@/nucleo/portas/saida/modelo-conversa";
 import type {
-  AbrirFichaDoLead, AgendarAtendimento, AnotarFato, CancelarAtendimento, ConversaMarcada, LerAgenda, LinkDoPagamentoDoLead, LinkDoTesteDoLead,
-  OferecerHorarios, PerfilDeCliente, QualificarLead, ResponderDuvida,
+  AgendarAtendimento, AnotarFato, CancelarAtendimento, LerAgenda, OferecerHorarios,
+  PerfilDeCliente, ResponderDuvida,
 } from "@/nucleo/portas/entrada/casos-de-uso";
 import type { CanalDeMensagens } from "@/nucleo/portas/saida/canal-mensagens";
 import type { ContextoTenant } from "@/nucleo/dominio/tenant";
@@ -33,8 +33,6 @@ import type { Escolha } from "@/nucleo/dominio/memoria";
 import { DadoInvalido, ErroDeDominio, LimiteDoProvedor, NaoEncontrado, PrecisaReconectar } from "@/nucleo/dominio/erros";
 import { hojeISO, horaFalada, rotuloLongo, somarDias } from "@/nucleo/dominio/tempo";
 import { soDigitos } from "@/nucleo/dominio/clientes";
-import type { Vertical } from "@/nucleo/dominio/negocio";
-import { DIAS_DE_TESTE } from "@/nucleo/dominio/vendas";
 import type { ConfiguracaoDoAgente } from "./persona";
 
 /* ───────────────────────────── estado do turno ───────────────────────────── */
@@ -112,33 +110,11 @@ export type EstadoDoTurno = {
    * "vou esperar", um emoji depois da despedida. Ver o passo 3 de `agente.ts`.
    */
   calou: { motivo: string } | null;
-
-  /**
-   * Só na casa: o link do teste que `mandar_link_do_teste` montou neste turno. Ele sai como uma
-   * bolha própria, DEPOIS da fala do modelo, e o modelo nunca o escreve (ver o passo 3 de
-   * `agente.ts`): link escrito por modelo sai plausível e quebrado.
-   */
-  link: string | null;
-
-  /**
-   * Só na casa: o lead já tem qualificação registrada (de um turno anterior, lida na ficha, ou
-   * por `registrar_lead` neste turno). O link do teste exige isso: sem registro, o Bruno não é
-   * avisado e o link abre no plano errado. Medido na bancada em 06/11/2026.
-   */
-  leadRegistrado: boolean;
-
-  /**
-   * Só na casa: a pessoa já tem conta no app (achada pelo telefone). Para ela o próximo passo
-   * nunca é o link do teste — ela já está dentro —, e sim terminar a configuração ou a conversa
-   * com o vendedor para configurar junto. Pedido do Bruno (06/11/2026): quem cria conta também é
-   * qualificado, pela maisa que puxa a conversa.
-   */
-  temConta: boolean;
 };
 
 export const novoEstado = (): EstadoDoTurno => ({
   ofertas: new Map(), escalou: null, marcou: null, tentouAgendar: false, jaEstavaMarcado: false,
-  cancelou: false, podeCalar: false, calou: null, link: null, leadRegistrado: false, temConta: false,
+  cancelou: false, podeCalar: false, calou: null,
 });
 
 const chaveOferta = (servicoId: string, agendaId: string, data: string, inicio: number) =>
@@ -314,59 +290,6 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
   },
 ];
 
-/**
- * As duas ferramentas da vendedora da casa (`persona-vendas.ts`). Só entram no pedido ao modelo
- * quando a configuração tem `vendas`: para todo assinante, a lista é a de sempre.
- */
-export const FERRAMENTAS_DE_VENDAS: DefinicaoDeFerramenta[] = [
-  {
-    nome: "registrar_lead",
-    descricao:
-      "Guarda o que você descobriu sobre o negócio da pessoa e devolve o PRÓXIMO PASSO: TESTE (mandar o link do teste grátis) ou CONVERSA (marcar 15 minutos com o responsável). Quem decide o passo é esta ferramenta, não você. Chame assim que souber o que a pessoa faz e se atende sozinha ou com equipe; chame de novo se ela contar algo que muda isso, ou se pedir para falar com alguém. Mande só o que ela disse: o que não sabe, deixe de fora.",
-    parametros: {
-      type: "object",
-      properties: {
-        profissao: { type: "string", description: "O que a pessoa faz, com as palavras dela: psicóloga, barbearia, nutricionista." },
-        vertical: {
-          type: "string",
-          description: "Uma destas três palavras, exatamente: terapeutas (psicologia, terapia, fono, nutrição e outras profissões de saúde com sessão), barbeiros (barbearia e salão masculino) ou generico (o resto).",
-        },
-        equipe: { type: "integer", description: "Quantas pessoas atendem, contando ela. 1 = sozinha." },
-        atendimentos_por_semana: { type: "integer", description: "Mais ou menos quantos atendimentos por semana, somando a equipe." },
-        como_marca_hoje: { type: "string", description: "Como marca os horários hoje: pelo WhatsApp à mão, Google Agenda, outro app, recepcionista." },
-        interesse: { type: "string", description: "O que a fez procurar a maisa, ou o que mais pesa hoje, com as palavras dela: recibo do Receita Saúde, cobrar pelo Pix, nota fiscal, responder agenda à noite." },
-        pediu_conversa: { type: "boolean", description: "true se a pessoa pediu para falar com alguém, ou ficou com uma dúvida que você não conseguiu resolver." },
-      },
-      required: ["profissao", "vertical"],
-    },
-  },
-  {
-    nome: "mandar_link_do_teste",
-    descricao:
-      "Manda o link do teste grátis numa mensagem separada, logo depois da sua. Chame quando o próximo passo for TESTE e a pessoa topar testar, ou quando ela pedir o link. Você nunca escreve o link: escreva só uma frase curta que o apresente.",
-    parametros: {
-      type: "object",
-      properties: {
-        vertical: {
-          type: "string",
-          description: "A mesma palavra de registrar_lead: terapeutas, barbeiros ou generico. Decide a página que o link abre.",
-        },
-      },
-      required: ["vertical"],
-    },
-  },
-  {
-    nome: "mandar_link_do_pagamento",
-    descricao:
-      "Manda o link que abre o app na tela do plano, onde a pessoa escolhe o plano e paga. Só para quem JÁ TEM CONTA e quer assinar, continuar depois do teste ou pagar a mensalidade. O link vai numa mensagem separada, logo depois da sua: você nunca escreve o link.",
-    parametros: { type: "object", properties: {} },
-  },
-];
-
-/** As ferramentas deste atendimento: as de sempre, mais as de venda na casa. */
-export const ferramentasDe = (config: ConfiguracaoDoAgente): DefinicaoDeFerramenta[] =>
-  config.vendas ? [...FERRAMENTAS, ...FERRAMENTAS_DE_VENDAS] : FERRAMENTAS;
-
 /* ───────────────────────────── execução ───────────────────────────── */
 
 export type Dependencias = {
@@ -379,17 +302,6 @@ export type Dependencias = {
   /* A busca nas respostas que o dono cadastrou. Substituiu, em 15/08/2026, o bloco de FAQ
    * que a `persona.ts` colava no prompt a partir de uma fixture de demonstração. */
   responderDuvida: ResponderDuvida;
-  /** Só no negócio da casa: os casos de uso da venda. Ver `aplicacao/vendas.ts`. */
-  vendas?: VendasNaConversa;
-};
-
-/** Os casos de uso que a vendedora da casa usa na conversa. */
-export type VendasNaConversa = {
-  abrirFicha: AbrirFichaDoLead;
-  qualificarLead: QualificarLead;
-  linkDoTeste: LinkDoTesteDoLead;
-  linkDoPagamento: LinkDoPagamentoDoLead;
-  conversaMarcada: ConversaMarcada;
 };
 
 /**
@@ -661,16 +573,6 @@ export function criarExecutor(deps: Dependencias) {
           // Só agora o fato é real. Ver `EstadoDoTurno.marcou`.
           estado.marcou = { data, inicio, profissionalId: agendaId, servicoId };
 
-          /* Na casa, horário marcado é conversa de venda: passo `conversa` na ficha e aviso ao
-           * vendedor com dia e hora, tenha o modelo registrado o lead ou não. */
-          if (config.vendas && deps.vendas && r.situacao !== "ja_existia") {
-            await deps.vendas.conversaMarcada(t, {
-              telefone: perfil.telefone,
-              nome: perfil.nome ?? (typeof entrada.nome_cliente === "string" ? entrada.nome_cliente : null),
-              quando: `${rotuloLongo(data)} às ${horaFalada(inicio)}`,
-            });
-          }
-
           const quando = `${rotuloLongo(data)} às ${horaFalada(inicio)} com ${nomeProf(agendaId)}`;
           return ok(
             r.situacao === "ja_existia"
@@ -815,81 +717,6 @@ export function criarExecutor(deps: Dependencias) {
           }
           estado.calou = { motivo: String(entrada.motivo ?? "sem motivo informado") };
           return ok("Certo: este turno termina sem mensagem. Não escreva nada.");
-        }
-
-        /* ── venda (só na casa) ──
-         * O passo vem do código (`proximoPasso`), e o resultado diz ao modelo o que fazer com ele.
-         * Fora da casa estas ferramentas nem são oferecidas; o `nao` aqui é para o modelo que
-         * inventa o nome de uma ferramenta que leu noutro lugar. */
-        case "registrar_lead": {
-          if (!deps.vendas || !config.vendas) return nao(`Ferramenta "${nome}" não existe.`);
-          const r = await deps.vendas.qualificarLead(t, {
-            telefone: perfil.telefone,
-            nome: perfil.nome ?? null,
-            qualificacao: {
-              profissao: entrada.profissao,
-              vertical: entrada.vertical,
-              equipe: entrada.equipe,
-              atendimentosPorSemana: entrada.atendimentos_por_semana,
-              comoMarcaHoje: entrada.como_marca_hoje,
-              interesse: entrada.interesse,
-              pediuConversa: entrada.pediu_conversa,
-            },
-          });
-          estado.leadRegistrado = true;
-          /* Quem já tem conta não recebe link: o passo dele é dentro do app. */
-          if (estado.temConta) {
-            return ok(
-              r.passo === "conversa"
-                ? "Registrado. Ela já tem conta, e o próximo passo é CONVERSA: ofereça 15 minutos com o responsável para configurar junto, e se ela topar consulte a agenda com `oferecer_horarios`. Não mande link."
-                : "Registrado. Ela já tem conta, e o próximo passo é terminar a configuração e usar o teste: ajude no passo em que ela está e diga o que fazer em seguida. Não mande link. Se ela quiser ajuda de uma pessoa, ofereça a conversa com o responsável.",
-            );
-          }
-          if (r.passo === "conversa") {
-            return ok(
-              "Registrado. Próximo passo: CONVERSA. Ofereça uma conversa de 15 minutos com o responsável para ele mostrar como fica no negócio dela; " +
-                "se ela topar, consulte a agenda com `oferecer_horarios`. Não mande o link do teste, a não ser que ela peça.",
-            );
-          }
-          const plano = r.plano
-            ? ` Pelo volume que ela disse, o plano que cabe é o ${r.plano.nome} (${r.plano.preco} por mês, ${r.plano.agendamentosPorMes.toLocaleString("pt-BR")} agendamentos). Diga isso só se fizer sentido na conversa.`
-            : "";
-          return ok(`Registrado. Próximo passo: TESTE.${plano} Ofereça o teste grátis; se ela topar, chame \`mandar_link_do_teste\`.`);
-        }
-
-        case "mandar_link_do_teste": {
-          if (!deps.vendas || !config.vendas) return nao(`Ferramenta "${nome}" não existe.`);
-          if (estado.temConta) {
-            return nao("Ela já tem conta no app: não há link a mandar. Ajude no passo em que ela está.");
-          }
-          if (!estado.leadRegistrado) {
-            return nao(
-              "Antes do link, chame `registrar_lead` com o que você já sabe da pessoa (pelo menos a profissão e a vertical; equipe e volume, se ela disse). " +
-                "Depois chame `mandar_link_do_teste` de novo. Se você ainda não sabe o que ela faz, pergunte só isso.",
-            );
-          }
-          const { link } = await deps.vendas.linkDoTeste(t, { telefone: perfil.telefone, vertical: String(entrada.vertical ?? "") as Vertical });
-          estado.link = link;
-          /* Sem frase de exemplo: na bancada o modelo copiava o exemplo palavra por palavra, e a
-           * mesma frase em toda conversa é o que denuncia robô. */
-          return ok(
-            "Pronto: o link sai numa mensagem própria, logo depois da sua. Antes de apresentá-lo, responda o que a pessoa perguntou " +
-              "e ainda não foi respondido (desconto, cancelamento, cobrança, o que for): link no meio de uma dúvida soa como ignorar a pessoa. " +
-              `Depois, com as suas palavras e no tom da conversa, uma frase curta que apresente o link e diga o que é (${DIAS_DE_TESTE} dias grátis, sem cartão). Não escreva link nenhum.`,
-          );
-        }
-
-        case "mandar_link_do_pagamento": {
-          if (!deps.vendas || !config.vendas) return nao(`Ferramenta "${nome}" não existe.`);
-          if (!estado.temConta) {
-            return nao("Ela ainda não tem conta: o primeiro passo é o teste grátis, com `mandar_link_do_teste`. O pagamento é feito depois, dentro do app.");
-          }
-          const { link } = await deps.vendas.linkDoPagamento(t, { telefone: perfil.telefone });
-          estado.link = link;
-          return ok(
-            "Pronto: o link sai numa mensagem própria, logo depois da sua. Responda antes o que ela perguntou e ainda está em aberto; " +
-              "depois, numa frase curta e com as suas palavras, diga que o link abre o app na tela do plano, onde ela escolhe e paga. Não escreva link nenhum.",
-          );
         }
 
         default:

@@ -153,10 +153,6 @@ async function principal() {
     await Promise.all(pendentes);
   }
 
-  /* O que já estava na conversa (a mensagem que a maisa mandou sozinha): o lead simulado e o juiz
-   * veem, como no WhatsApp. Fica na rajada -1, antes de tudo. */
-  for (const f of mundo.falasIniciais) falas.push({ de: f.de, texto: f.texto, ms: 0, rajada: -1 });
-
   let rajada = 0;
   await enviarRajada(c.abertura, rajada);
   const maxTurnos = c.maxTurnos ?? 10;

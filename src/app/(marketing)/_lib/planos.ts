@@ -58,7 +58,6 @@
  * -------------------------------------------------------------------------- */
 
 import { whatsappUrl, type ICP } from "./icp";
-import type { PlanoAVenda } from "@/nucleo/dominio/vendas";
 
 /* ─────────────────────────── para onde o botão vai ───────────────────────────
  *
@@ -155,24 +154,6 @@ export const PLANOS: readonly Plano[] = [
     ],
   },
 ] as const;
-
-/**
- * Os planos como a vendedora da casa fala deles (05/11/2026, a maisa da maisa). Lidos DAQUI, e não
- * redigitados no prompt: a regra deste arquivo vale para ela também (um preço, um lugar). O
- * `planos.test.ts` confere que a leitura das specs deu número.
- */
-export function planosAVenda(): PlanoAVenda[] {
-  return PLANOS.map((p) => {
-    const spec = (rotulo: string) => p.specs.find((s) => s.rotulo === rotulo)?.valor ?? "";
-    return {
-      chave: p.chave,
-      nome: p.nome,
-      preco: p.preco,
-      agendamentosPorMes: Number(spec("Agendamentos com IA").replace(/\D/g, "")) || 0,
-      excedente: spec("Excedente por agendamento"),
-    };
-  });
-}
 
 /** O plano em destaque. Quem precisa dele: o card da <Duelo> (que compara O PREÇO
  *  DESTACADO com o salário de uma recepção) e qualquer copy que cite "a partir de"
