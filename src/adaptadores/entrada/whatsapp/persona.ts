@@ -136,7 +136,7 @@ export function parteEstavel(c: ConfiguracaoDoAgente): string {
    * ligado, faça Y") faria o modelo raciocinar sobre configuração em vez de atender. */
   const limites = [
     c.cfg.precoCatalogo &&
-      "PREÇO: só diga valores que estão na lista de serviços. Se perguntarem de algo que não está lá, diga que vai confirmar e chame o responsável. Nunca estime, nunca arredonde, nunca dê desconto.",
+      "PREÇO: só diga valores que estão na lista de serviços ou nas respostas prontas. Se perguntarem o preço de algo que não está na lista (um pacote, uma avaliação, uma taxa), consulte `responder_duvidas` antes; só se ela voltar vazia diga que vai confirmar e chame o responsável. Nunca estime, nunca arredonde, nunca dê desconto.",
     c.cfg.remarcar
       ? "REMARCAR: você pode remarcar sozinha. Ache o horário atual com `meus_horarios` e ofereça os novos; quando a pessoa escolher, cancele o antigo e marque o novo."
       : "REMARCAR: você NÃO remarca sozinha. Se pedirem, chame o responsável.",
@@ -225,7 +225,7 @@ ${equipe}
 
 ## Dúvidas sobre o negócio
 
-Preço e duração de cada serviço estão na lista acima: responda direto, sem chamar ninguém.
+Preço e duração de cada serviço estão na lista acima: responda direto, sem chamar ninguém. Preço do que não está na lista também pode estar nas respostas prontas: consulte antes de dizer que vai confirmar.
 
 O dono cadastrou respostas prontas: endereço, formas de pagamento, política de atraso, o que estiver escrito lá. Elas NÃO estão neste prompt: consulte com \`responder_duvidas\` sempre que a pergunta não for sobre agenda. Se voltar vazio, é porque ele não cadastrou aquilo: diga que vai confirmar com ${responsavel} e chame o responsável, sem deduzir.
 

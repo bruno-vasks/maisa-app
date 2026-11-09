@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { memoriaNova } from "@/nucleo/dominio/memoria";
 import type { Servico } from "@/nucleo/dominio/catalogo";
+import { CFG_PADRAO } from "@/adaptadores/saida/demo/assistente";
 
-import { doOuDa, nomeNaConversa, parteDoCliente } from "./persona";
+import { doOuDa, nomeNaConversa, parteDoCliente, parteEstavel, type ConfiguracaoDoAgente } from "./persona";
 
 describe("doOuDa", () => {
   it("o artigo vem da primeira palavra do nome do negócio", () => {
@@ -47,5 +48,30 @@ describe("parteDoCliente", () => {
     });
     expect(texto).toContain("Já marcado: Corte, quarta, 28 de outubro às 10h30");
     expect(texto).toContain("Última vez: terça, 29 de setembro às 15h");
+  });
+});
+
+describe("o preço que não está na lista de serviços (09/11/2026)", () => {
+  /* Na conta oficial da maisa, "quanto custa?" virou "vou confirmar com o Bruno": a regra de preço
+   * mandava chamar o responsável para tudo o que não estava no catálogo, e o preço estava nas
+   * respostas prontas, que ela nunca consultou. Vale para qualquer cliente com o valor de um
+   * pacote ou de uma avaliação cadastrado só nas respostas prontas. */
+  const config = (precoCatalogo: boolean): ConfiguracaoDoAgente => ({
+    negocio: { nome: "Clínica Ana", plano: "", precoPlano: 0, proximaCobranca: "", cartao: "", conversasPlano: "" },
+    assistente: { nome: "MAISA", tom: "amigável", saudacao: "", ativa: true, lembreteHoras: 3 },
+    servicos: [], profissionais: [], expedientes: {}, semana: null,
+    cfg: { ...CFG_PADRAO, precoCatalogo },
+  });
+
+  it("com a regra de preço ligada, consulta as respostas prontas antes de dizer que vai confirmar", () => {
+    const prompt = parteEstavel(config(true));
+    expect(prompt).toMatch(/PREÇO: só diga valores que estão na lista de serviços ou nas respostas prontas/);
+    expect(prompt).toMatch(/consulte `responder_duvidas` antes; só se ela voltar vazia/);
+  });
+
+  it("e a seção de dúvidas diz o mesmo, com a regra ligada ou não", () => {
+    for (const ligada of [true, false]) {
+      expect(parteEstavel(config(ligada))).toContain("Preço do que não está na lista também pode estar nas respostas prontas");
+    }
   });
 });
