@@ -153,6 +153,22 @@ export interface RepositorioRecibos {
   excluirAvulso(t: ContextoTenant, id: string): Promise<void>;
 
   /**
+   * ★ A SESSÃO QUE NÃO ACONTECEU (12/11/2026, a Regina): o paciente faltou, e a sessão da agenda
+   * não pode entrar no recibo do mês, nem no da tela, nem no automático.
+   *
+   * Marca o atendimento como `cancelado` NA TABELA, e só nela. Não passa pelo Google: cancelar lá
+   * apagaria o evento e mandaria ao paciente um e-mail de cancelamento de uma sessão que já passou.
+   * `update` e não `delete`, pela mesma regra de `RegistroDeAtendimentos.cancelar`.
+   *
+   * ⚠️ SÓ ENQUANTO ELA NÃO ESTÁ NUM RECIBO (`recibo_id` e `lote_recibo_id` vazios), decidido no
+   * `where` da mesma instrução: o que já saiu se cancela na Receita, não aqui.
+   *
+   * Devolve a chave do atendimento (`maisaAg`, para a tela tirar da agenda local), ou `null`
+   * quando nada mudou: já estava num recibo, já estava cancelado, ou não existe.
+   */
+  sessaoNaoAconteceu(t: ContextoTenant, atendimentoId: string): Promise<{ maisaAg: string | null } | null>;
+
+  /**
    * O dono confirma que importou no e-CAC. Só muda a situação; nada é solto.
    *
    * ⚠️ DEVOLVE `false` QUANDO NÃO HAVIA NADA PARA MUDAR — segundo clique, segunda aba, ou um

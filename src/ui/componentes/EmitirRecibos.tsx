@@ -342,6 +342,78 @@ function Emitente({ config, mobile }: { config: ConfigFiscal; mobile: boolean })
   );
 }
 
+/* ── ★ QUAIS SESSÕES VÃO NESTE RECIBO (12/11/2026, a Regina) ──
+ *
+ * O "Editar" da prévia abre as sessões da pessoa, cada uma com a caixinha. Desmarcar tira a sessão
+ * DESTA emissão e só dela: ela continua sem recibo e volta na próxima (inclusive no automático).
+ * Para o paciente que faltou, o verbo é o outro, "Não teve sessão", que a tira para sempre (ver
+ * `st.tirarDoRecibo`). Os dois moram juntos porque a pergunta é uma só: "o que vai neste recibo?".
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+function EditorDeSessoes({ grupo, fora, alternar, pronto }: {
+  grupo: Grupo;
+  fora: Set<string>;
+  alternar: (id: string) => void;
+  pronto: () => void;
+}) {
+  const st = useStore();
+  const [pedido, setPedido] = useState<string | null>(null);
+  const [andando, setAndando] = useState<string | null>(null);
+  const itens = [...grupo.itens].sort((a, b) => a.data.localeCompare(b.data));
+  const marcadas = itens.filter((x) => !fora.has(x.id));
+  return (
+    <div style={s("display:flex;flex-direction:column;gap:6px")}>
+      {itens.map((x) => {
+        const on = !fora.has(x.id);
+        const quando = `${x.data.slice(8, 10)}/${x.data.slice(5, 7)}`;
+        const pedindo = pedido === x.id;
+        return (
+          <div key={x.id} style={s("display:flex;align-items:center;gap:10px")}>
+            <button
+              type="button"
+              onClick={() => alternar(x.id)}
+              aria-pressed={on}
+              className="m-focus m-hov-bg"
+              style={s("flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:6px 4px;border:none;background:transparent;border-radius:var(--r-controle);cursor:pointer;font-family:inherit;color:inherit;text-align:left")}
+            >
+              <span aria-hidden style={s(`width:18px;height:18px;flex:none;border-radius:var(--r-controle);display:grid;place-items:center;border:1.5px solid ${on ? "var(--primary)" : "var(--border-field)"};background:${on ? "var(--primary)" : "var(--surface)"};color:#fff`)}>
+                {on && <Icon name="check" size={12} />}
+              </span>
+              <span className="n" style={s(`flex:1;font-size:var(--t-sm);color:${on ? "var(--ink)" : "var(--muted)"}`)}>{quando}</span>
+              <span className="n" style={s(`font-size:var(--t-sm);font-weight:var(--w-title);color:${on ? "var(--ink)" : "var(--muted)"}`)}>{fmt(x.valor)}</span>
+            </button>
+            <button
+              type="button"
+              disabled={andando === x.id}
+              onClick={async () => {
+                if (!pedindo) { setPedido(x.id); return; }
+                setAndando(x.id);
+                try { await st.tirarDoRecibo({ id: x.id, fonte: x.fonte, rotulo: quando }); } finally { setAndando(null); setPedido(null); }
+              }}
+              className="m-press m-focus"
+              title="O paciente faltou: a sessão sai deste recibo e do automático, sem mexer no Google."
+              style={s(`flex:none;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);padding:4px 8px;border-radius:var(--r-controle);cursor:pointer;white-space:nowrap;border:1px solid ${pedindo ? "var(--danger)" : "var(--border)"};background:${pedindo ? "var(--danger)" : "var(--surface)"};color:${pedindo ? "#fff" : "var(--muted)"}`)}
+            >
+              {andando === x.id ? "Tirando…" : pedindo ? "Tirar do recibo" : "Não teve sessão"}
+            </button>
+          </div>
+        );
+      })}
+      <div style={s("display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:6px;border-top:1px solid var(--line)")}>
+        <span className="n" style={s("font-size:var(--t-label);color:var(--muted)")}>
+          {marcadas.length === 0 ? "Nenhuma sessão neste recibo" : `${marcadas.length} de ${itens.length} · ${fmt(marcadas.reduce((a, x) => a + x.valor, 0))}`}
+        </span>
+        <Btn size="sm" onClick={pronto}>Pronto</Btn>
+      </div>
+      {marcadas.length < itens.length && (
+        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:var(--lh-prose)")}>
+          A desmarcada fica sem recibo e volta na próxima emissão.
+        </span>
+      )}
+    </div>
+  );
+}
+
 /* ── a tela ───────────────────────────────────────────────────────────────── */
 
 export function EmitirRecibos() {
@@ -354,6 +426,16 @@ export function EmitirRecibos() {
   /** `null` = ainda não mexeram: vale "todos". Depois disso, a escolha é dela. */
   const [desmarcados, setDesmarcados] = useState<Set<string>>(new Set());
   const [previa, setPrevia] = useState(0);
+  /** As sessões tiradas DESTA emissão pelo "Editar" da prévia (12/11/2026). Não somem do banco:
+   *  continuam sem recibo, e voltam na próxima. */
+  const [foraDestaVez, setForaDestaVez] = useState<Set<string>>(new Set());
+  /** De quem são as sessões abertas no "Editar" (`nome|cpf`, a chave do grupo). `null` = a prévia. */
+  const [editando, setEditando] = useState<string | null>(null);
+  const alternarSessao = (id: string) => setForaDestaVez((a) => {
+    const n = new Set(a);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
 
   /* ── ★ AS LINHAS QUE JÁ EXISTEM NO BANCO MAS AINDA NÃO VOLTARAM NA LEITURA ──
    *
@@ -424,7 +506,10 @@ export function EmitirRecibos() {
     () => grupos.filter((g) => !desmarcados.has(`${g.nome}|${g.cpf}`)),
     [grupos, desmarcados],
   );
-  const aEmitir = useMemo(() => escolhidos.flatMap((g) => g.itens), [escolhidos]);
+  const aEmitir = useMemo(
+    () => escolhidos.flatMap((g) => g.itens).filter((p) => !foraDestaVez.has(p.id)),
+    [escolhidos, foraDestaVez],
+  );
   const valor = useMemo(() => aEmitir.reduce((a, p) => a + p.valor, 0), [aEmitir]);
   /* ★ OS RECIBOS, E NÃO AS SESSÕES (01/10/2026, Bruno: "cada paciente só recebe um recibo por
    * mês"). As sessões escolhidas viram recibos pela escolha da ficha de cada pessoa
@@ -498,6 +583,11 @@ export function EmitirRecibos() {
   useEffect(() => {
     if (st.clientesGravados > 0) void carregar();
   }, [st.clientesGravados, carregar]);
+
+  /* "Não teve sessão" (aqui ou na ficha) mudou a lista no banco: relê. */
+  useEffect(() => {
+    if (st.recibosTirados > 0) void carregar();
+  }, [st.recibosTirados, carregar]);
 
   /** Abre a ficha de quem está sem CPF. O pagamento não traz o id do cliente (a porta
    *  `PagamentoPendente` não tem `clienteId`, e mexer nela pede o Bruno), então a ponte é o
@@ -590,12 +680,17 @@ export function EmitirRecibos() {
    * lista mostra e se o CTA está clicável. */
 
   const previaRecibo = recibos[Math.min(previa, Math.max(recibos.length - 1, 0))];
-  const previaItem = previaRecibo && {
-    nome: previaRecibo[0].nome,
-    cpf: previaRecibo[0].cpf,
-    valor: previaRecibo.reduce((a, p) => a + p.valor, 0),
-    datas: previaRecibo.map((p) => p.data).sort(),
-  };
+  /** O grupo aberto no "Editar". Lido de `grupos` (todas as sessões da pessoa), e não do recibo da
+   *  prévia: com todas desmarcadas o recibo some, e o editor tem de continuar de pé. */
+  const editandoGrupo = editando ? grupos.find((g) => `${g.nome}|${g.cpf}` === editando) ?? null : null;
+  const previaItem = editandoGrupo
+    ? { nome: editandoGrupo.nome, cpf: editandoGrupo.cpf, valor: 0, datas: [] as string[] }
+    : previaRecibo && {
+      nome: previaRecibo[0].nome,
+      cpf: previaRecibo[0].cpf,
+      valor: previaRecibo.reduce((a, p) => a + p.valor, 0),
+      datas: previaRecibo.map((p) => p.data).sort(),
+    };
   /* ⚠️ SEM AS FICHAS, NÃO EMITE. Antes de `/api/cadastro` responder, o store tem as fichas de
    * primeira pintura, sem `recibosPorMes`, e a conta dava um recibo por sessão: medido na bancada
    * (`recibo-por-mes.mjs`), "Emitir 5 recibos" no primeiro segundo e "Emitir 2 recibos" depois. Um
@@ -639,9 +734,20 @@ export function EmitirRecibos() {
         <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:14px;display:flex;flex-direction:column;gap:7px")}>
           <div style={s("display:flex;align-items:center;justify-content:space-between;gap:8px")}>
             <span style={s("font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>
-              Prévia · {Math.min(previa + 1, recibos.length)} de {recibos.length}
+              {editandoGrupo ? "Sessões neste recibo" : `Prévia · ${Math.min(previa + 1, recibos.length)} de ${recibos.length}`}
             </span>
-            {recibos.length > 1 && (
+            <span style={s("display:flex;gap:5px;align-items:center")}>
+            {!editandoGrupo && (
+              <button
+                type="button"
+                onClick={() => setEditando(`${previaItem.nome}|${previaItem.cpf}`)}
+                className="m-focus m-hov-bg"
+                style={s("height:26px;padding:0 9px;border-radius:var(--r-controle);border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary)")}
+              >
+                Editar
+              </button>
+            )}
+            {!editandoGrupo && recibos.length > 1 && (
               <span style={s("display:flex;gap:5px")}>
                 <button
                   onClick={() => setPrevia((i) => (i - 1 + recibos.length) % recibos.length)}
@@ -661,16 +767,26 @@ export function EmitirRecibos() {
                 </button>
               </span>
             )}
+            </span>
           </div>
-          <span className="n" style={s("font-size:var(--t-lg);font-weight:var(--w-emph);letter-spacing:var(--ls-lg);color:var(--ink)")}>
-            {fmt(previaItem.valor)}
-          </span>
-          <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{previaItem.nome}</span>
-          <span className="n-mach" style={s("font-size:var(--t-label);color:var(--muted)")}>
-            {previaItem.cpf} · {previaItem.datas.length === 1
-              ? rotuloBR(previaItem.datas[0])
-              : `${previaItem.datas.length} sessões, ${previaItem.datas.map((d) => d.slice(8, 10) + "/" + d.slice(5, 7)).join(", ")}`}
-          </span>
+          {editandoGrupo ? (
+            <>
+              <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{editandoGrupo.nome}</span>
+              <EditorDeSessoes grupo={editandoGrupo} fora={foraDestaVez} alternar={alternarSessao} pronto={() => setEditando(null)} />
+            </>
+          ) : (
+            <>
+              <span className="n" style={s("font-size:var(--t-lg);font-weight:var(--w-emph);letter-spacing:var(--ls-lg);color:var(--ink)")}>
+                {fmt(previaItem.valor)}
+              </span>
+              <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>{previaItem.nome}</span>
+              <span className="n-mach" style={s("font-size:var(--t-label);color:var(--muted)")}>
+                {previaItem.cpf} · {previaItem.datas.length === 1
+                  ? rotuloBR(previaItem.datas[0])
+                  : `${previaItem.datas.length} sessões, ${previaItem.datas.map((d) => d.slice(8, 10) + "/" + d.slice(5, 7)).join(", ")}`}
+              </span>
+            </>
+          )}
         </div>
       )}
 
@@ -764,13 +880,14 @@ export function EmitirRecibos() {
           /* Recém-lançado. O destaque some sozinho em 5s — ver o `setTimeout` lá em cima. */
           const agora = novo?.chave === chave;
           return (
+            <div key={chave} style={s(`${i < grupos.length - 1 ? "border-bottom:1px solid var(--line);" : ""}`)}>
+            <div style={s("display:flex;align-items:center")}>
             <button
-              key={chave}
               ref={agora ? linhaNova : undefined}
               onClick={() => alternar(g)}
               className="m-focus m-hov-bg"
               aria-pressed={on}
-              style={s(`width:100%;display:flex;align-items:center;gap:14px;padding:13px 16px;border:none;${i < grupos.length - 1 ? "border-bottom:1px solid var(--line);" : ""}background:${agora ? "var(--primary-soft)" : "transparent"};transition:background var(--dur-base) var(--ease-out);cursor:pointer;text-align:left;font-family:inherit;color:inherit`)}
+              style={s(`flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:13px 16px;border:none;background:${agora ? "var(--primary-soft)" : "transparent"};transition:background var(--dur-base) var(--ease-out);cursor:pointer;text-align:left;font-family:inherit;color:inherit`)}
             >
               <span
                 aria-hidden
@@ -791,12 +908,32 @@ export function EmitirRecibos() {
                 )}
               </span>
               <span className="n" style={s("font-size:var(--t-label);color:var(--muted);flex:none")}>
-                {g.itens.length}
+                {g.itens.filter((x) => !foraDestaVez.has(x.id)).length}
               </span>
               <span className="n" style={s("width:104px;text-align:right;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink);flex:none")}>
-                {fmt(g.valor)}
+                {fmt(g.itens.filter((x) => !foraDestaVez.has(x.id)).reduce((a, x) => a + x.valor, 0))}
               </span>
             </button>
+            {/* ★ "Editar" na linha também (12/11/2026): no celular não há prévia, e é daqui que se
+                chega às sessões. No computador, o editor abre no cartão da prévia. */}
+            {on && (
+              <button
+                type="button"
+                onClick={() => setEditando(editando === chave ? null : chave)}
+                className="m-focus m-hov-bg"
+                aria-label={`Editar as sessões de ${g.nome}`}
+                style={s(`flex:none;margin-right:12px;height:28px;padding:0 10px;border-radius:var(--r-controle);border:1px solid ${editando === chave ? "var(--primary)" : "var(--border)"};background:var(--surface);cursor:pointer;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary)`)}
+              >
+                {editando === chave ? "Fechar" : "Editar"}
+              </button>
+            )}
+            </div>
+            {mobile && editando === chave && (
+              <div style={s("padding:4px 16px 14px")}>
+                <EditorDeSessoes grupo={g} fora={foraDestaVez} alternar={alternarSessao} pronto={() => setEditando(null)} />
+              </div>
+            )}
+            </div>
           );
         })}
         {/* ── QUEM FICOU SEM CPF (1C.10, 06 P0-6) ──
@@ -928,9 +1065,9 @@ export function EmitirRecibos() {
           )}
 
           <NovoPagamento
-            onLancado={(p) => {
-              /* Entra na hora (com o objeto do servidor)… */
-              if (p) inserir(p);
+            onLancado={(lancados) => {
+              /* Entra na hora (com o objeto do servidor)… Várias datas, várias linhas (12/11/2026). */
+              for (const p of lancados) inserir(p);
               /* …e a leitura de verdade confirma por baixo. As duas coisas, nesta ordem. */
               void carregar();
               /* ★ O SELO DO FISCAL NO RAIL (24/10/2026). Quem conta os recibos a emitir para ele é o

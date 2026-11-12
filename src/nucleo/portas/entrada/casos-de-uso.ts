@@ -821,6 +821,19 @@ export type LancarPagamentoAvulso = (
 /** Apaga um lançamento avulso — só enquanto ele não entrou num arquivo. */
 export type ExcluirPagamentoAvulso = (t: ContextoTenant, p: { id: string }) => Promise<void>;
 
+/**
+ * ★ TIRAR UMA SESSÃO DO RECIBO PARA SEMPRE (12/11/2026, a Regina): o paciente faltou e a sessão
+ * não pode entrar no recibo, nem no da tela, nem no automático. O avulso se apaga; o atendimento
+ * vira cancelado só na agenda da MAISA, sem tocar no Google (ver `RepositorioRecibos.sessaoNaoAconteceu`).
+ *
+ * `tirou: false` = nada mudou (já estava num recibo, ou não existe). `maisaAg` é a chave do
+ * atendimento, para a tela tirá-lo da agenda local.
+ */
+export type TirarDoRecibo = (
+  t: ContextoTenant,
+  p: { id: string; fonte: "atendimento" | "avulso" },
+) => Promise<{ tirou: boolean; maisaAg: string | null }>;
+
 /** O arquivo gerado, mais tudo que a tela precisa dizer sobre ele. */
 export type LoteDeRecibos = {
   loteId: string;

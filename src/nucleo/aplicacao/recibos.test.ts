@@ -20,7 +20,7 @@ import type {
 import type { CanalDeMensagens } from "../portas/saida/canal-mensagens";
 import type { ContextoTenant } from "../dominio/tenant";
 import {
-  criarDesligarReciboSaude, criarExcluirPagamentoAvulso, criarFecharLoteDeRecibos,
+  criarDesligarReciboSaude, criarExcluirPagamentoAvulso, criarFecharLoteDeRecibos, criarTirarDoRecibo,
   criarGerarLoteDeRecibos, criarLancarPagamentoAvulso, criarLerRecibosPendentes,
 } from "./recibos";
 
@@ -72,6 +72,7 @@ function recibosDe(pendentes: PagamentoAFaturar[]) {
   const abertos: { atendimentoIds: string[]; avulsoIds: string[]; competencia: string }[] = [];
   const lancados: unknown[] = [];
   const apagados: string[] = [];
+  const naoAconteceram: string[] = [];
   const repo: RepositorioRecibos = {
     async pendentes() { return pendentes; },
     async abrirLote(_t, p): Promise<LoteAberto | null> {
@@ -95,9 +96,10 @@ function recibosDe(pendentes: PagamentoAFaturar[]) {
       return { ...sessao(), id: "av1", fonte: "avulso", nome: p.nome, cpf: p.cpf, data: p.data, valor: p.valor };
     },
     async excluirAvulso(_t, id) { apagados.push(id); },
+    async sessaoNaoAconteceu(_t, id) { naoAconteceram.push(id); return id === "ja-em-recibo" ? null : { maisaAg: `ag-${id}` }; },
     async listarLotes(): Promise<LoteGravado[]> { return []; },
   };
-  return { repo, abertos, lancados, apagados };
+  return { repo, abertos, lancados, apagados, naoAconteceram };
 }
 
 describe("gerar o lote", () => {
@@ -227,6 +229,7 @@ function ambiente(p: {
       async destinatariosDoLote() { return p.destinatarios ?? []; },
       async lancarAvulso() { throw new Error("não usado neste teste"); },
       async excluirAvulso() {},
+      async sessaoNaoAconteceu() { return null; },
       async listarLotes() {
         const l = p.lote === undefined ? loteDeAgosto() : p.lote;
         return l ? [l] : [];
@@ -392,6 +395,7 @@ describe("desligar o Receita Saúde", () => {
       async destinatariosDoLote() { return []; },
       async lancarAvulso() { throw new Error("não usado neste teste"); },
       async excluirAvulso() {},
+      async sessaoNaoAconteceu() { return null; },
       async listarLotes() { return lotes; },
     };
     const fiscal: RepositorioFiscal = {
@@ -548,6 +552,36 @@ describe("lançar um pagamento avulso", () => {
     const { repo, apagados } = recibosDe([]);
     await criarExcluirPagamentoAvulso({ recibos: repo })(t, { id: "av1" });
     expect(apagados).toEqual(["av1"]);
+  });
+});
+
+describe("tirar uma sessão do recibo (12/11/2026, a Regina)", () => {
+  it("a sessão da agenda que não aconteceu vai para o repositório, e não é apagada", async () => {
+    const { repo, apagados, naoAconteceram } = recibosDe([]);
+    const r = await criarTirarDoRecibo({ recibos: repo })(t, { id: "at1", fonte: "atendimento" });
+    expect(r).toEqual({ tirou: true, maisaAg: "ag-at1" });
+    expect(naoAconteceram).toEqual(["at1"]);
+    expect(apagados).toEqual([]);
+  });
+
+  it("o lançamento à mão se apaga", async () => {
+    const { repo, apagados, naoAconteceram } = recibosDe([]);
+    const r = await criarTirarDoRecibo({ recibos: repo })(t, { id: "av1", fonte: "avulso" });
+    expect(r.tirou).toBe(true);
+    expect(apagados).toEqual(["av1"]);
+    expect(naoAconteceram).toEqual([]);
+  });
+
+  it("a sessão que já está num recibo não sai, e a resposta diz isso", async () => {
+    const { repo } = recibosDe([]);
+    const r = await criarTirarDoRecibo({ recibos: repo })(t, { id: "ja-em-recibo", fonte: "atendimento" });
+    expect(r).toEqual({ tirou: false, maisaAg: null });
+  });
+
+  it("recusa sem id e com fonte desconhecida", async () => {
+    const { repo } = recibosDe([]);
+    await expect(criarTirarDoRecibo({ recibos: repo })(t, { id: " ", fonte: "atendimento" })).rejects.toThrow();
+    await expect(criarTirarDoRecibo({ recibos: repo })(t, { id: "x", fonte: "outra" as "avulso" })).rejects.toThrow();
   });
 });
 

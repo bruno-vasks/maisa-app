@@ -208,6 +208,26 @@ export const recibosSupabase: RepositorioRecibos = {
     if (error) throw new Error(error.message);
   },
 
+  async sessaoNaoAconteceu(t: ContextoTenant, atendimentoId): Promise<{ maisaAg: string | null } | null> {
+    const supabase = clienteDoContexto(t);
+    /* Tudo no `where`, numa instrução só: entre ler e gravar cabe a emissão que prende a sessão.
+     * O `.select` devolve a linha mudada, e é a contagem dela que diz se aconteceu agora. */
+    const { data, error } = await supabase
+      .from("atendimentos")
+      .update({ situacao: "cancelado", cancelado_em: new Date().toISOString() })
+      .eq("tenant_id", t.tenantId)
+      .eq("id", atendimentoId)
+      .eq("situacao", "marcado")
+      .is("recibo_id", null)
+      .is("lote_recibo_id", null)
+      .select("maisa_ag");
+
+    if (faltaMigracao(error)) throw new Error(AVISO_018);
+    if (error) throw new Error(error.message);
+    const linha = (data ?? [])[0] as { maisa_ag: string | null } | undefined;
+    return linha ? { maisaAg: linha.maisa_ag ?? null } : null;
+  },
+
   async confirmarLote(t: ContextoTenant, loteId): Promise<boolean> {
     const supabase = clienteDoContexto(t);
     /* Só sai de `gerado`: confirmar duas vezes não muda nada, e confirmar um descartado

@@ -24,7 +24,7 @@ import { ENTRAR } from "@/ui/componentes/EstadoDeLeitura";
 import { escolhaFeita } from "@/ui/telas/DocumentoFiscal";
 import { cpfMascarado, cpfValido } from "@/nucleo/dominio/clientes";
 import { faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
-import { ULTIMO_DIA_DO_MES, mesQueOReciboFecha, proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
+import { ULTIMO_DIA_DO_MES, corteDoRecibo, mesQueOReciboFecha, proximoDiaDoRecibo } from "@/nucleo/dominio/recibo-automatico";
 import { OPCOES_RECIBOS_POR_MES, rotuloRecibosPorMes } from "@/nucleo/dominio/recibos-do-mes";
 import { NOME_NEGOCIO_MIN } from "@/nucleo/dominio/negocio";
 import { COMO_PAGA, type ComoPaga } from "@/nucleo/dominio/recebimentos";
@@ -33,7 +33,12 @@ import { mandarPixDoAtendimento } from "@/ui/componentes/Recebimentos";
 /* ───────────────────────────── tipos de bloco ───────────────────────────── */
 
 /** Sem `seed`, o item diz o próprio `icone` (ou fica sem); `feito` desenha o visto verde. */
-export type ItemLista = { id: string; nome: string; sub: string; seed?: string; icone?: string; feito?: boolean; onClick?: () => void };
+export type ItemLista = {
+  id: string; nome: string; sub: string; seed?: string; icone?: string; feito?: boolean; onClick?: () => void;
+  /** Um verbo à direita do item, em dois toques (o primeiro só pede "Confirmar"). Para o que não se
+   *  desfaz pela tela, como o "Não teve sessão" da ficha (12/11/2026). */
+  acao?: { label: string; confirmar: string; onClick: () => void | Promise<unknown> };
+};
 
 /** Campo editável da Gaveta. Sem botão "Salvar": grava a cada mudança, como os ajustes da MAISA
  *  já fazem. Um save que só pisca um check é exatamente o botão morto que este app evita. */
@@ -598,6 +603,38 @@ export function useDetalhe(id: string | null): Detalhe | null {
                 acao: { label: `Responder a ${primeiro}`, onClick: () => st.responderA(cli.telefone) },
               };
 
+    /* ── ★ AS SESSÕES SEM RECIBO, E O "NÃO TEVE SESSÃO" (12/11/2026, a Regina) ──
+     * A dica do "Dia do recibo" dizia "com as sessões de novembro", sem dizer quais: o paciente que
+     * faltou no dia 3 entrava no recibo e não havia onde tirar. Aqui aparecem as sessões dela que
+     * ainda não têm recibo, e cada uma sai pelo "Não teve sessão", que a cancela só na MAISA (sem
+     * Google, sem aviso ao paciente). A lista é a mesma leitura do selo do Fiscal (`recibosPendentes`). */
+    const semRecibo = emiteRecibo
+      ? (st.recibosPendentes ?? []).filter((x) => x.clienteId === cli.id).sort((a, b) => a.data.localeCompare(b.data))
+      : [];
+    const proximoRecibo = cli.diaRecibo != null ? proximoDiaDoRecibo(cli.diaRecibo, D.HOJE.iso) : null;
+    const corteDoProximo = cli.diaRecibo != null && proximoRecibo ? corteDoRecibo(cli.diaRecibo, proximoRecibo) : null;
+    const blocoSessoesSemRecibo: Bloco[] = semRecibo.length
+      ? [{
+        tipo: "lista", key: "sem-recibo",
+        label: proximoRecibo ? `No recibo de ${D.rotuloDia(proximoRecibo)}` : "Sessões sem recibo",
+        itens: semRecibo.map((x) => {
+          const quando = `${x.data.slice(8, 10)}/${x.data.slice(5, 7)}`;
+          const depois = corteDoProximo !== null && x.data >= corteDoProximo;
+          return {
+            id: `${x.fonte}:${x.id}`,
+            icone: "calendar",
+            nome: `${D.rotuloDia(x.data)} · ${fmt(x.valor)}`,
+            sub: depois ? "Fica para o recibo do mês seguinte" : x.fonte === "avulso" ? "Lançada à mão" : "Da agenda",
+            acao: {
+              label: "Não teve sessão",
+              confirmar: "Tirar do recibo",
+              onClick: () => st.tirarDoRecibo({ id: x.id, fonte: x.fonte, rotulo: quando }),
+            },
+          };
+        }),
+      }]
+      : [];
+
     return {
       titulo: cli.nome, seed: cli.id, faixa,
       sub: `${st.nomeServico(cli.servicoId)} · ${cli.canal} · desde ${cli.desde}`,
@@ -760,6 +797,7 @@ export function useDetalhe(id: string | null): Detalhe | null {
             },
           ],
         },
+        ...blocoSessoesSemRecibo,
         {
           /* `v_clientes` conta a competência corrente, ou seja, o mês de hoje (era `D.PERIODO`). */
           tipo: "stats", key: "mes", label: `Em ${D.rotuloDoMes(D.HOJE.iso)}`,

@@ -115,7 +115,7 @@ muda o comportamento da tela — procure o nome no store antes.
 | `/api/nf/cancelar` | POST | `sessaoOuDemo` | `CancelarNota` |
 | `/api/nf/pdf/[ref]` | GET | **capacidade** (`?a=`, HMAC da `ref`) | sem caso de uso: o PDF da nota que o modo simulado emite em homologação (15/10/2026). Sem sessão — quem baixa é a Evolution, para o aviso no WhatsApp. O inquilino sai da própria nota, nunca do request. Ver `saida/focus/nota-simulada.ts` |
 | `/api/recibos/lote` | POST · PATCH | `exigirSessao` | `GerarLoteDeRecibos` · `FecharLoteDeRecibos` — o CSV do Receita Saúde, para quem atende como pessoa física. `PATCH { avisar: true }` manda a notícia do recibo aos pacientes no WhatsApp: desde 27/10/2026 pela fila de envios, um de cada vez, a partir de logo depois da resposta (`naFila: true` na resposta); sem a migração 036, na hora, como antes |
-| `/api/recibos` | GET · POST · DELETE | `exigirSessao` | `LerRecibosPendentes` · `LancarPagamentoAvulso` · `ExcluirPagamentoAvulso` — o que vai no arquivo, e o pagamento que a agenda não pegou |
+| `/api/recibos` | GET · POST · DELETE | `exigirSessao` | `LerRecibosPendentes` · `LancarPagamentoAvulso` · `ExcluirPagamentoAvulso` · `TirarDoRecibo` — o que vai no arquivo, e o pagamento que a agenda não pegou. `DELETE ?id=…&fonte=atendimento` (12/11/2026): a sessão não aconteceu, vira cancelada só na MAISA (sem tocar no Google) e sai do recibo da tela e do automático; `status: "ja_em_recibo"` quando ela já estava num |
 
 ## Recebimentos — o cliente pagando o negócio (27/10/2026)
 

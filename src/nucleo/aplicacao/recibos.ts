@@ -20,7 +20,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import type {
-  DesligarReciboSaude, ExcluirPagamentoAvulso, FecharLoteDeRecibos, GerarLoteDeRecibos,
+  DesligarReciboSaude, ExcluirPagamentoAvulso, TirarDoRecibo, FecharLoteDeRecibos, GerarLoteDeRecibos,
   LancarPagamentoAvulso, LerRecibosPendentes, PagamentoPendente,
 } from "../portas/entrada/casos-de-uso";
 import type { PagamentoAFaturar, RepositorioRecibos } from "../portas/saida/repositorio-recibos";
@@ -298,6 +298,20 @@ export function criarExcluirPagamentoAvulso({ recibos }: Pick<DepsRecibo, "recib
   return async (t, p) => {
     if (!p.id?.trim()) throw new DadoInvalido("Diga qual lançamento.", "id");
     await recibos.excluirAvulso(t, p.id);
+  };
+}
+
+/** Ver `TirarDoRecibo`. O avulso some (é só um lançamento); o atendimento fica na história como cancelado. */
+export function criarTirarDoRecibo({ recibos }: Pick<DepsRecibo, "recibos">): TirarDoRecibo {
+  return async (t, p) => {
+    if (!p.id?.trim()) throw new DadoInvalido("Diga qual sessão.", "id");
+    if (p.fonte === "avulso") {
+      await recibos.excluirAvulso(t, p.id);
+      return { tirou: true, maisaAg: null };
+    }
+    if (p.fonte !== "atendimento") throw new DadoInvalido("Fonte desconhecida.", "fonte");
+    const r = await recibos.sessaoNaoAconteceu(t, p.id);
+    return { tirou: r !== null, maisaAg: r?.maisaAg ?? null };
   };
 }
 

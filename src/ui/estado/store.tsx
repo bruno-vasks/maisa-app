@@ -885,6 +885,14 @@ export type StoreValue = {
   /** A tela Fiscal avisa que lançou um recibo à mão: o store relê `/api/recibos` para o selo.
    *  Emitir e gravar ficha ele já vê sozinho. */
   recibosMudaram: () => void;
+  /** As sessões sem recibo, da mesma leitura do selo. A ficha do paciente mostra as dele (12/11/2026,
+   *  a Regina). `null` fora do caminho do recibo e antes da leitura. */
+  recibosPendentes: PagamentoPendente[] | null;
+  /** "Não teve sessão": a sessão sai do recibo da tela e do automático, sem tocar no Google. O
+   *  avulso se apaga. `true` = saiu. Ver `TirarDoRecibo`. */
+  tirarDoRecibo: (p: { id: string; fonte: "atendimento" | "avulso"; rotulo: string }) => Promise<boolean>;
+  /** Sobe 1 a cada sessão tirada pela ficha: a tela Fiscal relê a lista dela. */
+  recibosTirados: number;
 
   /* nota fiscal */
   notaDe: (clienteId: string) => D.Nota;
@@ -4189,6 +4197,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (noCaminhoDoRecibo) void lerRecibos(false);
   }, [noCaminhoDoRecibo, lerRecibos]);
 
+  const [recibosTirados, setRecibosTirados] = useState(0);
+  const tirarDoRecibo = useCallback(async (p: { id: string; fonte: "atendimento" | "avulso"; rotulo: string }): Promise<boolean> => {
+    try {
+      const r = await fetch(`/api/recibos?id=${encodeURIComponent(p.id)}&fonte=${p.fonte}`, { method: "DELETE" }).then((x) => x.json());
+      if (!r?.ok) { toast(r?.info ?? "Não consegui tirar a sessão do recibo."); return false; }
+      if (r.tirou === false) {
+        toast(`A sessão de ${p.rotulo} já está num recibo. Para tirar, cancele o recibo.`);
+        void lerRecibos(false);
+        return false;
+      }
+      /* Some da agenda local na hora, como no cancelar: virou `cancelado` na tabela. */
+      if (r.maisaAg) setAtendimentos((prev) => prev.filter((e) => e.ag !== r.maisaAg));
+      setRecibosLidos((prev) => prev?.filter((x) => x.id !== p.id) ?? prev);
+      setRecibosTirados((n) => n + 1);
+      void lerRecibos(false);
+      toast(`Sessão de ${p.rotulo} fora do recibo`);
+      return true;
+    } catch {
+      toast("Sem conexão com o servidor");
+      return false;
+    }
+  }, [lerRecibos]);
+
   const recibosAEmitir = useMemo(
     () => recibosParaOSelo({
       noCaminhoDoRecibo,
@@ -5043,7 +5074,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     filtroSvc, setFiltroSvc, filtroCli, setFiltroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram, recibosPendentes: recibosLidos, tirarDoRecibo, recibosTirados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     assistente: ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,
@@ -5076,7 +5107,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     filtroSvc, filtroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram, recibosLidos, tirarDoRecibo, recibosTirados,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,

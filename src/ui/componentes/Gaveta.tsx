@@ -12,7 +12,7 @@ import React, { useEffect, useRef } from "react";
 import { s, Btn, Icon, Monogram, Toggle, Chip, Field, Input, Select, Estado, toast } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { useStore } from "@/ui/estado/store";
-import { useDetalhe, type Acao, type AcaoDestrutiva, type Bloco, type Recibo as ReciboT, type Campo as CampoT } from "@/ui/detalhe";
+import { useDetalhe, type Acao, type AcaoDestrutiva, type Bloco, type ItemLista, type Recibo as ReciboT, type Campo as CampoT } from "@/ui/detalhe";
 
 /* ───────────────────────────── blocos ───────────────────────────── */
 
@@ -261,7 +261,11 @@ function Dias({ b }: { b: Extract<Bloco, { tipo: "dias" }> }) {
   );
 }
 
-function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed?: string; icone?: string; feito?: boolean; onClick?: () => void }[] }) {
+function Lista({ itens }: { itens: ItemLista[] }) {
+  /* O verbo à direita (`acao`) é em dois toques: o primeiro troca o rótulo por "Confirmar"; sair da
+   * gaveta, ou tocar em outro, esquece o pedido. */
+  const [pedido, setPedido] = React.useState<string | null>(null);
+  const [andando, setAndando] = React.useState<string | null>(null);
   return (
     <div style={s("display:flex;flex-direction:column;gap:2px")}>
       {itens.map((it) => {
@@ -283,6 +287,25 @@ function Lista({ itens }: { itens: { id: string; nome: string; sub: string; seed
               <span style={s("display:block;font-size:var(--t-label);color:var(--muted);margin-top:1px")}>{it.sub}</span>
             </span>
             {it.onClick && <Icon name="chevron-right" size={16} stroke="var(--muted)" />}
+            {it.acao && (() => {
+              const acao = it.acao;
+              const pedindo = pedido === it.id;
+              return (
+                <button
+                  type="button"
+                  disabled={andando === it.id}
+                  onClick={async () => {
+                    if (!pedindo) { setPedido(it.id); return; }
+                    setAndando(it.id);
+                    try { await acao.onClick(); } finally { setAndando(null); setPedido(null); }
+                  }}
+                  className="m-press m-focus"
+                  style={s(`flex:none;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);padding:6px 10px;border-radius:var(--r-controle);cursor:pointer;white-space:nowrap;border:1px solid ${pedindo ? "var(--danger)" : "var(--border)"};background:${pedindo ? "var(--danger)" : "var(--surface)"};color:${pedindo ? "#fff" : "var(--muted)"}`)}
+                >
+                  {andando === it.id ? "Tirando…" : pedindo ? acao.confirmar : acao.label}
+                </button>
+              );
+            })()}
           </>
         );
         const estilo = s("display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:var(--r-painel);width:100%;border:none;background:transparent");

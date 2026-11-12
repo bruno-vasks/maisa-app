@@ -9,6 +9,9 @@ import { falha } from "@/adaptadores/entrada/http/respostas";
 // GET    /api/recibos   → { pagamentos, total, semCpf }   o que vai no arquivo
 // POST   /api/recibos   → { …pagamento }                  lança um avulso
 // DELETE /api/recibos?id=…                                apaga um avulso
+// DELETE /api/recibos?id=…&fonte=atendimento → { tirou, maisaAg }
+//                                                          a sessão não aconteceu: sai do recibo
+//                                                          (12/11/2026, a Regina; `tirarDoRecibo`)
 //
 // ── ★ POR QUE ESTA ROTA EXISTE ──
 //
@@ -67,9 +70,15 @@ export async function DELETE(req: Request) {
   if (barrou(porteiro)) return porteiro.barrado;
 
   try {
-    const id = new URL(req.url).searchParams.get("id") ?? "";
-    await app.excluirPagamentoAvulso(porteiro.tenant, { id });
-    return NextResponse.json({ ok: true, status: "ok" });
+    const q = new URL(req.url).searchParams;
+    const id = q.get("id") ?? "";
+    /* Sem `fonte`, o pedido antigo: apagar um avulso. Com ela, `tirarDoRecibo` decide o caminho. */
+    if (!q.get("fonte")) {
+      await app.excluirPagamentoAvulso(porteiro.tenant, { id });
+      return NextResponse.json({ ok: true, status: "ok" });
+    }
+    const r = await app.tirarDoRecibo(porteiro.tenant, { id, fonte: q.get("fonte") as "atendimento" | "avulso" });
+    return NextResponse.json({ ok: true, status: r.tirou ? "ok" : "ja_em_recibo", ...r });
   } catch (e) {
     return falha("recibos", e);
   }

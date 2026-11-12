@@ -23,6 +23,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { s, Btn, Icon } from "@/ui/primitivos";
 import { useStore } from "@/ui/estado/store";
 import { cpfValido } from "@/nucleo/dominio/clientes";
+import { somarDias } from "@/nucleo/dominio/tempo";
 import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
 import { mensagemDaFalha } from "@/ui/falhas";
 
@@ -45,13 +46,15 @@ export const mascaraCpf = (v: string) =>
 export type Rascunho = {
   nome: string;
   cpf: string;
-  data: string;
+  /** ★ UMA OU MAIS DATAS (12/11/2026, a Regina): cada data vira um lançamento, com o mesmo paciente
+   *  e o mesmo valor. As do mesmo mês, de quem tem ficha, saem num recibo só (`juntarEmRecibos`). */
+  datas: string[];
   valor: string;
   cpfPagador: string;
   clienteId: string;
 };
 
-const VAZIO = (): Rascunho => ({ nome: "", cpf: "", data: hojeSP(), valor: "", cpfPagador: "", clienteId: "" });
+const VAZIO = (): Rascunho => ({ nome: "", cpf: "", datas: [hojeSP()], valor: "", cpfPagador: "", clienteId: "" });
 
 /**
  * O que falta, na ordem em que se resolve. Vazio = pode lançar.
@@ -73,6 +76,9 @@ export function faltaDoLancamento(r: Rascunho): string {
   if (!cpfValido(cpf)) return "um CPF válido — esse não fecha, confira os dígitos";
   if (pagador && !cpfValido(pagador)) return "um CPF válido de quem pagou";
   if (!(valor > 0)) return "o valor recebido";
+  if (!r.datas.length || r.datas.some((d) => !d)) return "o dia da sessão";
+  if (new Set(r.datas).size < r.datas.length) return "dias diferentes: tem um dia repetido";
+  if (r.datas.some((d) => d > hojeSP())) return "dias que já passaram";
   return "";
 }
 
@@ -105,7 +111,7 @@ export function lancaveis<T extends { teste?: boolean }>(clientes: T[]): T[] {
   return clientes.filter((c) => !c.teste);
 }
 
-export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: PagamentoPendente) => void; rotulo?: string }) {
+export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancados: PagamentoPendente[]) => void; rotulo?: string }) {
   const st = useStore();
   /* Ver `lancaveis`: cliente de teste no seletor é lançamento que some. */
   const clientes = useMemo(() => lancaveis(st.cadastro.clientes), [st.cadastro.clientes]);
@@ -135,40 +141,62 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
   const falta = faltaDoLancamento(r);
   const digitosCpf = r.cpf.replace(/\D/g, "");
 
+  /* ★ UMA DATA, UM POST, EM SÉRIE (12/11/2026). A rota lança um pagamento por vez, e cada um é
+   * conferido lá (data no futuro, CPF). Em série para, numa falha no meio, saber exatamente quais
+   * entraram: os que entraram vão para a lista, e o formulário fica aberto só com os que faltam. */
   const lancar = async () => {
     setOcupado(true);
     setErro(null);
+    const feitos: PagamentoPendente[] = [];
+    const datasFeitas: string[] = [];
     try {
-      const resp = await fetch("/api/recibos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome: r.nome,
-          cpf: r.cpf,
-          data: r.data,
-          cpfPagador: r.cpfPagador,
-          /* Vazio vira `null` na rota: lançamento de quem não é cadastro é caso de primeira
-           * classe, não erro de preenchimento. */
-          clienteId: r.clienteId || null,
-          /* Vírgula vira ponto AQUI, e não no servidor: quem digita "250,50" está certo, e a rota
-           * recusa NaN de propósito em vez de gravar 250. */
-          valor: Number(r.valor.replace(",", ".")),
-        }),
-      }).then((x) => x.json());
-      if (!resp?.ok) throw new Error(mensagemDaFalha(resp, "Não consegui lançar."));
+      for (const data of [...r.datas].sort()) {
+        const resp = await fetch("/api/recibos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: r.nome,
+            cpf: r.cpf,
+            data,
+            cpfPagador: r.cpfPagador,
+            /* Vazio vira `null` na rota: lançamento de quem não é cadastro é caso de primeira
+             * classe, não erro de preenchimento. */
+            clienteId: r.clienteId || null,
+            /* Vírgula vira ponto AQUI, e não no servidor: quem digita "250,50" está certo, e a rota
+             * recusa NaN de propósito em vez de gravar 250. */
+            valor: Number(r.valor.replace(",", ".")),
+          }),
+        }).then((x) => x.json());
+        if (!resp?.ok) {
+          throw new Error(`${data.slice(8, 10)}/${data.slice(5, 7)}: ${mensagemDaFalha(resp, "não consegui lançar.")}`);
+        }
+        if (resp.pagamento) feitos.push(resp.pagamento as PagamentoPendente);
+        datasFeitas.push(data);
+      }
       const nome = r.nome.trim();
       setR(VAZIO());
       setAbrindo(false);
-      setUltimo(nome);
-      /* A linha criada vai junto: quem chama põe na lista agora e confere com o servidor depois.
-       * Ver o comentário da assinatura. */
-      onLancado(resp.pagamento as PagamentoPendente | undefined);
+      setUltimo(datasFeitas.length > 1 ? `${nome}, ${datasFeitas.length} sessões,` : nome);
     } catch (e) {
+      /* O que entrou não se lança de novo: sai do rascunho, e fica só o que falta. */
+      setR((a) => ({ ...a, datas: a.datas.filter((d) => !datasFeitas.includes(d)) }));
       setErro(e instanceof Error ? e.message : "Não consegui lançar.");
     } finally {
       setOcupado(false);
+      /* As linhas criadas vão junto: quem chama põe na lista agora e confere com o servidor
+       * depois. Ver o comentário da assinatura. Também na falha do meio: o que entrou, entrou. */
+      if (datasFeitas.length) onLancado(feitos);
     }
   };
+
+  const mudarData = (i: number, v: string) => setR((a) => ({ ...a, datas: a.datas.map((d, j) => (j === i ? v : d)) }));
+  const tirarData = (i: number) => setR((a) => ({ ...a, datas: a.datas.filter((_, j) => j !== i) }));
+  /* A data nova sugere a semana seguinte à última, que é o ritmo da terapia; se cair no futuro, vazia. */
+  const outraData = () => setR((a) => {
+    const ultima = [...a.datas].filter(Boolean).sort().pop();
+    const sugestao = ultima ? somarDias(ultima, 7) : hojeSP();
+    return { ...a, datas: [...a.datas, sugestao <= hojeSP() && !a.datas.includes(sugestao) ? sugestao : ""] };
+  });
 
   if (!abrindo) {
     return (
@@ -227,14 +255,55 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
           CPF de quem foi atendido
           <input value={r.cpf} onChange={(e) => põe("cpf", mascaraCpf(e.target.value))} inputMode="numeric" placeholder="Escreva o CPF…" className="n m-focus" style={s(CAMPO)} />
         </label>
-        <label style={s(`${ROTULO};flex:1;min-width:130px`)}>
-          Dia da sessão
-          <input value={r.data} onChange={(e) => põe("data", e.target.value)} type="date" max={hojeSP()} className="n m-focus" style={s(CAMPO)} />
-        </label>
         <label style={s(`${ROTULO};flex:1;min-width:90px`)}>
-          Valor, em reais
+          {r.datas.length > 1 ? "Valor de cada sessão" : "Valor, em reais"}
           <input value={r.valor} onChange={(e) => põe("valor", e.target.value)} inputMode="decimal" placeholder="Escreva o valor…" className="n m-focus" style={s(CAMPO)} />
         </label>
+      </div>
+
+      {/* ★ MAIS DE UMA DATA (12/11/2026, a Regina): o mês inteiro de um paciente num lançamento só. */}
+      <div style={s(ROTULO)}>
+        {r.datas.length > 1 ? "Dias das sessões" : "Dia da sessão"}
+        <div style={s("display:flex;gap:7px;flex-wrap:wrap;align-items:center")}>
+          {r.datas.map((d, i) => (
+            <span key={i} style={s("display:flex;align-items:center;gap:4px")}>
+              <input
+                value={d}
+                onChange={(e) => mudarData(i, e.target.value)}
+                type="date"
+                max={hojeSP()}
+                aria-label={`Dia da sessão ${i + 1}`}
+                className="n m-focus"
+                style={s(`${CAMPO};width:auto`)}
+              />
+              {r.datas.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => tirarData(i)}
+                  aria-label="Tirar esta data"
+                  className="m-focus m-hov-bg"
+                  style={s("width:26px;height:26px;border-radius:var(--r-controle);border:none;background:transparent;cursor:pointer;display:grid;place-items:center;color:var(--muted)")}
+                >
+                  <Icon name="x" size={14} />
+                </button>
+              )}
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={outraData}
+            className="m-focus"
+            style={s("display:flex;align-items:center;gap:5px;padding:8px 10px;border-radius:var(--r-controle);border:1px dashed var(--border);background:transparent;cursor:pointer;font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary)")}
+          >
+            <Icon name="plus" size={13} />
+            Outra data
+          </button>
+        </div>
+        {r.datas.length > 1 && !r.clienteId && (
+          <span style={s("color:var(--muted)")}>
+            Sem ficha, cada data vira um recibo. Escolha a pessoa na lista de cima para juntar as do mês num recibo só.
+          </span>
+        )}
       </div>
 
       {digitosCpf.length === 11 && !cpfValido(digitosCpf) && (
@@ -267,7 +336,7 @@ export function NovoPagamento({ onLancado, rotulo }: { onLancado: (lancado?: Pag
           style={s(`display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:var(--r-controle);border:none;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:var(--t-sm);font-weight:var(--w-title);cursor:${ocupado || falta ? "default" : "pointer"};opacity:${ocupado || falta ? 0.5 : 1}`)}
         >
           <Icon name="check" size={14} stroke="var(--on-primary)" />
-          {ocupado ? "Lançando…" : "Lançar"}
+          {ocupado ? "Lançando…" : r.datas.length > 1 ? `Lançar ${r.datas.length} sessões` : "Lançar"}
         </button>
         <button
           onClick={() => { setAbrindo(false); setErro(null); setR(VAZIO()); }}

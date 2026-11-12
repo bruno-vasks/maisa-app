@@ -168,7 +168,7 @@ import { emissorReciboRebots } from "@/adaptadores/saida/rebots/emissor-recibo";
 import { emissorReciboDemo } from "@/adaptadores/saida/demo/emissor-recibo";
 import { isRebotsConfigured } from "@/adaptadores/saida/rebots/config";
 import {
-  criarDesligarReciboSaude, criarExcluirPagamentoAvulso, criarFecharLoteDeRecibos,
+  criarDesligarReciboSaude, criarExcluirPagamentoAvulso, criarTirarDoRecibo, criarFecharLoteDeRecibos,
   criarGerarLoteDeRecibos, criarLancarPagamentoAvulso, criarLerRecibosPendentes,
 } from "@/nucleo/aplicacao/recibos";
 import {
@@ -883,6 +883,7 @@ export const app = {
   lerRecibosPendentes: criarLerRecibosPendentes({ recibos: recibosRepo, livro: livroRecibos }),
   lancarPagamentoAvulso: criarLancarPagamentoAvulso({ recibos: recibosRepo, fiscal: fiscalRepo }),
   excluirPagamentoAvulso: criarExcluirPagamentoAvulso({ recibos: recibosRepo }),
+  tirarDoRecibo: criarTirarDoRecibo({ recibos: recibosRepo }),
 
   /* ★ A EMISSÃO UNITÁRIA, finalmente ligada. Ela existia com teste e sem rota desde 24/08/2026 —
    * e foi justamente por não ser exercitada de ponta a ponta que cinco defeitos do adaptador da

@@ -26,7 +26,7 @@ import { faltaDoLancamento, lancaveis, mascaraCpf, type Rascunho } from "./NovoP
 const bom = (over: Partial<Rascunho> = {}): Rascunho => ({
   nome: "Patrícia Mendes",
   cpf: "545.739.088-89",
-  data: "2026-08-20",
+  datas: ["2026-08-20"],
   valor: "250",
   cpfPagador: "",
   clienteId: "",
@@ -34,6 +34,18 @@ const bom = (over: Partial<Rascunho> = {}): Rascunho => ({
 });
 
 describe("faltaDoLancamento", () => {
+  /* ★ VÁRIAS DATAS NUM LANÇAMENTO (12/11/2026, a Regina). */
+  it("aceita mais de uma data", () => {
+    expect(faltaDoLancamento(bom({ datas: ["2026-08-06", "2026-08-13", "2026-08-20"] }))).toBe("");
+  });
+
+  it("data vazia, repetida ou no futuro trava o botão", () => {
+    expect(faltaDoLancamento(bom({ datas: [] }))).toContain("dia");
+    expect(faltaDoLancamento(bom({ datas: ["2026-08-06", ""] }))).toContain("dia");
+    expect(faltaDoLancamento(bom({ datas: ["2026-08-06", "2026-08-06"] }))).toContain("repetido");
+    expect(faltaDoLancamento(bom({ datas: ["2026-08-06", "2999-01-01"] }))).toContain("já passaram");
+  });
+
   it("lançamento completo não falta nada", () => {
     expect(faltaDoLancamento(bom())).toBe("");
   });

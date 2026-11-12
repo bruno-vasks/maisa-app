@@ -161,6 +161,14 @@ export const recibosDemo: RepositorioRecibos = {
     pendentes = pendentes.filter((x) => !(x.id === id && x.fonte === "avulso"));
   },
 
+  async sessaoNaoAconteceu(_t, atendimentoId): Promise<{ maisaAg: string | null } | null> {
+    /* Só o que está na lista, como `excluirAvulso`: fora dela já está num recibo ou não existe. */
+    const achou = pendentes.some((x) => x.id === atendimentoId && x.fonte === "atendimento");
+    if (!achou) return null;
+    pendentes = pendentes.filter((x) => !(x.id === atendimentoId && x.fonte === "atendimento"));
+    return { maisaAg: null };
+  },
+
   async listarLotes(): Promise<LoteGravado[]> {
     return [...lotes];
   },
