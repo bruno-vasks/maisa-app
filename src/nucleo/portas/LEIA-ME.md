@@ -40,6 +40,7 @@ um modelo de linguagem precisa conseguir preencher isso em JSON.
 | `provedor-de-recebimentos.ts` | `ProvedorDeRecebimentos` (27/10/2026, a opção B, **atrás de flag**): a subconta no nome do profissional (o Asaas), a cobrança com página de Pix, boleto e cartão, e a tradução do aviso de pagamento. Recebe o negócio, nunca a chave: quem acha a chave é o adaptador, no cofre. `disponivel()` falso = a opção B não existe | `adaptadores/saida/asaas` · `demo` (desligado) |
 | `cofre-de-recebimentos.ts` | `CofreDeRecebimentos` (27/10/2026): a subconta guardada, com a chave dela. ⚠️ **Quem usa é o adaptador do provedor, nunca o núcleo**: mora aqui só para o Asaas e o banco se encontrarem em `composicao.ts` sem um importar o outro. `negocioDoToken` não tem `ContextoTenant`: o aviso chega sem sessão, e o hash do token diz de quem é | `adaptadores/saida/supabase` (Vault, 039) · `demo` |
 | `livro-de-recibos.ts` | `LivroDeRecibos`: a claim do recibo unitário. Desde 01/10/2026 `abrir` recebe `itens` (uma ou várias sessões, tudo ou nada) e `destinatario` devolve `sessoes` | `adaptadores/saida/supabase` · `demo` |
+| `repositorio-adiantamentos.ts` | `RepositorioAdiantamentos`: pagou adiantado, o crédito de sessões (12/11/2026, a Regina, migração 042). `criar` grava o crédito de um pagamento avulso que já existe; `listar` devolve cada crédito com as sessões que ele cobre. ⚠️ Quais sessões o crédito cobre é **derivado no banco** (`v_sessoes_adiantadas`), nunca gravado: cancelar uma passa o crédito para a seguinte. |
 
 ## Duas decisões que valem explicação
 

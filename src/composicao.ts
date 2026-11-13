@@ -156,7 +156,9 @@ import { cadastroDemo, fiscalDemo } from "@/adaptadores/saida/demo/fiscal";
 import { notasSupabase } from "@/adaptadores/saida/supabase/notas";
 import { notasDemo } from "@/adaptadores/saida/demo/notas";
 import { recibosSupabase } from "@/adaptadores/saida/supabase/recibos";
-import { recibosDemo } from "@/adaptadores/saida/demo/recibos";
+import { adiantamentosDemo, recibosDemo } from "@/adaptadores/saida/demo/recibos";
+import { adiantamentosSupabase } from "@/adaptadores/saida/supabase/adiantamentos";
+import { criarLancarAdiantamento, criarListarAdiantamentos } from "@/nucleo/aplicacao/adiantamentos";
 import { livroDeRecibosSupabase } from "@/adaptadores/saida/supabase/livro-de-recibos";
 import { livroDeRecibosDemo } from "@/adaptadores/saida/demo/livro-de-recibos";
 import { guardaDeComprovanteSupabase } from "@/adaptadores/saida/supabase/guarda-de-comprovante";
@@ -225,6 +227,8 @@ const notasRepo = isSupabaseConfigured ? notasSupabase : notasDemo;
 /* O lote do Receita Saúde. Repositório próprio e não método de `notasRepo`: o documento é
  * outro, a unidade é a sessão (não o cliente) e quem emite é a profissional, no e-CAC. */
 const recibosRepo = isSupabaseConfigured ? recibosSupabase : recibosDemo;
+/** Pagou adiantado (042, 12/11/2026): o crédito de sessões. Segue o banco, como os recibos. */
+const adiantamentosRepo = isSupabaseConfigured ? adiantamentosSupabase : adiantamentosDemo;
 
 /* O livro-razão da emissão unitária, a guarda do PDF e o canal. */
 const livroRecibos = isSupabaseConfigured ? livroDeRecibosSupabase : livroDeRecibosDemo;
@@ -882,6 +886,12 @@ export const app = {
    * maioria dos pagamentos, não todos — e o recibo é obrigatório igual. */
   lerRecibosPendentes: criarLerRecibosPendentes({ recibos: recibosRepo, livro: livroRecibos }),
   lancarPagamentoAvulso: criarLancarPagamentoAvulso({ recibos: recibosRepo, fiscal: fiscalRepo }),
+  lancarAdiantamento: criarLancarAdiantamento({
+    lancarAvulso: criarLancarPagamentoAvulso({ recibos: recibosRepo, fiscal: fiscalRepo }),
+    recibos: recibosRepo,
+    adiantamentos: adiantamentosRepo,
+  }),
+  listarAdiantamentos: criarListarAdiantamentos({ adiantamentos: adiantamentosRepo }),
   excluirPagamentoAvulso: criarExcluirPagamentoAvulso({ recibos: recibosRepo }),
   tirarDoRecibo: criarTirarDoRecibo({ recibos: recibosRepo }),
 

@@ -27,6 +27,7 @@ import { chaveDe, type ModoDoNumero } from "@/nucleo/dominio/contatos";
 import type { CaminhoFiscal, ConfigFiscal } from "@/nucleo/dominio/fiscal";
 import type { Faq } from "@/nucleo/dominio/faq";
 import type { Faturamento, PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
+import type { Adiantamento } from "@/nucleo/portas/saida/repositorio-adiantamentos";
 /* Direto do arquivo, e não do barril `@/nucleo/dominio`: o barril não reexporta
  * `assinatura` (e o `PLANOS` dele colidiria de nome com o de `_lib/planos.ts`, que é
  * outra coisa — lá são os planos exibidos na LP, aqui são as chaves). */
@@ -893,6 +894,11 @@ export type StoreValue = {
   tirarDoRecibo: (p: { id: string; fonte: "atendimento" | "avulso"; rotulo: string }) => Promise<boolean>;
   /** Sobe 1 a cada sessão tirada pela ficha: a tela Fiscal relê a lista dela. */
   recibosTirados: number;
+  /** Pagou adiantado (042, 12/11/2026): os créditos de sessões, com as sessões que cada um cobre.
+   *  `null` fora do caminho do recibo, antes da leitura, e num banco sem a 042 (o bloco não aparece). */
+  adiantamentos: Adiantamento[] | null;
+  /** Lança o pagamento adiantado e o crédito, e emite o recibo do pagamento na hora. `true` = lançou. */
+  lancarAdiantamento: (p: { clienteId: string; nome: string; cpf: string; sessoes: number; valor: number; data: string }) => Promise<boolean>;
 
   /* nota fiscal */
   notaDe: (clienteId: string) => D.Nota;
@@ -4220,6 +4226,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [lerRecibos]);
 
+  /* ── PAGOU ADIANTADO (042, 12/11/2026) ──
+   * Lido junto com a lista dos recibos, nos mesmos momentos: emitir e tirar sessão mudam o que cada
+   * crédito cobre. Falhou (banco sem a 042): `null`, e a ficha não oferece o que o banco recusaria. */
+  const [adiantamentos, setAdiantamentos] = useState<Adiantamento[] | null>(null);
+  const lerAdiantamentos = useCallback(async () => {
+    try {
+      const r = await fetch("/api/adiantamentos", { cache: "no-store", signal: AbortSignal.timeout(15_000) }).then((x) => x.json());
+      setAdiantamentos(r?.ok && Array.isArray(r.adiantamentos) ? (r.adiantamentos as Adiantamento[]) : null);
+    } catch {
+      setAdiantamentos(null);
+    }
+  }, []);
+  useEffect(() => {
+    if (!noCaminhoDoRecibo) { setAdiantamentos(null); return; }
+    void lerAdiantamentos();
+  }, [noCaminhoDoRecibo, emissoesFeitas, recibosTirados, lerAdiantamentos]);
+
+  const lancarAdiantamento = useCallback(async (p: { clienteId: string; nome: string; cpf: string; sessoes: number; valor: number; data: string }): Promise<boolean> => {
+    try {
+      const r = await fetch("/api/adiantamentos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(p),
+      }).then((x) => x.json());
+      if (!r?.ok || !r.pagamento?.id) { toast(r?.info ?? "Não consegui lançar o pagamento adiantado."); return false; }
+      void lerAdiantamentos();
+      void lerRecibos(false);
+      /* O recibo sai agora, pelo caminho do "Emitir" (o placar no canto da tela). Se a emissão falhar,
+       * o pagamento fica na fila do Fiscal, como qualquer outro. */
+      void emitirRecibos([{ itens: [{ fonte: "avulso", id: String(r.pagamento.id) }], nome: p.nome }]);
+      return true;
+    } catch {
+      toast("Sem conexão com o servidor");
+      return false;
+    }
+  }, [lerAdiantamentos, lerRecibos, emitirRecibos]);
+
   const recibosAEmitir = useMemo(
     () => recibosParaOSelo({
       noCaminhoDoRecibo,
@@ -5074,7 +5117,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     filtroSvc, setFiltroSvc, filtroCli, setFiltroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram, recibosPendentes: recibosLidos, tirarDoRecibo, recibosTirados,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram, recibosPendentes: recibosLidos, tirarDoRecibo, recibosTirados, adiantamentos, lancarAdiantamento,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     assistente: ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,
@@ -5107,7 +5150,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     filtroSvc, filtroCli,
     fiscal, aplicarFiscal, recarregarFiscal,
     assinatura, recarregarAssinatura, assinarPlano, abrirPortalDeCobranca, cobrancaOcupada,
-    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram, recibosLidos, tirarDoRecibo, recibosTirados,
+    emissao, emitirRecibos, fecharEmissao, emissoesFeitas, clientesGravados, recibosAEmitir, recibosMudaram, recibosLidos, tirarDoRecibo, recibosTirados, adiantamentos, lancarAdiantamento,
     notaDe, emitirNota, emitirPendentes, cancelarNota, fechamento, mesDoFechamento, emitiveis,
     loteAberto, pedirLote, fecharLote, confirmarLote,
     ajustes.assistente, setAssistente, ajustesErro, recarregarAjustes, ajustesPrecisaEntrar, ajustesCarregados, setNomeDoNegocio, trocarFotoDoNegocio, fotoOcupada,

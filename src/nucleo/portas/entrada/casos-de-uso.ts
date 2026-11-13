@@ -34,6 +34,7 @@ import type {
 import type { AjustesDaAssistente, AjustesParciais } from "../saida/repositorio-assistente";
 import type { Canal, Pareamento } from "../../dominio/canal";
 import type { DesfechoDeRecibo } from "../../dominio/recibo-unitario";
+import type { Adiantamento } from "../saida/repositorio-adiantamentos";
 import type { SemanaAnunciada } from "../../dominio/horarios";
 import type {
   AFaturar, AmbienteFiscal, CadastroDoCnpj, CaminhoFiscal, ConfigFiscal, NotaGravada,
@@ -820,6 +821,19 @@ export type LancarPagamentoAvulso = (
 
 /** Apaga um lançamento avulso — só enquanto ele não entrou num arquivo. */
 export type ExcluirPagamentoAvulso = (t: ContextoTenant, p: { id: string }) => Promise<void>;
+
+/**
+ * ★ PAGOU ADIANTADO (12/11/2026, a Regina): o paciente paga N sessões antes. Lança o pagamento avulso
+ * (com a data do pagamento, que é a do recibo) e o crédito, que tira as próximas N sessões de
+ * qualquer outro recibo e do Pix. Ver `RepositorioAdiantamentos`.
+ */
+export type LancarAdiantamento = (
+  t: ContextoTenant,
+  p: { clienteId: string; nome: string; cpf: string; cpfPagador?: string | null; sessoes: number; valor: number; data: string },
+) => Promise<{ adiantamentoId: string; pagamento: PagamentoPendente }>;
+
+/** Os créditos de sessões do negócio, com as sessões que cada um cobre. */
+export type ListarAdiantamentos = (t: ContextoTenant) => Promise<Adiantamento[]>;
 
 /**
  * ★ TIRAR UMA SESSÃO DO RECIBO PARA SEMPRE (12/11/2026, a Regina): o paciente faltou e a sessão

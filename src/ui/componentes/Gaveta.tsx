@@ -12,6 +12,7 @@ import React, { useEffect, useRef } from "react";
 import { s, Btn, Icon, Monogram, Toggle, Chip, Field, Input, Select, Estado, toast } from "@/ui/primitivos";
 import { useIsMobile } from "@/ui/useIsMobile";
 import { useStore } from "@/ui/estado/store";
+import { PagouAdiantado } from "@/ui/componentes/PagouAdiantado";
 import { useDetalhe, type Acao, type AcaoDestrutiva, type Bloco, type ItemLista, type Recibo as ReciboT, type Campo as CampoT } from "@/ui/detalhe";
 
 /* ───────────────────────────── blocos ───────────────────────────── */
@@ -371,6 +372,7 @@ function RenderBloco({ b }: { b: Bloco }) {
       case "recibo": return <Recibo r={b.recibo} />;
       case "lista": return <Lista itens={b.itens} />;
       case "foto": return <Foto b={b} />;
+      case "adiantado": return <PagouAdiantado clienteId={b.clienteId} nome={b.nome} cpf={b.cpf} valorSessao={b.valorSessao} />;
     }
   })();
   const label = b.tipo === "aviso" || b.tipo === "nota" || b.tipo === "foto" ? undefined : b.label;

@@ -16,6 +16,8 @@ import type {
   RepositorioRecibos,
 } from "@/nucleo/portas/saida/repositorio-recibos";
 import { CLIENTES } from "./clientes";
+import { pagamentosPresosNoDemo } from "./livro-de-recibos";
+import type { Adiantamento, RepositorioAdiantamentos } from "@/nucleo/portas/saida/repositorio-adiantamentos";
 
 /** Telefone por cliente, para o aviso. Avulso sem cadastro não acha nada aqui — e é o ponto. */
 const TELEFONE_POR_CLIENTE = new Map(CLIENTES.map((c) => [c.id, c.telefone]));
@@ -62,10 +64,69 @@ const presos = new Map<string, PagamentoAFaturar[]>();
 let lotes: LoteGravado[] = [];
 let sequencia = 0;
 
+/* ── PAGOU ADIANTADO, NO DEMO (12/11/2026) ──
+ * O crédito mora aqui, ao lado da lista, porque a cobertura é calculada SOBRE a lista: a mesma regra
+ * da `v_sessoes_adiantadas` (042), em memória. */
+type CreditoDemo = { id: string; clienteId: string; pagamentoId: string; sessoes: number; aPartirDe: string; pagoEm: string; valor: number; ordem: number };
+let creditos: CreditoDemo[] = [];
+
+/** Atendimento → crédito que o cobre. As sessões da pessoa a partir do primeiro crédito, em ordem;
+ *  os créditos, em ordem, viram faixas (1 a 4, 5 a 14…). */
+function coberturaDemo(): Map<string, string> {
+  const mapa = new Map<string, string>();
+  const porCliente = new Map<string, CreditoDemo[]>();
+  for (const c of creditos) porCliente.set(c.clienteId, [...(porCliente.get(c.clienteId) ?? []), c]);
+  for (const [clienteId, lista] of porCliente) {
+    const ordem = [...lista].sort((a, b) => a.aPartirDe.localeCompare(b.aPartirDe) || a.ordem - b.ordem);
+    const desde = ordem[0].aPartirDe;
+    const sessoes = pendentes
+      .filter((x) => x.fonte === "atendimento" && x.clienteId === clienteId && x.data >= desde)
+      .sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id));
+    let i = 0;
+    for (const c of ordem) {
+      for (let k = 0; k < c.sessoes && i < sessoes.length; k++, i++) mapa.set(sessoes[i].id, c.id);
+    }
+  }
+  return mapa;
+}
+
+export const adiantamentosDemo: RepositorioAdiantamentos = {
+  async criar(_t, p) {
+    const pagamento = pendentes.find((x) => x.id === p.pagamentoId);
+    const id = `adi-demo-${++sequencia}`;
+    creditos = [...creditos, {
+      id, clienteId: p.clienteId, pagamentoId: p.pagamentoId, sessoes: p.sessoes, aPartirDe: p.aPartirDe,
+      pagoEm: pagamento?.data ?? p.aPartirDe, valor: pagamento?.valor ?? 0, ordem: sequencia,
+    }];
+    return { id };
+  },
+  async listar(): Promise<Adiantamento[]> {
+    const cobre = coberturaDemo();
+    const presos = new Set(pagamentosPresosNoDemo());
+    return [...creditos].reverse().map((c) => ({
+      id: c.id,
+      clienteId: c.clienteId,
+      pagamentoId: c.pagamentoId,
+      pagoEm: c.pagoEm,
+      valor: c.valor,
+      sessoes: c.sessoes,
+      aPartirDe: c.aPartirDe,
+      comRecibo: presos.has(c.pagamentoId) || !pendentes.some((x) => x.id === c.pagamentoId),
+      cobertas: pendentes
+        .filter((x) => cobre.get(x.id) === c.id)
+        .sort((a, b) => a.data.localeCompare(b.data))
+        .map((x) => ({ atendimentoId: x.id, data: x.data })),
+    }));
+  },
+};
+
 export const recibosDemo: RepositorioRecibos = {
   async pendentes(_t, p): Promise<PagamentoAFaturar[]> {
+    /* Fora: o que o crédito cobre (042) e o que a emissão do demo já prendeu. */
+    const cobre = coberturaDemo();
+    const presos = new Set(pagamentosPresosNoDemo());
     return pendentes
-      .filter((x) => x.data <= p.ate)
+      .filter((x) => x.data <= p.ate && !cobre.has(x.id) && !presos.has(x.id))
       .sort((a, b) => a.data.localeCompare(b.data));
   },
 

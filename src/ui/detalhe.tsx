@@ -91,7 +91,9 @@ export type Bloco =
   | { tipo: "lista"; key: string; label?: string; itens: ItemLista[] }
   /** A foto de perfil com "Trocar" e "Remover" (a gaveta "Seu negócio"). `remover: null` = não
    *  há foto, e o botão não aparece. */
-  | { tipo: "foto"; key: string; nome: string; seed: string; foto: string | null; ocupada: boolean; trocar: (arquivo: File) => void; remover: (() => void) | null };
+  | { tipo: "foto"; key: string; nome: string; seed: string; foto: string | null; ocupada: boolean; trocar: (arquivo: File) => void; remover: (() => void) | null }
+  /** Pagou adiantado (12/11/2026): os créditos de sessões da pessoa e o formulário. Ver `PagouAdiantado`. */
+  | { tipo: "adiantado"; key: string; label?: string; clienteId: string; nome: string; cpf: string; valorSessao: number };
 
 export type Recibo = {
   prestador: string;
@@ -798,6 +800,15 @@ export function useDetalhe(id: string | null): Detalhe | null {
           ],
         },
         ...blocoSessoesSemRecibo,
+        /* ★ PAGOU ADIANTADO (12/11/2026, a Regina). Só com a 042 no banco (`adiantamentos` lido):
+           sem ela, o botão lançaria algo que o servidor recusa. */
+        ...(emiteRecibo && st.adiantamentos !== null
+          ? [{
+            tipo: "adiantado" as const, key: "adiantado", label: "Pago adiantado",
+            clienteId: cli.id, nome: cli.nome, cpf: cli.cpf,
+            valorSessao: cli.valorSessao ?? svcCliente?.preco ?? 0,
+          }]
+          : []),
         {
           /* `v_clientes` conta a competência corrente, ou seja, o mês de hoje (era `D.PERIODO`). */
           tipo: "stats", key: "mes", label: `Em ${D.rotuloDoMes(D.HOJE.iso)}`,
