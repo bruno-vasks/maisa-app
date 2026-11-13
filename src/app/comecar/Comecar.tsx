@@ -1093,7 +1093,7 @@ function EtapaNotaFiscal({ aoEscolher }: { aoEscolher: (destino: Destino) => voi
     { rotulo: "Atendo como pessoa física", sub: "Recibo do Receita Saúde, no seu CPF. Sem certificado.", destino: "recibo" },
     { rotulo: "Tenho CNPJ", sub: "Nota fiscal de serviço. Pede o certificado digital A1.", destino: "nota" },
     {
-      rotulo: "Decidir depois, na tela Fiscal",
+      rotulo: "Decidir depois",
       /* Dizia o que já funcionava ("Ela já atende e marca pelo WhatsApp"). Desde 12/11/2026
          ninguém chega aqui com o WhatsApp conectado (ele saiu do wizard), e a frase mentiria. */
       sub: "Fica esperando na tela Fiscal.",

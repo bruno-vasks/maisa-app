@@ -11,7 +11,7 @@ for (const [ativa, lembrete] of [[false, false], [false, true], [true, true]]) {
   await p.goto("http://localhost:3200/comecar", { waitUntil: "networkidle", timeout: 90000 });
   await p.waitForTimeout(1000);
   const pular = p.getByRole("button", { name: "Pular este passo" }); if (await pular.count()) { await pular.click(); await p.waitForTimeout(1000); }
-  const sub = await p.getByText("Decidir depois, na tela Fiscal").locator("xpath=following-sibling::span").textContent().catch(() => null);
+  const sub = await p.getByText("Decidir depois", { exact: true }).locator("xpath=following-sibling::span").textContent().catch(() => null);
   console.log(JSON.stringify({ ativa, lembrete, h1: await p.locator("h1").textContent(), sub }));
   await b.close();
 }
