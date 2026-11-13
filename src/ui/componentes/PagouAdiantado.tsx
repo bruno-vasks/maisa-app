@@ -56,9 +56,11 @@ export function PagouAdiantado({ clienteId, nome, cpf, valorSessao }: {
 
   const sugerido = Math.round(sessoes * valorSessao * 100) / 100;
   const total = valor.trim() ? valorDigitado(valor) : sugerido;
-  const semCpf = !cpfValido(cpf.replace(/\D/g, ""));
-  const falta = semCpf
+  const digitos = cpf.replace(/\D/g, "");
+  const falta = !digitos
     ? `Sem o CPF de ${primeiro}, o recibo não sai. Ponha o CPF na ficha, logo acima.`
+    : !cpfValido(digitos)
+      ? `O CPF na ficha de ${primeiro} não fecha nos dígitos: confira logo acima, senão a Receita recusa o recibo.`
     : !(total > 0)
       ? "Falta o valor pago."
       : !data || data > hoje
