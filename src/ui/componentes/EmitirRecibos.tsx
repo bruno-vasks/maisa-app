@@ -74,7 +74,7 @@ import { useIsMobile } from "@/ui/useIsMobile";
 import type { PagamentoPendente } from "@/nucleo/portas/entrada/casos-de-uso";
 import { representacao, type ConfigFiscal } from "@/nucleo/dominio/fiscal";
 import { NOME_DA_OCUPACAO, faltaNosDados, faltaParaEmitirRecibo } from "@/nucleo/dominio/checklist-recibo";
-import { hojeISO, rotuloBR } from "@/nucleo/dominio/tempo";
+import { hojeISO, nomeMes, rotuloBR } from "@/nucleo/dominio/tempo";
 import { NovoPagamento } from "@/ui/componentes/NovoPagamento";
 import { Moldura, PeDeAcao } from "@/ui/componentes/Moldura";
 import { semAcento } from "@/ui/estado/busca";
@@ -361,14 +361,25 @@ function EditorDeSessoes({ grupo, fora, alternar, pronto }: {
   const [andando, setAndando] = useState<string | null>(null);
   const itens = [...grupo.itens].sort((a, b) => a.data.localeCompare(b.data));
   const marcadas = itens.filter((x) => !fora.has(x.id));
+  /* Meses diferentes nunca vão no mesmo recibo (`juntarEmRecibos`): com mais de um, cada mês ganha
+   * o nome em cima, senão seis sessões de dois meses pareceriam um recibo só. */
+  const variosMeses = new Set(itens.map((x) => x.data.slice(0, 7))).size > 1;
   return (
     <div style={s("display:flex;flex-direction:column;gap:6px")}>
-      {itens.map((x) => {
+      {itens.map((x, i) => {
         const on = !fora.has(x.id);
+        const mes = x.data.slice(0, 7);
+        const abreMes = variosMeses && (i === 0 || itens[i - 1].data.slice(0, 7) !== mes);
         const quando = `${x.data.slice(8, 10)}/${x.data.slice(5, 7)}`;
         const pedindo = pedido === x.id;
         return (
-          <div key={x.id} style={s("display:flex;align-items:center;gap:10px")}>
+          <React.Fragment key={x.id}>
+          {abreMes && (
+            <span style={s(`font-size:var(--t-label);font-weight:var(--w-title);color:var(--muted);text-transform:capitalize;${i > 0 ? "margin-top:6px" : ""}`)}>
+              {nomeMes(mes)}
+            </span>
+          )}
+          <div style={s("display:flex;align-items:center;gap:10px")}>
             <button
               type="button"
               onClick={() => alternar(x.id)}
@@ -397,11 +408,12 @@ function EditorDeSessoes({ grupo, fora, alternar, pronto }: {
               {andando === x.id ? "Tirando…" : pedindo ? "Tirar do recibo" : "Não teve sessão"}
             </button>
           </div>
+          </React.Fragment>
         );
       })}
       <div style={s("display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:6px;border-top:1px solid var(--line)")}>
         <span className="n" style={s("font-size:var(--t-label);color:var(--muted)")}>
-          {marcadas.length === 0 ? "Nenhuma sessão neste recibo" : `${marcadas.length} de ${itens.length} · ${fmt(marcadas.reduce((a, x) => a + x.valor, 0))}`}
+          {marcadas.length === 0 ? "Nenhuma sessão marcada" : `${marcadas.length} de ${itens.length} · ${fmt(marcadas.reduce((a, x) => a + x.valor, 0))}`}
         </span>
         <Btn size="sm" onClick={pronto}>Pronto</Btn>
       </div>
@@ -734,7 +746,7 @@ export function EmitirRecibos() {
         <div style={s("background:var(--surface);border:1px solid var(--border);border-radius:var(--r-painel);padding:14px;display:flex;flex-direction:column;gap:7px")}>
           <div style={s("display:flex;align-items:center;justify-content:space-between;gap:8px")}>
             <span style={s("font-size:var(--t-label);font-weight:var(--w-title);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--muted)")}>
-              {editandoGrupo ? "Sessões neste recibo" : `Prévia · ${Math.min(previa + 1, recibos.length)} de ${recibos.length}`}
+              {editandoGrupo ? "Sessões sem recibo" : `Prévia · ${Math.min(previa + 1, recibos.length)} de ${recibos.length}`}
             </span>
             <span style={s("display:flex;gap:5px;align-items:center")}>
             {!editandoGrupo && (
