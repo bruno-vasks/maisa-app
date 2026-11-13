@@ -3599,6 +3599,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
      * conectaria em silêncio. */
     jaAvisou.current = false;
     pollCanal.current = setInterval(() => {
+      /* ⚠️ ABA ESCONDIDA NÃO CONTA (12/11/2026). No celular, a pessoa sai daqui para o WhatsApp
+       * para digitar o código. Contando esse tempo, o prazo vencia com ela lá dentro, a tela
+       * limpava o código e mandava gerar outro — que recria a instância e derruba o pareamento
+       * que ela pode ter acabado de fazer. Escondida, a aba não pergunta nem gasta tentativa; na
+       * volta, o próximo tique (até 3 s) vê se conectou. */
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       /* Ver o cabeçalho das travas: sem esta linha as chamadas se empilham e o sucesso é
        * executado uma vez por chamada em voo. */
       if (pollEmVoo.current) return;

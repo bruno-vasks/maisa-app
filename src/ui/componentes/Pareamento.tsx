@@ -228,6 +228,69 @@ export function ConferirNumero(
  */
 const VALIDADE_CODIGO_S = 60;
 
+/**
+ * Quanto a tela espera, com a aba à vista, antes de pedir o código novo.
+ *
+ * ⚠️ ESTE ATRASO E A REGRA DA ABA ESCONDIDA (12/11/2026) EXISTEM POR UM MOTIVO SÓ: quem está no
+ * celular troca de aplicativo para digitar o código. Com a aba em segundo plano, o contador
+ * continuava andando e, no Android, a renovação podia sair NO MEIO da digitação, trocando o código
+ * que a pessoa tinha acabado de copiar. Agora a renovação nunca sai com a aba escondida. Na volta,
+ * espera alguns segundos: se a pessoa digitou certo, a consulta de quem chama vê a conexão nesse
+ * intervalo e o componente desmonta antes de pedir outro código.
+ */
+const ESPERA_ANTES_DE_RENOVAR_MS = 3000;
+
+/** O sistema do celular, para dizer onde fica "Aparelhos conectados". `null` = computador ou não sei. */
+type Sistema = "iphone" | "android" | null;
+
+function sistemaDoAparelho(): Sistema {
+  if (typeof navigator === "undefined") return null;
+  const ua = navigator.userAgent;
+  /* O iPad recente se apresenta como Mac; quem denuncia é a tela de toque. */
+  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "iphone";
+  if (/Android/i.test(ua)) return "android";
+  return null;
+}
+
+/**
+ * O caminho dentro do WhatsApp até o campo do código.
+ *
+ * ── O RELATO QUE REESCREVEU ESTA LISTA (12/11/2026) ──
+ *
+ * Uma lead pediu o código no celular, recebeu, e escreveu para a conta oficial: *"Onde digitar o
+ * codigo"*. A lista antiga tinha dois buracos:
+ *
+ *   • mandava abrir o "Menu ⋮", que só existe no Android. No iPhone o caminho começa em
+ *     Configurações, na barra de baixo;
+ *   • não avisava que "Conectar aparelho" ABRE A CÂMERA. Quem vê a câmera conclui que precisa de
+ *     um QR, e o link "Conectar com número de telefone" fica pequeno, embaixo dela.
+ *
+ * O sistema vem do `userAgent`, e não decide nada além da frase: errar mostra o caminho do outro
+ * sistema, e no computador (ou sem saber) aparecem os dois.
+ */
+function CaminhoNoWhatsApp() {
+  /* Lido depois de montar: no servidor não há `navigator`, e ler no render daria uma frase no
+   * HTML e outra na hidratação. */
+  const [sistema, setSistema] = React.useState<Sistema>(null);
+  React.useEffect(() => { setSistema(sistemaDoAparelho()); }, []);
+
+  const b = (txt: string) => <b style={s("color:var(--ink)")}>{txt}</b>;
+  return (
+    <ol style={s("margin:0;padding-left:17px;font-size:var(--t-label);color:var(--muted);line-height:1.75")}>
+      <li>Abra o {b("WhatsApp")} {sistema ? "neste celular" : "no celular com esse número"}</li>
+      <li>
+        {sistema === "iphone"
+          ? <>Toque em {b("Configurações")}, embaixo, e em {b("Aparelhos conectados")}</>
+          : sistema === "android"
+            ? <>Toque nos {b("três pontinhos ⋮")}, lá em cima, e em {b("Aparelhos conectados")}</>
+            : <>Entre em {b("Aparelhos conectados")}: no Android, pelos {b("três pontinhos ⋮")}; no iPhone, em {b("Configurações")}</>}
+      </li>
+      <li>Toque em {b("Conectar aparelho")}. A câmera vai abrir: não precisa apontar para nada</li>
+      <li>Embaixo da câmera, toque em {b("Conectar com número de telefone")} e digite (ou cole) o código acima</li>
+    </ol>
+  );
+}
+
 export function CodigoPareamento(
   { codigo, aoRenovar }: {
     codigo: string;
@@ -261,16 +324,31 @@ export function CodigoPareamento(
     return () => clearInterval(id);
   }, [codigo]);
 
+  /* A aba à vista. Ver `ESPERA_ANTES_DE_RENOVAR_MS`: com ela escondida, a pessoa está no
+   * WhatsApp digitando, e trocar o código agora estragaria o que ela copiou. */
+  const [visivel, setVisivel] = React.useState(true);
+  React.useEffect(() => {
+    const ler = () => setVisivel(document.visibilityState !== "hidden");
+    ler();
+    document.addEventListener("visibilitychange", ler);
+    return () => document.removeEventListener("visibilitychange", ler);
+  }, []);
+
   /* Renovar é efeito SEPARADO do contador de propósito. Junto, o `setRestante` de cada
    * batida entraria na mesma dependência do disparo e a renovação sairia mais de uma vez
-   * — cada uma invalidando o código da anterior, num laço que nunca estabiliza. */
+   * — cada uma invalidando o código da anterior, num laço que nunca estabiliza. O
+   * `restante` para em 0, e um `setState` com o mesmo valor não repinta: a espera não é
+   * reiniciada a cada batida. */
   const jaPediu = React.useRef(false);
   React.useEffect(() => { jaPediu.current = false; }, [codigo]);
   React.useEffect(() => {
-    if (restante > 0 || jaPediu.current || !aoRenovar) return;
-    jaPediu.current = true;
-    void aoRenovar();
-  }, [restante, aoRenovar]);
+    if (restante > 0 || jaPediu.current || !aoRenovar || !visivel) return;
+    const id = setTimeout(() => {
+      jaPediu.current = true;
+      void aoRenovar();
+    }, ESPERA_ANTES_DE_RENOVAR_MS);
+    return () => clearTimeout(id);
+  }, [restante, aoRenovar, visivel]);
 
   const copiar = React.useCallback(async () => {
     try {
@@ -314,15 +392,7 @@ export function CodigoPareamento(
 
       {/* O caminho EXATO do menu. Ver o cabeçalho: é o conteúdo que este arquivo protege
           de virar duas cópias divergentes. */}
-      <ol style={s("margin:0;padding-left:17px;font-size:var(--t-label);color:var(--muted);line-height:1.75")}>
-        <li>Abra o <b style={s("color:var(--ink)")}>WhatsApp</b> neste mesmo celular</li>
-        <li>Menu <b style={s("color:var(--ink)")}>⋮</b> → <b style={s("color:var(--ink)")}>Aparelhos conectados</b></li>
-        <li>
-          <b style={s("color:var(--ink)")}>Conectar aparelho</b> → toque em{" "}
-          <b style={s("color:var(--ink)")}>Conectar com número de telefone</b>
-        </li>
-        <li>Digite (ou cole) o código acima</li>
-      </ol>
+      <CaminhoNoWhatsApp />
 
       {/* ⚠️ ESTE PARÁGRAFO DIZIA O CONTRÁRIO até 17/08/2026: "diz que o prazo existe SEM
           cronômetro — um contador transforma uma tarefa de 20 segundos em corrida contra o

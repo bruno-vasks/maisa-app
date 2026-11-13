@@ -166,9 +166,10 @@ export function passosDaJornada(st: StoreValue): PassoDaJornada[] {
     {
       id: "primeira_conversa", titulo: "Ver funcionando", icone: "chat",
       ganho: "Fale com ela como se fosse seu cliente",
-      /* Manda para o wizard, e não para uma tela do painel: a etapa 4 do `/comecar` já é
-       * essa conversa, com o agente real e as falas sugeridas. Duplicá-la aqui seria um
-       * segundo simulador para manter.
+      /* Manda para o wizard, e não para uma tela do painel: o "ver funcionando" do `/comecar` já
+       * é essa conversa, com o agente real e as falas sugeridas. Duplicá-la aqui seria um
+       * segundo simulador para manter. Desde 12/11/2026 este cartão é a ÚNICA porta dela: a
+       * etapa saiu do caminho do wizard, e terminar a conversa volta ao painel.
        *
        * ⚠️ `?etapa=ver` DESDE 24/10/2026. Sem ele o wizard escolhe a etapa pelo que falta, e quem
        * ainda não conectou o WhatsApp caía na etapa 2 ("O que você faz"), a duas vezes de

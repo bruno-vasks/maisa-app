@@ -87,7 +87,8 @@ describe("G13 · wizard sem componente do painel", () => {
     const a = alcancados();
     expect(a).toContain("src/app/comecar/Comecar.tsx");
     expect(a).toContain("src/ui/primitivos.tsx"); // via @/ui/primitivos
-    expect(a).toContain("src/ui/componentes/Pareamento.tsx");
+    /* Era o `Pareamento.tsx` até 12/11/2026, quando o WhatsApp saiu do wizard. */
+    expect(a).toContain("src/ui/componentes/MolduraDeEntrada.tsx");
     expect(chamaUseStore("src/ui/componentes/AppShell.tsx")).not.toBeNull();
     expect(chamaUseStore("src/ui/primitivos.tsx")).toBeNull();
   });

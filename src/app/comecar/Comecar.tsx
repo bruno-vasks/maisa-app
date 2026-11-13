@@ -48,6 +48,19 @@
  * trilha é `passosQueValem` (`dominio/ativacao.ts`) — a MESMA conta que o cartão de jornada
  * do painel faz, então o painel não volta a cobrar o que o wizard pulou.
  *
+ * ── ★ DESDE 12/11/2026, UM TAMANHO SÓ: NEGÓCIO → SERVIÇOS → DOCUMENTO FISCAL ──
+ *
+ * O WhatsApp saiu do wizard, e o "Ver funcionando" saiu do caminho. Os dois viraram passos da
+ * jornada no painel (`JornadaDeAtivacao`): o WhatsApp se conecta nos ajustes da maisa
+ * (`?tela=assistente&secao=whatsapp`), e a conversa de teste abre aqui só por `?etapa=ver`.
+ *
+ * O motivo é medido. Das 5 contas vindas da Meta entre 04 e 12/11, nenhuma conectou o WhatsApp
+ * e nenhuma voltou depois do cadastro: três pararam na tela dele sem apertar o botão, duas
+ * pediram o código e não conectaram. Uma delas (12/11) escreveu para a conta oficial "Onde
+ * digitar o codigo". O Bruno decidiu o resto: o setup curto vale mais que mostrar tudo no
+ * primeiro minuto, e o teste da conversa tem mais sentido dentro do app, quando a pessoa ajusta
+ * a maisa. As seções acima, sobre as etapas 3 e 4, ficam como história do porquê de cada peça.
+ *
  * ⚠️ SÓ A ETAPA 1 É OBRIGATÓRIA, porque é a única que CRIA alguma coisa. Todas as outras
  * têm "Pular" — e pular não é abandono: o passo continua contado em `/api/ativacao`, que
  * lê o mundo em vez de uma flag.
@@ -60,12 +73,6 @@ import { s, Icon, toast, Toaster } from "@/ui/primitivos";
 import type { PassoDeAtivacao, Servico, UsoDoWhatsApp, Vertical } from "@/nucleo/dominio";
 import { PASSOS_DE_ATIVACAO, passosQueValem, usoDoWhatsApp } from "@/nucleo/dominio";
 import { sugestoes, type ExemploDoNegocio } from "./sugestoes";
-import {
-  CodigoPareamento, ConferirNumero, NumeroDoPareamento, digitosDoTelefone, telefoneMascarado,
-} from "@/ui/componentes/Pareamento";
-import { useIsMobile } from "@/ui/useIsMobile";
-import { OpcoesDoNumero, useCaderno } from "@/ui/componentes/EscolhaDoNumero";
-import type { ModoDoNumero } from "@/nucleo/dominio/contatos";
 import { ajustesDosModos, alternarModo, type Modo } from "./modos";
 import { createClient } from "@/adaptadores/saida/supabase/client";
 import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
@@ -76,7 +83,7 @@ import { InterruptorVivo } from "./InterruptorVivo";
 
 /* ───────────────────────────── as etapas ───────────────────────────── */
 
-type EtapaId = "negocio" | "catalogo" | "whatsapp" | "ver" | "fiscal";
+type EtapaId = "negocio" | "catalogo" | "ver" | "fiscal";
 
 /* `rotulo` é o nome curto na barra de etapas da `MolduraDeEntrada`; `titulo`, a pergunta da tela.
  * Um título só, sem subtítulo (emenda 5 do `maisa-design`), desde 31/10/2026: o `sub` de cada
@@ -85,7 +92,8 @@ type EtapaId = "negocio" | "catalogo" | "whatsapp" | "ver" | "fiscal";
 const ETAPAS: { id: EtapaId; rotulo: string; titulo: string }[] = [
   { id: "negocio", rotulo: "Negócio", titulo: "Seu negócio" },
   { id: "catalogo", rotulo: "Serviços", titulo: "Seus serviços e preços" },
-  { id: "whatsapp", rotulo: "WhatsApp", titulo: "Conecte o WhatsApp do seu negócio" },
+  /* O WhatsApp saiu do wizard em 12/11/2026, e o "Ver funcionando" saiu do caminho: ele só abre
+   * pelo cartão da jornada no painel (`?etapa=ver`). Ver o ★ de 12/11 no cabeçalho. */
   { id: "ver", rotulo: "Testar", titulo: "Fale com a maisa como se fosse seu cliente" },
   /* ★ ETAPA 5, e ela é uma PERGUNTA — não um formulário.
    *
@@ -163,14 +171,6 @@ const modosPara = (v: Vertical | null) => {
   const ordem: Modo[] = v === "terapeutas" ? ["recibos", "avisos", "conversa"] : ["conversa", "avisos", "recibos"];
   return ordem.map((id) => MODOS.find((m) => m.id === id)!);
 };
-
-/* De quanto em quanto se pergunta se o QR já foi lido, e por quanto tempo. Os mesmos
- * números do painel (`store.tsx`): 3s × 40 ≈ 2 min, mais que a validade de um QR. */
-const INTERVALO_PAREAMENTO = 3000;
-const TENTATIVAS_PAREAMENTO = 40;
-/** Teto de renovações automáticas do código. Mesma razão do painel: uma aba esquecida não
- *  pode pedir código novo ao WhatsApp indefinidamente. ≈6 min de janela. */
-const MAX_RENOVACOES_CODIGO = 5;
 
 const CAMPO =
   "width:100%;height:46px;padding:0 14px;border-radius:var(--r-painel);border:1px solid var(--border-field);background:var(--surface);font-family:inherit;font-size:var(--t-sm);color:var(--ink);outline:none";
@@ -664,438 +664,6 @@ function EtapaCatalogo({ aoSeguir }: { aoSeguir: () => void }) {
   );
 }
 
-/* ───────────────────────────── etapa 3 · o WhatsApp ───────────────────────────── */
-
-/**
- * De quem é esse número, logo depois de conectar. As peças são as do painel
- * (`EscolhaDoNumero`), sem store: o wizard roda fora do `StoreProvider` (guarda G13).
- *
- * Nada vem pré-marcado, mesmo com o servidor dizendo `pessoal`: esse valor é o padrão de
- * segurança do banco, não uma resposta dela. "Continuar" só aparece depois que o `PATCH
- * /api/contatos` aceitou a escolha. No pessoal, o convite para trazer a agenda vem junto,
- * porque é o caderno que diz quem é cliente.
- */
-function PerguntaDoNumero({ aoSeguir }: { aoSeguir: () => void }) {
-  const { ocupado, trocar, importar, estado } = useCaderno();
-  const [escolhido, setEscolhido] = useState<ModoDoNumero | null>(null);
-  const [gravado, setGravado] = useState(false);
-  const [recado, setRecado] = useState<Recado>(null);
-  const [trazidos, setTrazidos] = useState<string | null>(null);
-
-  const escolher = async (m: ModoDoNumero) => {
-    if (ocupado) return;
-    setEscolhido(m);
-    setGravado(false);
-    setRecado(null);
-    const erro = await trocar(m);
-    if (erro) { setRecado(falhou(erro)); setEscolhido(null); return; }
-    setGravado(true);
-  };
-
-  const trazer = async () => {
-    if (ocupado) return;
-    const r = await importar();
-    if (!r.ok) { setRecado(falhou(r.frase)); return; }
-    setRecado(null);
-    setTrazidos(r.frase);
-  };
-
-  return (
-    <div style={s("width:100%;display:flex;flex-direction:column;gap:12px;text-align:left")}>
-      <div>
-        <p style={s("margin:0;font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink)")}>De quem é esse número?</p>
-        <p style={s("margin:4px 0 0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
-          Decide quem a MAISA atende. Dá para mudar depois, nos Ajustes.
-        </p>
-      </div>
-      <OpcoesDoNumero modo={escolhido} aoEscolher={(m) => void escolher(m)} desligado={ocupado !== null} />
-      <Aviso recado={recado} />
-      {gravado && escolhido === "pessoal" && (
-        <div style={s("display:flex;flex-direction:column;gap:9px;padding:12px 14px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface)")}>
-          <p style={s("margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5")}>
-            Traga sua agenda para marcar seus clientes. Sem ela, a MAISA só responde número novo que
-            chega pedindo horário.
-          </p>
-          {trazidos
-            ? <p role="status" style={s("margin:0;font-size:var(--t-sm);font-weight:var(--w-title);color:var(--success)")}>{trazidos}</p>
-            : (
-              <Botao variante="ghost" ocupado={ocupado === "importar"} onClick={() => void trazer()}>
-                {ocupado === "importar" ? "Lendo sua agenda…" : (estado?.contatos.length ?? 0) > 0 ? "Atualizar meus contatos" : "Trazer meus contatos"}
-              </Botao>
-            )}
-        </div>
-      )}
-      <NoPe>
-        {gravado
-          ? <Botao onClick={aoSeguir} full>Continuar</Botao>
-          : <p style={s("margin:0;font-size:var(--t-label);color:var(--muted);text-align:center")}>Escolha uma das duas para seguir.</p>}
-      </NoPe>
-    </div>
-  );
-}
-
-function EtapaWhatsApp({ aoSeguir }: { aoSeguir: () => void }) {
-  const [qrcode, setQrcode] = useState<string | null>(null);
-  /** Os 8 caracteres do "Conectar com número de telefone". `null` = pareamento por QR. */
-  const [codigo, setCodigo] = useState<string | null>(null);
-  const [status, setStatus] = useState<"parado" | "gerando" | "pareando" | "conectado">("parado");
-  const [recado, setRecado] = useState<Recado>(null);
-  const [numero, setNumero] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const tentativas = useRef(0);
-  /** Trava de reentrância do polling. Ver o ⚠️ dentro do `setInterval`. */
-  const emVoo = useRef(false);
-  /** O telefone deste pareamento e quantas vezes o código já trocou. Em memória, nunca em
-   *  disco — ver o comentário equivalente no `store.tsx`. */
-  const numeroDoPareamento = useRef<string | null>(null);
-  const renovacoes = useRef(0);
-
-  /**
-   * O MESMO número do `ref` acima, só que desenhável.
-   *
-   * ⚠️ ISTO ERA SÓ O `ref`, DE PROPÓSITO — e a decisão estava errada. O comentário gêmeo no
-   * `store.tsx` dizia *"`ref` e não `state`: nenhuma tela desenha isto"*, e era verdade:
-   * ninguém desenhava. Foi exatamente essa a falha relatada em 18/08/2026 — o colega do
-   * Bruno digitou o número errado e não tinha onde conferir, porque no instante em que o
-   * código aparece o campo de telefone sai da tela.
-   *
-   * Os dois andam juntos e só mudam em dois lugares (`conectar` e a correção). O `ref`
-   * continua existindo porque `renovar` precisa do valor sem entrar na lista de dependências
-   * do efeito que dispara a renovação — ali, uma identidade nova a cada render pediria código
-   * novo em laço.
-   */
-  const [numeroNaTela, setNumeroNaTela] = useState<string | null>(null);
-
-  /** A parada antes de mandar o código. Ver `ConferirNumero`, em `componentes/Pareamento`. */
-  const [conferindo, setConferindo] = useState(false);
-
-  /* ── ESTA É A ETAPA QUE MAIS PERDE GENTE, E A CÂMERA É O MOTIVO ──
-   *
-   * O wizard é a primeira coisa que um cliente novo vê, e uma boa parte o abre no celular
-   * — o MESMO aparelho onde o WhatsApp do negócio está instalado. Para essa pessoa o QR é
-   * impossível: a câmera não fotografa a própria tela. Ela não vê um erro, ela vê um
-   * quadrado que não serve para nada, e desiste. Do lado de cá é indistinguível de um QR
-   * que ninguém leu — nunca soubemos quantos foram embora aqui.
-   *
-   * Por isso o padrão vem do APARELHO. No celular, o caminho oferecido é o código; no
-   * computador, o QR, que é mais rápido para quem tem o celular na mão.
-   *
-   * ⚠️ A derivação é no render, e não `useState(noCelular)`: `useIsMobile` devolve `false`
-   * no primeiro render e só sincroniza depois do mount, então o estado nasceria "desktop"
-   * para todo mundo — justamente o público que esta mudança existe para atender. */
-  const noCelular = useIsMobile();
-  const [escolha, setEscolha] = useState<"qr" | "codigo" | null>(null);
-  const porCodigo = escolha ? escolha === "codigo" : noCelular;
-
-  const [telefone, setTelefone] = useState("");
-  /** Ver o QR mesmo tendo pedido código — a saída de quem tem um segundo aparelho. */
-  const [verQr, setVerQr] = useState(false);
-
-  const digitos = digitosDoTelefone(telefone);
-  const podePedirCodigo = digitos.length >= 10;
-  const mostrandoCodigo = !!codigo && !verQr;
-
-  const parar = useCallback(() => {
-    if (timer.current) { clearInterval(timer.current); timer.current = null; }
-  }, []);
-
-  /* ⚠️ O `clearInterval` no desmonte não é higiene, é conserto de vazamento: sem ele, sair
-   * do wizard com o pareamento na tela deixa um GET de 3 em 3 segundos rodando para sempre. */
-  useEffect(() => parar, [parar]);
-
-  const conectar = useCallback(async (comNumero?: string) => {
-    setRecado(null);
-    setStatus("gerando");
-    setVerQr(false);
-    try {
-      const r = await fetch("/api/canal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numero: comNumero }),
-      }).then((x) => x.json());
-      if (!r?.ok) {
-        const falta = r?.faltando?.length ? ` Falta: ${r.faltando.join(", ")}.` : "";
-        setRecado(falhou((r?.info ?? "Não foi possível abrir a conexão.") + falta));
-        setStatus("parado");
-        return;
-      }
-      setQrcode(r.pareamento?.qrcode ?? null);
-      setCodigo(r.pareamento?.codigo ?? null);
-      numeroDoPareamento.current = comNumero ?? null;
-      setNumeroNaTela(comNumero ?? null);
-      renovacoes.current = 0;
-      if (r.pareamento?.status === "conectado") { setStatus("conectado"); return; }
-      setStatus("pareando");
-
-      /* Pediu código e veio só QR: acontece: o pairing code depende da versão do Baileys do
-       * servidor e falha calado. Sem este aviso, o dono digita o telefone, vê um QR
-       * aparecer e conclui que o app ignorou o que ele pediu. */
-      const semCodigo = !!comNumero && !r.pareamento?.codigo;
-      if (semCodigo) {
-        /* Caminho ALTERNATIVO, não falha: o pairing code depende da versão do Baileys do
-         * servidor, e a saída está escrita na própria frase. Ver o cabeçalho do `Aviso`. */
-        setRecado(avisa(
-          "Não consegui gerar o código de 8 dígitos agora. Dá para conectar lendo o QR de " +
-          "outro aparelho, ou tentar de novo.",
-        ));
-      }
-
-      tentativas.current = 0;
-      parar();
-      timer.current = setInterval(async () => {
-        tentativas.current += 1;
-        if (tentativas.current > TENTATIVAS_PAREAMENTO) {
-          parar();
-          setStatus("parado");
-          setQrcode(null);
-          setCodigo(null);
-          /* A frase segue o caminho: "venceu sem ninguém escanear" manda procurar uma
-           * câmera, e é a última coisa que se deve dizer a quem está num aparelho só. */
-          /* Prazo cumprindo o prazo. Vermelho aqui é o produto se acusando de um defeito
-           * que não tem — e o próximo passo está na frase. */
-          setRecado(avisa(
-            r.pareamento?.codigo
-              ? "O código venceu. Gere outro para tentar de novo."
-              : "O QR code venceu. Gere outro para tentar de novo.",
-          ));
-          return;
-        }
-        /* ⚠️ UMA POR VEZ. `GET /api/canal` pergunta o estado ao provedor (é `lerCanal` quem
-         * faz isso, para a tela não mentir), e essa ida à Evolution passa dos 3s deste
-         * intervalo com facilidade. Sem esta guarda, as chamadas se empilham: cada tique
-         * abre outra, todas voltam juntas, e o efeito colateral disso no painel foi o
-         * relato "veio mil mensagens de que ele conectou". Aqui não há toast, mas o
-         * empilhamento é o mesmo — e cada requisição extra bate no servidor de terceiro. */
-        if (emVoo.current) return;
-        emVoo.current = true;
-        try {
-          const c = await fetch("/api/canal").then((x) => x.json());
-          if (c?.ok && c.canal?.status === "conectado") {
-            parar();
-            setNumero(c.canal.numero ?? null);
-            setQrcode(null);
-            setCodigo(null);
-            setStatus("conectado");
-          }
-        } catch { /* uma falha de rede no meio do polling não cancela o pareamento */ }
-        finally { emVoo.current = false; }
-      }, INTERVALO_PAREAMENTO);
-    } catch {
-      setRecado(falhou("Sem conexão com o servidor."));
-      setStatus("parado");
-    }
-  }, [parar]);
-
-  /**
-   * Outro código sem refazer a instância. Disparada pelo contador do `CodigoPareamento`.
-   *
-   * Repete a lógica do `store.tsx` em vez de importá-la, e é a mesma escolha que o resto
-   * deste arquivo faz: o wizard NÃO usa o store (ver o cabeçalho — o painel inteiro
-   * depende de um inquilino que aqui pode não existir ainda). Meia dúzia de `fetch` é o
-   * preço combinado dessa separação.
-   */
-  const renovar = useCallback(async () => {
-    const numero = numeroDoPareamento.current;
-    if (!numero) return;
-
-    if (renovacoes.current >= MAX_RENOVACOES_CODIGO) {
-      parar();
-      setStatus("parado");
-      setCodigo(null);
-      setQrcode(null);
-      setRecado(avisa("Passou do tempo de conectar. Peça um código novo para tentar de novo."));
-      return;
-    }
-    renovacoes.current += 1;
-
-    try {
-      const r = await fetch("/api/canal/codigo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numero }),
-      }).then((x) => x.json());
-
-      if (!r?.ok || !r.codigo) {
-        setRecado(falhou("Não consegui gerar um código novo. Leia o QR de outro aparelho, ou peça outro código."));
-        return;
-      }
-      setCodigo(r.codigo);
-      setRecado(null);
-      /* O polling continua de onde estava, só com o relógio zerado: sem isto ele morreria
-       * em 2 min enquanto o código segue se renovando, e a tela deixaria de perceber a
-       * conexão no instante em que ela finalmente acontece. */
-      tentativas.current = 0;
-    } catch {
-      setRecado(falhou("Sem conexão com o servidor para renovar o código."));
-    }
-  }, [parar]);
-
-  if (status === "conectado") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", textAlign: "center" }}>
-        <div style={s("display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:999px;background:var(--success-soft)")}>
-          <Icon name="check" size={28} stroke="var(--success)" />
-        </div>
-        <div>
-          <p style={s("font-size:var(--t-body);font-weight:var(--w-title);color:var(--ink);margin:0")}>WhatsApp conectado</p>
-          {numero && <p style={s("font-size:var(--t-sm);color:var(--muted);margin:4px 0 0")}>+{numero}</p>}
-        </div>
-        {/* ⚠️ A PERGUNTA VEM AQUI, ANTES DE SEGUIR (25/09/2026, 1A.15, 09 P0-3). O modo nasce
-            `pessoal` e o caderno nasce vazio: sem perguntar, a pessoa saía com "conectado" e
-            uma MAISA que calava para os clientes salvos no celular dela. */}
-        <PerguntaDoNumero aoSeguir={aoSeguir} />
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <p style={s("font-size:var(--t-sm);color:var(--muted);line-height:1.5;margin:0")}>
-        {/* Dizia "use o WhatsApp do negócio", e o ICP roda no número pessoal (09 P0-3). */}
-        Conecte o WhatsApp <strong style={s("color:var(--ink);font-weight:var(--w-title)")}>onde seus clientes já falam com você</strong>.
-        A MAISA responde por ele, e você continua vendo tudo.
-      </p>
-
-      {status === "pareando" && mostrandoCodigo && codigo ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <CodigoPareamento codigo={codigo} aoRenovar={renovar} />
-          {/* ── PARA QUEM DIGITOU ERRADO, ESTA É A ÚNICA CHANCE ──
-              O código na tela é a prova de que o pedido saiu, e não de que ele saiu para o
-              número certo. Um dígito errado manda o pareamento para outra pessoa e produz
-              exatamente esta tela — "esperando você digitar o código" até vencer, sem erro
-              nenhum de nenhum lado. Ver o cabeçalho de `NumeroDoPareamento`. */}
-          {numeroNaTela && (
-            <NumeroDoPareamento
-              digitos={numeroNaTela}
-              aoCorrigir={() => {
-                /* Volta ao campo com o número que estava lá, para editar em vez de redigitar.
-                 * O pareamento pendente na Evolution morre no próximo `conectar`, que apaga e
-                 * recria a instância de qualquer forma. */
-                parar();
-                setStatus("parado");
-                setCodigo(null);
-                setQrcode(null);
-                setRecado(null);
-                setNumeroNaTela(null);
-                setTelefone(numeroNaTela);
-                setEscolha("codigo");
-                setConferindo(false);
-              }}
-            />
-          )}
-          <span style={s("font-size:var(--t-label);color:var(--muted);text-align:center")}>
-            Esperando você digitar o código no WhatsApp…
-          </span>
-        </div>
-      ) : status === "pareando" && qrcode ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- data-URI vinda da Evolution */}
-          <img
-            src={qrcode} alt="QR code para conectar o WhatsApp"
-            style={s("width:232px;height:232px;border-radius:var(--r-painel);border:1px solid var(--border);background:var(--surface);padding:8px")}
-          />
-          <ol style={s("margin:0;padding-left:18px;font-size:var(--t-sm);color:var(--muted);line-height:1.7")}>
-            <li>Abra o WhatsApp no celular com esse número</li>
-            <li>Toque em <strong style={s("color:var(--ink)")}>Aparelhos conectados</strong></li>
-            <li>Toque em <strong style={s("color:var(--ink)")}>Conectar aparelho</strong> e aponte para o código</li>
-          </ol>
-          <span style={s("font-size:var(--t-label);color:var(--muted)")}>Esperando você ler o código…</span>
-        </div>
-      ) : porCodigo ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <span style={s("font-size:var(--t-sm);font-weight:var(--w-title);color:var(--ink)")}>
-              Número do WhatsApp
-            </span>
-            <input
-              value={telefoneMascarado(digitos)}
-              onChange={(e) => setTelefone(digitosDoTelefone(e.target.value))}
-              inputMode="tel" autoComplete="tel" placeholder="Escreva o número com DDD…"
-              className="m-focus" style={s(CAMPO)}
-              onKeyDown={(e) => { if (e.key === "Enter" && podePedirCodigo) setConferindo(true); }}
-            />
-            {/* Diz o que o número FAZ e o que ele NÃO faz. Pedir telefone no meio de uma
-                conexão parece cadastro, e cadastro inesperado é onde a pessoa desconfia. */}
-            <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.45")}>
-              É para onde o WhatsApp manda o código de conexão. Ele não fica salvo aqui.
-            </span>
-          </label>
-
-          {/* Um passo, e ele não é formalidade: é o único lugar do fluxo em que o número
-              aparece inteiro, com DDI, do jeito que vai ser usado. Ver `ConferirNumero`. */}
-          {conferindo ? (
-            <ConferirNumero
-              digitos={digitos}
-              ocupado={status === "gerando"}
-              aoCorrigir={() => setConferindo(false)}
-              aoConfirmar={() => { setConferindo(false); void conectar(digitos); }}
-            />
-          ) : (
-            <Botao
-              onClick={() => { if (podePedirCodigo) setConferindo(true); }}
-              ocupado={status === "gerando"} full
-            >
-              <Icon name="whatsapp" size={19} stroke="var(--on-primary)" />
-              Receber código
-            </Botao>
-          )}
-        </div>
-      ) : (
-        <Botao onClick={() => void conectar()} ocupado={status === "gerando"} full>
-          <Icon name="whatsapp" size={19} stroke="var(--on-primary)" />
-          Gerar QR code
-        </Botao>
-      )}
-
-      {/* ── A SAÍDA, SEMPRE VISÍVEL ──
-          Ficar preso aqui é o pior desfecho do wizard, e há duas maneiras de acontecer: o
-          QR num aparelho só, e o pairing code que a versão do servidor não gera. Um toque
-          entre os dois caminhos é o que transforma "não funciona" em "usei o outro".
-
-          Sem guarda de `status`: o caso "conectado" já saiu por um `return` acima. */}
-      <button
-        onClick={() => {
-          /* Pareamento em curso COM código: o servidor mandou os dois, então trocar é só
-           * alternar o que se pinta. Nada de rede. */
-          if (status === "pareando" && codigo) { setVerQr((v) => !v); return; }
-
-          /* Pareamento em curso SEM código: só se chega aqui olhando um QR — seja porque
-           * foi ele que se pediu, seja porque o servidor não gerou o código. Nos dois
-           * casos o que a pessoa quer é o caminho sem câmera, então força "codigo" em vez
-           * de alternar. Cancela local e deixa o campo do telefone à mostra; a instância
-           * pendente morre no próximo `conectar`, que apaga e recria de qualquer jeito. */
-          if (status === "pareando") {
-            parar();
-            setStatus("parado");
-            setQrcode(null);
-            setRecado(null);
-            setEscolha("codigo");
-            return;
-          }
-
-          setEscolha(porCodigo ? "qr" : "codigo");
-        }}
-        className="m-focus"
-        style={s(
-          "align-self:center;background:none;border:none;padding:4px;font-family:inherit;cursor:pointer;" +
-          "font-size:var(--t-sm);font-weight:var(--w-title);color:var(--primary);text-decoration:underline",
-        )}
-      >
-        {/* O rótulo segue o que está NA TELA, não o que foi pedido: quem pediu código e
-            recebeu só QR está olhando um QR, e oferecer "prefiro ler o QR" seria oferecer
-            o que ele já tem — no minuto em que ele está tentando desencalhar. */}
-        {status === "pareando" && codigo
-          ? mostrandoCodigo ? "Prefiro ler o QR code" : "Voltar para o código"
-          : status === "pareando" ? "Não consigo ler o QR — conectar com código"
-          : porCodigo ? "Prefiro ler o QR code"
-          : "Estou no celular — conectar com código"}
-      </button>
-
-      <Aviso recado={recado} />
-    </div>
-  );
-}
-
 /* ─────────────────────────── etapa 4 · ver funcionando ───────────────────────────
  *
  * A etapa que separa "vi um filme do produto" de "vi o produto". Aqui o dono escreve como
@@ -1232,12 +800,10 @@ function OfertaDoGoogle() {
 type Ambiente = { pronto: boolean; agendaReal: boolean; exemplo: ExemploDoNegocio };
 
 /** A conversa em si. Só monta quando o que precisa estar de pé está de pé. */
-function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
+function Conversa({ ambiente, numero, aoPainel }: {
   ambiente: Ambiente; numero: string | null;
-  /** Sair do wizard. Usado pelos becos internos (`Falta`), onde a pessoa está desistindo. */
+  /** Voltar ao painel, de onde esta etapa foi aberta. */
   aoPainel: () => void;
-  /** Seguir para a etapa 5. Usado pelo botão final — ver o comentário lá embaixo. */
-  aoSeguir: () => void;
 }) {
   const { exemplo } = ambiente;
   const semChave = !ambiente.pronto;
@@ -1329,10 +895,9 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
       <Falta
         icone="alert"
         titulo="A MAISA não está respondendo agora"
-        texto="O que você preencheu está salvo. Siga para o próximo passo."
+        texto="O que você preencheu está salvo. Tente de novo daqui a pouco."
         acao={null}
         aoPainel={aoPainel}
-        pular={aoSeguir}
       />
     );
   }
@@ -1427,13 +992,13 @@ function Conversa({ ambiente, numero, aoPainel, aoSeguir }: {
         </button>
       </form>
 
-      {/* Vai para a etapa 5 (nota fiscal), e não direto para o painel. O rótulo muda de
-          "Continuar" para o convite quando a MAISA ACABOU de marcar: é o instante de maior
-          crédito do onboarding inteiro, e é nele que faz sentido apresentar o diferencial. */}
+      {/* Até 12/11/2026 levava à etapa 5 (o documento fiscal). Agora esta etapa abre pelo painel
+          e volta para ele: quando a MAISA ACABOU de marcar, direto para a Agenda, onde o horário
+          que ela marcou está. */}
       <NoPe>
-        <Botao onClick={aoSeguir} variante={marcou ? "primary" : "ghost"} full>
-          {marcou ? "Agora o documento fiscal" : "Continuar"}
-        </Botao>
+        {marcou
+          ? <Botao onClick={() => { window.location.href = "/?tela=agenda"; }} full>Ver na agenda</Botao>
+          : <Botao onClick={aoPainel} variante="ghost" full>Voltar ao painel</Botao>}
       </NoPe>
     </div>
   );
@@ -1485,8 +1050,6 @@ type Destino = "recibo" | "nota" | "painel";
 
 function EtapaNotaFiscal({ aoEscolher }: { aoEscolher: (destino: Destino) => void }) {
   const [estado, setEstado] = useState<{ falta: string[]; ligado: boolean } | null>(null);
-  /** O que já sai pelo WhatsApp: muda a frase do "decidir depois". `null` enquanto não se sabe. */
-  const [uso, setUso] = useState<{ agente: boolean; lembrete: boolean } | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -1503,10 +1066,6 @@ function EtapaNotaFiscal({ aoEscolher }: { aoEscolher: (destino: Destino) => voi
         });
       })
       .catch(() => { if (vivo) setEstado({ falta: [], ligado: false }); });
-    fetch("/api/assistente", { cache: "no-store" })
-      .then(async (r) => (r.ok ? r.json() : null))
-      .then((d) => { if (vivo && d?.ok) setUso({ agente: d.assistente?.ativa === true, lembrete: d.cfg?.lembrete === true }); })
-      .catch(() => {});
     return () => { vivo = false; };
   }, []);
 
@@ -1535,9 +1094,9 @@ function EtapaNotaFiscal({ aoEscolher }: { aoEscolher: (destino: Destino) => voi
     { rotulo: "Tenho CNPJ", sub: "Nota fiscal de serviço. Pede o certificado digital A1.", destino: "nota" },
     {
       rotulo: "Decidir depois, na tela Fiscal",
-      /* O que já funciona sem isto, dito pelo que está ligado de verdade: sem agente ela não
-         "atende e marca", e sem lembrete ligado dizer que os lembretes saem seria mentir. */
-      sub: uso?.agente ? "Ela já atende e marca pelo WhatsApp." : uso?.lembrete ? "Os lembretes já saem pelo WhatsApp." : "Fica esperando na tela Fiscal.",
+      /* Dizia o que já funcionava ("Ela já atende e marca pelo WhatsApp"). Desde 12/11/2026
+         ninguém chega aqui com o WhatsApp conectado (ele saiu do wizard), e a frase mentiria. */
+      sub: "Fica esperando na tela Fiscal.",
       destino: "painel",
     },
   ];
@@ -1583,7 +1142,7 @@ function Comemoracao({ destino, feitos, valem, aoPainel }: {
   const frase = !usaWhatsApp
     ? "Seus recibos saem pelo painel, na tela Fiscal."
     : !conectado
-      ? "Falta conectar o WhatsApp do seu negócio. Dá pra fazer pelo painel, quando quiser."
+      ? "Agora falta conectar o seu WhatsApp, no painel."
       : valem.includes("primeira_conversa")
         ? "A maisa já atende e marca pelo WhatsApp do seu negócio."
         : "Os lembretes já saem pelo WhatsApp do seu negócio.";
@@ -1655,9 +1214,12 @@ function BolhaSim({ fala }: { fala: Fala }) {
   );
 }
 
-function EtapaVerFuncionando({ feitos, aoVoltarParaWhatsApp, aoSeguir }: {
-  feitos: PassoDeAtivacao[]; aoVoltarParaWhatsApp: () => void; aoSeguir: () => void;
-}) {
+/** A seção do WhatsApp nos ajustes da maisa, no painel. É onde se conecta desde 12/11/2026. */
+const IR_AO_WHATSAPP = "/?tela=assistente&secao=whatsapp";
+
+/* ★ DESDE 12/11/2026 ESTA ETAPA SÓ ABRE PELO PAINEL (`?etapa=ver`, cartão "Ver funcionando" da
+ * jornada). Fora do caminho do wizard, ela não tem etapa seguinte: terminar é voltar ao painel. */
+function EtapaVerFuncionando({ feitos }: { feitos: PassoDeAtivacao[] }) {
   const router = useRouter();
   const [numero, setNumero] = useState<string | null>(null);
   const [ambiente, setAmbiente] = useState<Ambiente | null>(null);
@@ -1702,9 +1264,8 @@ function EtapaVerFuncionando({ feitos, aoVoltarParaWhatsApp, aoSeguir }: {
         icone="whatsapp"
         titulo="Falta o WhatsApp"
         texto="É por ele que a MAISA atende — e é nele que a resposta dela vai chegar quando você testar. Leva um minuto."
-        acao={<Botao onClick={aoVoltarParaWhatsApp} full>Conectar o WhatsApp</Botao>}
+        acao={<Botao onClick={() => { window.location.href = IR_AO_WHATSAPP; }} full>Conectar o WhatsApp</Botao>}
         aoPainel={aoPainel}
-        pular={aoSeguir}
       />
     );
   }
@@ -1719,7 +1280,7 @@ function EtapaVerFuncionando({ feitos, aoVoltarParaWhatsApp, aoSeguir }: {
    * prendia a pessoa num consent de projeto OAuth não verificado, e quem não ligava nunca via a
    * etapa 5. A conversa abre direto; o Google vira uma oferta depois da primeira marcação
    * (`OfertaDoGoogle`, dentro da `Conversa`). */
-  return <Conversa ambiente={ambiente} numero={numero} aoPainel={aoPainel} aoSeguir={aoSeguir} />;
+  return <Conversa ambiente={ambiente} numero={numero} aoPainel={aoPainel} />;
 }
 
 /* ───────────────────────────── o wizard ───────────────────────────── */
@@ -1734,8 +1295,8 @@ export default function Comecar() {
   const [pe, setPe] = useState<HTMLDivElement | null>(null);
   const [feitos, setFeitos] = useState<PassoDeAtivacao[]>([]);
   /**
-   * Os passos que valem para este negócio — é o que decide se "Conectar o WhatsApp" e "Ver
-   * funcionando" existem. Ver `passosQueValem`.
+   * Os passos que valem para este negócio — é o que decide se existe "Ver funcionando" (aberto
+   * pelo painel) e o que a comemoração diz do WhatsApp. Ver `passosQueValem`.
    *
    * ⚠️ LIDO DO SERVIDOR NA RETOMADA (`/api/ativacao` devolve `passos`), e não guardado da
    * escolha da etapa 1. Quem volta do consent do Google, dá F5 ou fecha e reabre passa por
@@ -1746,16 +1307,14 @@ export default function Comecar() {
    * esconde a de quem a quer.
    */
   const [valem, setValem] = useState<readonly PassoDeAtivacao[]>(PASSOS_DE_ATIVACAO);
-  const temWhatsApp = valem.includes("whatsapp_conectado");
-  const temVer = valem.includes("primeira_conversa");
 
   /**
    * Onde retomar — perguntado ao MUNDO, não a uma flag.
    *
    * 409 `sem_negocio` significa etapa 1. Qualquer outra resposta significa que o inquilino
-   * existe, e aí o passo cumprido decide: quem já conectou o WhatsApp não vê a tela do QR
-   * de novo. É o mesmo princípio de `dominio/ativacao.ts` — quem fez a coisa por outro
-   * caminho não é obrigado a repetir.
+   * existe, e aí o passo cumprido decide: quem já ajustou os serviços não vê o catálogo de
+   * novo. É o mesmo princípio de `dominio/ativacao.ts` — quem fez a coisa por outro caminho
+   * não é obrigado a repetir.
    */
   useEffect(() => {
     let vivo = true;
@@ -1802,16 +1361,13 @@ export default function Comecar() {
         setFeitos(f);
         const v: readonly PassoDeAtivacao[] = Array.isArray(corpo?.passos) ? corpo.passos : PASSOS_DE_ATIVACAO;
         setValem(v);
-        /* Sem agente não existe "Ver funcionando"; sem nada saindo pelo WhatsApp não existe
-         * nem o WhatsApp. Quem cai fora dos dois vai direto ao documento fiscal. */
-        const depoisDoWhatsApp: EtapaId = v.includes("primeira_conversa") ? "ver" : "fiscal";
-        const depoisDoCatalogo: EtapaId = v.includes("whatsapp_conectado") ? "whatsapp" : depoisDoWhatsApp;
         /* `?etapa=ver` é o "Ver funcionando" da jornada do painel (`JornadaDeAtivacao`), desde
-         * 24/10/2026. Sem ele a página escolhia a etapa pelo que falta e, sem WhatsApp, abria em
-         * "O que você faz": a pessoa pedia a conversa e precisava apertar "Pular por agora" duas
-         * vezes para chegar. Sinal de navegação como o `?google=`, e não estado guardado. */
-        if (google || busca.get("etapa") === "ver") { setEtapa(depoisDoWhatsApp); return; }
-        setEtapa(f.includes("whatsapp_conectado") ? depoisDoWhatsApp : f.includes("catalogo_ajustado") ? depoisDoCatalogo : "catalogo");
+         * 24/10/2026, e desde 12/11/2026 é a ÚNICA porta dele: a etapa saiu do caminho do wizard.
+         * `?google=` é a volta do consent que a própria conversa oferece (`OfertaDoGoogle`). Sinais
+         * de navegação, e não estado guardado. Sem agente não existe conversa a ver, e a pessoa
+         * segue o caminho normal. */
+        if ((google || busca.get("etapa") === "ver") && v.includes("primeira_conversa")) { setEtapa("ver"); return; }
+        setEtapa(f.includes("catalogo_ajustado") ? "fiscal" : "catalogo");
       })
       .catch(() => vivo && setEtapa("negocio"));
     return () => { vivo = false; };
@@ -1839,14 +1395,10 @@ export default function Comecar() {
   }
 
   const meta = ETAPAS.find((e) => e.id === etapa)!;
-  const podePular = etapa === "catalogo" || etapa === "whatsapp";
-  /* A barra mostra só o que vai acontecer. Deixar a etapa que o wizard vai pular é prometer um
-   * passo a mais e depois sumir com ele. */
-  const etapas = ETAPAS.filter((e) => (e.id === "whatsapp" ? temWhatsApp : e.id === "ver" ? temVer : true));
-  /** Depois do WhatsApp: demonstrar a conversa, ou o documento fiscal para quem não tem agente. */
-  const depoisDoWhatsApp: EtapaId = temVer ? "ver" : "fiscal";
-  /** Depois do catálogo: o WhatsApp, ou — para quem só emite recibo — direto ao que importa. */
-  const depoisDoCatalogo: EtapaId = temWhatsApp ? "whatsapp" : depoisDoWhatsApp;
+  const podePular = etapa === "catalogo";
+  /* A barra mostra só o que vai acontecer: negócio, serviços e documento fiscal. O "Ver
+   * funcionando" abre sozinho, vindo do painel, e aí a barra é só ele. */
+  const etapas = etapa === "ver" ? ETAPAS.filter((e) => e.id === "ver") : ETAPAS.filter((e) => e.id !== "ver");
 
   /* Sair da conta, e não do wizard: quem está aqui ainda não tem para onde ir no painel. Serve a
    * quem entrou na conta errada. */
@@ -1870,7 +1422,7 @@ export default function Comecar() {
          esta CRIA. Sem inquilino não há o que pular para — o painel responde 409 em toda rota.
          Vai em `pe`, a vaga de baixo do pé, e nunca fica acima do primário da etapa. */
       pe={podePular ? (
-        <AcaoDiscreta onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar(etapa === "catalogo" ? depoisDoCatalogo : depoisDoWhatsApp); }}>
+        <AcaoDiscreta onClick={() => { toast("Você pode fazer isso depois, pelo painel"); avancar("fiscal"); }}>
           Pular por agora
         </AcaoDiscreta>
       ) : undefined}
@@ -1881,9 +1433,8 @@ export default function Comecar() {
         {etapa === "negocio" && (
           <EtapaNegocio aoCriar={(uso) => { setValem(passosQueValem(uso)); avancar("catalogo"); }} />
         )}
-        {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar(depoisDoCatalogo)} />}
-        {etapa === "whatsapp" && <EtapaWhatsApp aoSeguir={() => avancar(depoisDoWhatsApp)} />}
-        {etapa === "ver" && <EtapaVerFuncionando feitos={feitos} aoVoltarParaWhatsApp={() => avancar("whatsapp")} aoSeguir={() => avancar("fiscal")} />}
+        {etapa === "catalogo" && <EtapaCatalogo aoSeguir={() => avancar("fiscal")} />}
+        {etapa === "ver" && <EtapaVerFuncionando feitos={feitos} />}
         {etapa === "fiscal" && <EtapaNotaFiscal aoEscolher={setFim} />}
 
       </PeDoWizard.Provider>

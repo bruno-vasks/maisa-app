@@ -22,6 +22,8 @@ import {
   digitosDoTelefone, telefoneMascarado, telefoneParaConferir,
 } from "@/ui/componentes/Pareamento";
 import { useIsMobile } from "@/ui/useIsMobile";
+import { createClient } from "@/adaptadores/saida/supabase/client";
+import { isSupabaseConfigured } from "@/adaptadores/saida/supabase/config";
 import * as D from "@/adaptadores/saida/demo";
 import { useStore } from "@/ui/estado/store";
 import { Moldura } from "@/ui/componentes/Moldura";
@@ -223,6 +225,17 @@ function FaixaCanalLida() {
   const porCodigo = escolha ? escolha === "codigo" : noCelular;
 
   const [telefone, setTelefone] = React.useState("");
+  /* ★ O NÚMERO DO CADASTRO JÁ VEM NO CAMPO (12/11/2026). Desde 31/10 todo mundo deixa o WhatsApp
+   * no `/cadastro` (`user_metadata.telefone`), e quase sempre é o mesmo que vai conectar. Pedir de
+   * novo era um campo a mais na tela que mais perde gente. Vem só se o campo está vazio, e a
+   * conferência (`ConferirNumero`) continua antes de mandar o código. */
+  React.useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    createClient().auth.getUser().then(({ data }) => {
+      const doCadastro = digitosDoTelefone(String(data.user?.user_metadata?.telefone ?? ""));
+      if (doCadastro.length >= 10) setTelefone((t) => t || doCadastro);
+    }).catch(() => {});
+  }, []);
   /* Mostrar o QR mesmo tendo pedido código. O servidor devolve os dois, e este botão é a
    * saída de quem tem um segundo aparelho quando o código não funciona. */
   const [verQr, setVerQr] = React.useState(false);
@@ -249,8 +262,10 @@ function FaixaCanalLida() {
   const sub = conectado
     ? null
     : pareando
+      /* Com o código na tela, o caminho já está na lista logo abaixo (`CaminhoNoWhatsApp`, com o
+       * sistema certo e o aviso da câmera). Repeti-lo aqui era a mesma frase duas vezes. */
       ? mostrandoCodigo
-        ? "Aparelhos conectados → Conectar aparelho → Conectar com número de telefone"
+        ? null
         : "Abra o WhatsApp do negócio → Aparelhos conectados → Conectar aparelho"
       : "A MAISA não consegue responder enquanto isso";
 

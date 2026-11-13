@@ -344,15 +344,15 @@ horário que sair daqui existe. Existe porque no texto da resposta *"consultei a
 quinta às 15h"* e *"inventei quinta às 15h"* são indistinguíveis, e a segunda é o pior bug
 deste produto; a trilha devolvida diz qual dos dois aconteceu.
 
-⚠️ **Deixou de ser dev-only em 15/08/2026.** Ela é a etapa 4 do `/comecar` (o "ver
-funcionando"), então o inquilino passou a vir da **sessão** e a resposta sem login é 401, não
+⚠️ **Deixou de ser dev-only em 15/08/2026.** Ela é o "ver funcionando" do `/comecar` (desde
+12/11/2026 aberto só pelo cartão da jornada no painel, `?etapa=ver`), então o inquilino passou a vir da **sessão** e a resposta sem login é 401, não
 404. `MAISA_LABORATORIO=1` sobrou só como caminho de desenvolvimento sem login, com um
 inquilino de fixture. Consequência que vale dizer em voz alta: a rota **gasta token de modelo
 e escreve na agenda de quem chama** — com o porteiro, isso é a mesma exposição que o WhatsApp
 do próprio inquilino já tem; sem ele, era a chave de IA aberta para quem achasse a URL.
 
 A **página** `/laboratorio` continua fechada em produção: ela é a versão de depuração, com a
-trilha crua em JSON ao lado. O que o cliente vê é a etapa 4 do wizard.
+trilha crua em JSON ao lado. O que o cliente vê é o `/comecar?etapa=ver`.
 
 ## O domínio raiz — `maisasecretary.com.br` (24/10/2026)
 
