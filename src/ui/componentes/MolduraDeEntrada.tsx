@@ -36,7 +36,8 @@ import { s, Icon } from "@/ui/primitivos";
 export type EtapaDaEntrada = { id: string; rotulo: string };
 
 /** O wordmark: "maisa" em minúscula e o ponto âmbar, que é decorativo (o âmbar é marca, emenda 2). */
-function Marca() {
+/** A marca do topo das telas de entrada. Exportada para a moldura do onboarding (`app/comecar`). */
+export function Marca() {
   return (
     <span style={s("display:inline-flex;align-items:center;gap:5px")}>
       <span style={s("font-size:var(--t-lg);font-weight:var(--w-emph);color:var(--nav);line-height:1")}>maisa</span>

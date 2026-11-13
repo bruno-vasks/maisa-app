@@ -126,6 +126,9 @@
   --radius-card: var(--r-painel);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --font-sans: var(--font-plex-sans), system-ui, -apple-system, sans-serif;
+  /* A fonte do celular (SF no iPhone, Roboto no Android), escolhida pelo Bruno em 12/11/2026. Por
+   * enquanto só no onboarding curto (`.m-ob`, emenda 8). */
+  --font-sistema: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   /* voz da sidebar — Alegreya Sans, humanista calligráfica (ver layout.tsx) */
   --font-nav: var(--font-nav-src), var(--font-plex-sans), system-ui, sans-serif;
   /* COMPENSAÇÃO ÓPTICA: a x-height da Alegreya é 0.461 contra 0.516 da Plex — 11% menor. A 14px
@@ -148,6 +151,9 @@
   /* ===== MOTION — easings ===== */
   /* --ease-out (acima) = cubic-bezier(0.16,1,0.3,1) — reusar em TUDO que entra/hover/focus/press */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* overshoot ~5% · no knob do toggle e, desde 31/10/2026, no onboarding (emenda 7) */
+  /* A mola "iOS Spring" do open-motion (rigidez 290, amortecimento 26, massa 1), em 0,5 s: passa 2% e
+   * assenta. Desde 13/11/2026, no onboarding curto (emenda 8); sobe para o app inteiro com as telas internas. */
+  --ease-mola: linear(0, 0.021, 0.074, 0.149, 0.235, 0.327, 0.42, 0.509, 0.592, 0.668, 0.735, 0.794, 0.845, 0.887, 0.922, 0.95, 0.973, 0.99, 1.003, 1.012, 1.018, 1.021, 1.023, 1.024, 1.023, 1.022, 1.02, 1.018, 1.016, 1.013, 1.011, 1.009, 1.008, 1.006, 1.005, 1.004, 1.003, 1.002, 1.001, 1.001, 1);
 
   /* ===== responsividade — estilos inline (s()) não aceitam @media, então o
      layout de 2 colunas troca por variáveis que viram single-column no breakpoint ===== */
@@ -469,15 +475,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
    no Safari do iPhone `100vh` conta a barra de endereço recolhida e as abas iam para trás dela. */
 .m-altura-tela { height: 100vh; height: 100dvh; }
 
-/* Os cartões do tipo de negócio no `/comecar`: três colunas com o ícone em cima; no celular,
- * uma coluna com o ícone ao lado do texto. */
-.m-tipos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.m-cartao-tipo { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 14px; text-align: center; }
-@media (max-width: 640px) {
-  .m-tipos { grid-template-columns: 1fr; gap: 10px; }
-  .m-cartao-tipo { flex-direction: row; gap: 16px; padding: 16px; text-align: left; }
-}
-
 /* ── O MOVIMENTO DAS TELAS DE ENTRADA (31/10/2026, emenda 7 do `maisa-design`) ──
  * Bruno: "parece meio morto sem as animações. Quero manter o estilo de light animation, mas na
  * página de onboarding podemos ousar um pouco mais." O limite está escrito na emenda; o
@@ -493,81 +490,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 .m-cascata > :nth-child(5) { animation-delay: 240ms; }
 .m-cascata > :nth-child(n+6) { animation-delay: 300ms; }
 
-/* Só no wizard: o cartão de escolha sobe 2px no hover, a seta do cartão anda para o lado e a marca
- * de escolhido entra com a mola. */
-.m-cartao-anima { transition: var(--tr-ui); }
-.m-cartao-anima:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
-.m-cartao-anima:active { transform: translateY(0) scale(0.985); transition-duration: 90ms; }
-.m-seta { display: inline-flex; transition: transform var(--dur-slow) var(--ease-out); }
-.m-cartao-anima:hover .m-seta { transform: translateX(4px); }
 .m-pop { display: inline-flex; animation: mpop var(--dur-slow) var(--ease-spring) both; }
 .m-progresso { transition: width 520ms var(--ease-out); }
-
-/* Os ícones que fazem o que são (`app/comecar/IconeVivo.tsx`). A inclinação genérica saiu em
- * 31/10/2026 ("não gosto desse tilt pro lado"): cada desenho se mexe do jeito do objeto. Tocam
- * ao entrar na tela (depois de `--iv-atraso`) e de novo a cada hover ou toque, porque o `svg`
- * remonta. O pivô de cada peça é o ponto do desenho, em unidades do `viewBox`. */
-.m-iv { overflow: visible; }
-.m-iv-tesoura .m-iv-lamina-a,
-.m-iv-tesoura .m-iv-lamina-b { transform-box: view-box; transform-origin: 12px 12px; }
-.m-iv-tesoura .m-iv-lamina-a { animation: iv-corta-a 900ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-.m-iv-tesoura .m-iv-lamina-b { animation: iv-corta-b 900ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-@keyframes iv-corta-a { 0%, 42%, 84%, 100% { transform: rotate(0deg); } 21%, 63% { transform: rotate(-24deg); } }
-@keyframes iv-corta-b { 0%, 42%, 84%, 100% { transform: rotate(0deg); } 21%, 63% { transform: rotate(24deg); } }
-
-.m-iv-estetoscopio .m-iv-batida,
-.m-iv-estetoscopio .m-iv-onda { transform-box: fill-box; transform-origin: center; }
-.m-iv-estetoscopio .m-iv-batida { animation: iv-bate 1200ms ease-in-out var(--iv-atraso, 0ms) both; }
-.m-iv-estetoscopio .m-iv-onda { animation: iv-onda 1200ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-@keyframes iv-bate {
-  0%, 20%, 42%, 65%, 87%, 100% { transform: scale(1); }
-  10%, 55% { transform: scale(1.45); }
-  30%, 75% { transform: scale(1.25); }
-}
-@keyframes iv-onda {
-  0% { transform: scale(1); opacity: 0; } 10% { opacity: 0.7; } 45% { transform: scale(2.4); opacity: 0; }
-  50% { transform: scale(1); opacity: 0; } 55% { opacity: 0.7; } 100% { transform: scale(2.4); opacity: 0; }
-}
-
-.m-iv-loja .m-iv-toldo { transform-box: fill-box; transform-origin: 50% 0; animation: iv-toldo 900ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-.m-iv-loja .m-iv-porta { transform-box: fill-box; transform-origin: 0 50%; animation: iv-porta 1200ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-/* Parte do toldo aberto: com `both`, o primeiro quadro vale durante o `--iv-atraso`, e um toldo
- * enrolado ali parecia desenho quebrado na entrada da tela. */
-@keyframes iv-toldo { 0% { transform: scaleY(1); } 22% { transform: scaleY(0.25); } 62% { transform: scaleY(1.14); } 82% { transform: scaleY(0.95); } 100% { transform: scaleY(1); } }
-@keyframes iv-porta { 0%, 30% { transform: scaleX(1); } 52%, 76% { transform: scaleX(0.2); } 100% { transform: scaleX(1); } }
-
-.m-iv-conversa .m-iv-ponto { transform-box: fill-box; transform-origin: center; animation: iv-digita 560ms ease-in-out var(--iv-atraso, 0ms) 3 both; }
-.m-iv-conversa .m-iv-ponto:nth-of-type(2) { animation-delay: calc(var(--iv-atraso, 0ms) + 110ms); }
-.m-iv-conversa .m-iv-ponto:nth-of-type(3) { animation-delay: calc(var(--iv-atraso, 0ms) + 220ms); }
-@keyframes iv-digita { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-3px); } }
-
-.m-iv-sino .m-iv-corpo,
-.m-iv-sino .m-iv-badalo { transform-box: view-box; transform-origin: 12px 2px; }
-.m-iv-sino .m-iv-corpo { animation: iv-balanca 1000ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-.m-iv-sino .m-iv-badalo { animation: iv-badala 1000ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-.m-iv-sino .m-iv-som { animation: iv-som 1000ms var(--ease-out) var(--iv-atraso, 0ms) both; }
-@keyframes iv-balanca { 0%, 100% { transform: rotate(0deg); } 12% { transform: rotate(16deg); } 28% { transform: rotate(-14deg); } 44% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 76% { transform: rotate(3deg); } }
-@keyframes iv-badala { 0%, 100% { transform: rotate(0deg); } 16% { transform: rotate(-10deg); } 32% { transform: rotate(12deg); } 48% { transform: rotate(-8deg); } 64% { transform: rotate(5deg); } 80% { transform: rotate(-2deg); } }
-@keyframes iv-som { 0% { opacity: 0; } 15%, 55% { opacity: 1; } 80%, 100% { opacity: 0; } }
-
-.m-iv-recibo .m-iv-linha,
-.m-iv-recibo .m-iv-selo { stroke-dasharray: 1; stroke-dashoffset: 1; }
-.m-iv-recibo .m-iv-linha { animation: iv-escreve 420ms var(--ease-out) calc(var(--iv-atraso, 0ms) + 100ms) both; }
-.m-iv-recibo .m-iv-linha + .m-iv-linha { animation-delay: calc(var(--iv-atraso, 0ms) + 440ms); }
-.m-iv-recibo .m-iv-selo { animation: iv-escreve 380ms var(--ease-out) calc(var(--iv-atraso, 0ms) + 820ms) both; }
-@keyframes iv-escreve { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-
-/* O interruptor da lista de serviços (`app/comecar/InterruptorVivo.tsx`): a cor enche a trilha e a
- * bolinha estica no aperto e desliza com a mola. */
-.m-chave { width: 44px; height: 44px; flex-shrink: 0; padding: 9px 0; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.m-chave-trilho { position: relative; display: block; width: 44px; height: 26px; border-radius: 999px; background: var(--border); overflow: hidden; }
-.m-chave-cheio { position: absolute; inset: 0; border-radius: 999px; background: var(--primary); transform: scaleX(0); transform-origin: left center; transition: transform 320ms var(--ease-out); }
-.m-chave[aria-checked="true"] .m-chave-cheio { transform: scaleX(1); }
-.m-chave-bola { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: var(--on-primary); box-shadow: 0 1px 3px oklch(0.22 0.03 262 / 0.25); transition: transform 380ms var(--ease-spring), width 160ms var(--ease-out); }
-.m-chave[aria-checked="true"] .m-chave-bola { transform: translateX(18px); }
-.m-chave:active .m-chave-bola { width: 25px; }
-.m-chave[aria-checked="true"]:active .m-chave-bola { transform: translateX(13px); }
-
 /* A comemoração do fim do wizard: o anel cresce com a mola, o check se desenha, duas ondas saem
  * do anel e o texto sobe depois. Sem confete: a regra de movimento continua proibindo. */
 .m-festa-anel { animation: mfesta-anel var(--dur-mola) var(--ease-spring) 80ms both; }
@@ -580,3 +504,122 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 @keyframes mfesta-anel { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes mfesta-check { to { stroke-dashoffset: 0; } }
 @keyframes mfesta-onda { from { transform: scale(1); opacity: 0.5; } to { transform: scale(2.1); opacity: 0; } }
+
+/* ── O ONBOARDING CURTO (13/11/2026, emenda 8 do `maisa-design`) ──
+ * `app/comecar/MolduraDaConversa.tsx`. A orientação nova, aprovada pelo Bruno em 12/11/2026 (cantos
+ * macios, fonte do celular, mola do iOS), começa por aqui. Os tokens de canto são os mesmos do app,
+ * REDEFINIDOS só dentro de `.m-ob`: quando as telas internas mudarem, estes valores sobem para o
+ * `:root` e a guarda G19 continua valendo do mesmo jeito.
+ *
+ * No celular, a conversa fica no alto e o formulário sobe por cima como uma folha. A partir de
+ * 900px, a tela se divide e a conversa ocupa a metade direita. */
+.m-ob {
+  --r-painel: 16px;
+  --r-controle: 12px;
+  --ob-fundo: oklch(0.962 0.009 262);
+  --ob-campo: oklch(0.955 0.009 262);
+  --ob-bolha-cliente: oklch(0.930 0.055 150);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--ob-fundo); color: var(--ink);
+  font-family: var(--font-sistema);
+  -webkit-font-smoothing: antialiased;
+}
+.m-ob > * { min-height: 0; }
+.m-ob-esq { flex: 1; display: flex; flex-direction: column; }
+.m-ob-topo { flex-shrink: 0; display: grid; grid-template-columns: 104px 1fr 104px; align-items: center; padding: 10px 8px 2px; }
+.m-ob-voltar { justify-self: start; display: inline-flex; align-items: center; gap: 2px; height: 44px; padding: 0 12px 0 6px; border: none; border-radius: 999px; background: none; color: var(--primary); font: inherit; font-size: var(--t-sm); font-weight: var(--w-title); cursor: pointer; transition: var(--tr-ui); }
+.m-ob-voltar span { display: none; }
+.m-ob-voltar:hover { background: var(--ob-campo); }
+.m-ob-sair { justify-self: end; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; transition: var(--tr-ui); }
+.m-ob-sair:hover { background: var(--ob-campo); color: var(--ink); }
+.m-ob-marca { justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.m-ob-barra { width: 96px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.m-ob-barra b { display: block; height: 100%; border-radius: 2px; background: var(--primary); transition: width 500ms var(--ease-mola); }
+
+/* a conversa */
+.m-ob-mini { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 16px 16px; }
+.m-ob-contato { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.m-ob-av { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--nav); color: var(--warm); font-size: 12px; font-weight: var(--w-emph); }
+.m-ob-contato-nome { min-width: 0; display: flex; flex-direction: column; }
+.m-ob-contato-nome b { font-size: var(--t-label); font-weight: var(--w-title); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-ob-contato-nome small { display: none; }
+.m-ob-bolha { margin: 0; max-width: 86%; padding: 9px 13px; border-radius: 18px; font-size: 15px; line-height: 1.42; overflow-wrap: anywhere; animation: mrise 380ms var(--ease-mola) both; }
+.m-ob-bolha-cliente { align-self: flex-end; background: var(--ob-bolha-cliente); color: var(--ink); border-bottom-right-radius: 4px; }
+.m-ob-bolha-maisa { align-self: flex-start; background: var(--surface); color: var(--ink); border-bottom-left-radius: 4px; }
+.m-ob-digitando { display: inline-flex; gap: 4px; padding: 5px 0; }
+.m-ob-digitando i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: mob-ponto 1s ease-in-out infinite; }
+.m-ob-digitando i:nth-child(2) { animation-delay: 150ms; }
+.m-ob-digitando i:nth-child(3) { animation-delay: 300ms; }
+@keyframes mob-ponto { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-3px); opacity: 1; } }
+.m-ob-lado { display: none; }
+
+/* a folha do formulário */
+.m-ob-folha { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; background: var(--surface); border-radius: 26px 26px 0 0; box-shadow: 0 -10px 30px -22px oklch(0.22 0.05 262 / 0.45); }
+.m-ob-col { flex: 1 0 auto; width: 100%; max-width: 520px; margin: 0 auto; padding: 24px 20px 0; display: flex; flex-direction: column; }
+.m-ob-pe { position: sticky; bottom: 0; z-index: 2; margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 22px 0 16px; background: linear-gradient(to bottom, oklch(1 0 0 / 0), var(--surface) 28%); }
+.m-ob-titulo { margin: 0; font-size: 26px; line-height: 1.2; font-weight: var(--w-emph); letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
+.m-ob-par { display: flex; flex-direction: column; gap: 16px; }
+.m-ob-par > * { flex: 1; min-width: 0; }
+.m-ob-campo-grupo { display: flex; flex-direction: column; gap: 8px; }
+.m-ob-rotulo { font-size: var(--t-sm); font-weight: var(--w-title); color: var(--ink); }
+.m-ob-campo { width: 100%; min-width: 0; height: 50px; padding: 0 14px; border: 1.5px solid transparent; border-radius: var(--r-controle); background: var(--ob-campo); font: inherit; font-size: var(--t-body); color: var(--ink); outline: none; transition: var(--tr-ui); }
+.m-ob-campo::placeholder { color: var(--muted); }
+.m-ob-campo:focus { background: var(--surface); border-color: var(--primary); }
+select.m-ob-campo { padding-right: 8px; cursor: pointer; }
+
+/* serviços */
+.m-ob-servicos { display: flex; flex-direction: column; gap: 10px; }
+.m-ob-servicos-cab { display: none; }
+.m-ob-servico { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 40px; gap: 8px; padding: 12px; border-radius: var(--r-painel); background: var(--ob-campo); animation: mrise 420ms var(--ease-mola) both; }
+.m-ob-servico .m-ob-campo { background: var(--surface); }
+.m-ob-servico-nome { grid-column: 1 / -1; }
+.m-ob-reais { position: relative; min-width: 0; }
+.m-ob-reais span { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: var(--t-sm); pointer-events: none; }
+.m-ob-reais .m-ob-campo { padding-left: 38px; font-variant-numeric: tabular-nums; }
+.m-ob-tirar { width: 40px; height: 50px; display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--r-controle); background: none; color: var(--muted); cursor: pointer; transition: var(--tr-ui); }
+.m-ob-tirar:hover { color: var(--ink); }
+.m-ob-mais { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border: none; border-radius: var(--r-controle); background: var(--primary-soft); color: var(--primary); font: inherit; font-size: var(--t-sm); font-weight: var(--w-title); cursor: pointer; transition: transform 500ms var(--ease-mola); }
+
+/* horário */
+.m-ob-dias { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.m-ob-dia { height: 48px; border: none; border-radius: var(--r-controle); background: var(--ob-campo); font: inherit; font-size: var(--t-sm); font-weight: 500; color: var(--muted); cursor: pointer; transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out), transform 500ms var(--ease-mola); }
+.m-ob-dia[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: var(--w-title); }
+.m-ob-horas { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--t-sm); }
+.m-ob-horas .m-ob-campo { width: auto; flex: 1; max-width: 140px; font-variant-numeric: tabular-nums; }
+
+/* o botão: no celular, de ponta a ponta no pé da folha; no computador, logo abaixo dos campos */
+.m-ob-acao { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 50px; width: 100%; padding: 0 26px; border: none; border-radius: var(--r-controle); background: var(--primary); color: var(--on-primary); font: inherit; font-size: var(--t-body); font-weight: var(--w-title); cursor: pointer; transition: background-color 150ms var(--ease-out), transform 500ms var(--ease-mola); }
+.m-ob-acao:hover:not(:disabled) { background: var(--primary-dark); }
+.m-ob-acao:disabled { opacity: 0.45; cursor: not-allowed; }
+/* O toque do open-motion ("Gesture Tap"), contido: encolhe 3% e volta na mola. */
+.m-ob-acao:active:not(:disabled), .m-ob-mais:active, .m-ob-dia:active { transform: scale(0.97); transition-duration: 80ms; }
+.m-ob-dica { display: none; color: var(--muted); font-size: var(--t-sm); }
+.m-ob-dica kbd { font: inherit; font-size: var(--t-label); padding: 2px 7px; border-radius: 4px; background: var(--ob-campo); color: var(--ink); }
+
+/* A comemoração do fim fica fora da moldura, mas com a mesma fonte e o mesmo canto de botão. */
+.m-ob-festa { --r-controle: 12px; font-family: var(--font-sistema); }
+
+@media (min-width: 900px) {
+  .m-ob { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); grid-template-rows: minmax(0, 1fr); background: var(--surface); }
+  .m-ob-topo { padding: 18px 24px 2px; }
+  .m-ob-voltar span { display: inline; }
+  .m-ob-mini { display: none; }
+  .m-ob-folha { border-radius: 0; box-shadow: none; }
+  .m-ob-col { max-width: 560px; padding-top: 52px; }
+  .m-ob-titulo { font-size: 32px; }
+  .m-ob-pe { position: static; background: none; flex-direction: row; align-items: center; gap: 16px; margin-top: 0; padding: 28px 0 48px; }
+  .m-ob-acao { width: auto; min-width: 200px; }
+  .m-ob-dica { display: inline; }
+  .m-ob-par { flex-direction: row; }
+  .m-ob-servicos-cab { display: grid; grid-template-columns: minmax(0, 1fr) 112px 112px 40px; gap: 10px; padding: 0 2px; font-size: var(--t-label); font-weight: var(--w-title); color: var(--muted); }
+  .m-ob-servico { grid-template-columns: minmax(0, 1fr) 112px 112px 40px; gap: 10px; padding: 0; background: none; }
+  .m-ob-servico .m-ob-campo { background: var(--ob-campo); }
+  .m-ob-servico .m-ob-campo:focus { background: var(--surface); }
+  .m-ob-servico-nome { grid-column: auto; }
+  .m-ob-lado { display: flex; flex-direction: column; padding: 28px 36px; background: var(--ob-fundo); }
+  .m-ob-av { width: 32px; height: 32px; font-size: 14px; }
+  .m-ob-contato-nome b { font-size: var(--t-sm); color: var(--ink); }
+  .m-ob-contato-nome small { display: block; font-size: var(--t-label); color: var(--muted); }
+  .m-ob-historia { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 420px; margin: 0 auto; padding: 16px 0 24px; }
+  .m-ob-historia > :first-child { margin-top: auto; }
+}

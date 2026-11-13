@@ -96,7 +96,7 @@ Baixas e **quentes** — construídas sobre `rgba(23,21,18,…)`, nunca preto pu
 - **Desabilitado**: `opacity .42`, cursor `not-allowed`, sem sombra.
 
 ### Movimento
-Rápido e discreto: 120ms para cor e hover, 180ms para abrir/fechar, 280ms para modal e toast, 420ms só em entrada de página. Curva padrão `--ease-out`. **Bounce (`--ease-spring`) existe em exatamente um lugar: o knob do switch.** Nada de parallax, número contando, confete ou elemento entrando de longe. `prefers-reduced-motion` zera todas as durações. Nas telas de entrada vale a emenda 7 (o onboarding se mexe mais).
+Rápido e discreto: 120ms para cor e hover, 180ms para abrir/fechar, 280ms para modal e toast, 420ms só em entrada de página. Curva padrão `--ease-out`. **Bounce (`--ease-spring`) existe em exatamente um lugar: o knob do switch.** Nada de parallax, número contando, confete ou elemento entrando de longe. `prefers-reduced-motion` zera todas as durações. Nas telas de entrada vale a emenda 7 (o onboarding se mexe mais), e no `/comecar` também a emenda 8 (a mola do iOS).
 
 Esses tetos governam **resposta a interação** — hover, abrir, fechar, entrar. O **respiro ambiente da ilustração** é a única coisa que roda em ciclo longo, porque a 420ms um loop viraria tremor; ele tem limite próprio em **Ilustração**, abaixo. Fora dele, nada na interface fica em loop.
 
@@ -225,24 +225,40 @@ onboarding podemos ousar um pouco mais."* Isto amplia *Movimento* só nas telas 
 1. **Cascata de entrada** (`.m-cascata`, nas três telas): cada tela entra com os filhos subindo
    8px, 420ms cada, com 60ms entre um e o próximo (até 300ms). É a entrada de página de
    *Movimento*, dividida por item.
-2. **Cartão de escolha que responde** (`.m-cartao-anima`, só no `/comecar`): sobe 2px no hover, e
-   o ícone faz o que o objeto faz (`app/comecar/IconeVivo.tsx`): a tesoura corta, o estetoscópio
-   bate, a loja desenrola o toldo e abre a porta, a conversa digita, o sino toca, o recibo se
-   escreve e carimba. Toca ao entrar na tela e de novo a cada hover ou toque. Inclinar qualquer
-   ícone do mesmo jeito foi vetado pelo Bruno ("seja mais criativo e ousado"). A seta dos
-   cartões de caminho anda 4px.
-3. **A mola sai do interruptor**, no `/comecar`: o check de escolhido entra com `--ease-spring`
-   (`.m-pop`) e o anel da comemoração também.
+2. ~~**Cartão de escolha que responde**~~ (`.m-cartao-anima` e os ícones que fazem o que o objeto faz): saiu em
+   13/11/2026, junto com as perguntas do tipo de negócio e de "o que a maisa faz" (emenda 8).
+3. **A mola sai do interruptor**: o anel da comemoração cresce com `--ease-spring`.
 4. **A comemoração** (fim do wizard): o anel cresce, o check se desenha, duas ondas saem do anel
    e o texto sobe depois. Tudo dura até 2,2s e acontece uma vez.
 
-5. **O interruptor da lista de serviços** (`app/comecar/InterruptorVivo.tsx`): a cor enche a
-   trilha e a bolinha estica no aperto e desliza com a mola. Sem check dentro da bolinha e sem
-   risco no nome do serviço desligado (o Bruno tirou os dois). O `Toggle` do painel não muda.
+5. ~~**O interruptor da lista de serviços**~~: saiu em 13/11/2026 com o catálogo pronto. Os serviços
+   começam do zero (emenda 8).
 
 - **Limite:** continuam proibidos confete, parallax, número contando e elemento entrando de
   longe; nada se mexe em loop, fora o ponto de "esperando" que já existia. O
   `prefers-reduced-motion` de `globals.css` zera duração e atraso de tudo isto.
+
+### 8. O onboarding curto: canto macio, fonte do celular e a mola do iOS (13/11/2026)
+Em 12/11/2026 o Bruno reclamou das telas internas: o âmbar "chama muito a atenção e parece um
+susto", os cartões são "quadrados mal feitos" e o celular não tem "apple feel". Ele aprovou uma
+proposta (cartão 16, botão 12, sem borda, âmbar só na marca, a mola "iOS Spring" do open-motion e
+a fonte do sistema) como "exatamente essa orientação que devemos seguir". Ela começa pelo `/comecar`.
+
+1. **Onde vale, por enquanto:** dentro de `.m-ob` (`app/comecar/MolduraDaConversa.tsx`) e na
+   comemoração (`.m-ob-festa`). O resto do app continua com a forma de 28/09/2026 até cada tela
+   passar pela proposta.
+2. **Canto:** `--r-painel` 16px e `--r-controle` 12px, redefinidos dentro de `.m-ob`. ⚠️ No
+   onboarding, isto desfaz a decisão de 28/09/2026 (canto reto, guarda G19), por escolha do Bruno
+   vendo as duas lado a lado. A guarda continua valendo: o canto vem do token, nunca do número.
+3. **Fonte:** `--font-sistema`, que é SF no iPhone e Roboto no Android.
+4. **Campo preenchido** em vez de caixa de borda: fundo `--ob-campo`, borda azul só no foco.
+5. **Movimento:** `--ease-mola` (rigidez 290, amortecimento 26, 0,5 s) na barra de progresso, nas
+   bolhas da conversa, no serviço que entra e na volta do toque. O toque encolhe 3% (o "Gesture
+   Tap" do open-motion, contido). Os três pontinhos da maisa digitando são o único loop, e só
+   enquanto a pessoa escreve.
+6. **Âmbar:** só no ponto da marca e no "m" do contato da conversa.
+7. **Botão:** no celular, o principal fica no pé da folha; no computador, logo abaixo dos campos,
+   e o Enter avança.
 
 ---
 

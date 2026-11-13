@@ -87,8 +87,10 @@ describe("G22 · chave de estilo não vale `undefined`", () => {
   });
 
   it("a varredura enxerga os objetos de estilo do painel", () => {
-    // Centenas hoje. Se cair para perto de zero, o detector parou de reconhecer estilo e o
-    // primeiro teste ficaria verde para sempre.
-    expect(varrer().objetos).toBeGreaterThan(100);
+    // Perto de cem. Se cair para perto de zero, o detector parou de reconhecer estilo e o
+    // primeiro teste ficaria verde para sempre. O piso era 100 até 13/11/2026, quando o
+    // onboarding curto passou os estilos do wizard para classes de `globals.css` e a conta
+    // honesta caiu para 90.
+    expect(varrer().objetos).toBeGreaterThan(50);
   });
 });

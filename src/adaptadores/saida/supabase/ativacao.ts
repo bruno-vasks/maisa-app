@@ -32,26 +32,35 @@ const FOLGA_DE_EDICAO_MS = 1000;
  *
  * ⚠️ NÃO DÁ PARA PERGUNTAR ISSO COM UM FILTRO. O PostgREST não compara duas colunas entre
  * si (`atualizado_em > criado_em` viraria comparação com a string "criado_em"), então as
- * duas datas vêm e a conta é feita aqui. São poucas linhas — cinco no negócio recém-criado
- * — e o `select` pede só as duas colunas.
+ * datas vêm e a conta é feita aqui. São poucas linhas, e o `select` pede só as colunas da conta.
+ *
+ * ★ DOIS JEITOS DE MEXER, DESDE 13/11/2026. Até ali o onboarding mostrava os cinco semeados
+ * para editar, e "mexeu" era editar um deles. Agora os serviços começam do zero: a pessoa cria
+ * os dela e o wizard apaga os semeados. Serviço criado não tem `atualizado_em` diferente de
+ * `criado_em`, e a regra antiga diria "não mexeu" para quem escreveu o catálogo inteiro.
+ * Então conta também o serviço criado DEPOIS do negócio: os semeados nascem na mesma
+ * transação de `criar_negocio()`, com o mesmo `now()` do negócio.
  *
  * A alternativa seria uma coluna `catalogo_ajustado` no banco, e ela seria uma flag: o
  * defeito que `dominio/ativacao.ts` existe para não repetir.
  */
 async function catalogoAjustado(t: ContextoTenant): Promise<boolean> {
   const supabase = clienteDoContexto(t);
-  const { data, error } = await supabase
-    .from("servicos")
-    .select("criado_em, atualizado_em")
-    .eq("tenant_id", t.tenantId);
+  const [servicos, negocio] = await Promise.all([
+    supabase.from("servicos").select("criado_em, atualizado_em").eq("tenant_id", t.tenantId),
+    supabase.from("negocios").select("criado_em").eq("id", t.tenantId).maybeSingle(),
+  ]);
 
-  if (error) throw new Error(error.message);
-  return (data ?? []).some((l) => {
+  if (servicos.error) throw new Error(servicos.error.message);
+  if (negocio.error) throw new Error(negocio.error.message);
+  const nasceu = negocio.data ? new Date((negocio.data as { criado_em: string }).criado_em).getTime() : null;
+
+  return (servicos.data ?? []).some((l) => {
     const linha = l as { criado_em: string; atualizado_em: string };
-    return (
-      new Date(linha.atualizado_em).getTime() - new Date(linha.criado_em).getTime()
-      > FOLGA_DE_EDICAO_MS
-    );
+    const criado = new Date(linha.criado_em).getTime();
+    const editado = new Date(linha.atualizado_em).getTime() - criado > FOLGA_DE_EDICAO_MS;
+    const criadoDepois = nasceu !== null && criado - nasceu > FOLGA_DE_EDICAO_MS;
+    return editado || criadoDepois;
   });
 }
 
