@@ -43,7 +43,11 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Roda em tudo, menos assets estáticos e os arquivos de PWA/ícones.
+  /* ⚠️ VÍDEO ENTROU EM 14/11/2026. Até então o `.mp4` passava pela sessão, e quem não estava
+   * logado recebia um 307 para o `/login` no lugar do arquivo: o vídeo da dobra do `/barbeiro`
+   * nunca tocou para visitante (só a capa aparecia), e ninguém via porque quem testa está logado.
+   * Logado, cada pedido por partes que o Safari faz num vídeo custava uma ida ao Supabase. */
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm)$).*)",
   ],
 };

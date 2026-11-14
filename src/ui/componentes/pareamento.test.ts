@@ -17,7 +17,7 @@
  * ───────────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest";
-import { telefoneParaConferir } from "./Pareamento";
+import { passoNoVideo, telefoneParaConferir } from "./Pareamento";
 import { numeroParaPareamento } from "@/nucleo/dominio/canal";
 
 describe("telefoneParaConferir", () => {
@@ -58,5 +58,16 @@ describe("telefoneParaConferir", () => {
         expect(telefoneParaConferir(bruto) !== null).toBe(aceito);
       });
     }
+  });
+});
+
+/* O passo que acende ao lado do vídeo do iPhone. Errar aqui é a lista dizer "Conectar
+ * dispositivo" enquanto o vídeo mostra outra tela, que é pior que não acender nada. */
+describe("passoNoVideo", () => {
+  const passos = [0, 1.4, 3.3, 6.9];
+  it.each([
+    [0, 0], [1.39, 0], [1.4, 1], [3.2, 1], [3.3, 2], [6.89, 2], [6.9, 3], [11.5, 3],
+  ])("aos %ss o vídeo está no passo %i", (segundo, passo) => {
+    expect(passoNoVideo(passos, segundo)).toBe(passo);
   });
 });

@@ -295,7 +295,7 @@ resolvia morria com o cliente esperando.
 ### `POST /api/canal/codigo` — o código vence, e a tela troca sozinha
 
 O código do WhatsApp vale cerca de um minuto, e parear é tarefa de **dois aplicativos**:
-copiar aqui, trocar de app, achar *Aparelhos conectados*, colar. Quem se atrapalha no meio
+copiar aqui, trocar de app, achar *Dispositivos conectados*, colar. Quem se atrapalha no meio
 perdia o código — relatado em 17/08/2026 como *"deu certo logar com código, mas o meu código
 expirou no meio"*.
 

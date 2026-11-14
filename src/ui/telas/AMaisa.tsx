@@ -266,7 +266,7 @@ function FaixaCanalLida() {
        * sistema certo e o aviso da câmera). Repeti-lo aqui era a mesma frase duas vezes. */
       ? mostrandoCodigo
         ? null
-        : "Abra o WhatsApp do negócio → Aparelhos conectados → Conectar aparelho"
+        : "Abra o WhatsApp do negócio → Dispositivos conectados → Conectar dispositivo"
       : "A MAISA não consegue responder enquanto isso";
 
   /* Um lugar só decide o que vai no corpo do POST, e as duas ações (conectar e trocar)

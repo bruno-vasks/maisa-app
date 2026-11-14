@@ -16,8 +16,9 @@
  * ── POR QUE COMPARTILHADO, E NÃO COPIADO NAS DUAS TELAS ──
  *
  * Porque o conteúdo de valor aqui é a INSTRUÇÃO, não o layout: os nomes exatos dos itens
- * do menu do WhatsApp ("Aparelhos conectados", "Conectar aparelho", "Conectar com número
- * de telefone"). Eles mudam quando o WhatsApp muda, e a pessoa que for corrigir vai
+ * do menu do WhatsApp ("Dispositivos conectados", "Conectar dispositivo", "Conectar com número
+ * de telefone"; até 14/11/2026 eram "Aparelhos" e estavam velhos). Eles mudam quando o WhatsApp
+ * muda, e a pessoa que for corrigir vai
  * corrigir onde viu o erro. Duas cópias garantem que uma delas fique mentindo — e uma
  * instrução errada aqui é o dono procurando um botão que não existe, no minuto em que ele
  * decide se o produto funciona.
@@ -240,8 +241,45 @@ const VALIDADE_CODIGO_S = 60;
  */
 const ESPERA_ANTES_DE_RENOVAR_MS = 3000;
 
-/** O sistema do celular, para dizer onde fica "Aparelhos conectados". `null` = computador ou não sei. */
+/** O sistema do celular, para dizer onde fica "Dispositivos conectados". `null` = computador ou não sei. */
 type Sistema = "iphone" | "android" | null;
+
+/**
+ * O vídeo do caminho, quando existe um gravado no sistema da pessoa.
+ *
+ * ── DE ONDE VEIO (14/11/2026) ──
+ *
+ * Gravação de tela do Bruno num iPhone, no WhatsApp de 13/11/2026: aba Você, Dispositivos
+ * conectados, Conectar dispositivo, Face ID, Conectar com número de telefone, a tela do código.
+ * Antes de entrar aqui ela foi cortada (saíram a aba Comunidades, com grupos e o telefone de outra
+ * pessoa, e os 7 segundos parados no fim), a foto, o nome e a lista de aparelhos foram borrados,
+ * e cada toque ganhou um círculo branco, porque a gravação do iPhone não mostra o dedo. Quem
+ * refaz o vídeo a partir da gravação é o `scripts/tutorial-whatsapp/gerar.sh`.
+ *
+ * ⚠️ SÓ O IPHONE TEM VÍDEO. No Android o caminho começa nos três pontinhos ⋮ e não existe a aba
+ * Você: mostrar a gravação do iPhone para quem tem Android ensinaria um botão que não existe. O
+ * `android` fica `null` até alguém gravar o mesmo caminho num Android.
+ *
+ * `passos` é o segundo do vídeo em que começa cada item da lista do `CaminhoNoWhatsApp`, na
+ * mesma ordem. É o que acende o passo certo enquanto o vídeo toca.
+ */
+type Tutorial = { src: string; poster: string; passos: readonly number[] };
+
+const TUTORIAL: Record<Exclude<Sistema, null>, Tutorial | null> = {
+  iphone: {
+    src: "/tutorial/whatsapp-codigo-iphone.mp4",
+    poster: "/tutorial/whatsapp-codigo-iphone.jpg",
+    passos: [0, 1.4, 3.3, 6.9],
+  },
+  android: null,
+};
+
+/** Qual passo da lista o vídeo está mostrando agora. */
+export function passoNoVideo(passos: readonly number[], segundo: number): number {
+  let atual = 0;
+  passos.forEach((inicio, i) => { if (segundo >= inicio) atual = i; });
+  return atual;
+}
 
 function sistemaDoAparelho(): Sistema {
   if (typeof navigator === "undefined") return null;
@@ -265,29 +303,127 @@ function sistemaDoAparelho(): Sistema {
  *   • não avisava que "Conectar aparelho" ABRE A CÂMERA. Quem vê a câmera conclui que precisa de
  *     um QR, e o link "Conectar com número de telefone" fica pequeno, embaixo dela.
  *
- * O sistema vem do `userAgent`, e não decide nada além da frase: errar mostra o caminho do outro
- * sistema, e no computador (ou sem saber) aparecem os dois.
+ * O sistema vem do `userAgent`, e não decide nada além da frase (e do vídeo): errar mostra o
+ * caminho do outro sistema, e no computador (ou sem saber) aparecem os dois.
+ *
+ * ── OS NOMES MUDARAM (14/11/2026) ──
+ *
+ * A gravação do iPhone mostrou o WhatsApp de hoje: a aba de baixo à direita se chama Você (era
+ * Configurações), e o menu diz "Dispositivos conectados" e "Conectar dispositivo" (era
+ * "Aparelhos"). O Android segue pelos três pontinhos, com os mesmos nomes novos.
  */
 function CaminhoNoWhatsApp() {
   /* Lido depois de montar: no servidor não há `navigator`, e ler no render daria uma frase no
    * HTML e outra na hidratação. */
   const [sistema, setSistema] = React.useState<Sistema>(null);
   React.useEffect(() => { setSistema(sistemaDoAparelho()); }, []);
+  const tutorial = sistema ? TUTORIAL[sistema] : null;
+
+  /* O passo que o vídeo está mostrando. `null` enquanto ele não toca (movimento reduzido, modo
+   * de economia do iPhone, sem vídeo): aí a lista fica toda acesa, como sempre foi. */
+  const [passo, setPasso] = React.useState<number | null>(null);
 
   const b = (txt: string) => <b style={s("color:var(--ink)")}>{txt}</b>;
-  return (
-    <ol style={s("margin:0;padding-left:17px;font-size:var(--t-label);color:var(--muted);line-height:1.75")}>
-      <li>Abra o {b("WhatsApp")} {sistema ? "neste celular" : "no celular com esse número"}</li>
-      <li>
-        {sistema === "iphone"
-          ? <>Toque em {b("Configurações")}, embaixo, e em {b("Aparelhos conectados")}</>
-          : sistema === "android"
-            ? <>Toque nos {b("três pontinhos ⋮")}, lá em cima, e em {b("Aparelhos conectados")}</>
-            : <>Entre em {b("Aparelhos conectados")}: no Android, pelos {b("três pontinhos ⋮")}; no iPhone, em {b("Configurações")}</>}
-      </li>
-      <li>Toque em {b("Conectar aparelho")}. A câmera vai abrir: não precisa apontar para nada</li>
-      <li>Embaixo da câmera, toque em {b("Conectar com número de telefone")} e digite (ou cole) o código acima</li>
+  const itens = [
+    sistema === "iphone"
+      ? <>Abra o {b("WhatsApp")} neste celular e toque em {b("Você")}, embaixo à direita</>
+      : <>Abra o {b("WhatsApp")} {sistema ? "neste celular" : "no celular com esse número"}</>,
+    sistema === "iphone"
+      ? <>Toque em {b("Dispositivos conectados")}</>
+      : sistema === "android"
+        ? <>Toque nos {b("três pontinhos ⋮")}, lá em cima, e em {b("Dispositivos conectados")}</>
+        : <>Entre em {b("Dispositivos conectados")}: no Android, pelos {b("três pontinhos ⋮")}; no iPhone, pela aba {b("Você")}</>,
+    <>Toque em {b("Conectar dispositivo")}. A câmera vai abrir: não precisa apontar para nada</>,
+    <>Embaixo da câmera, toque em {b("Conectar com número de telefone")} e digite (ou cole) o código acima</>,
+  ];
+
+  const lista = (
+    <ol style={s("flex:1;min-width:0;margin:0;padding-left:17px;font-size:var(--t-label);color:var(--muted);line-height:1.75")}>
+      {itens.map((item, i) => (
+        <li
+          key={i}
+          style={s(`transition:opacity .3s var(--ease-out);opacity:${passo === null || passo === i ? "1" : ".45"}`)}
+        >
+          {item}
+        </li>
+      ))}
     </ol>
+  );
+
+  if (!tutorial) return lista;
+  return (
+    <div style={s("display:flex;gap:14px;align-items:flex-start")}>
+      <VideoDoCaminho tutorial={tutorial} aoMudarDePasso={setPasso} />
+      {lista}
+    </div>
+  );
+}
+
+/**
+ * O vídeo pequeno ao lado da lista, tocando sozinho e sem som.
+ *
+ * Pequeno de propósito: ele mostra ONDE tocar (o círculo, o botão verde, o canto da tela), e quem
+ * diz O QUE tocar é a lista ao lado, que acende junto. Para ler a tela do vídeo, um toque abre em
+ * tela cheia (no iPhone, o player do próprio sistema).
+ *
+ * Toca sem `autoPlay` no HTML: quem pediu movimento reduzido vê a capa e toca quando quiser. O
+ * `play()` pode ser recusado (modo de economia do iPhone): aí fica a capa, e a lista toda acesa.
+ */
+function VideoDoCaminho(
+  { tutorial, aoMudarDePasso }: { tutorial: Tutorial; aoMudarDePasso: (passo: number | null) => void },
+) {
+  const ref = React.useRef<HTMLVideoElement>(null);
+
+  React.useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    const acompanhar = () => aoMudarDePasso(v.paused ? null : passoNoVideo(tutorial.passos, v.currentTime));
+    /* O iPhone pausa o vídeo ao sair da tela cheia. Volta a tocar ao lado da lista. */
+    const voltou = () => void v.play().catch(() => {});
+    v.addEventListener("timeupdate", acompanhar);
+    v.addEventListener("pause", acompanhar);
+    v.addEventListener("webkitendfullscreen", voltou);
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) void v.play().catch(() => {});
+    return () => {
+      v.removeEventListener("timeupdate", acompanhar);
+      v.removeEventListener("pause", acompanhar);
+      v.removeEventListener("webkitendfullscreen", voltou);
+    };
+  }, [tutorial, aoMudarDePasso]);
+
+  const ampliar = () => {
+    const v = ref.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (!v) return;
+    void v.play().catch(() => {});
+    if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+    else void v.requestFullscreen?.().catch(() => {});
+  };
+
+  return (
+    /* O canto redondo é a tela de um celular (ver a lista FORMA da guarda G19). */
+    <button
+      onClick={ampliar}
+      aria-label="Ver o vídeo do caminho em tela cheia"
+      className="m-press m-focus"
+      style={s(
+        "flex-shrink:0;width:112px;padding:0;border:1px solid var(--border);border-radius:16px;" +
+        "overflow:hidden;background:#000;cursor:pointer;line-height:0",
+      )}
+    >
+      <video
+        ref={ref}
+        src={tutorial.src}
+        poster={tutorial.poster}
+        muted
+        playsInline
+        loop
+        preload="auto"
+        disablePictureInPicture
+        aria-hidden="true"
+        tabIndex={-1}
+        style={s("display:block;width:100%;aspect-ratio:444/960;object-fit:cover")}
+      />
+    </button>
   );
 }
 
