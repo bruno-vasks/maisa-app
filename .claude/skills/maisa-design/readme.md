@@ -260,6 +260,24 @@ a fonte do sistema) como "exatamente essa orientação que devemos seguir". Ela 
 7. **Botão:** no celular, o principal fica no pé da folha; no computador, logo abaixo dos campos,
    e o Enter avança.
 
+### 9. A primeira tela interna no visual novo: a seção WhatsApp (14/11/2026)
+O Bruno perguntou se a tela do código seguia a orientação nova e ela não seguia: o cartão
+inteiro ficava laranja enquanto esperava, o relógio ficava âmbar nos últimos 15 segundos e o "▲ Sem
+WhatsApp" do cabeçalho era um triângulo amarelo em toda tela. A seção WhatsApp dos Ajustes é a
+primeira tela interna a passar pela proposta da emenda 8, porque é onde as leads travam.
+
+1. **Onde vale:** dentro de `.m-novo` (`globals.css`), que a seção WhatsApp de `ui/telas/AMaisa.tsx`
+   põe em volta do cartão. Mesmos tokens de canto e a mesma fonte do `.m-ob`. As outras telas
+   continuam como estão até passarem pela proposta, uma por vez e com aprovação.
+2. **Cartão:** branco, sem borda, canto 16, separado do fundo quase branco do painel por uma sombra
+   larga e fraca. Na proposta o fundo era cinza; ele entra quando a casca mudar.
+3. **Esperar é o estado normal, não um alerta.** Nada de âmbar no pareamento: um giro pequeno e
+   "Esperando você digitar o código", com o relógio neutro à direita.
+4. **"Sem WhatsApp" é cinza** no cabeçalho, na linha de status e na lista dos Ajustes. O que o
+   separa de "Pausada" é a forma (triângulo × anel). Isto emenda a emenda 2 só para este estado; as
+   outras pendências seguem em âmbar até as telas delas mudarem.
+5. **Botão de 48px** embaixo do campo; no computador, do tamanho do texto (`@container` de 560px).
+
 ---
 
 ## ICONOGRAPHY

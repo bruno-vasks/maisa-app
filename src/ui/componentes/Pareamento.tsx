@@ -121,29 +121,25 @@ export function NumeroDoPareamento(
   const bonito = telefoneParaConferir(digitos);
   if (!bonito) return null;
 
+  /* Uma linha, sem caixa (14/11/2026): no visual novo ela mora dentro do cartão do código, e uma
+   * caixa cinza ali seria caixa dentro de caixa. */
   return (
-    <div style={s(
-      "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-controle);" +
-      "background:var(--surface-2);line-height:1.45",
-    )}>
-      <Icon name="phone" size={15} stroke="var(--muted)" />
-      <span style={s("font-size:var(--t-label);color:var(--muted)")}>
-        Código enviado para{" "}
-        <b style={s("color:var(--ink);font-variant-numeric:tabular-nums")}>{bonito}</b>
+    <p style={s("margin:0;display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;font-size:14px;line-height:1.45;color:var(--muted)")}>
+      <span>
+        Enviado para{" "}
+        <b style={s("color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums")}>{bonito}</b>
       </span>
       {aoCorrigir && (
         <button
+          type="button"
           onClick={aoCorrigir}
           className="m-focus"
-          style={s(
-            "margin-left:auto;background:none;border:none;padding:2px 0;font-family:inherit;cursor:pointer;" +
-            "font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary);text-decoration:underline",
-          )}
+          style={s("background:none;border:none;padding:2px 0;font:inherit;font-weight:500;color:var(--primary);cursor:pointer")}
         >
           Não é esse número
         </button>
       )}
-    </div>
+    </p>
   );
 }
 
@@ -165,53 +161,36 @@ export function ConferirNumero(
 ) {
   const bonito = telefoneParaConferir(digitos);
 
+  /* Sem âmbar e sem ícone de alerta desde 14/11/2026: conferir é um passo normal, não um perigo.
+   * Ela entra NO LUGAR do campo (ver `FaixaCanalLida`), então o número aparece uma vez só. */
   return (
-    <div style={s(
-      "display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--r-painel);" +
-      "background:var(--warn-soft);border:1px solid var(--warn-line)",
-    )}>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <Icon name="alert" size={17} stroke="var(--warn)" style={{ flexShrink: 0, marginTop: 2 }} />
-        <div>
-          <p style={s("font-size:var(--t-label);color:var(--warn);font-weight:var(--w-title);margin:0")}>
-            Confira antes de enviar
-          </p>
-          <p style={s("font-size:var(--t-label);color:var(--muted);margin:3px 0 0;line-height:1.5")}>
-            O WhatsApp manda o código de conexão para este número. Se ele estiver errado, o
-            código vai para outra pessoa e nada acontece aqui.
-          </p>
-        </div>
+    <div className="m-novo-cascata" style={s("display:flex;flex-direction:column;gap:14px")}>
+      <div>
+        <p className="m-novo-titulo" style={s("font-size:16px")}>Confira o número</p>
+        <p className="m-novo-sub">
+          O código de conexão vai para ele. Se estiver errado, vai para outra pessoa e nada acontece aqui.
+        </p>
       </div>
 
       <p style={s(
-        "margin:0;font-size:var(--t-data);font-weight:var(--w-title);color:var(--ink);" +
-        "font-variant-numeric:tabular-nums;text-align:center;line-height:1.2",
+        "margin:0;font-size:28px;font-weight:600;color:var(--ink);letter-spacing:-0.01em;" +
+        "font-variant-numeric:tabular-nums;line-height:1.2",
       )}>
         {bonito ?? "número incompleto"}
       </p>
 
-      <div style={{ display: "flex", gap: 9 }}>
-        <button
-          onClick={aoCorrigir}
-          className="m-hov-bg m-press m-focus"
-          style={s(
-            "flex:1;height:42px;border:1px solid var(--border);border-radius:var(--r-controle);background:var(--surface);" +
-            "color:var(--ink);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);cursor:pointer",
-          )}
-        >
+      <div style={s("display:flex;gap:8px")}>
+        <button type="button" onClick={aoCorrigir} className="m-novo-botao tinta m-focus" style={s("flex:1")}>
           Corrigir
         </button>
         <button
-          onClick={aoConfirmar}
-          disabled={ocupado || !bonito}
-          className="m-hov-primary m-press m-focus"
-          style={s(
-            "flex:1.4;height:42px;border:none;border-radius:var(--r-controle);background:var(--primary);" +
-            "color:var(--on-primary);font-family:inherit;font-size:var(--t-label);font-weight:var(--w-title);" +
-            `cursor:${ocupado || !bonito ? "not-allowed" : "pointer"};opacity:${ocupado || !bonito ? ".6" : "1"}`,
-          )}
+          type="button"
+          onClick={ocupado || !bonito ? undefined : aoConfirmar}
+          aria-disabled={ocupado || !bonito}
+          className="m-novo-botao m-focus"
+          style={s("flex:1.6")}
         >
-          É esse número, enviar
+          Está certo, enviar
         </button>
       </div>
     </div>
@@ -326,25 +305,25 @@ function CaminhoNoWhatsApp() {
   const b = (txt: string) => <b style={s("color:var(--ink)")}>{txt}</b>;
   const itens = [
     sistema === "iphone"
-      ? <>Abra o {b("WhatsApp")} neste celular e toque em {b("Você")}, embaixo à direita</>
+      ? <>Abra o {b("WhatsApp")} e toque em {b("Você")}, embaixo à direita</>
       : <>Abra o {b("WhatsApp")} {sistema ? "neste celular" : "no celular com esse número"}</>,
     sistema === "iphone"
       ? <>Toque em {b("Dispositivos conectados")}</>
       : sistema === "android"
         ? <>Toque nos {b("três pontinhos ⋮")}, lá em cima, e em {b("Dispositivos conectados")}</>
         : <>Entre em {b("Dispositivos conectados")}: no Android, pelos {b("três pontinhos ⋮")}; no iPhone, pela aba {b("Você")}</>,
-    <>Toque em {b("Conectar dispositivo")}. A câmera vai abrir: não precisa apontar para nada</>,
-    <>Embaixo da câmera, toque em {b("Conectar com número de telefone")} e digite (ou cole) o código acima</>,
+    <>Toque em {b("Conectar dispositivo")}. A câmera abre, mas não precisa apontar para nada</>,
+    <>Embaixo da câmera, toque em {b("Conectar com número de telefone")} e cole ou digite o código</>,
   ];
 
   const lista = (
-    <ol style={s("flex:1;min-width:0;margin:0;padding-left:17px;font-size:var(--t-label);color:var(--muted);line-height:1.75")}>
+    <ol className="m-novo-passos" style={s("flex:1;min-width:0")}>
       {itens.map((item, i) => (
         <li
           key={i}
           style={s(`transition:opacity .3s var(--ease-out);opacity:${passo === null || passo === i ? "1" : ".45"}`)}
         >
-          {item}
+          <span>{item}</span>
         </li>
       ))}
     </ol>
@@ -499,29 +478,28 @@ export function CodigoPareamento(
     }
   }, [codigo]);
 
+  /* O visual novo (14/11/2026): sem caixa própria (ela mora dentro do cartão do WhatsApp), o
+   * código grande, "Copiar" como botão de tinta, e entrando em cascata com a mola do iOS. */
   return (
-    <div style={s("display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--r-painel);background:var(--surface)")}>
-      <div style={s("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
+    <div className="m-novo-cascata" style={s("display:flex;flex-direction:column;gap:18px")}>
+      <div style={s("display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap")}>
         <span
           aria-label={`Código de pareamento ${codigo}`}
           style={s(
-            "font-variant-numeric:tabular-nums slashed-zero;font-size:26px;font-weight:var(--w-title);" +
-            "letter-spacing:.18em;color:var(--ink);white-space:nowrap",
+            "font-variant-numeric:tabular-nums slashed-zero;font-size:28px;font-weight:600;" +
+            "letter-spacing:.1em;color:var(--ink);white-space:nowrap",
           )}
         >
-          {codigo.slice(0, 4)}<span style={s("opacity:.35;margin:0 .12em")}>-</span>{codigo.slice(4)}
+          {codigo.slice(0, 4)}<span style={s("opacity:.35;margin:0 .08em")}>-</span>{codigo.slice(4)}
         </span>
 
         <button
+          type="button"
           onClick={() => void copiar()}
-          className="m-hov-bg m-press m-focus"
-          style={s(
-            "display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 13px;border-radius:var(--r-controle);" +
-            "border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:var(--t-label);" +
-            `font-weight:var(--w-title);cursor:pointer;color:${copiou ? "var(--success)" : "var(--muted)"}`,
-          )}
+          className="m-novo-botao tinta curto m-focus"
+          style={s(copiou ? "background:var(--success-soft);color:var(--success)" : "")}
         >
-          <Icon name={copiou ? "check" : "copy"} size={15} stroke="currentColor" />
+          <Icon name={copiou ? "check" : "copy"} size={16} stroke="currentColor" />
           {copiou ? "Copiado" : "Copiar"}
         </button>
       </div>
@@ -539,27 +517,20 @@ export function CodigoPareamento(
           errado, e digita de novo.
 
           O que mata a corrida contra o relógio não é esconder o relógio, é a renovação
-          automática logo abaixo: zerou, chega outro sozinho. */}
-      <div style={s("display:flex;align-items:center;gap:9px;font-size:var(--t-label);line-height:1.5")}>
-        <span
-          aria-hidden
-          style={s(
-            `display:inline-flex;align-items:center;justify-content:center;min-width:46px;height:24px;` +
-            `padding:0 8px;border-radius:99px;font-variant-numeric:tabular-nums;font-weight:var(--w-title);` +
-            (restante > 15
-              ? "background:var(--surface-2);color:var(--muted)"
-              : "background:var(--warn-soft);color:var(--warn)"),
-          )}
-        >
-          {restante > 0 ? `0:${String(restante).padStart(2, "0")}` : "…"}
-        </span>
+          automática: zerou, chega outro sozinho. Desde 14/11/2026 o relógio é neutro do começo
+          ao fim (ficava âmbar nos últimos 15s): com a troca automática, não há o que apressar. */}
+      <div style={s("display:flex;align-items:center;gap:10px;font-size:15px;line-height:1.4;color:var(--muted)")}>
+        <span className="m-novo-giro" aria-hidden />
         {/* `aria-live` para quem usa leitor de tela: o número mudando de segundo em segundo
             seria ruído insuportável, então só a TROCA DE FASE é anunciada. */}
-        <span aria-live="polite" style={s("color:var(--muted)")}>
-          {restante > 0
-            ? <>Vale por mais <b style={s("color:var(--ink)")}>{restante}s</b>. Depois disso eu troco por um novo, sozinho.</>
-            : <>Pedindo um código novo…</>}
+        <span aria-live="polite" style={s("flex:1;min-width:0")}>
+          {restante > 0 ? "Esperando você digitar o código" : "Trocando por um código novo…"}
         </span>
+        {restante > 0 && (
+          <span aria-hidden style={s("font-variant-numeric:tabular-nums")}>
+            0:{String(restante).padStart(2, "0")}
+          </span>
+        )}
       </div>
     </div>
   );

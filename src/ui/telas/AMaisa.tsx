@@ -148,10 +148,8 @@ function DonoDoCanal() {
   };
 
   return (
-    <div style={s("display:flex;flex-direction:column;gap:7px;padding-top:11px;border-top:1px solid var(--line)")}>
-      <span style={s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--muted)")}>
-        Quem a MAISA chama quando precisa de ajuda
-      </span>
+    <div style={s("display:flex;flex-direction:column;gap:8px;padding-top:16px;border-top:1px solid var(--novo-sep, var(--line))")}>
+      <span className="m-novo-rotulo">Quem a MAISA chama quando precisa de ajuda</span>
 
       <div style={s("display:flex;gap:8px;align-items:center;flex-wrap:wrap")}>
         <input
@@ -162,24 +160,25 @@ function DonoDoCanal() {
           autoComplete="tel"
           placeholder="Escreva o número com DDD…"
           aria-label="WhatsApp de quem recebe os avisos"
-          className="m-focus"
-          style={s(`${CAMPO};height:40px;max-width:220px`)}
+          className="m-novo-campo"
+          style={s("max-width:260px")}
         />
         {editando && (
           <>
-            <Btn variant="primary" size="sm" onClick={salvando ? undefined : () => void salvar()}>
+            <button type="button" className="m-novo-botao curto m-focus" aria-disabled={salvando} onClick={salvando ? undefined : () => void salvar()}>
               {salvando ? "Salvando…" : "Salvar"}
-            </Btn>
-            <Btn variant="ghost" size="sm" onClick={() => { setEditando(false); setValor(gravado ? telefoneMascarado(gravado) : ""); }}>
+            </button>
+            <button type="button" className="m-novo-botao tinta curto m-focus" onClick={() => { setEditando(false); setValor(gravado ? telefoneMascarado(gravado) : ""); }}>
               Cancelar
-            </Btn>
+            </button>
           </>
         )}
       </div>
 
       {/* Diz a CONSEQUÊNCIA de cada estado, não a regra. Vazio não é erro — é uma escolha
-          com um custo, e o custo é que ninguém sabe que um cliente ficou esperando. */}
-      <span style={s(`font-size:var(--t-label);line-height:1.5;color:${gravado ? "var(--muted)" : "var(--warn)"}`)}>
+          com um custo, e o custo é que ninguém sabe que um cliente ficou esperando. Em tinta
+          comum desde 14/11/2026: a frase avisa sozinha, sem o âmbar que o Bruno vetou. */}
+      <span style={s(`font-size:14px;line-height:1.45;color:${gravado ? "var(--muted)" : "var(--ink)"}`)}>
         {gravado
           ? "Ela manda um aviso com o telefone do cliente e um link para você assumir a conversa."
           : "Em branco, quando ela não consegue resolver, ninguém é avisado: o cliente fica esperando e você não fica sabendo."}
@@ -197,7 +196,7 @@ function FaixaCanal() {
   if (st.canal === null) {
     return st.canalErro
       ? (
-        <div style={s("flex-shrink:0;border-radius:var(--r-painel);background:var(--surface);border:1px solid var(--border)")}>
+        <div className="m-novo-cartao" style={s("flex-shrink:0;padding:0")}>
           <FalhaDeLeitura compacta frase="Não consegui ler o seu WhatsApp." detalhe={st.canalErro} tentar={st.recarregarCanal} />
         </div>
       )
@@ -249,16 +248,14 @@ function FaixaCanalLida() {
    * este caminho está no celular, e um QR aparecendo no lugar do código parece erro. */
   const mostrandoCodigo = !!st.codigo && !verQr;
 
-  const forte = conectado ? "var(--success)" : pareando ? "var(--warn)" : "var(--muted)";
-  const fundo = conectado ? "var(--success-soft)" : pareando ? "var(--warn-soft)" : "var(--surface-2)";
-
   /* Conectado, o número É o título (07 P0.6): formatado, numa linha, e não "+5511…" cru num
    * subtítulo que o botão cobria a 390px. */
   const titulo = conectado
     ? st.canal?.numero ? `Conectado no ${D.telefoneBonito(st.canal.numero)}` : "WhatsApp conectado"
     : pareando
-      ? mostrandoCodigo ? "Aguardando o código no WhatsApp" : "Aguardando leitura do QR"
-      : "WhatsApp não conectado";
+      /* Com o código na tela o cabeçalho nem aparece (ver o JSX); este é o título do QR. */
+      ? "Leia o QR com o celular do negócio"
+      : "Conecte o seu WhatsApp";
   const sub = conectado
     ? null
     : pareando
@@ -267,7 +264,10 @@ function FaixaCanalLida() {
       ? mostrandoCodigo
         ? null
         : "Abra o WhatsApp do negócio → Dispositivos conectados → Conectar dispositivo"
-      : "A MAISA não consegue responder enquanto isso";
+      /* A consequência dita pelo lado bom (14/11/2026): "não consegue responder enquanto isso",
+       * num cartão laranja, era a tela inteira dizendo que algo estava errado com quem ainda nem
+       * tinha começado. */
+      : "A MAISA começa a atender assim que ele estiver conectado.";
 
   /* Um lugar só decide o que vai no corpo do POST, e as duas ações (conectar e trocar)
    * passam por aqui. Separá-las é como se perde o `numero` no caminho da troca — que é o
@@ -287,180 +287,134 @@ function FaixaCanalLida() {
   return (
     /* `m-canal` é um contêiner (`container-type:inline-size`, `globals.css`): em caixa estreita as
        ações descem para uma linha própria, abaixo do número (1C.13). Por @container e não por
-       `useIsMobile`, porque quem decide é a largura do bloco, não a do aparelho. */
-    <div className="m-canal" style={s(`flex-shrink:0;display:flex;flex-direction:column;gap:12px;padding:13px 16px;border-radius:var(--r-painel);background:${fundo};border:1px solid ${forte}`)}>
-      <div className="m-canal-linha">
-        <span style={s(`width:9px;height:9px;flex-shrink:0;border-radius:50%;background:${forte}`)} />
-        <span style={s("flex:1;min-width:0")}>
-          <span style={s(`display:block;font-size:var(--t-sm);font-weight:var(--w-title);color:${forte}`)}>{titulo}</span>
-          {sub && <span style={s("display:block;font-size:var(--t-label);color:var(--ink);margin-top:2px;line-height:var(--lh-ui)")}>{sub}</span>}
-        </span>
+       `useIsMobile`, porque quem decide é a largura do bloco, não a do aparelho.
 
-        <span className="m-canal-acoes m-alvos" style={s("display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap")}>
-          {!conectado && !pareando && !travado && (
-            <Btn
-              variant="whats"
-              size="sm"
-              onClick={ocupado || faltaTelefone
-                ? undefined
-                /* Por código, o número foi DIGITADO e pode estar errado — confere antes.
-                 * Por QR não há o que conferir: quem aponta a câmera é o dono do aparelho. */
-                : porCodigo ? () => setConferindo(true) : () => void st.conectarCanal(argumentos())}
-            >
-              {/* O rótulo carrega o estado, seguindo a convenção da faixa (ver `ocupado`
-                  acima): um botão que não faz nada e não diz por quê é o jeito mais rápido
-                  de a pessoa concluir que o produto travou. */}
-              {ocupado ? "Gerando…" : faltaTelefone ? "Digite o número" : porCodigo ? "Receber código" : "Conectar WhatsApp"}
-            </Btn>
-          )}
-
-          {pareando && (
-            <Btn variant="secondary" size="sm" onClick={ocupado ? undefined : () => void st.desconectarCanal()}>
-              {ocupado ? "…" : "Cancelar"}
-            </Btn>
-          )}
+       ── O VISUAL NOVO (14/11/2026) ──
+       Cartão branco sem borda, nada de âmbar, botão de 48px embaixo do campo: o celular da
+       proposta "Visual da maisa", aprovada pelo Bruno em 12/11. Até aqui o cartão inteiro ficava
+       laranja enquanto esperava o código, e ele disse que aquilo "parece um susto". Esperar é o
+       estado normal desta tela, não um problema. */
+    <div className="m-canal m-novo-cartao" style={s("flex-shrink:0")}>
+      {/* Esperando o código, o cartão começa pelo código, como na proposta: o título "esperando"
+          em cima repetiria a linha do relógio, que já diz isso embaixo dos passos. */}
+      {!(pareando && mostrandoCodigo) && (
+        <div className="m-canal-linha">
+          <span className={`m-novo-bola${conectado ? " ok" : ""}`} aria-hidden>
+            <Icon name={conectado ? "check" : "whatsapp"} size={20} stroke="currentColor" />
+          </span>
+          <span style={s("flex:1;min-width:0")}>
+            <p className="m-novo-titulo">{titulo}</p>
+            {sub && <p className="m-novo-sub">{sub}</p>}
+          </span>
 
           {conectado && confirmando === null && !travado && (
-            <>
-              <Btn variant="secondary" size="sm" onClick={() => setConfirmando("trocar")}>Trocar número</Btn>
-              <Btn variant="ghost" size="sm" onClick={() => setConfirmando("desconectar")}>Desconectar</Btn>
-            </>
+            <span className="m-canal-acoes m-alvos" style={s("display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap")}>
+              <button type="button" className="m-novo-botao tinta curto m-focus" onClick={() => setConfirmando("trocar")}>Trocar número</button>
+              <button type="button" className="m-novo-link m-focus" style={s("color:var(--muted)")} onClick={() => setConfirmando("desconectar")}>Desconectar</button>
+            </span>
           )}
-
-          {conectado && confirmando !== null && (
-            <>
-              <Btn
-                variant="danger"
-                size="sm"
-                onClick={ocupado || (confirmando === "trocar" && faltaTelefone) ? undefined : () => {
-                  /* Trocar leva o `numero` junto. Quem está no celular vai cair no mesmo
-                   * QR ilegível de sempre — e aqui é pior, porque a troca já derrubou o
-                   * canal antes de mostrar o que não dá para ler. */
-                  const acao = confirmando === "trocar"
-                    ? () => st.trocarNumero(argumentos())
-                    : () => st.desconectarCanal();
-                  setConfirmando(null);
-                  void acao();
-                }}
-              >
-                {ocupado
-                  ? "…"
-                  : confirmando === "trocar"
-                    ? faltaTelefone ? "Digite o número novo" : "Sim, trocar"
-                    : "Sim, desconectar"}
-              </Btn>
-              <Btn variant="ghost" size="sm" onClick={() => setConfirmando(null)}>Voltar</Btn>
-            </>
-          )}
-        </span>
-      </div>
+        </div>
+      )}
 
       {/* Diz a variável pelo nome. "Falta configuração no servidor" foi exatamente a frase
           que, em 13/08/2026, não permitiu descobrir que faltava `MAISA_PUBLIC_URL`. */}
       {travado && (
-        <span style={s("font-size:var(--t-label);color:var(--danger);line-height:1.5")}>
+        <p className="m-novo-sub" style={s("margin:0;color:var(--danger)")}>
           O servidor não está pronto para conectar o WhatsApp. Falta:{" "}
           <b>{st.canalFaltando.join(", ")}</b>.
-        </span>
+        </p>
       )}
 
-      {/* ⚠️ `--warn` E NÃO `--danger`, desde 18/08/2026. Vermelho aqui dizia "algo deu
-          errado" para uma frase que descreve uma CONSEQUÊNCIA de algo que ainda não
-          aconteceu. O vermelho fica no botão que executa — que é o que de fato destrói. O
-          relato que mudou isto foi sobre o wizard; a mesma confusão vivia aqui. */}
+      {/* A consequência antes de executar. Era `--warn` desde 18/08/2026 (vermelho dizia "deu
+          errado" para algo que ainda não aconteceu); desde 14/11 é tinta comum, porque o âmbar
+          saiu do app. O vermelho continua só no botão que executa, que é o que de fato destrói. */}
       {confirmando !== null && (
-        <span style={s("font-size:var(--t-label);color:var(--warn);line-height:1.5")}>
+        <p className="m-novo-sub" style={s("margin:0;color:var(--ink)")}>
           {confirmando === "trocar"
             ? porCodigo
               ? "O número atual será desconectado. Digite o número novo abaixo. O código de conexão vai para ele."
               : "O número atual será desconectado e você terá que parear o novo lendo um QR."
             : "A MAISA para de responder no WhatsApp até você conectar de novo."}
-        </span>
+        </p>
       )}
 
       {/* Na troca, o número novo aparece inteiro antes de o canal antigo cair: aqui errar um
           dígito custa o WhatsApp que estava funcionando. */}
       {confirmando === "trocar" && porCodigo && !faltaTelefone && (
-        <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
+        <p className="m-novo-sub" style={s("margin:0")}>
           O código vai para{" "}
           <b style={s("color:var(--ink);font-variant-numeric:tabular-nums")}>
             {telefoneParaConferir(digitosDoTelefone(telefone))}
           </b>
-        </span>
+        </p>
       )}
 
       {/* ── O CAMPO DO TELEFONE ──
           Aparece só no caminho do código, e nos dois momentos em que ele é pedido: a
           primeira conexão e a troca de número. Some durante o pareamento — nessa hora o
-          número já foi usado e o campo só competiria com o código pela atenção. */}
-      {porCodigo && !pareando && !travado && (conectado ? confirmando === "trocar" : true) && (
-        <label style={s("display:flex;flex-direction:column;gap:7px")}>
-          <span style={s("font-size:var(--t-label);font-weight:var(--w-title);color:var(--muted)")}>
-            Número do WhatsApp do negócio
-          </span>
+          número já foi usado e o campo só competiria com o código pela atenção. Some também
+          durante a conferência: ela mostra o mesmo número, maior, e "Corrigir" traz o campo de volta. */}
+      {porCodigo && !pareando && !travado && !conferindo && (conectado ? confirmando === "trocar" : true) && (
+        <label style={s("display:flex;flex-direction:column;gap:8px")}>
+          <span className="m-novo-rotulo">Número do WhatsApp do negócio</span>
           <input
             value={telefoneMascarado(digitosDoTelefone(telefone))}
             onChange={(e) => setTelefone(digitosDoTelefone(e.target.value))}
             inputMode="tel"
             autoComplete="tel"
             placeholder="Escreva o número com DDD…"
-            className="m-focus"
-            style={s(`${CAMPO};height:42px;max-width:260px`)}
+            className="m-novo-campo"
           />
           {/* Diz o que o número FAZ. Sem esta linha ele parece cadastro — e cadastro numa
               tela de conexão é a hora em que a pessoa desconfia do que está entregando. */}
-          <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.5")}>
-            É para onde o WhatsApp vai mandar o código de conexão. Ele não fica salvo aqui.
+          <span className="m-novo-sub" style={s("margin:0;font-size:14px")}>
+            É para ele que o WhatsApp manda o código. Ele não fica salvo aqui.
           </span>
         </label>
       )}
 
-      {/* ── TROCAR DE CAMINHO ──
-          Sempre visível enquanto não conectou, e é o que impede alguém de ficar preso: o
-          pairing code falha em algumas versões do WhatsApp, e o QR é inútil em um aparelho
-          só. Ter os dois a um toque é a diferença entre "não funciona" e "usei o outro". */}
-      {!conectado && !travado && !ocupado && (
+      {!conectado && !pareando && !travado && !conferindo && (
         <button
-          onClick={() => {
-            /* Três situações, e elas exigem ações diferentes de propósito:
-             *
-             * 1. Pareamento em curso COM código: o servidor mandou os dois, então trocar é
-             *    só alternar o que se pinta. Nada de rede.
-             * 2. Pareamento em curso SEM código (nasceu por QR): o código não existe neste
-             *    pareamento e não dá para pedir sem recriar a instância. Então cancela — e
-             *    cancelar é o que já faz o botão "Cancelar" ao lado. O campo de telefone
-             *    aparece em seguida, e o próximo clique gera o código.
-             *
-             *    ⚠️ Um botão que só mudasse o rótulo aqui pareceria quebrado, e este é o
-             *    exato momento em que a pessoa está tentando desencalhar.
-             * 3. Nada em curso: só troca o caminho que será pedido. */
-            if (pareando && st.codigo) { setVerQr((v) => !v); return; }
-            if (pareando) {
-              /* Sempre PARA o código, nunca alterna. Só se chega aqui olhando um QR — seja
-               * porque foi ele que se pediu, seja porque o servidor não gerou o código. Nos
-               * dois casos o que a pessoa quer é o caminho sem câmera. */
-              void st.desconectarCanal();
-              setVerQr(false);
-              setEscolha("codigo");
-              return;
-            }
-            setVerQr(false);
-            setEscolha(porCodigo ? "qr" : "codigo");
-          }}
-          className="m-focus"
-          style={s(
-            "align-self:flex-start;background:none;border:none;padding:0;font-family:inherit;cursor:pointer;" +
-            "font-size:var(--t-label);font-weight:var(--w-title);color:var(--primary);text-decoration:underline",
-          )}
+          type="button"
+          className="m-novo-botao m-focus"
+          aria-disabled={ocupado || faltaTelefone}
+          onClick={ocupado || faltaTelefone
+            ? undefined
+            /* Por código, o número foi DIGITADO e pode estar errado — confere antes.
+             * Por QR não há o que conferir: quem aponta a câmera é o dono do aparelho. */
+            : porCodigo ? () => setConferindo(true) : () => void st.conectarCanal(argumentos())}
         >
-          {/* O rótulo segue o que está NA TELA, não o que foi pedido: quem pediu código e
-              recebeu só QR (o pairing code falha calado em algumas versões) está olhando um
-              QR, e "prefiro ler o QR" seria uma oferta do que ele já tem. */}
-          {pareando && st.codigo
-            ? mostrandoCodigo ? "Prefiro ler o QR code" : "Voltar para o código"
-            : pareando ? "Não consigo ler o QR: usar código"
-            : porCodigo ? "Prefiro ler o QR code" : "Estou no celular: usar código"}
+          {/* O rótulo carrega o estado: um botão que não faz nada e não diz por quê é o jeito
+              mais rápido de a pessoa concluir que o produto travou. */}
+          {ocupado ? "Gerando…" : faltaTelefone ? "Digite o número" : porCodigo ? "Receber código" : "Conectar WhatsApp"}
         </button>
+      )}
+
+      {conectado && confirmando !== null && (
+        <span className="m-alvos" style={s("display:flex;gap:8px;flex-wrap:wrap")}>
+          <button
+            type="button"
+            className="m-novo-botao perigo curto m-focus"
+            aria-disabled={ocupado || (confirmando === "trocar" && faltaTelefone)}
+            onClick={ocupado || (confirmando === "trocar" && faltaTelefone) ? undefined : () => {
+              /* Trocar leva o `numero` junto. Quem está no celular vai cair no mesmo
+               * QR ilegível de sempre — e aqui é pior, porque a troca já derrubou o
+               * canal antes de mostrar o que não dá para ler. */
+              const acao = confirmando === "trocar"
+                ? () => st.trocarNumero(argumentos())
+                : () => st.desconectarCanal();
+              setConfirmando(null);
+              void acao();
+            }}
+          >
+            {ocupado
+              ? "…"
+              : confirmando === "trocar"
+                ? faltaTelefone ? "Digite o número novo" : "Sim, trocar"
+                : "Sim, desconectar"}
+          </button>
+          <button type="button" className="m-novo-botao tinta curto m-focus" onClick={() => setConfirmando(null)}>Voltar</button>
+        </span>
       )}
 
       {/* Os dois são EFÊMEROS: a Evolution troca o QR a cada poucos segundos, o código do
@@ -497,28 +451,81 @@ function FaixaCanalLida() {
       )}
 
       {!mostrandoCodigo && st.qrcode && (
-        <div style={s("display:flex;align-items:center;gap:16px;padding:12px;border-radius:var(--r-painel);background:var(--surface)")}>
+        <div style={s("display:flex;align-items:center;gap:16px;flex-wrap:wrap")}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={st.qrcode}
             alt="QR code para conectar o WhatsApp"
-            style={s("width:148px;height:148px;flex-shrink:0;border-radius:var(--r-controle);background:#fff;image-rendering:pixelated")}
+            style={s("width:168px;height:168px;flex-shrink:0;border-radius:var(--r-controle);background:#fff;image-rendering:pixelated")}
           />
-          <span style={s("font-size:var(--t-label);color:var(--muted);line-height:1.6")}>
-            Leia com o celular do <b>número do negócio</b>.<br />
+          <span style={s("display:flex;align-items:center;gap:10px;font-size:15px;color:var(--muted);line-height:1.45")}>
+            <span className="m-novo-giro" aria-hidden />
             A tela avisa sozinha quando conectar.
           </span>
         </div>
       )}
 
+      {/* ── TROCAR DE CAMINHO, E DESISTIR ──
+          Sempre visíveis enquanto não conectou, e é o que impede alguém de ficar preso: o
+          pairing code falha em algumas versões do WhatsApp, e o QR é inútil em um aparelho
+          só. Ter os dois a um toque é a diferença entre "não funciona" e "usei o outro". */}
+      {!conectado && !travado && !ocupado && (
+        <span style={s("display:flex;justify-content:center;flex-wrap:wrap;gap:4px 12px")}>
+          <button
+            type="button"
+            className="m-novo-link m-focus"
+            onClick={() => {
+              /* Três situações, e elas exigem ações diferentes de propósito:
+               *
+               * 1. Pareamento em curso COM código: o servidor mandou os dois, então trocar é
+               *    só alternar o que se pinta. Nada de rede.
+               * 2. Pareamento em curso SEM código (nasceu por QR): o código não existe neste
+               *    pareamento e não dá para pedir sem recriar a instância. Então cancela — e
+               *    cancelar é o que já faz o "Cancelar" ao lado. O campo de telefone
+               *    aparece em seguida, e o próximo clique gera o código.
+               *
+               *    ⚠️ Um botão que só mudasse o rótulo aqui pareceria quebrado, e este é o
+               *    exato momento em que a pessoa está tentando desencalhar.
+               * 3. Nada em curso: só troca o caminho que será pedido. */
+              if (pareando && st.codigo) { setVerQr((v) => !v); return; }
+              if (pareando) {
+                /* Sempre PARA o código, nunca alterna. Só se chega aqui olhando um QR — seja
+                 * porque foi ele que se pediu, seja porque o servidor não gerou o código. Nos
+                 * dois casos o que a pessoa quer é o caminho sem câmera. */
+                void st.desconectarCanal();
+                setVerQr(false);
+                setEscolha("codigo");
+                return;
+              }
+              setVerQr(false);
+              setEscolha(porCodigo ? "qr" : "codigo");
+            }}
+          >
+            {/* O rótulo segue o que está NA TELA, não o que foi pedido: quem pediu código e
+                recebeu só QR (o pairing code falha calado em algumas versões) está olhando um
+                QR, e "prefiro ler o QR" seria uma oferta do que ele já tem. */}
+            {pareando && st.codigo
+              ? mostrandoCodigo ? "Prefiro ler o QR code" : "Voltar para o código"
+              : pareando ? "Não consigo ler o QR: usar código"
+              : porCodigo ? "Prefiro ler o QR code" : "Estou no celular: usar código"}
+          </button>
+          {pareando && (
+            <button type="button" className="m-novo-link m-focus" style={s("color:var(--muted)")} onClick={() => void st.desconectarCanal()}>
+              Cancelar
+            </button>
+          )}
+        </span>
+      )}
+
       {/* ── QUEM RECEBE O "PRECISO DE VOCÊ" ──
           Mora na faixa do canal e não numa tela de ajustes porque é a mesma pergunta que o
-          pareamento responde: por onde a MAISA fala com o negócio. Só aparece com canal de
-          pé — pedir antes seria cobrar um dado para um WhatsApp que ainda não existe. */}
-      {(conectado || pareando) && !travado && <DonoDoCanal />}
+          pareamento responde: por onde a MAISA fala com o negócio. Só aparece com o canal
+          CONECTADO desde 14/11/2026: durante o pareamento ela dividia a tela com o código, que
+          é a única coisa que importa naquele minuto. */}
+      {conectado && !travado && <DonoDoCanal />}
 
       {st.canalErro && (
-        <span style={s("font-size:var(--t-label);color:var(--danger);line-height:1.5")}>{st.canalErro}</span>
+        <p className="m-novo-sub" style={s("margin:0;color:var(--danger)")}>{st.canalErro}</p>
       )}
     </div>
   );
@@ -868,7 +875,8 @@ function Corpo({ id }: { id: RecorteId }) {
   const st = useStore();
   if (id === "whatsapp") {
     return (
-      <div style={s("display:flex;flex-direction:column;gap:16px")}>
+      /* `m-novo`: a primeira seção no visual novo (14/11/2026). Ver o bloco no `globals.css`. */
+      <div className="m-novo" style={s("display:flex;flex-direction:column;gap:16px")}>
         <FaixaCanal />
         {/* "De quem é esse número" só com o canal de pé (07 P1.4): antes de existir número,
             a pergunta não tem sobre o que ser. */}
@@ -1033,7 +1041,9 @@ function Navegacao({ ativo, celular }: { ativo: RecorteId | null; celular?: bool
           >
             <span style={s("flex:1;min-width:0;display:flex;flex-direction:column;gap:2px")}>
               <span>{r.titulo}</span>
-              {pend && <Estado forma="triangulo" tom="warn">{pend}</Estado>}
+              {/* "Sem WhatsApp" em cinza, como no cabeçalho (14/11/2026, ver `StatusDaMaisa`). As
+                  outras pendências seguem em âmbar até as telas delas mudarem. */}
+              {pend && <Estado forma="triangulo" tom={pend === "Sem WhatsApp" ? "neutral" : "warn"}>{pend}</Estado>}
             </span>
             {celular && <Icon name="chevron-right" size={18} style={s("color:var(--muted);flex-shrink:0")} />}
           </button>

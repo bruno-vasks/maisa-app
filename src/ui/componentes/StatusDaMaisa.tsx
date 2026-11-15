@@ -64,11 +64,15 @@ const FORMA: Record<Conhecido, FormaDeEstado> = {
 };
 
 /* Cor da marca por fundo. Sobre `--nav`, `--success` e `--warn` dão 2,1:1 e 2,4:1; o verde de
- * marca do WhatsApp dá 7,3:1 e o âmbar é pendência (emenda 2 do maisa-design), que é o que
- * "sem WhatsApp" é. Sobre fundo claro, os tons de estado de sempre. */
+ * marca do WhatsApp dá 7,3:1. Sobre fundo claro, os tons de estado de sempre.
+ *
+ * ⚠️ "SEM WHATSAPP" NÃO É MAIS ÂMBAR (14/11/2026). Era a pendência da emenda 2 do maisa-design, e
+ * o Bruno disse que o triângulo amarelo em todo cabeçalho "chama muito a atenção e parece um
+ * susto": quem acabou de criar a conta via um alerta em toda tela antes de conectar qualquer
+ * coisa. Fica cinza, como "pausada"; o que separa os dois é a FORMA (triângulo × anel) e o rótulo. */
 const COR: Record<"nav" | "claro", Record<Conhecido, string>> = {
-  nav: { atendendo: "var(--whatsapp-mark)", pausada: "var(--nav-soft)", sem_whatsapp: "var(--warm)" },
-  claro: { atendendo: "var(--success)", pausada: "var(--muted)", sem_whatsapp: "var(--warn)" },
+  nav: { atendendo: "var(--whatsapp-mark)", pausada: "var(--nav-soft)", sem_whatsapp: "var(--nav-soft)" },
+  claro: { atendendo: "var(--success)", pausada: "var(--muted)", sem_whatsapp: "var(--muted)" },
 };
 
 function Marca({ forma, cor }: { forma: FormaDeEstado; cor: string }) {
