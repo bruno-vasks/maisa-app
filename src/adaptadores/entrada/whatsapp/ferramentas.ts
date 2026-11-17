@@ -110,11 +110,22 @@ export type EstadoDoTurno = {
    * "vou esperar", um emoji depois da despedida. Ver o passo 3 de `agente.ts`.
    */
   calou: { motivo: string } | null;
+
+  /**
+   * O modelo consultou as respostas prontas (`responder_duvidas`) neste turno.
+   *
+   * Existe para a trava do `chamar_humano` (17/11/2026). No ensaio da conta oficial, de 16
+   * conversas com dúvida de configuração, a MAISA acertou a resposta pronta em TODAS as 8
+   * vezes em que consultou, e nas outras foi direto a "vou confirmar com o Bruno" sem
+   * consultar: o cliente ficava esperando uma resposta que estava cadastrada. A persona já
+   * mandava consultar antes, e o modelo pulava. Prompt é a camada fraca; a trava é aqui.
+   */
+  consultouDuvidas: boolean;
 };
 
 export const novoEstado = (): EstadoDoTurno => ({
   ofertas: new Map(), escalou: null, marcou: null, tentouAgendar: false, jaEstavaMarcado: false,
-  cancelou: false, podeCalar: false, calou: null,
+  cancelou: false, podeCalar: false, calou: null, consultouDuvidas: false,
 });
 
 const chaveOferta = (servicoId: string, agendaId: string, data: string, inicio: number) =>
@@ -284,8 +295,14 @@ export const FERRAMENTAS: DefinicaoDeFerramenta[] = [
       "Avisa o responsável, que vai continuar a conversa. Chame quando: não souber a resposta e não houver ferramenta que resolva; pedirem desconto, exceção ou algo fora do seu alcance; a pessoa estiver irritada ou reclamando de atendimento; pedir para falar com alguém; houver sinal de risco à vida; o assunto exigir julgamento profissional; ou algo der errado duas vezes. Chamar o responsável não é falha — é o comportamento certo. Chame uma vez por assunto: se você já chamou nesta conversa pelo mesmo motivo, não chame de novo. Depois de chamar, diga ao cliente numa frase curta que vai falar com o responsável e já retorna.",
     parametros: {
       type: "object",
-      properties: { motivo: { type: "string", description: "Uma frase para o responsável entender o que precisa dele." } },
-      required: ["motivo"],
+      properties: {
+        motivo: { type: "string", description: "Uma frase para o responsável entender o que precisa dele." },
+        urgente: {
+          type: "boolean",
+          description: "true quando é reclamação de atendimento, pessoa irritada ou sinal de risco à vida: o responsável é chamado na hora. false nos outros casos (não sabe a resposta, pedido fora do seu alcance, pediu para falar com alguém).",
+        },
+      },
+      required: ["motivo", "urgente"],
     },
   },
 ];
@@ -647,6 +664,7 @@ export function criarExecutor(deps: Dependencias) {
 
         /* ── o que o dono cadastrou ── */
         case "responder_duvidas": {
+          estado.consultouDuvidas = true;
           const achadas = await deps.responderDuvida(t, String(entrada.pergunta ?? ""));
 
           /* ⚠️ VAZIO NÃO É ERRO — devolve `ok`, não `nao`.
@@ -691,6 +709,21 @@ export function criarExecutor(deps: Dependencias) {
 
         /* ── desistir ── */
         case "chamar_humano": {
+          /* ── CONSULTAR ANTES DE DESISTIR ──
+           *
+           * Só quando o modelo diz que NÃO é urgente (`urgente: false`): reclamação, irritação
+           * e risco à vida chamam o responsável na hora, sem uma volta a mais. Ausente conta
+           * como urgente de propósito: na dúvida, a crise não espera uma busca.
+           *
+           * Uma recusa por turno: depois de consultar, o modelo chama de novo e passa. Ver
+           * `EstadoDoTurno.consultouDuvidas`. */
+          if (entrada.urgente === false && !estado.consultouDuvidas) {
+            return nao(
+              "Antes de chamar o responsável, consulte `responder_duvidas` com a pergunta do cliente, nas palavras dele: " +
+                "o dono pode ter cadastrado a resposta, inclusive para quem pede para falar com alguém. " +
+                "Se alguma resposta servir, responda com ela e não chame ninguém. Se nada servir, aí chame o responsável.",
+            );
+          }
           const motivo = String(entrada.motivo ?? "sem motivo informado");
           estado.escalou = { motivo };
           await deps.canal.escalar(t, { telefone: perfil.telefone, motivo });

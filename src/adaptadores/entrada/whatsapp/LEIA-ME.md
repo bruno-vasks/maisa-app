@@ -141,7 +141,7 @@ Elas são, literalmente, [`nucleo/portas/entrada/casos-de-uso.ts`](../../../nucl
 | `meus_horarios` | `LerAgenda` | Filtra por marca da MAISA **e** por telefone — sem isso vaza o compromisso pessoal do dono e o atendimento de outro cliente |
 | `cancelar` | `CancelarAtendimento` | `evento_id` só vem de `meus_horarios` |
 | `anotar_nome` | `AnotarFato` | Só nome. Favorito é inferido, nunca escrito |
-| `chamar_humano` | `CanalDeMensagens.escalar` | Uma vez por assunto; o aviso ao cliente não se repete |
+| `chamar_humano` | `CanalDeMensagens.escalar` | Uma vez por assunto; o aviso ao cliente não se repete. Com `urgente: false` (não sabe, fora do alcance, pediu alguém) e sem `responder_duvidas` no turno, é recusado uma vez e manda consultar antes (17/11/2026: no ensaio da conta oficial ela acertava a resposta pronta toda vez que consultava, e nas outras escalava sem consultar). `urgente` ausente conta como urgente: crise não espera busca |
 | `nao_responder` | — | Termina o turno sem mensagem. Recusado no primeiro contato e no turno que marcou, cancelou ou chamou o dono |
 
 Não existe ferramenta de identificar cliente: o telefone vem do envelope e o perfil é

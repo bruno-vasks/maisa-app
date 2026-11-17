@@ -133,3 +133,39 @@ describe("nao_responder", () => {
     expect(c.estado.calou).toEqual({ motivo: "só um 👍" });
   });
 });
+
+describe("chamar_humano consulta as respostas prontas antes de desistir", () => {
+  const avisados: string[] = [];
+  const executar = criarExecutor({
+    canal: { escalar: async (_t: ContextoTenant, p: { motivo: string }) => void avisados.push(p.motivo) },
+    responderDuvida: async () => [],
+  } as unknown as Dependencias);
+  const ctx = () => ({ t: {} as ContextoTenant, perfil: { telefone: "11990002222" } as never, estado: novoEstado(), config: {} as ConfiguracaoDoAgente });
+
+  /* Medido no ensaio da conta oficial (17/11/2026): em dúvida de configuração, a MAISA ia
+   * direto a "vou confirmar com o responsável" sem consultar, e a resposta estava cadastrada. */
+  it("sem urgência e sem ter consultado, recusa e manda consultar; não avisa ninguém", async () => {
+    const c = ctx();
+    const r = await executar(c, "chamar_humano", { motivo: "não sei onde cadastra serviço", urgente: false });
+    expect(r.erro).toBe(true);
+    expect(r.texto).toContain("responder_duvidas");
+    expect(c.estado.escalou).toBeNull();
+  });
+
+  it("depois de consultar no mesmo turno, chama", async () => {
+    const c = ctx();
+    await executar(c, "responder_duvidas", { pergunta: "onde cadastro meus serviços?" });
+    const r = await executar(c, "chamar_humano", { motivo: "não está cadastrado", urgente: false });
+    expect(r.erro).toBe(false);
+    expect(c.estado.escalou).toEqual({ motivo: "não está cadastrado" });
+  });
+
+  it("urgente, ou sem dizer, chama na hora: crise e reclamação não esperam uma busca", async () => {
+    for (const entrada of [{ motivo: "risco", urgente: true }, { motivo: "reclamação" }]) {
+      const c = ctx();
+      const r = await executar(c, "chamar_humano", entrada);
+      expect(r.erro).toBe(false);
+      expect(c.estado.escalou).toEqual({ motivo: entrada.motivo });
+    }
+  });
+});
