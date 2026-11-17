@@ -11,7 +11,7 @@
  * ────────────────────────────────────────────────────────────────────────────── */
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -84,10 +84,23 @@ function cliente(nome: string, telefone: string): Cliente {
   };
 }
 
+/* Teto de chamadas ao embedding do Gemini, somado entre todos os processos da rodada
+ * (`AVAL_EMBEDDING_TETO`). A chave do `.env.local` é a de produção: o teto garante que um
+ * ensaio não come a cota diária que a MAISA dos clientes usa. Cada chamada acrescenta um byte
+ * a um arquivo; passou do teto, a chamada falha em vez de gastar. */
+function contarEmbedding(): void {
+  const teto = Number(process.env.AVAL_EMBEDDING_TETO ?? 0);
+  if (!teto) return;
+  const arquivo = join(tmpdir(), "maisa-avaliacao-embeddings.contagem");
+  appendFileSync(arquivo, ".");
+  if (statSync(arquivo).size > teto) throw new Error(`teto de ${teto} embeddings do Gemini atingido nesta rodada`);
+}
+
 /* Paciência com a cota do embedding, como a do modelo em `conversa.ts`: dezenas de conversas
  * começando juntas estouram o limite por minuto do plano gratuito, e a conversa morria antes da
  * primeira mensagem. O erro do adaptador é `FalhaDoProvedor` com o status na causa. */
 async function comPaciencia<T>(f: () => Promise<T>): Promise<T> {
+  contarEmbedding();
   for (const espera of [3_000, 6_000, 12_000, 20_000, 30_000, 45_000, 60_000, 0]) {
     try {
       return await f();
@@ -186,10 +199,12 @@ export type Mundo = {
 
 export type OpcoesDoMundo = {
   modelo: ModeloDeConversa;
+  /** Um negócio fora de `NEGOCIOS`: o ensaio da conta oficial (`suporte/`) monta o dele. */
+  negocio?: NegocioDeTeste;
 };
 
 export async function criarMundo(c: Cenario, o: OpcoesDoMundo): Promise<Mundo> {
-  const n = NEGOCIOS[c.negocio];
+  const n = o.negocio ?? NEGOCIOS[c.negocio];
   const t: ContextoTenant = { tenantId: `aval-${c.id}-${randomUUID().slice(0, 8)}`, usuarioId: "avaliacao", ator: atorAgente("avaliacao") };
   const clientes: Cliente[] = [];
   const negocio = repositorioDe(n, clientes);
