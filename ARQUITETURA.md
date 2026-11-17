@@ -292,3 +292,4 @@ Honestidade sobre o estado real, para ninguém achar que está mais pronto do qu
 | `src/ui/guardas/` | [src/ui/guardas/LEIA-ME.md](src/ui/guardas/LEIA-ME.md) |
 | `scripts/bancada/` | [scripts/bancada/LEIA-ME.md](scripts/bancada/LEIA-ME.md) |
 | `avaliacao/` | [avaliacao/LEIA-ME.md](avaliacao/LEIA-ME.md) |
+| `avaliacao/suporte/` | [avaliacao/suporte/LEIA-ME.md](avaliacao/suporte/LEIA-ME.md) |

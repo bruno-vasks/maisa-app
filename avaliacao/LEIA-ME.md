@@ -109,6 +109,12 @@ critérios pelos do agente novo. Mantenha as três regras que mais pesaram aqui:
 conversa, código congelado numa git worktree durante a rodada, e nenhuma chave de produção de
 outro provedor no ambiente.
 
+## A conta oficial
+
+`suporte/` é uma bancada à parte para a conta oficial da maisa, que atende donos de negócio e
+não clientes deles: lead simulado que não sabe de quem é o número, juiz próprio e um teste de
+leitura das boas-vindas. Ver o `LEIA-ME.md` de lá.
+
 ## O que NÃO fazer aqui
 
 - ❌ Apontar a bancada para o Supabase. Ela marca e cancela horário de verdade no que estiver

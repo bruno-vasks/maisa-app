@@ -49,7 +49,10 @@ export async function julgar(c: CenarioSuporte, falas: Fala[], marcou: string, m
   const r = await perguntarAoClaude({
     modelo,
     sistema: REGUA,
-    prompt: `## A pessoa
+    prompt: `## Quando
+Agora é ${new Date(c.relogio).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} (horário de Brasília), no começo da conversa. "Amanhã" e "hoje" contam a partir daí.
+
+## A pessoa
 ${c.persona}
 O que ela quer: ${c.objetivo}
 O que deveria acontecer: ${c.esperado}

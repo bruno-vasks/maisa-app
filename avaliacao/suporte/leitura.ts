@@ -63,8 +63,11 @@ async function principal() {
   const repeticoes = Number(a.repeticoes ?? 2);
   const trabalhos: Promise<unknown>[] = [];
   const resultados: unknown[] = [];
-  for (const variante of ["antes", "depois"] as const) {
+  const variantes = (a.variantes ?? "antes,depois").split(",") as ("antes" | "depois")[];
+  const so = a.versoes ? a.versoes.split(",").map((v) => Number(v) - 1) : null;
+  for (const variante of variantes) {
     BOAS_VINDAS[variante].forEach((versao, indice) => {
+      if (so && !so.includes(indice)) return;
       for (const leitor of LEITORES) {
         for (let r = 1; r <= repeticoes; r++) {
           const bolhas = versao("");

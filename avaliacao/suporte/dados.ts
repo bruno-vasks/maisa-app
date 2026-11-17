@@ -223,6 +223,7 @@ export const BOAS_VINDAS: Record<"antes" | "depois", Versao[]> = {
 export const REFERENCIA = `- Este número de WhatsApp (11 92749-1903) é o suporte da maisa. Quem responde é a própria maisa.
 - O Bruno é o especialista da maisa. A conversa com ele dura 30 minutos, é pelo WhatsApp e não tem custo; ele atende de segunda a sábado, das 9h às 19h.
 - O vídeo do caminho do código no iPhone: ${VIDEO}
+- Quando a maisa não sabe responder, ela pode chamar o responsável: o Bruno recebe um aviso no WhatsApp dele e responde nesta mesma conversa quando puder, sem prazo garantido. Isso é o certo quando a resposta NÃO está na referência abaixo; quando está, chamar o Bruno em vez de responder é falha.
 
 Fatos do app (as respostas prontas da proposta, conferidas no código em 17/11/2026):
 ${FAQS_DEPOIS.map((f) => `- P: ${f.pergunta}\n  R: ${f.resposta}`).join("\n")}`;
